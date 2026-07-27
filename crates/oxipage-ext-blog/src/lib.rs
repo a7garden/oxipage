@@ -15,6 +15,9 @@ impl Extension for BlogExtension {
     fn id(&self) -> &'static str {
         "blog"
     }
+    fn table_names(&self) -> Vec<&'static str> {
+        vec!["blog_post"]
+    }
 
     fn display_name(&self, lang: Lang) -> String {
         match lang {

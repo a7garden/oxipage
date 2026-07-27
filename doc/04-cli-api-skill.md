@@ -81,7 +81,8 @@ oxipage activity sync                            # 즉시 GitHub 동기화 트�
 oxipage lobby layout set <extension> --mode canvas|grid|list
 oxipage extension list
 oxipage extension enable|disable <name>
-oxipage extension install <name>                 # Phase 2, OSS 레지스트리 (6장)
+oxipage extension purge <name> --yes               # 테이블 DROP + 미디어 rm (doc/02 §2.13)
+oxipage extension install <name>                 # Phase 5, OSS 레지스트리 (6장)
 ```
 
 **전역 옵션:** 모든 하위 명령은 `--json`을 지원해 사람 친화적 출력과 기계 친화적 출력을 모두 냅니다. 이건 에이전트(oh-my-pi)가 결과를 안정적으로 파싱하기 위한 요구사항입니다(§4.6).

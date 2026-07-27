@@ -16,6 +16,9 @@ impl Extension for BooksExtension {
     fn id(&self) -> &'static str {
         "books"
     }
+    fn table_names(&self) -> Vec<&'static str> {
+        vec!["book_entry"]
+    }
 
     fn display_name(&self, lang: Lang) -> String {
         match lang {

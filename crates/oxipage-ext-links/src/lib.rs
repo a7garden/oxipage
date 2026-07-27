@@ -15,6 +15,9 @@ impl Extension for LinksExtension {
     fn id(&self) -> &'static str {
         "links"
     }
+    fn table_names(&self) -> Vec<&'static str> {
+        vec!["link_card"]
+    }
 
     fn display_name(&self, lang: Lang) -> String {
         match lang {

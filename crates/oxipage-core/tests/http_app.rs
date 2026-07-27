@@ -21,7 +21,14 @@ impl Extension for DummyExt {
         }
     }
     fn migrations(&self) -> Vec<Migration> {
-        vec![]
+        vec![Migration {
+            version: 1,
+            name: "init",
+            sql: "CREATE TABLE IF NOT EXISTS dummy_t (id INTEGER PRIMARY KEY)",
+        }]
+    }
+    fn table_names(&self) -> Vec<&'static str> {
+        vec!["dummy_t"]
     }
     fn routes(&self) -> axum::Router<AppState> {
         use axum::routing::get;
@@ -38,7 +45,7 @@ impl Extension for DummyExt {
 async fn test_app() -> axum::Router {
     let pool = oxipage_core::db::connect_memory().await.unwrap();
     let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(DummyExt)]));
-    registry.run_migrations(&pool).await.unwrap();
+    registry.run_migrations(&pool, &[]).await.unwrap();
     let state = AppState {
         db: pool,
         config: Arc::new(Config::default()),
@@ -130,7 +137,7 @@ use sqlx::SqlitePool;
 async fn pat_setup(admin_token: Option<&str>) -> (axum::Router, SqlitePool) {
     let pool = oxipage_core::db::connect_memory().await.unwrap();
     let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(DummyExt)]));
-    registry.run_migrations(&pool).await.unwrap();
+    registry.run_migrations(&pool, &[]).await.unwrap();
     let state = AppState {
         db: pool.clone(),
         config: Arc::new(Config::default()),
@@ -221,4 +228,97 @@ async fn pat_with_neither_admin_nor_write_is_rejected_even_with_valid_token() {
     let pat = seed_pat(&pool, "reader2", &["read"]).await;
     let res = post_create_pat(app, &pat).await;
     assert_eq!(res.status(), StatusCode::FORBIDDEN);
+}
+
+// ─── extension lifecycle (doc/02 §2.13, doc/04 §4.3) ───
+
+async fn admin_app() -> axum::Router {
+    let pool = oxipage_core::db::connect_memory().await.unwrap();
+    let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(DummyExt)]));
+    registry.run_migrations(&pool, &[]).await.unwrap();
+    let state = AppState {
+        db: pool,
+        config: Arc::new(Config::default()),
+        admin_token: Some(Arc::from("test-admin-token")),
+        registry,
+    };
+    oxipage_core::http::build_app(state)
+}
+
+fn admin_req(method: &str, uri: &str) -> Request<Body> {
+    Request::builder()
+        .method(method)
+        .uri(uri)
+        .header("authorization", "Bearer test-admin-token")
+        .body(Body::empty())
+        .unwrap()
+}
+
+#[tokio::test]
+async fn extensions_list_returns_admin_state() {
+    let app = admin_app().await;
+    let res = app.oneshot(admin_req("GET", "/api/v1/extensions")).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = body_string(res).await;
+    assert!(body.contains("dummy"), "body: {body}");
+}
+
+#[tokio::test]
+async fn disable_gates_extension_routes() {
+    let app = admin_app().await;
+    let before = app
+        .clone()
+        .oneshot(Request::get("/api/v1/dummy").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(before.status(), StatusCode::OK);
+    let res = app
+        .clone()
+        .oneshot(admin_req("POST", "/api/v1/extensions/dummy/disable"))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let gated = app
+        .oneshot(Request::get("/api/v1/dummy").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(gated.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn enable_restores_extension_routes() {
+    let app = admin_app().await;
+    app.clone()
+        .oneshot(admin_req("POST", "/api/v1/extensions/dummy/disable"))
+        .await
+        .unwrap();
+    let res = app
+        .clone()
+        .oneshot(admin_req("POST", "/api/v1/extensions/dummy/enable"))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let after = app
+        .oneshot(Request::get("/api/v1/dummy").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(after.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn purge_marks_extension_and_gates_routes() {
+    let app = admin_app().await;
+    let res = app
+        .clone()
+        .oneshot(admin_req("DELETE", "/api/v1/extensions/dummy"))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = body_string(res).await;
+    assert!(body.contains("\"purged\":true"), "body: {body}");
+    let gated = app
+        .oneshot(Request::get("/api/v1/dummy").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(gated.status(), StatusCode::NOT_FOUND);
 }

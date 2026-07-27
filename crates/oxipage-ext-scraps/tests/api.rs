@@ -11,7 +11,7 @@ use tower::ServiceExt;
 async fn test_app(admin_token: Option<&str>) -> Router {
     let pool = oxipage_core::db::connect_memory().await.unwrap();
     let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(ScrapsExtension)]));
-    registry.run_migrations(&pool).await.unwrap();
+    registry.run_migrations(&pool, &[]).await.unwrap();
     let state = AppState {
         db: pool,
         config: Arc::new(Config::default()),
@@ -218,7 +218,7 @@ async fn queue_publish_and_source_filter_flow() {
     // 메모리 풀을 만들어 큐 row를 미리 insert 한다 (test 격리).
     let pool = oxipage_core::db::connect_memory().await.unwrap();
     let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(ScrapsExtension)]));
-    registry.run_migrations(&pool).await.unwrap();
+    registry.run_migrations(&pool, &[]).await.unwrap();
 
     // 큐 후보 2개 insert (hackernews 1, geeknews 1) + 수동 발행 1개
     let hn = oxipage_ext_scraps::repo::upsert_queue_item(

@@ -40,6 +40,9 @@ impl Extension for ActivityExtension {
     fn id(&self) -> &'static str {
         "activity"
     }
+    fn table_names(&self) -> Vec<&'static str> {
+        vec!["activity_event"]
+    }
 
     fn display_name(&self, lang: Lang) -> String {
         match lang {

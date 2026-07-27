@@ -17,6 +17,9 @@ impl Extension for ScrapsExtension {
     fn id(&self) -> &'static str {
         "scraps"
     }
+    fn table_names(&self) -> Vec<&'static str> {
+        vec!["scrap_item"]
+    }
 
     fn display_name(&self, lang: Lang) -> String {
         match lang {

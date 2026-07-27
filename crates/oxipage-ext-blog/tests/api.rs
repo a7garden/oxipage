@@ -11,7 +11,7 @@ use tower::ServiceExt;
 async fn test_app(admin_token: Option<&str>) -> Router {
     let pool = oxipage_core::db::connect_memory().await.unwrap();
     let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(BlogExtension)]));
-    registry.run_migrations(&pool).await.unwrap();
+    registry.run_migrations(&pool, &[]).await.unwrap();
     let state = AppState {
         db: pool,
         config: Arc::new(Config::default()),
@@ -195,7 +195,7 @@ async fn publish_without_admin_configured_is_503() {
 async fn fts_index_on_publish() {
     let pool = oxipage_core::db::connect_memory().await.unwrap();
     let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(BlogExtension)]));
-    registry.run_migrations(&pool).await.unwrap();
+    registry.run_migrations(&pool, &[]).await.unwrap();
 
     let _draft = oxipage_ext_blog::repo::create(
         &pool,

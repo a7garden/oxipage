@@ -16,6 +16,9 @@ impl Extension for MoviesExtension {
     fn id(&self) -> &'static str {
         "movies"
     }
+    fn table_names(&self) -> Vec<&'static str> {
+        vec!["series_group", "movie_entry"]
+    }
 
     fn display_name(&self, lang: Lang) -> String {
         match lang {

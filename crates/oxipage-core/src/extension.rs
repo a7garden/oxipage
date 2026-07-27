@@ -91,6 +91,12 @@ pub trait Extension: Send + Sync {
     fn public_pages(&self) -> Vec<PageSpec> {
         Vec::new()
     }
+
+    /// 이 확장이 소유한 데이터 테이블 이름 (purge 시 DROP 대상). FTS 색인과
+    /// 미디어 디렉토리(`data/media/{id}/`)는 코어가 별도로 정리한다.
+    fn table_names(&self) -> Vec<&'static str> {
+        Vec::new()
+    }
 }
 
 /// 공통 데이터 봉투 helpers — 확장 routes에서 재사용.

@@ -11,7 +11,7 @@ use tower::ServiceExt;
 async fn test_app(admin_token: Option<&str>) -> Router {
     let pool = oxipage_core::db::connect_memory().await.unwrap();
     let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(ProjectsExtension)]));
-    registry.run_migrations(&pool).await.unwrap();
+    registry.run_migrations(&pool, &[]).await.unwrap();
     let state = AppState {
         db: pool,
         config: Arc::new(Config::default()),
@@ -180,7 +180,7 @@ async fn draft_create_publish_with_screenshots() {
 async fn fts_index_on_publish() {
     let pool = oxipage_core::db::connect_memory().await.unwrap();
     let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(ProjectsExtension)]));
-    registry.run_migrations(&pool).await.unwrap();
+    registry.run_migrations(&pool, &[]).await.unwrap();
 
     oxipage_ext_projects::repo::create(
         &pool,

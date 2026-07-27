@@ -60,6 +60,9 @@ pub enum Command {
     /// 로비 표시 설정 (doc/03 §3.6)
     #[command(subcommand)]
     Lobby(commands::LobbyCommand),
+    /// 확장 탑재/제거 (doc/02 §2.13, doc/04 §4.3)
+    #[command(subcommand)]
+    Extension(commands::ExtensionCommand),
 }
 
 #[tokio::main]

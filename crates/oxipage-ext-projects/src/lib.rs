@@ -15,6 +15,9 @@ impl Extension for ProjectsExtension {
     fn id(&self) -> &'static str {
         "projects"
     }
+    fn table_names(&self) -> Vec<&'static str> {
+        vec!["project", "screenshot"]
+    }
 
     fn display_name(&self, lang: Lang) -> String {
         match lang {

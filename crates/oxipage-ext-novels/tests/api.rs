@@ -11,7 +11,7 @@ use tower::ServiceExt;
 async fn test_app(admin_token: Option<&str>) -> Router {
     let pool = oxipage_core::db::connect_memory().await.unwrap();
     let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(NovelsExtension)]));
-    registry.run_migrations(&pool).await.unwrap();
+    registry.run_migrations(&pool, &[]).await.unwrap();
     let state = AppState {
         db: pool,
         config: Arc::new(Config::default()),

@@ -2,7 +2,8 @@
 //! 호출한다 (doc/04 §4.1 — `serve`는 "CLI가 서버 프로세스를 기동하는 예외").
 //!
 //! 이 크레이트는 모든 확장을 정적 링크하며, 여기서 확장 레지스트리를 조립한다.
-//! 새 확장 추가 시 `all_extensions()`에 한 줄 추가하고 Cargo.toml 의존성을 추가.
+//! 런타임 탑재/제거는 DB `extension_state` 기반 (doc/02 §2.13). 새 확장 추가 시
+//! `all_extensions()`에 한 줄 추가하고 Cargo.toml 의존성을 추가.
 
 use oxipage_core::config::Config;
 use oxipage_core::extension::Extension;
@@ -13,8 +14,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tracing_subscriber::EnvFilter;
 
-/// 활성화된 모든 확장을 정적 링크에서 조립.
-/// oxipage.toml의 `[extensions].enabled`가 비어 있으면 전부 활성화.
+/// 컴파일된 모든 확장을 정적 링크에서 조립. registry는 항상 전부를 들고 가며,
+/// 런타임 활성/비활성은 DB `extension_state`가 결정한다 (doc/02 §2.13).
+/// `oxipage.toml`의 `[extensions].enabled`는 첫 부팅 시드로만 쓰인다.
 pub fn all_extensions() -> Vec<Arc<dyn Extension>> {
     vec![
         Arc::new(oxipage_ext_profile::ProfileExtension),
@@ -52,18 +54,14 @@ pub async fn run_server_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow:
     };
     let config = Arc::new(config);
 
-    let enabled: Vec<Arc<dyn Extension>> = if config.extensions.enabled.is_empty() {
-        all
-    } else {
-        all.into_iter()
-            .filter(|e| config.extensions.enabled.iter().any(|id| id == e.id()))
-            .collect()
-    };
-    let registry = Arc::new(ExtensionRegistry::new(enabled));
+    // 단일 진실 소스 (doc/02 §2.13): 모든 컴파일 확장이 registry에 들어가 라우트까지 항상
+    // 마운트된다. toml [extensions].enabled는 첫 부팅 시드로만 쓰이고 이후엔 DB가 결정.
+    let registry = Arc::new(ExtensionRegistry::new(all));
+    let toml_enabled = config.extensions.enabled.clone();
 
     let db_path = config.server.data_dir.join("oxipage.db");
     let db = oxipage_core::db::connect(&db_path).await?;
-    registry.run_migrations(&db).await?;
+    registry.run_migrations(&db, &toml_enabled).await?;
 
     let admin_token: Option<Arc<str>> = std::env::var("OXIPAGE_ADMIN_TOKEN")
         .ok()
@@ -82,7 +80,16 @@ pub async fn run_server_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow:
         registry: registry.clone(),
     };
     for ext in registry.iter() {
-        ext.on_startup(&state).await?;
+        let status = registry.status_of(ext.id()).await;
+        let active = status.map(|s| s.active()).unwrap_or(false);
+        if active {
+            ext.on_startup(&state).await?;
+        } else if status.map(|s| !s.purged).unwrap_or(false) {
+            // doc/02 §2.13 안전망: toml 비활성화로 시드된 확장의 FTS 색인을 즉시 정리.
+            if let Err(e) = ext.on_disable(&state).await {
+                tracing::warn!(extension = ext.id(), error = %e, "on_disable failed at boot");
+            }
+        }
     }
 
     let app = oxipage_core::http::build_app(state);

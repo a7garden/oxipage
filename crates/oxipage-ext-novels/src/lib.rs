@@ -15,6 +15,9 @@ impl Extension for NovelsExtension {
     fn id(&self) -> &'static str {
         "novels"
     }
+    fn table_names(&self) -> Vec<&'static str> {
+        vec!["novel", "novel_chapter"]
+    }
 
     fn display_name(&self, lang: Lang) -> String {
         match lang {

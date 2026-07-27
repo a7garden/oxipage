@@ -1,14 +1,16 @@
 use crate::auth::{self, AdminAuth, PatRow};
 use crate::error::ApiError;
-use crate::extension::Lang;
+use crate::extension::{Extension, Lang};
 use crate::search::SearchHit;
 use crate::state::AppState;
-use axum::extract::{Path, Query, State};
+use std::sync::Arc;
+use axum::extract::{Path, Query, Request, State};
 use axum::http::StatusCode;
 use axum::http::{Uri, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
+use axum::middleware::Next;
 use rust_embed::RustEmbed;
 use tower_http::trace::TraceLayer;
 
@@ -65,11 +67,20 @@ pub fn build_app(state: AppState) -> Router {
         .route("/auth/tokens/{id}", axum::routing::delete(auth_tokens_revoke))
         .route("/search", get(search_handler))
         .route("/docs", get(docs_ui))
-        .route("/docs/openapi.json", get(docs_spec));
+        .route("/docs/openapi.json", get(docs_spec))
+        .route("/extensions", get(extensions_list))
+        .route("/extensions/{id}/enable", axum::routing::post(extension_enable))
+        .route("/extensions/{id}/disable", axum::routing::post(extension_disable))
+        .route("/extensions/{id}", axum::routing::delete(extension_purge));
     for ext in state.registry.iter() {
         api = api.nest(&format!("/{}", ext.id()), ext.routes());
     }
-    let api = api.fallback(api_not_found);
+    let api = api
+        .fallback(api_not_found)
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            extension_gate,
+        ));
 
     let limiter = crate::rate_limit::RateLimiter::new(120); // IP당 120/min
     Router::new()
@@ -126,6 +137,9 @@ async fn search_handler(
 async fn lobby_manifest(State(state): State<AppState>) -> Json<DataEnvelope<Manifest>> {
     let mut extensions = Vec::new();
     for (idx, e) in state.registry.iter().enumerate() {
+        if !state.registry.is_active(e.id()).await {
+            continue;
+        }
         let lobby = lobby_config_for(&state, e.id(), idx as i64).await;
         extensions.push(ManifestExtension {
             id: e.id(),
@@ -180,6 +194,9 @@ async fn lobby_config_list(
 ) -> Json<DataEnvelope<Vec<LobbyConfigEntry>>> {
     let mut entries = Vec::new();
     for (idx, e) in state.registry.iter().enumerate() {
+        if !state.registry.is_active(e.id()).await {
+            continue;
+        }
         let info = lobby_config_for(&state, e.id(), idx as i64).await;
         entries.push(LobbyConfigEntry {
             extension_id: e.id().to_string(),
@@ -367,4 +384,190 @@ fn serve_asset(path: &str) -> Option<Response> {
 pub fn spa_index_html() -> Option<String> {
     Assets::get("index.html")
         .and_then(|f| std::str::from_utf8(f.data.as_ref()).ok().map(str::to_owned))
+}
+
+// ─── extension lifecycle (doc/02 §2.13, doc/04 §4.3) ───
+
+#[derive(serde::Serialize)]
+struct ExtensionInfo {
+    id: String,
+    display_name: ManifestLocalized,
+    enabled: bool,
+    purged: bool,
+}
+
+async fn extension_info(state: &AppState, ext: &Arc<dyn Extension>) -> ExtensionInfo {
+    let s = state.registry.status_of(ext.id()).await;
+    ExtensionInfo {
+        id: ext.id().to_string(),
+        display_name: ManifestLocalized {
+            ko: ext.display_name(Lang::Ko),
+            en: ext.display_name(Lang::En),
+        },
+        enabled: s.map(|s| s.enabled).unwrap_or(false),
+        purged: s.map(|s| s.purged).unwrap_or(false),
+    }
+}
+
+async fn extensions_list(
+    auth: AdminAuth,
+    State(state): State<AppState>,
+) -> Result<Json<DataEnvelope<Vec<ExtensionInfo>>>, ApiError> {
+    auth.require_scope("admin")?;
+    let snapshot = state.registry.status_snapshot().await;
+    let mut out = Vec::new();
+    for e in state.registry.iter() {
+        let s = snapshot.get(e.id()).copied();
+        out.push(ExtensionInfo {
+            id: e.id().to_string(),
+            display_name: ManifestLocalized {
+                ko: e.display_name(Lang::Ko),
+                en: e.display_name(Lang::En),
+            },
+            enabled: s.map(|s| s.enabled).unwrap_or(false),
+            purged: s.map(|s| s.purged).unwrap_or(false),
+        });
+    }
+    Ok(Json(DataEnvelope { data: out }))
+}
+
+async fn extension_enable(
+    auth: AdminAuth,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<DataEnvelope<ExtensionInfo>>, ApiError> {
+    auth.require_scope("admin")?;
+    let ext = state
+        .registry
+        .find(&id)
+        .cloned()
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "extension_not_found", "unknown extension id"))?;
+    let prev = state.registry.status_of(&id).await;
+    let was_purged = prev.map(|s| s.purged).unwrap_or(false);
+    let was_enabled = prev.map(|s| s.enabled).unwrap_or(false);
+    if was_purged {
+        // purge 복구: 플래그 클리어. 실제 마이그레이션은 다음 부팅 시 run_migrations가
+        // schema_migrations 행 부재를 감지해 재실행한다 (run_migrations future가
+        // 핸들러 컨텍스트에서 non-Send라 직접 await 불가 — 부팅 시점에 해결).
+        state.registry.set_purged(&state.db, &id, false).await?;
+    }
+    state.registry.set_enabled(&state.db, &id, true).await?;
+    if !was_enabled || was_purged {
+        match ext.on_startup(&state).await {
+            Ok(_) => {}
+            Err(e) => tracing::warn!(extension = %id, error = %e, "on_startup failed"),
+        }
+    }
+    Ok(Json(DataEnvelope {
+        data: extension_info(&state, &ext).await,
+    }))
+}
+
+async fn extension_disable(
+    auth: AdminAuth,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<DataEnvelope<ExtensionInfo>>, ApiError> {
+    auth.require_scope("admin")?;
+    let ext = state
+        .registry
+        .find(&id)
+        .cloned()
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "extension_not_found", "unknown extension id"))?;
+    let prev = state.registry.set_enabled(&state.db, &id, false).await?;
+    if prev.map(|s| s.enabled).unwrap_or(false) {
+        // enabled→disabled 전환 시에만 FTS 색인 즉시 정리 (doc/02 §2.13).
+        match ext.on_disable(&state).await {
+            Ok(_) => {}
+            Err(e) => tracing::warn!(extension = %id, error = %e, "on_disable failed"),
+        }
+    }
+    Ok(Json(DataEnvelope {
+        data: extension_info(&state, &ext).await,
+    }))
+}
+
+async fn extension_purge(
+    auth: AdminAuth,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
+    auth.require_scope("admin")?;
+    let ext = state
+        .registry
+        .find(&id)
+        .cloned()
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "extension_not_found", "unknown extension id"))?;
+    // 1. disable + FTS 정리.
+    state.registry.set_enabled(&state.db, &id, false).await?;
+    let _ = ext.on_disable(&state).await;
+    // 2. 확장 테이블 DROP. table_names()는 &'static str이지만 방어적으로 식별자 검증.
+    for table in ext.table_names() {
+        if !is_safe_ident(table) {
+            return Err(ApiError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "unsafe_table_name",
+                "extension returned an invalid table name",
+            ));
+        }
+        sqlx::query(&format!("DROP TABLE IF EXISTS {table}"))
+            .execute(&state.db)
+            .await
+            .map_err(|e| ApiError::from(anyhow::anyhow!(e)))?;
+    }
+    // 3. 미디어 디렉토리 rm (data/media/{id}/).
+    let media = state.config.server.data_dir.join("media").join(&id);
+    if media.exists() {
+        match std::fs::remove_dir_all(&media) {
+            Ok(_) => {}
+            Err(e) => tracing::warn!(path = %media.display(), error = %e, "failed to remove media dir during purge"),
+        }
+    }
+    // 4. 마이그레이션 기록 제거 — enable-after-purge가 재실행하도록.
+    sqlx::query("DELETE FROM schema_migrations WHERE extension = ?")
+        .bind(&id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| ApiError::from(anyhow::anyhow!(e)))?;
+    // 5. purge 플래그 세팅 (부팅 시 마이그레이션 스킵).
+    state.registry.set_purged(&state.db, &id, true).await?;
+    Ok(Json(DataEnvelope {
+        data: serde_json::json!({ "extension_id": id, "purged": true }),
+    }))
+}
+
+fn is_safe_ident(name: &str) -> bool {
+    !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+/// `/api/v1/{ext}/**` 경로에서 ext 세그먼트 추출. 코어 라우트(lobby/auth/search/docs)는
+/// registry.find 가 None이므로 게이트 대상이 아니다.
+fn extension_id_from_path(path: &str) -> Option<String> {
+    // nest 내부 layer라 path는 /api/v1 prefix가 벗겨진 상태다 ("/dummy", "/lobby/manifest").
+    let seg = path.trim_start_matches('/').split('/').next()?;
+    if seg.is_empty() {
+        None
+    } else {
+        Some(seg.to_string())
+    }
+}
+
+/// 런타임 게이트 미들웨어. registry에 있는 확장이 비활성/purged면 404.
+async fn extension_gate(
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Response {
+    if let Some(ext_id) = extension_id_from_path(request.uri().path())
+        && state.registry.find(&ext_id).is_some()
+        && !state.registry.is_active(&ext_id).await
+    {
+        return ApiError::new(
+            StatusCode::NOT_FOUND,
+            "extension_disabled",
+            "extension is disabled or purged",
+        )
+        .into_response();
+    }
+    next.run(request).await
 }

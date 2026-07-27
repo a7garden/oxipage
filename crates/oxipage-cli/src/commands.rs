@@ -142,6 +142,22 @@ pub enum LobbyCommand {
     Config,
 }
 
+#[derive(Subcommand, Debug)]
+pub enum ExtensionCommand {
+    /// 설치된 확장 목록 + 활성/purge 상태
+    List,
+    /// 확장 활성화 (purge 상태였으면 복구 — 다음 부팅 시 마이그레이션 재실행)
+    Enable { name: String },
+    /// 확장 비활성화 (soft — 라우트 404 + FTS 색인 정리, DB/미디어 유지)
+    Disable { name: String },
+    /// 확장 완전 삭제 (테이블 DROP + 미디어 디렉토리 rm)
+    Purge {
+        name: String,
+        #[arg(long)]
+        yes: bool,
+    },
+}
+
 // ───────────────────────── dispatch ─────────────────────────
 
 pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
@@ -158,6 +174,7 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
         Command::Project(c) => project(c, &out, &endpoint, &token).await,
         Command::Link(c) => link(c, &out, &endpoint, &token).await,
         Command::Lobby(c) => lobby(c, &out, &endpoint, &token).await,
+        Command::Extension(c) => extension(c, &out, &endpoint, &token).await,
     }
 }
 
@@ -595,6 +612,48 @@ async fn lobby(
         LobbyCommand::Config => {
             let res = client.get("/api/v1/lobby/config").await?;
             out.data(res, "lobby config")
+        }
+    }
+}
+
+// ───────────────────────── extension ─────────────────────────
+
+async fn extension(
+    c: ExtensionCommand,
+    out: &Output,
+    endpoint: &str,
+    token: &Option<String>,
+) -> anyhow::Result<()> {
+    let client = Client::new(endpoint.to_string(), token.clone())?;
+    match c {
+        ExtensionCommand::List => {
+            require_token(&client)?;
+            let res = client.get("/api/v1/extensions").await?;
+            out.data(res, "extensions")
+        }
+        ExtensionCommand::Enable { name } => {
+            require_token(&client)?;
+            let res = client
+                .post_raw(&format!("/api/v1/extensions/{name}/enable"), json!({}))
+                .await?;
+            out.data(res, "extension enabled")
+        }
+        ExtensionCommand::Disable { name } => {
+            require_token(&client)?;
+            let res = client
+                .post_raw(&format!("/api/v1/extensions/{name}/disable"), json!({}))
+                .await?;
+            out.data(res, "extension disabled")
+        }
+        ExtensionCommand::Purge { name, yes } => {
+            require_token(&client)?;
+            if !yes {
+                anyhow::bail!(
+                    "purge is destructive — pass --yes to confirm (drops tables + removes media for '{name}')"
+                );
+            }
+            let res = client.delete(&format!("/api/v1/extensions/{name}")).await?;
+            out.data(res, "extension purged")
         }
     }
 }

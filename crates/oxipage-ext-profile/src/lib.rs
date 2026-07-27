@@ -15,6 +15,9 @@ impl Extension for ProfileExtension {
     fn id(&self) -> &'static str {
         "profile"
     }
+    fn table_names(&self) -> Vec<&'static str> {
+        vec!["profile"]
+    }
 
     fn display_name(&self, lang: Lang) -> String {
         match lang {
