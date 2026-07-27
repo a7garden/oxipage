@@ -1,0 +1,25 @@
+.lobby-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 1rem;
+}
+
+.lobby-card {
+  display: block;
+  color: var(--color-text-primary);
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+.lobby-card:hover {
+  transform: translateY(-2px);
+  text-decoration: none;
+  box-shadow: 0 4px 16px oklch(0% 0 0 / 0.08);
+}
+.lobby-card h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.05rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lobby-card { transition: none; }
+  .lobby-card:hover { transform: none; }
+}
