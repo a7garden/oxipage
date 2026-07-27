@@ -27,7 +27,7 @@ function Shell() {
   const defaultLang: Lang = manifest?.site.default_lang === 'en' ? 'en' : 'ko';
 
   return (
-    <LanguageProvider defaultLang={defaultLang}>
+    <LanguageProvider key={defaultLang} defaultLang={defaultLang}>
       <div className="app-shell">
         <header className="app-header">
           <Link to="/" className="site-name">
