@@ -17,7 +17,7 @@
 
   /* 별점 전용 — "잉크에 찍은 금박" 톤 */
   --p-gold-500: oklch(78% 0.15 85);
-  --p-gold-600: oklch(68% 0.15 85);
+  --p-gold-600: oklch(55% 0.12 65); /* WCAG AA: 라이트 모드 별점 fill vs canvas ≥ 4.5:1 */
 
   /* 상태색 */
   --p-danger-500:  oklch(55% 0.19 25);
@@ -54,7 +54,7 @@
   --color-bg-surface-raised: oklch(22% 0.016 265);
   --color-text-primary:   var(--p-neutral-0);
   --color-text-secondary: var(--p-neutral-300);
-  --color-text-tertiary:  var(--p-neutral-500);
+  --color-text-tertiary:  oklch(65% 0.012 265); /* 다크에서 --p-neutral-500은 4:1로 미달 → 더 밝게 override */
   --color-border:         oklch(28% 0.015 265);
   --color-accent:         var(--p-accent-400);
   --color-accent-contrast:var(--p-neutral-950);

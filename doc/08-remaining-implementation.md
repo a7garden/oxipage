@@ -11,18 +11,17 @@
 | Foundation | 4/4 | FTS5·Rating·scheduler·Extension trait·IntegrationsConfig·CLI 스캐폴드 |
 | Phase 1 | 5/5 | blog·projects·links + CLI + 프론트 lazy route |
 | Phase 2 | 7/7 | novels·movies·books·scraps·activity + 별점 + background_jobs |
-| Phase 3 | 3/5 | 로비 3모드·LobbyConfig API·/search UI. **SSR 확장 연결·WCAG 실측 남음** |
+| Phase 3 | 5/5 | 로비 3모드·LobbyConfig API·/search UI·**SSR 확장 연결(7개 publish+7 delete)**·**WCAG AA 실측+토큰 조정** |
 | Phase 4 | 4/4 | PAT 스코프 분리·레이트리밋(build_app 연결)·OpenAPI/Swagger·SKILL.md |
 | Phase 5 | 5/6 | deploy·LICENSE·SDK 문서·레지스트리·starter·개인화. **WASM 옵션 남음** |
-| Verification | 1/3 | cargo test/clippy 통과. **배포 스모크·브라우저 접근성 실측 남음** |
+| Verification | 2/3 | cargo test/clippy -D warnings 통과·SSR 엔드투엔드 스모크 완료. **배포 스모크·브라우저 접근성 실측 남음** |
 
-**검증 상태:** `cargo test --workspace` 34 suites ok · `cd web && bun run build` ok ·
-clippy는 unused import 정리만 남음(`-D warnings` 정상화 필요).
+**검증 상태:** `cargo test --workspace` 100 tests ok · `cargo clippy --workspace --all-targets -- -D warnings` ok ·
+`cd web && bun run build` ok · SSR end-to-end: blog post create→publish→`data/snapshots/blog_*.html` 생성(og:title/og:url/canonical/main data-snapshot 확인)→DELETE→파일 제거.
 
-## 8.2 SSR 스냅샷 확장 연결 (Phase 3, core 인프라는 완료)
+## 8.2 SSR 스냅샷 확장 연결 (Phase 3, ✅ 완료 — 2026-07-27)
 
-**상태:** `crates/oxipage-core/src/snapshot.rs` 모듈 + 단위 테스트 완료.
-`render()`/`write_snapshot()`/`remove_snapshot()` + traversal 방지 sanitize.
+**상태:** ✅ 완료. `crates/oxipage-core/src/snapshot.rs`에 `render_with_index()`/`write_snapshot_for()` 추가, `crates/oxipage-core/src/http.rs`에 `spa_index_html()` 추가. 7개 확장(blog/projects/novels×2/movies/books/scraps)의 publish 핸들러 + 7개 delete 핸들러에 연결. SSR end-to-end 스모크로 검증 완료.
 
 **남은 작업:**
 
@@ -66,24 +65,20 @@ clippy는 unused import 정리만 남음(`-D warnings` 정상화 필요).
 **편차 (doc/01 §1.6 대비):** Askama 대신 수동 `format!`/`replacen` 템플릿 —
 의존성 절약, 1인 사이트 규모에서 충분.
 
-## 8.3 WCAG AA 대비 재검증 (Phase 3, 실측)
+## 8.3 WCAG AA 대비 재검증 (Phase 3, ✅ 완료 — 2026-07-27)
 
-**상태:** 미착수. `web/src/shared/tokens.css`의 OKLCH 토큰은 시작값(doc/03 §3.7).
+**상태:** ✅ 완료. OKLCH → sRGB → WCAG 상대 휘도 변환 직접 구현(eval 셀) 후
+라이트/다크 양쪽 주요 텍스트·아이콘 쌍 측정. 미달 2건 발견 → 토큰 조정 후 재측정 통과.
+상세 결과는 [`docs/accessibility.md`](../docs/accessibility.md) 참조.
 
-**남은 작업:**
+**조정 내역:**
+- `--p-gold-600`: `oklch(68% 0.15 85)` → `oklch(55% 0.12 65)` (라이트 별점 fill.
+  H=85 유지 시 L<60%에서 gamut 밖 튐 → H=65로 gamut 안전)
+- 다크 `--color-text-tertiary`: `var(--p-neutral-500)` (55% L) → `oklch(65% 0.012 265)`
+  (다크 surface-raised에서 3.58:1 → 5.34:1)
 
-1. **대비율 측정** — 주요 텍스트/배경 쌍:
-   - `--color-text-primary` vs `--surface-1` (라이트/다크 각각)
-   - `--color-text-secondary` / `--color-text-tertiary` vs 배경
-   - `--accent` 버튼 텍스트 vs `--accent` 배경
-   - 별점 `--color-rating-fill` vs 배경
-2. **WCAG 2.1 AA 기준:** 일반 텍스트 ≥ 4.5:1, 큰 텍스트(18pt+/14pt bold) ≥ 3:1.
-3. **OKLCH → sRGB → 상대 휘도 변환** 필요. Lea Verou의 `oklch.com` 또는
-   `apca` 라이브러리로 측정 권장.
-4. **필요 시 tokens.css 값 조정** — 기준 미달 색상의 L(밝기) 조정.
-5. **문서화** — `docs/accessibility.md`에 측정 결과와 AA 준수 여부 기록.
-
-이 항목은 코드 변경이 아닌 **측정 + 필요 시 토큰 조정** 작업.
+**알려진 한계:** 라이트 gold-600 / surface-50 (card 배경) = 4.34:1로 미세 미달.
+별점 컴포넌트가 card 위에 놓이지 않는다는 설계 전제. 추후 card 위 별점 도입 시 재검토.
 
 ## 8.4 WASM 컴포넌트 스파이크 (Phase 5, 옵션)
 
@@ -141,27 +136,27 @@ doc/07 §7.7 명시: "명시적 설계 제약". 본 스파크는 가능성 탐�
 5. **반응형** — 모바일/태블릿/데스크톱 레이아웃.
 6. **문서화** — `docs/accessibility.md`(8.3 WCAG 결과와 통합).
 
-## 8.7 정리 필요 (clippy -D warnings 정상화)
+## 8.7 정리 필요 (clippy -D warnings 정상화) — ✅ 완료 (2026-07-27)
 
-**상태:** `cargo clippy --workspace`에 unused import warnings.
+**상태:** ✅ 완료. `cargo clippy --workspace --all-targets -- -D warnings` 클린.
 
-**수정 대상 (보고된 것):**
-- `crates/oxipage-ext-blog/src/` — unused import 1건
-- `crates/oxipage-ext-projects/src/` — 2건
+**수정 내역 (보고된 것):**
+- `crates/oxipage-ext-blog/src/` — collapsible_if 1건
+- `crates/oxipage-ext-projects/src/` — map_or → is_none_or 2건
 - `crates/oxipage-ext-novels/src/` — `NovelPatch` 미사용 2건 (repo.rs, routes.rs)
-- `crates/oxipage-ext-movies/src/` — 3건
-- `crates/oxipage-ext-books/tests/api.rs` — 1건
-- `crates/oxipage-cli/src/` — `Output::value` 미사용 메서드 (제거 또는 사용)
-
-**작업:** `cargo clippy --fix --workspace --allow-dirty` 또는 수동 제거.
-`-D warnings` CI 게이트 통과 목적.
+- `crates/oxipage-ext-movies/src/` — unnecessary_unwrap 1건 + map_or 3건
+- `crates/oxipage-ext-books/tests/api.rs` — `ENV_LOCK` await_holding_lock allow (함수 레벨)
+- `crates/oxipage-cli/src/` — `Output::value` 미사용 메서드 제거, `Client::endpoint/post` dead_code allow 명시
+- `crates/oxipage-core/src/auth.rs, rate_limit.rs` — collapsible_if 2건
+- `crates/oxipage-core/tests/http_app.rs` — unused json 변수 → body 검증 assert 추가
+- `crates/oxipage-server/Cargo.toml` — `[[bin]] name=oxipage-core` 오타 → `oxipage-server` 수정
 
 ## 8.8 다음 세션 권장 순서
 
-1. **8.7 clippy 정리** (10분, CI 게이트) → 커밋
-2. **8.2 SSR 확장 연결** (1–2시간, blog부터 패턴 → 나머지 일괄)
-3. **8.3 WCAG 실측** (측정 + 필요 시 tokens 조정)
-4. **8.6 브라우저 접근성 실측** (8.3과 병행)
+1. ✅ **8.7 clippy 정리** (완료)
+2. ✅ **8.2 SSR 확장 연결** (완료 — 7개 publish + 7개 delete)
+3. ✅ **8.3 WCAG 실측** (완료 — `docs/accessibility.md`, 토큰 2개 조정)
+4. **8.6 브라우저 접근성 실측** (VoiceOver/NVDA, prefers-reduced-motion 등)
 5. **8.5 배포 스모크** (자격증명 제공 시)
 6. **8.4 WASM 스파이크** (옵션, 수요 확인 후)
 
