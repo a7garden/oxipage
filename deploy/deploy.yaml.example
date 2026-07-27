@@ -35,7 +35,7 @@ mode = "binary"
 [deploy.binary]
 # launchd(plist) 또는 systemd(unit) 예시는 deploy/*.example 참조.
 method = "launchd"        # macOS: launchd, Linux: systemd
-binary_path = "/usr/local/bin/oxipage-core"
+binary_path = "/usr/local/bin/oxipage-server"
 
 [deploy.container]
 # Apple container build / docker build 공통 사용.

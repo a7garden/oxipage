@@ -17,15 +17,16 @@ WORKDIR /src
 COPY --from=web-builder /web/dist ./web/dist
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ ./crates/
-# macOS 27 strip 제약은 Linux 빌드에 무관하지만 workspace profile(strip=none) 유지.
-RUN cargo build --release --bin oxipage-core
+# 바이너리명은 oxipage-server ([[bin]] name 참조). macOS 27 strip 제약은 Linux 빌드에
+# 무관하지만 workspace profile(strip=none)이 그대로 적용된다.
+RUN cargo build --release --bin oxipage-server
 
 # ── 3단계: 런타임 ──
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates tzdata && rm -rf /var/lib/apt/lists/*
 WORKDIR /srv/oxipage
-COPY --from=rust-builder /src/target/release/oxipage-core /usr/local/bin/oxipage-core
+COPY --from=rust-builder /src/target/release/oxipage-server /usr/local/bin/oxipage-server
 COPY oxipage.toml.example ./oxipage.toml
 
 # 데이터 볼륨(SQLite db, 미디어)은 /data 로 마운트.
@@ -34,4 +35,5 @@ EXPOSE 8787
 ENV RUST_LOG=info
 ENV OXIPAGE_CONFIG=/srv/oxipage/oxipage.toml
 
-CMD ["oxipage-core", "serve"]
+# 서버 바이너리는 서브커맨드 없이 직접 기동한다(인자 무시). oxipage.toml + 환경변수로 설정.
+CMD ["oxipage-server"]

@@ -13,7 +13,7 @@ Type=simple
 User=oxipage
 Group=oxipage
 WorkingDirectory=/srv/oxipage
-ExecStart=/usr/local/bin/oxipage-core serve
+ExecStart=/usr/local/bin/oxipage-server
 Restart=on-failure
 RestartSec=5
 
