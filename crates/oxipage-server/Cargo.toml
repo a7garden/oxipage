@@ -1,0 +1,17 @@
+[package]
+name = "oxipage-server"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "oxipage-core"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+oxipage-core = { path = "../oxipage-core" }
+oxipage-ext-profile = { path = "../oxipage-ext-profile" }
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
