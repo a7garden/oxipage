@@ -1,0 +1,79 @@
+.projects-grid {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-3);
+}
+
+.project-card a {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+.project-card.featured {
+  border-color: var(--accent);
+}
+
+.project-card h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
+}
+
+.project-status::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  background: var(--text-tertiary, currentColor);
+  vertical-align: middle;
+}
+
+.project-status[data-status='active']::before {
+  background: var(--accent);
+}
+
+.project-status[data-status='wip']::before {
+  background: var(--warning, #f59e0b);
+}
+
+.project-tech {
+  font-size: var(--text-sm);
+}
+
+.project-header h1 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-2xl);
+}
+
+.project-meta {
+  font-size: var(--text-sm);
+}
+
+.project-links {
+  margin-top: var(--space-3);
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.project-gallery {
+  margin-top: var(--space-4);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--space-3);
+}
+
+.project-screenshot {
+  padding: 0;
+  overflow: hidden;
+}
+
+.project-screenshot img {
+  display: block;
+  width: 100%;
+  height: auto;
+}

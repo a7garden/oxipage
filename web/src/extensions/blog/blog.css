@@ -1,0 +1,48 @@
+.blog-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.blog-item a {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+.blog-item h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xl);
+}
+
+.blog-meta {
+  display: flex;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  flex-wrap: wrap;
+}
+
+.blog-tags {
+  opacity: 0.8;
+}
+
+.blog-post-header h1 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-2xl);
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: var(--space-3);
+  text-decoration: none;
+}
+
+.markdown-container {
+  padding: var(--space-5);
+}
+
+.page-title {
+  font-size: var(--text-2xl);
+  margin: 0 0 var(--space-4);
+}

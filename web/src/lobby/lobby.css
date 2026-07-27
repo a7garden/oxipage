@@ -1,25 +1,62 @@
-.lobby-grid {
+/* doc/03 §3.6 — 로비 3모드. canvas는 prefers-reduced-motion에서 JS가 grid로 치환. */
+
+.lobby {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
-  gap: 1rem;
+  gap: var(--space-3);
 }
 
-.lobby-card {
+.lobby-item {
   display: block;
+  padding: var(--space-4);
   color: var(--color-text-primary);
+  text-decoration: none;
+  border-radius: var(--radius, 12px);
+  background: var(--surface-card, var(--surface-1));
+  border: 1px solid var(--surface-border);
   transition: transform 150ms ease, box-shadow 150ms ease;
 }
-.lobby-card:hover {
+
+.lobby-item:hover {
   transform: translateY(-2px);
   text-decoration: none;
   box-shadow: 0 4px 16px oklch(0% 0 0 / 0.08);
 }
-.lobby-card h2 {
+
+.lobby-item h2 {
   margin: 0 0 0.25rem;
   font-size: 1.05rem;
 }
 
+.lobby-item.mode-list {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.lobby-item.mode-canvas {
+  position: relative;
+  animation: lobby-float 6s ease-in-out infinite;
+}
+
+.lobby-item.mode-canvas:nth-child(2n) {
+  animation-delay: -2s;
+}
+.lobby-item.mode-canvas:nth-child(3n) {
+  animation-delay: -4s;
+}
+
+@keyframes lobby-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .lobby-card { transition: none; }
-  .lobby-card:hover { transform: none; }
+  .lobby-item {
+    transition: none;
+    animation: none !important;
+  }
+  .lobby-item:hover {
+    transform: none;
+  }
 }
