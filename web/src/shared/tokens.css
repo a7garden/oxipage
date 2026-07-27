@@ -1,64 +1,144 @@
+/* ============================================================
+   Oxipage Design Tokens v2
+   OKLCH paper/ink + deep indigo-violet. Preserved from v1.
+   Tailwind v4 exposure via @theme inline (keeps var() refs so
+   runtime data-theme switching is honored).
+   ============================================================ */
+
+/* --- Primitives (theme-agnostic ramps) --- */
 :root {
-  /* 중성색 — "종이/잉크", 아주 낮은 채도, 살짝 따뜻한 톤(95도) */
+  /* Neutral — "paper/ink", very low chroma, warm tint (95° light / 265° dark) */
   --p-neutral-0:   oklch(98.5% 0.004 95);
   --p-neutral-50:  oklch(95%   0.006 95);
   --p-neutral-100: oklch(90%   0.007 95);
   --p-neutral-300: oklch(75%   0.010 95);
   --p-neutral-500: oklch(55%   0.012 95);
   --p-neutral-700: oklch(35%   0.012 265);
-  --p-neutral-900: oklch(18%   0.015 265); /* 잉크 */
-  --p-neutral-950: oklch(13%   0.020 265); /* 가장 깊은 다크 배경 */
+  --p-neutral-900: oklch(18%   0.015 265);
+  --p-neutral-950: oklch(13%   0.020 265);
+  --p-neutral-999: oklch(0%    0 0);            /* pure black for shadows */
 
-  /* 악센트 — "딥 인디고-바이올렛" */
+  /* Accent — "deep indigo-violet" */
   --p-accent-400: oklch(78% 0.14 290);
   --p-accent-500: oklch(62% 0.19 290);
   --p-accent-600: oklch(52% 0.20 290);
   --p-accent-700: oklch(42% 0.18 290);
 
-  /* 별점 전용 — "잉크에 찍은 금박" 톤 */
+  /* Rating gold — "gold leaf on ink" */
+  --p-gold-400: oklch(82% 0.15 85);
   --p-gold-500: oklch(78% 0.15 85);
-  --p-gold-600: oklch(55% 0.12 65); /* WCAG AA: 라이트 모드 별점 fill vs canvas ≥ 4.5:1 */
+  --p-gold-600: oklch(68% 0.15 85);
 
-  /* 상태색 */
+  /* Status */
   --p-danger-500:  oklch(55% 0.19 25);
   --p-success-500: oklch(60% 0.15 145);
 
-  /* 타이포/형태 토큰 */
+  /* Fonts (primitive stacks — referenced by existing CSS + @theme inline) */
   --font-body: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, "Noto Sans KR", "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Fraunces", "Noto Serif KR", Georgia, "Times New Roman", serif;
   --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
     "Liberation Mono", monospace;
-  --radius-md: 0.75rem;
-  --space-page-x: clamp(1rem, 4vw, 3rem);
+
+  /* Motion */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Layout */
   --content-max-width: 64rem;
+  --space-page-x: clamp(1rem, 4vw, 3rem);
 }
 
+/* --- Semantic: light --- */
 [data-theme="light"] {
-  --color-bg-canvas:      var(--p-neutral-0);
-  --color-bg-surface:     var(--p-neutral-50);
-  --color-bg-surface-raised: oklch(100% 0 0);
-  --color-text-primary:   var(--p-neutral-900);
-  --color-text-secondary: var(--p-neutral-700);
-  --color-text-tertiary:  var(--p-neutral-500);
-  --color-border:         var(--p-neutral-100);
-  --color-accent:         var(--p-accent-600);
-  --color-accent-contrast:oklch(100% 0 0);
-  --color-rating-fill:    var(--p-gold-600);
-  --color-danger:         var(--p-danger-500);
-  --color-success:        var(--p-success-500);
+  --color-bg-canvas:        var(--p-neutral-0);
+  --color-bg-surface:       var(--p-neutral-50);
+  --color-bg-surface-raised:oklch(100% 0 0);
+  --color-text-primary:     var(--p-neutral-900);
+  --color-text-secondary:   var(--p-neutral-700);
+  --color-text-tertiary:    var(--p-neutral-500);
+  --color-border:           var(--p-neutral-100);
+  --color-accent:           var(--p-accent-600);
+  --color-accent-contrast:  oklch(100% 0 0);
+  --color-rating-fill:      var(--p-gold-600);
+  --color-danger:           var(--p-danger-500);
+  --color-success:          var(--p-success-500);
+
+  /* Elevation — ink shadows */
+  --elevation-xs: 0 1px 2px oklch(0% 0 0 / 0.04);
+  --elevation-sm: 0 1px 3px oklch(0% 0 0 / 0.07), 0 1px 2px oklch(0% 0 0 / 0.04);
+  --elevation-md: 0 4px 8px oklch(0% 0 0 / 0.08), 0 2px 4px oklch(0% 0 0 / 0.04);
+  --elevation-lg: 0 12px 24px oklch(0% 0 0 / 0.10), 0 4px 8px oklch(0% 0 0 / 0.06);
 }
 
+/* --- Semantic: dark --- */
 [data-theme="dark"] {
-  --color-bg-canvas:      var(--p-neutral-950);
-  --color-bg-surface:     var(--p-neutral-900);
-  --color-bg-surface-raised: oklch(22% 0.016 265);
-  --color-text-primary:   var(--p-neutral-0);
-  --color-text-secondary: var(--p-neutral-300);
-  --color-text-tertiary:  oklch(65% 0.012 265); /* 다크에서 --p-neutral-500은 4:1로 미달 → 더 밝게 override */
-  --color-border:         oklch(28% 0.015 265);
-  --color-accent:         var(--p-accent-400);
-  --color-accent-contrast:var(--p-neutral-950);
-  --color-rating-fill:    var(--p-gold-500);
-  --color-danger:         oklch(65% 0.18 25);
-  --color-success:        oklch(68% 0.14 145);
+  --color-bg-canvas:        var(--p-neutral-950);
+  --color-bg-surface:       var(--p-neutral-900);
+  --color-bg-surface-raised:oklch(22% 0.016 265);
+  --color-text-primary:     var(--p-neutral-0);
+  --color-text-secondary:   var(--p-neutral-300);
+  --color-text-tertiary:    oklch(65% 0.012 265); /* override: neutral-500 fails AA on dark */
+  --color-border:           oklch(28% 0.015 265);
+  --color-accent:           var(--p-accent-400);
+  --color-accent-contrast:  var(--p-neutral-950);
+  --color-rating-fill:      var(--p-gold-500);
+  --color-danger:           oklch(65% 0.18 25);
+  --color-success:          oklch(68% 0.14 145);
+
+  /* Elevation — deeper black, more opacity (shadows vanish on dark otherwise) */
+  --elevation-xs: 0 1px 2px oklch(0% 0 0 / 0.30);
+  --elevation-sm: 0 1px 3px oklch(0% 0 0 / 0.40), 0 1px 2px oklch(0% 0 0 / 0.30);
+  --elevation-md: 0 4px 8px oklch(0% 0 0 / 0.45), 0 2px 4px oklch(0% 0 0 / 0.35);
+  --elevation-lg: 0 12px 24px oklch(0% 0 0 / 0.50), 0 4px 8px oklch(0% 0 0 / 0.40);
+}
+
+/* ============================================================
+   Tailwind v4 exposure.
+   `inline` keeps var() references so data-theme runtime switching
+   propagates to every utility. Alias names are deliberately
+   non-colliding with the semantic --color-* / --font-* primitives
+   above (self-referential var() would break resolution).
+   ============================================================ */
+@theme inline {
+  /* Colors → bg-canvas / text-foreground / border-line / bg-primary(accent) ... */
+  --color-canvas:             var(--color-bg-canvas);
+  --color-surface:            var(--color-bg-surface);
+  --color-raised:             var(--color-bg-surface-raised);
+  --color-foreground:         var(--color-text-primary);
+  --color-muted:              var(--color-text-secondary);
+  --color-subtle:             var(--color-text-tertiary);
+  --color-line:               var(--color-border);
+  --color-primary:            var(--color-accent);
+  --color-primary-foreground: var(--color-accent-contrast);
+  --color-star:               var(--color-rating-fill);
+  --color-destructive:        var(--color-danger);
+  --color-positive:           var(--color-success);
+  --color-ring:               var(--color-accent);
+
+  /* Fonts (alias names differ from primitive names to avoid self-reference) */
+  --font-sans:  var(--font-body);
+  --font-serif: var(--font-display);
+  /* --font-mono intentionally inherits Tailwind default (≈ our --font-mono) */
+
+  /* Shadows (alias to themed --elevation-* which live in [data-theme]) */
+  --shadow-xs: var(--elevation-xs);
+  --shadow-sm: var(--elevation-sm);
+  --shadow-md: var(--elevation-md);
+  --shadow-lg: var(--elevation-lg);
+}
+
+/* Theme-agnostic tokens that double as Tailwind namespace defaults.
+   Defined here (not in [data-theme]) so they emit to :root once. */
+@theme {
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.75rem;   /* v1 default preserved */
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+
+  /* Display type step (beyond Tailwind defaults) */
+  --text-display: 2.5rem;
+  --text-display--line-height: 1.2;
 }
