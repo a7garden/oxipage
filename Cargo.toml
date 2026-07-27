@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/oxipage-core",
+    "crates/oxipage-ext-profile",
 ]
 
 [workspace.dependencies]

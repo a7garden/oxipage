@@ -15,7 +15,7 @@
 - Rust stable 1.96, edition 2024. 모든 크레이트 `cargo fmt` + `cargo clippy --workspace --all-targets -- -D warnings` 클린.
 - sqlx 컴파일타임 매크로(`query!`) 사용 금지 — `query_as` + `#[derive(sqlx::FromRow)]`만 사용 (DATABASE_URL 불필요).
 - API 응답 봉투 (doc §4.5): 단건/목록 모두 `{ "data": ... }`, 에러는 `{ "error": { "code": "...", "message": "...", "field": "..."(선택) } }`.
-- 확장 API 루트 경로는 trailing slash 사용: `/api/v1/profile/`.
+- 확장 API 루트 경로는 trailing slash 없이 사용: `/api/v1/profile` (axum 0.8 nest 시맨틱 — nested root route는 prefix 무슬래시로 서빙. 계획 초기의 trailing slash 제약은 폐기).
 - OKLCH 토큰 값은 `doc/03-design-system.md` §3.3에서 verbatim 복사.
 - 웹 패키지 매니저는 bun (`bun install`, `bun run build`). 프론트 테스트 프레임워크는 Phase 0에서 도입하지 않음(브라우저 검증으로 대체).
 - Phase 0에서는 CLI 크레이트를 만들지 않는다 (doc/06 Phase 1에서 추가 — §1.3 레이아웃 대비 명시적 지연).
@@ -817,7 +817,7 @@ git commit -m "feat(core): db pool, migration runner, extension trait, registry,
 **Interfaces:**
 - Consumes: Task 2 전체 (`Extension`, `AppState`, `AdminAuth`, `ApiError`, `db::connect_memory`).
 - Produces: `oxipage_ext_profile::{ProfileExtension, model::{Profile, ProfileInput, Education, CustomLink}}`. 라우트: `GET /` (공개), `PUT /` (AdminAuth). Task 4가 `ProfileExtension`을 레지스트리에 등록.
-- API 경로 (Task 4에서 `/api/v1/profile` 아래 nest됨): `GET /api/v1/profile/`, `PUT /api/v1/profile/`.
+- API 경로 (Task 4에서 `/api/v1/profile` 아래 nest됨): `GET /api/v1/profile`, `PUT /api/v1/profile`.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -862,7 +862,7 @@ async fn body_json(res: axum::response::Response) -> serde_json::Value {
 async fn get_profile_returns_seeded_singleton() {
     let app = test_app(Some("tok")).await;
     let res = app
-        .oneshot(Request::get("/api/v1/profile/").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/v1/profile").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
@@ -875,7 +875,7 @@ async fn put_without_token_is_401() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::put("/api/v1/profile/")
+            Request::put("/api/v1/profile")
                 .header("content-type", "application/json")
                 .body(Body::from(r#"{"display_name":"X"}"#))
                 .unwrap(),
@@ -892,7 +892,7 @@ async fn put_without_configured_token_is_503() {
     let app = test_app(None).await;
     let res = app
         .oneshot(
-            Request::put("/api/v1/profile/")
+            Request::put("/api/v1/profile")
                 .header("content-type", "application/json")
                 .header("authorization", "Bearer anything")
                 .body(Body::from(r#"{"display_name":"X"}"#))
@@ -920,7 +920,7 @@ async fn put_roundtrip_updates_profile() {
     let res = app
         .clone()
         .oneshot(
-            Request::put("/api/v1/profile/")
+            Request::put("/api/v1/profile")
                 .header("content-type", "application/json")
                 .header("authorization", "Bearer tok")
                 .body(Body::from(payload))
@@ -934,7 +934,7 @@ async fn put_roundtrip_updates_profile() {
     assert_eq!(json["data"]["education"][0]["institution"], "SNU");
 
     let res = app
-        .oneshot(Request::get("/api/v1/profile/").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/v1/profile").body(Body::empty()).unwrap())
         .await
         .unwrap();
     let json = body_json(res).await;
@@ -948,7 +948,7 @@ async fn put_with_empty_display_name_is_422() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::put("/api/v1/profile/")
+            Request::put("/api/v1/profile")
                 .header("content-type", "application/json")
                 .header("authorization", "Bearer tok")
                 .body(Body::from(r#"{"display_name":"  "}"#))
@@ -2068,7 +2068,7 @@ git commit -m "feat(web): vite react scaffold with OKLCH tokens and theme system
 - Modify: `web/src/shared/global.css` (`.theme-toggle` 스타일 추가)
 
 **Interfaces:**
-- Consumes: Task 5의 `ThemeToggle`, theme.ts; 백엔드 `GET /api/v1/lobby/manifest`, `GET /api/v1/profile/` (Task 3/4).
+- Consumes: Task 5의 `ThemeToggle`, theme.ts; 백엔드 `GET /api/v1/lobby/manifest`, `GET /api/v1/profile` (Task 3/4).
 - Produces:
   - `shared/api.ts`: `fetchManifest(): Promise<Manifest>`, `fetchProfile(): Promise<Profile>` (+ 타입 `Manifest`, `Profile`, `Education`, `CustomLink`, `LocalizedName`). `/api/v1` 프리픽스 fetch 래퍼, `{data}` 봉투 언랩, 에러 시 상태코드 포함 throw.
   - `shared/language.tsx`: `LanguageProvider`, `useLanguage(): { lang: 'ko' | 'en'; setLang(l): void; pick(ko?: string | null, en?: string | null): string }` — pick은 현재 lang 우선, 없으면 다른 쪽, 둘 다 없으면 `''`.
@@ -2521,10 +2521,10 @@ export OXIPAGE_ADMIN_TOKEN=phase0-smoke-token
 sleep 1
 curl -sf localhost:8787/healthz                                          # {"status":"ok"}
 curl -sf localhost:8787/api/v1/lobby/manifest                            # extensions에 profile 포함
-curl -sf localhost:8787/api/v1/profile/                                  # display_name = "내 작업실" (oxipage.toml site.name)
-curl -s -o /dev/null -w '%{http_code}' -X PUT localhost:8787/api/v1/profile/ \
+curl -sf localhost:8787/api/v1/profile                                  # display_name = "내 작업실" (oxipage.toml site.name)
+curl -s -o /dev/null -w '%{http_code}' -X PUT localhost:8787/api/v1/profile \
   -H 'content-type: application/json' -d '{"display_name":"x"}'          # 401
-curl -sf -X PUT localhost:8787/api/v1/profile/ \
+curl -sf -X PUT localhost:8787/api/v1/profile \
   -H "authorization: Bearer $OXIPAGE_ADMIN_TOKEN" -H 'content-type: application/json' \
   -d '{"display_name":"내 작업실","tagline_ko":"밤에 코드를 짜다가 문장을 잇는 작업실","tagline_en":"a quiet studio","bio_ko":"**개발자**이자 작가.","github_username":"toru-ver4"}'
 curl -sf localhost:8787/ | grep -qi 'doctype html'                       # SPA index.html 서빙
