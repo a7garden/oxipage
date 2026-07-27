@@ -380,12 +380,12 @@ async fn blog(
                 "lang": lang,
                 "tags": tags,
             });
-            let res = client.post_raw("/api/v1/blog/posts", payload).await?;
+            let res = client.post_raw("/api/v1/blog", payload).await?;
             let data = Client::unwrap_data(res)?;
             let slug = data.get("slug").and_then(|s| s.as_str()).unwrap_or("");
             if publish && !slug.is_empty() {
                 let pub_res = client
-                    .post_raw(&format!("/api/v1/blog/posts/{slug}/publish"), json!({}))
+                    .post_raw(&format!("/api/v1/blog/{slug}/publish"), json!({}))
                     .await?;
                 out.data(pub_res, "published")
             } else {
@@ -394,12 +394,12 @@ async fn blog(
         }
         BlogCommand::Publish { slug } => {
             let res = client
-                .post_raw(&format!("/api/v1/blog/posts/{slug}/publish"), json!({}))
+                .post_raw(&format!("/api/v1/blog/{slug}/publish"), json!({}))
                 .await?;
             out.data(res, "published")
         }
         BlogCommand::List { draft, lang } => {
-            let mut path = "/api/v1/blog/posts?".to_string();
+            let mut path = "/api/v1/blog?".to_string();
             if draft {
                 path.push_str("draft=true&");
             }
@@ -410,7 +410,7 @@ async fn blog(
             out.data(res, "posts")
         }
         BlogCommand::Show { slug } => {
-            let res = client.get(&format!("/api/v1/blog/posts/{slug}")).await?;
+            let res = client.get(&format!("/api/v1/blog/{slug}")).await?;
             out.data(res, "post")
         }
         BlogCommand::Edit {
@@ -432,14 +432,14 @@ async fn blog(
             }
             let res = client
                 .patch(
-                    &format!("/api/v1/blog/posts/{slug}"),
+                    &format!("/api/v1/blog/{slug}"),
                     &serde_json::Value::Object(payload),
                 )
                 .await?;
             out.data(res, "updated")
         }
         BlogCommand::Rm { slug } => {
-            let res = client.delete(&format!("/api/v1/blog/posts/{slug}")).await?;
+            let res = client.delete(&format!("/api/v1/blog/{slug}")).await?;
             out.data(res, "deleted")
         }
     }
