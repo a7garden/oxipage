@@ -26,6 +26,13 @@ a:hover { text-decoration: underline; }
   outline-offset: 2px;
 }
 
+/* Lobby canvas drift — the site's single signature motion (doc/03 §3.1).
+   Reduced-motion users get motion-reduce:animate-none at the call site. */
+@keyframes lobby-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
 /* ============================================================
    Bridge classes — keep v1 page CSS working during migration.
    New components use Tailwind utilities directly; these legacy
