@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json.schemastore.org/oxipage-registry",
+  "registry_version": 1,
+  "updated_at": "2026-07-27",
+  "description": "Oxipage curated extension index (doc/05 §5.7). GitHub 저장소 1개의 JSON — Homebrew tap류. `oxipage extension install <name>`이 이 인덱스를 읽는다.",
+  "extensions": [
+    {
+      "name": "profile",
+      "display_name": { "ko": "프로필", "en": "Profile" },
+      "description": "소개 명함 / 포트폴리오 싱글턴 (doc/02 §2.3). 코어 기본 포함.",
+      "homepage": "https://github.com/oxipage/oxipage",
+      "source": "crates/oxipage-ext-profile",
+      "runtime_loadable": false,
+      "tags": ["core"]
+    },
+    {
+      "name": "blog",
+      "display_name": { "ko": "블로그", "en": "Blog" },
+      "description": "블로그 글 + 느슨한 번역 연결 + FTS5 (doc/02 §2.6).",
+      "homepage": "https://github.com/oxipage/oxipage",
+      "source": "crates/oxipage-ext-blog",
+      "runtime_loadable": false,
+      "tags": ["content"]
+    },
+    {
+      "name": "projects",
+      "display_name": { "ko": "프로젝트", "en": "Projects" },
+      "description": "구조적 이중언어 포트폴리오 + 스크린샷 갤러리 (doc/02 §2.4).",
+      "homepage": "https://github.com/oxipage/oxipage",
+      "source": "crates/oxipage-ext-projects",
+      "runtime_loadable": false,
+      "tags": ["content"]
+    },
+    {
+      "name": "links",
+      "display_name": { "ko": "링크", "en": "Links" },
+      "description": "생태계 링크 전시 (doc/02 §2.11).",
+      "homepage": "https://github.com/oxipage/oxipage",
+      "source": "crates/oxipage-ext-links",
+      "runtime_loadable": false,
+      "tags": ["content"]
+    },
+    {
+      "name": "novels",
+      "display_name": { "ko": "소설", "en": "Novels" },
+      "description": "소설 + 챕터 (공백제외 자수 자동 계산, doc/02 §2.5).",
+      "homepage": "https://github.com/oxipage/oxipage",
+      "source": "crates/oxipage-ext-novels",
+      "runtime_loadable": false,
+      "tags": ["content"]
+    },
+    {
+      "name": "movies",
+      "display_name": { "ko": "영화", "en": "Movies" },
+      "description": "영화/시리즈 리뷰 + TMDB 연동(키 없으면 manual, doc/02 §2.9).",
+      "homepage": "https://github.com/oxipage/oxipage",
+      "source": "crates/oxipage-ext-movies",
+      "runtime_loadable": false,
+      "integrations": ["tmdb"]
+    },
+    {
+      "name": "books",
+      "display_name": { "ko": "책", "en": "Books" },
+      "description": "도서 리뷰 + 알라딘/Google Books 폴백 (doc/02 §2.10).",
+      "homepage": "https://github.com/oxipage/oxipage",
+      "source": "crates/oxipage-ext-books",
+      "runtime_loadable": false,
+      "integrations": ["aladin", "google_books"]
+    },
+    {
+      "name": "scraps",
+      "display_name": { "ko": "스크랩", "en": "Scraps" },
+      "description": "HN/GeekNews 스크랩 + 추천 큐 (발행은 사람 선택, doc/02 §2.7).",
+      "homepage": "https://github.com/oxipage/oxipage",
+      "source": "crates/oxipage-ext-scraps",
+      "runtime_loadable": false,
+      "integrations": ["hackernews", "geeknews"]
+    },
+    {
+      "name": "activity",
+      "display_name": { "ko": "활동", "en": "Activity" },
+      "description": "GitHub 공개 활동 캐시 + webhook (doc/02 §2.8). private repo 노출 안 됨.",
+      "homepage": "https://github.com/oxipage/oxipage",
+      "source": "crates/oxipage-ext-activity",
+      "runtime_loadable": false,
+      "integrations": ["github"]
+    }
+  ]
+}

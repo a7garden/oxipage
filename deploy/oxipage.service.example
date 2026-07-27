@@ -1,0 +1,35 @@
+# oxipage — Linux systemd unit 예시 (doc/05 §5.2).
+# 설치: sudo cp deploy/oxipage.service.example /etc/systemd/system/oxipage.service
+#       sudo systemctl daemon-reload && sudo systemctl enable --now oxipage
+# 시크릿은 EnvironmentFile(0600) 또는 systemd-creds로 주입.
+
+[Unit]
+Description=Oxipage personal-site server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=oxipage
+Group=oxipage
+WorkingDirectory=/srv/oxipage
+ExecStart=/usr/local/bin/oxipage-core serve
+Restart=on-failure
+RestartSec=5
+
+# 공개 환경변수
+Environment=RUST_LOG=info
+Environment=OXIPAGE_CONFIG=/srv/oxipage/oxipage.toml
+
+# 시크릿은 별도 파일(0600)로. 예:
+# EnvironmentFile=/srv/oxipage/secrets.env
+
+# 보안 강화
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/srv/oxipage
+
+[Install]
+WantedBy=multi-user.target

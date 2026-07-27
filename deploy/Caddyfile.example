@@ -1,0 +1,29 @@
+# Oxipage — Caddy 호스트 네이티브 리버스 프록시 예시 (doc/05 §5.2)
+#
+# Caddy는 호스트에서 launchd/systemd로 기동(단일 바이너리), TLS 종료 + 리버스 프록시.
+# Cloudflare Tunnel(cloudflared)이 공개 엔드포인트를 Caddy로 보낸다.
+
+{
+    # email admin@example.com  # ACME 계정 (Cloudflare 터널 사용 시 직접 발급 불필요할 수 있음)
+}
+
+example.com {
+    encode zstd gzip
+
+    # 정적 자산/SPA는 코어가 rust-embed로 서빙하므로 모두 역프록시.
+    reverse_proxy 127.0.0.1:8787 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # GitHub webhook 엔드포인트(/api/v1/activity/webhook)는 공개 — 서명 검증은 코어에서(Phase 4).
+
+    log {
+        output file /var/log/caddy/oxipage.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+    }
+}
