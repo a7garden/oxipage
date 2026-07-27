@@ -155,3 +155,47 @@ Primitive tokens  →  Semantic tokens  →  Component tokens
 - 키보드 포커스 링은 `--color-accent`로 항상 시각적으로 드러나야 함(어떤 컴포넌트도 `outline: none`만 하고 대체 스타일 없이 끝내지 않기)
 - 본문 텍스트 대비는 라이트/다크 각각 WCAG AA(4.5:1) 이상 — §3.3의 L 값들은 대략적인 시작값이므로 실제 구현 시 대비비 계산 도구로 재검증
 - 모션은 전부 `prefers-reduced-motion`을 존중(§3.6 `canvas` 폴백 포함)
+
+---
+
+## 3.8 v2 — 컴포넌트 레이어 (2026-07-27)
+
+v1의 토큰 시스템(§3.2–3.3)과 컨셉(§3.1)은 100% 보존한 채, 그 위에 **헤드리스 컴포넌트 라이브러리**를 올려 비주얼 실현도를 끌어올렸다. 상세 설계는 `docs/superpowers/specs/2026-07-27-design-system-v2-design.md` 참조.
+
+### 스택
+
+- **Radix UI** (a11y 보장, unstyled) + **Tailwind v4** (`@theme inline`) + **class-variance-authority**.
+- shadcn CLI를 쓰지 않고 **패턴만 차용**해 직접 작성 — CLI는 자체 토큰을 덮어쓰므로 우리 OKLCH 시스템과 충돌.
+- 핵심: `@theme inline`(plain `@theme` 아님). plain은 빌드타임에 값을 베이크하여 §3.4의 `data-theme` 런타임 전환을 깨뜨린다. `inline`은 `var()` 참조를 유지해 토큰 스위칭이 모든 유틸리티에 자동 전파.
+
+### 토큰 노출 (`tokens.css`)
+
+`@theme inline` 블록이 시맨틱 토큰을 Tailwind 유틸리티로 별칭. 별칭 이름은 원본 `--color-*` 프리미티브와 **충돌하지 않게** 설계(자기참조 `var()` 회피):
+
+| 유틸리티 | 참조 | 의미 |
+|---|---|---|
+| `bg-canvas` / `bg-surface` / `bg-raised` | `--color-bg-*` | 배경 3단 |
+| `text-foreground` / `text-muted` / `text-subtle` | `--color-text-primary/secondary/tertiary` | 텍스트 3단 |
+| `border-line` | `--color-border` | 보더 |
+| `bg-primary` / `text-primary-foreground` | `--color-accent` / `--color-accent-contrast` | 악센트(인디고) |
+| `text-star` | `--color-rating-fill` | 별점 골드 |
+| `font-serif` | `--font-display` (Fraunces) | 디스플레이 세리프 |
+
+### 추가된 토큰
+
+- **Elevation** (`--elevation-xs/sm/md/lg`, `[data-theme]`별 themed): 갭 1(컴포넌트 밋밥) 해결. 라이트는 옅은 잉크 그림자, 다크는 더 깊고 불투명한 그림자.
+- **Display 폰트** (`--font-display: Fraunces, Noto Serif KR`): 갭 2. 본문은 Pretendard 유지, 타이틀에만 세리프.
+- **Radius/Type/Motion 스케일**, `--text-display` 단계.
+
+### 컴포넌트 카탈로그 (`shared/ui/`)
+
+15개 프리미티브. shadcn v4 패턴(`React.ComponentProps<>` + `data-slot`, forwardRef 제거):
+Button(cva 5 variant), Card family, Input/Textarea/Label, Badge(6 variant), Avatar/Separator/Skeleton, Tooltip/Tabs/DropdownMenu(Radix), Container/PageHeader/EmptyState. `RatingStars`는 자체 완결 Tailwind로 리팩터(외부 CSS 의존 제거).
+
+### 적용 범위
+
+App shell(스티키 반투명 헤더 + backdrop-blur + Container 본문/푸터), Lobby(Card 그리드 + 확장→아이콘 맵 + canvas float 시그니처 모션 유지), 그리고 Profile/Blog/Projects/Links/Search 전 페이지 재스킨. 모든 페이지별 CSS(5개)는 Tailwind로 흡수·삭제.
+
+### 접근성
+
+§3.7 기준은 그대로 유효 — v1에서 AA 측정을 마친 OKLCH 토큰 값을 그대로 쓰므로 본문 대비 4.5:1 이상 유지. Radix 프리미티브가 포커스 트랩·aria·키보드를 담당. `prefers-reduced-motion`은 canvas float 폴백뿐 아니라 모든 Card hover lift에도 `motion-reduce:` 변형으로 적용.
