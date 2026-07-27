@@ -25,3 +25,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 [profile.release]
 lto = true
 codegen-units = 1
+# macOS 27 dyld는 strip된 Mach-O dylib의 mis-aligned string pool을 거부한다
+# (rust-lang/rust#157750). strip=debuginfo(기본값)가 proc-macro dylib 로딩을 깨므로 비활성화.
+strip = "none"
