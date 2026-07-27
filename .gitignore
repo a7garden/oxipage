@@ -19,6 +19,9 @@
 # Logs
 *.log
 
+# Superpowers SDD scratch
+/.superpowers/
+
 # macOS / editor
 .DS_Store
 .idea/
