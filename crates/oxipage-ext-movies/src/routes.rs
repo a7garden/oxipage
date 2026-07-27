@@ -12,6 +12,7 @@ use oxipage_core::error::ApiError;
 use oxipage_core::extension::DataEnvelope;
 use oxipage_core::rating::Rating;
 use oxipage_core::search;
+use oxipage_core::snapshot;
 use oxipage_core::state::AppState;
 
 // ─── MovieEntry ───
@@ -44,8 +45,9 @@ pub async fn create(
 
     // tmdb_id가 있고 키가 있으면 메타 1회 fetch. 클라이언트 명시 값이 있으면 그게 우선.
     let tmdb = TmdbClient::from_env();
-    let fetched: Option<TmdbSearchResult> = if input.tmdb_id.is_some() && tmdb.enabled() {
-        let id = input.tmdb_id.unwrap();
+    let fetched: Option<TmdbSearchResult> = if let Some(id) = input.tmdb_id
+        && tmdb.enabled()
+    {
         match tmdb.fetch_movie(id).await {
             Ok(m) => Some(m),
             Err(e) => {
@@ -172,6 +174,7 @@ pub async fn delete(
     search::delete(&state.db, "movies", &slug)
         .await
         .map_err(ApiError::internal)?;
+    let _ = snapshot::remove_snapshot(&state, &format!("/movies/{slug}")).await;
     Ok(Json(DataEnvelope {
         data: serde_json::json!({ "slug": slug, "deleted": true }),
     }))
@@ -194,6 +197,32 @@ pub async fn publish(
         .await
         .map_err(ApiError::internal)?;
     reindex(&state, &entry).await?;
+    let review = entry.review_ko.clone().or_else(|| entry.review_en.clone()).unwrap_or_default();
+    let desc: String = review.chars().take(200).collect();
+    let og_image = entry.poster_path.clone().map(|p| {
+        if p.starts_with("http") {
+            p
+        } else {
+            format!("https://image.tmdb.org/t/p/w500{p}")
+        }
+    });
+    snapshot::write_snapshot_for(
+        &state,
+        &format!("/movies/{}", entry.slug),
+        &snapshot::SnapshotData {
+            title: entry.title.clone(),
+            description: if desc.trim().is_empty() { entry.title.clone() } else { desc },
+            canonical_url: format!(
+                "{}/movies/{}",
+                state.config.site.base_url.trim_end_matches('/'),
+                entry.slug
+            ),
+            og_image,
+            body_markdown: review,
+            lang: if entry.review_ko.is_some() { "ko".to_string() } else { "en".to_string() },
+        },
+    )
+    .await;
     Ok(Json(DataEnvelope { data: entry }))
 }
 
@@ -236,11 +265,11 @@ pub async fn create_group(
     let ko_empty = input
         .title_ko
         .as_deref()
-        .map_or(true, |s| s.trim().is_empty());
+        .is_none_or(|s| s.trim().is_empty());
     let en_empty = input
         .title_en
         .as_deref()
-        .map_or(true, |s| s.trim().is_empty());
+        .is_none_or(|s| s.trim().is_empty());
     if ko_empty && en_empty {
         return Err(ApiError::validation(
             "title_ko",
@@ -322,7 +351,7 @@ fn validate_input(input: &MovieEntryInput) -> Result<(), ApiError> {
         && input
             .title
             .as_deref()
-            .map_or(true, |s| s.trim().is_empty())
+            .is_none_or(|s| s.trim().is_empty())
     {
         return Err(ApiError::validation(
             "title",

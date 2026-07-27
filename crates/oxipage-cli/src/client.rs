@@ -39,6 +39,7 @@ impl Client {
         })
     }
 
+    #[allow(dead_code)] // 향후 `oxibase` 표기/디버깅에서 사용 예정
     pub fn endpoint(&self) -> &str {
         &self.endpoint
     }
@@ -103,7 +104,7 @@ impl Client {
     pub async fn get(&self, path: &str) -> Result<Value, ApiError> {
         self.request(reqwest::Method::GET, path, None).await
     }
-
+    #[allow(dead_code)] // 향후 command 확장(post B<D> 형태) 대비
     pub async fn post<B: Serialize>(&self, path: &str, body: &B) -> Result<Value, ApiError> {
         let v = serde_json::to_value(body).context("failed to serialize body").map_err(|e| ApiError {
             status: 0,

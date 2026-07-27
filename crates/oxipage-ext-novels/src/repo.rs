@@ -1,4 +1,4 @@
-use crate::model::{ChapterInput, ChapterPatch, Novel, NovelChapter, NovelInput, NovelPatch, char_count};
+use crate::model::{ChapterInput, ChapterPatch, Novel, NovelChapter, NovelInput, char_count};
 use sqlx::SqlitePool;
 
 const NOVEL_COLUMNS: &str = "id, slug, title, synopsis, cover_image, status, tags,

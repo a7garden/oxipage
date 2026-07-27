@@ -147,10 +147,10 @@ fn fill_random(buf: &mut [u8]) {
     #[cfg(unix)]
     {
         use std::io::Read;
-        if let Ok(mut f) = std::fs::File::open("/dev/urandom") {
-            if f.read_exact(buf).is_ok() {
-                return;
-            }
+        if let Ok(mut f) = std::fs::File::open("/dev/urandom")
+            && f.read_exact(buf).is_ok()
+        {
+            return;
         }
     }
     use std::time::{SystemTime, UNIX_EPOCH};

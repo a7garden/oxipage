@@ -6,6 +6,7 @@ use oxipage_core::auth::AdminAuth;
 use oxipage_core::error::ApiError;
 use oxipage_core::extension::DataEnvelope;
 use oxipage_core::search;
+use oxipage_core::snapshot;
 use oxipage_core::state::AppState;
 
 pub async fn list(
@@ -98,6 +99,7 @@ pub async fn delete(
     search::delete(&state.db, "projects", &slug)
         .await
         .map_err(ApiError::internal)?;
+    let _ = snapshot::remove_snapshot(&state, &format!("/projects/{slug}")).await;
     Ok(Json(DataEnvelope {
         data: serde_json::json!({ "slug": slug, "deleted": true }),
     }))
@@ -120,6 +122,31 @@ pub async fn publish(
         .await
         .map_err(ApiError::internal)?;
     reindex(&state, &project).await?;
+    let title = project.title_en.clone()
+        .or_else(|| project.title_ko.clone())
+        .unwrap_or_else(|| project.slug.clone());
+    let description = project.description_en.clone()
+        .or_else(|| project.description_ko.clone())
+        .unwrap_or_default();
+    let truncated: String = description.chars().take(200).collect();
+    let body_md = format!(
+        "{title}\n\n{description}\n\ntech_stack: {}",
+        project.tech_stack.join(", ")
+    );
+    let snapshot_path = format!("/projects/{}", project.slug);
+    snapshot::write_snapshot_for(
+        &state,
+        &snapshot_path,
+        &snapshot::SnapshotData {
+            title,
+            description: if truncated.trim().is_empty() { body_md.chars().take(200).collect() } else { truncated },
+            canonical_url: format!("{}/projects/{}", state.config.site.base_url.trim_end_matches('/'), project.slug),
+            og_image: None,
+            body_markdown: body_md,
+            lang: "en".to_string(),
+        },
+    )
+    .await;
     Ok(Json(DataEnvelope { data: project }))
 }
 
@@ -191,8 +218,8 @@ async fn reindex(state: &AppState, project: &crate::model::Project) -> Result<()
 }
 
 fn validate_input(input: &ProjectInput) -> Result<(), ApiError> {
-    let ko_empty = input.title_ko.as_deref().map_or(true, |s| s.trim().is_empty());
-    let en_empty = input.title_en.as_deref().map_or(true, |s| s.trim().is_empty());
+    let ko_empty = input.title_ko.as_deref().is_none_or(|s| s.trim().is_empty());
+    let en_empty = input.title_en.as_deref().is_none_or(|s| s.trim().is_empty());
     if ko_empty && en_empty {
         return Err(ApiError::validation(
             "title_ko",

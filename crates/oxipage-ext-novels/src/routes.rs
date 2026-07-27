@@ -1,4 +1,4 @@
-use crate::model::{ChapterInput, ChapterPatch, ListQuery, Novel, NovelChapter, NovelInput, NovelPatch};
+use crate::model::{ChapterInput, ChapterPatch, ListQuery, Novel, NovelChapter, NovelInput};
 use crate::repo;
 use axum::Json;
 use axum::extract::{Path, Query, State};
@@ -6,6 +6,7 @@ use oxipage_core::auth::AdminAuth;
 use oxipage_core::error::ApiError;
 use oxipage_core::extension::DataEnvelope;
 use oxipage_core::search;
+use oxipage_core::snapshot;
 use oxipage_core::state::AppState;
 
 // ─── Novel ───
@@ -70,6 +71,7 @@ pub async fn delete_novel(
     search::delete(&state.db, "novels", &slug)
         .await
         .map_err(ApiError::internal)?;
+    let _ = snapshot::remove_snapshot(&state, &format!("/novels/{slug}")).await;
     Ok(Json(DataEnvelope {
         data: serde_json::json!({ "slug": slug, "deleted": true }),
     }))
@@ -102,6 +104,25 @@ pub async fn publish_novel(
     )
     .await
     .map_err(ApiError::internal)?;
+    let synopsis = novel.synopsis.clone().unwrap_or_default();
+    let desc: String = synopsis.chars().take(200).collect();
+    snapshot::write_snapshot_for(
+        &state,
+        &format!("/novels/{}", novel.slug),
+        &snapshot::SnapshotData {
+            title: novel.title.clone(),
+            description: if desc.trim().is_empty() { novel.title.clone() } else { desc },
+            canonical_url: format!(
+                "{}/novels/{}",
+                state.config.site.base_url.trim_end_matches('/'),
+                novel.slug
+            ),
+            og_image: novel.cover_image.clone(),
+            body_markdown: synopsis,
+            lang: "ko".to_string(),
+        },
+    )
+    .await;
     Ok(Json(DataEnvelope { data: novel }))
 }
 
@@ -199,6 +220,7 @@ pub async fn delete_chapter(
     search::delete(&state.db, "novels", &doc_id)
         .await
         .map_err(ApiError::internal)?;
+    let _ = snapshot::remove_snapshot(&state, &format!("/novels/{slug}/chapters/{order}")).await;
     Ok(Json(DataEnvelope {
         data: serde_json::json!({ "deleted": true }),
     }))
@@ -225,6 +247,25 @@ pub async fn publish_chapter(
     )
     .await
     .map_err(ApiError::internal)?;
+    let preview: String = ch.body.chars().take(200).collect();
+    snapshot::write_snapshot_for(
+        &state,
+        &format!("/novels/{}/chapters/{}", slug, ch.chapter_order),
+        &snapshot::SnapshotData {
+            title: ch.title.clone(),
+            description: if preview.trim().is_empty() { ch.title.clone() } else { preview.clone() },
+            canonical_url: format!(
+                "{}/novels/{}/chapters/{}",
+                state.config.site.base_url.trim_end_matches('/'),
+                slug,
+                ch.chapter_order
+            ),
+            og_image: None,
+            body_markdown: preview,
+            lang: "ko".to_string(),
+        },
+    )
+    .await;
     Ok(Json(DataEnvelope { data: ch }))
 }
 

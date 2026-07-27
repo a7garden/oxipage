@@ -126,10 +126,8 @@ pub async fn list(pool: &SqlitePool, draft: bool, lang: Option<&str>, limit: i64
         ),
     };
     let mut q = sqlx::query_as::<_, BlogPost>(&sql);
-    if has_lang {
-        if let Some(l) = lang {
-            q = q.bind(l);
-        }
+    if has_lang && let Some(l) = lang {
+        q = q.bind(l);
     }
     let posts = q.bind(limit).fetch_all(pool).await?;
     Ok(posts)

@@ -73,10 +73,9 @@ fn client_ip(req: &Request) -> Option<IpAddr> {
     if let Some(xff) = req.headers().get("x-forwarded-for")
         && let Ok(s) = xff.to_str()
         && let Some(first) = s.split(',').next()
+        && let Ok(ip) = first.trim().parse::<IpAddr>()
     {
-        if let Ok(ip) = first.trim().parse::<IpAddr>() {
-            return Some(ip);
-        }
+        return Some(ip);
     }
     req.extensions()
         .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()

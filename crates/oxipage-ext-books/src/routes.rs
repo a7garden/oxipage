@@ -11,6 +11,7 @@ use oxipage_core::error::ApiError;
 use oxipage_core::extension::DataEnvelope;
 use oxipage_core::rating::Rating;
 use oxipage_core::search;
+use oxipage_core::snapshot;
 use oxipage_core::state::AppState;
 
 pub async fn list(
@@ -89,6 +90,7 @@ pub async fn delete(
     search::delete(&state.db, "books", &id.to_string())
         .await
         .map_err(ApiError::internal)?;
+    let _ = snapshot::remove_snapshot(&state, &format!("/books/{id}")).await;
     Ok(Json(DataEnvelope {
         data: serde_json::json!({ "id": id, "deleted": true }),
     }))
@@ -111,6 +113,25 @@ pub async fn publish(
         .await
         .map_err(ApiError::internal)?;
     reindex(&state, &book).await?;
+    let review = book.review_ko.clone().or_else(|| book.review_en.clone()).unwrap_or_default();
+    let desc: String = review.chars().take(200).collect();
+    snapshot::write_snapshot_for(
+        &state,
+        &format!("/books/{}", book.id),
+        &snapshot::SnapshotData {
+            title: book.title.clone(),
+            description: if desc.trim().is_empty() { book.title.clone() } else { desc },
+            canonical_url: format!(
+                "{}/books/{}",
+                state.config.site.base_url.trim_end_matches('/'),
+                book.id
+            ),
+            og_image: book.cover_image_url.clone(),
+            body_markdown: review,
+            lang: if book.review_ko.is_some() { "ko".to_string() } else { "en".to_string() },
+        },
+    )
+    .await;
     Ok(Json(DataEnvelope { data: book }))
 }
 

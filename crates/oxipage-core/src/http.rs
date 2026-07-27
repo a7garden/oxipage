@@ -361,3 +361,10 @@ fn serve_asset(path: &str) -> Option<Response> {
         ([(header::CONTENT_TYPE, mime.as_ref())], content.data).into_response()
     })
 }
+
+/// SSR 스냅샷용 — `web/dist/index.html`의 UTF-8 본문을 반환한다.
+/// 없으면(개발 환경 등에서 `web/dist` 미빌드) `None`.
+pub fn spa_index_html() -> Option<String> {
+    Assets::get("index.html")
+        .and_then(|f| std::str::from_utf8(f.data.as_ref()).ok().map(str::to_owned))
+}

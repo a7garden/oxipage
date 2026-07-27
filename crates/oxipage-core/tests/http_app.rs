@@ -210,7 +210,8 @@ async fn pat_admin_can_manage_tokens() {
     let pat = seed_pat(&pool, "admin_tok", &["admin"]).await;
     let res = post_create_pat(app, &pat).await;
     assert_eq!(res.status(), StatusCode::OK);
-    let json = body_string(res).await;
+    let body = body_string(res).await;
+    assert!(body.contains("data"), "expected data envelope: {body}");
 }
 
 #[tokio::test]

@@ -1,6 +1,5 @@
 //! 출력 포맷팅 — `--json` 전역 옵션 처리 (doc/04 §4.3).
 
-use serde::Serialize;
 use serde_json::Value;
 
 pub struct Output {
@@ -36,13 +35,4 @@ impl Output {
         Ok(())
     }
 
-    /// 단순 값 직렬화 출력 (문자열/숫자 등).
-    pub fn value<T: Serialize>(&self, v: &T) -> anyhow::Result<()> {
-        if self.json {
-            println!("{}", serde_json::to_string_pretty(v)?);
-        } else {
-            println!("{}", serde_json::to_string_pretty(v)?);
-        }
-        Ok(())
-    }
 }

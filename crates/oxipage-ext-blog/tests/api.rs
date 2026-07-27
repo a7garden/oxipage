@@ -231,4 +231,48 @@ async fn fts_index_on_publish() {
         .unwrap();
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc_id, "rust-ownership");
+    let hits = oxipage_core::search::search(&pool, "ownership", None, 10)
+        .await
+        .unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].doc_id, "rust-ownership");
+}
+
+/// SSR 스냅샷 호출은 best-effort이라 file 시스템 검증은 회피하고,
+/// publish가 200 응답으로 정상 완료되는지만 확인한다.
+/// (실제 file 생성은 `snapshot::write_snapshot_for` 단위 테스트가 보장).
+#[tokio::test]
+async fn publish_does_not_block_on_ssr_failure() {
+    let app = test_app(Some("tok")).await;
+    // 초안 생성
+    let res = app
+        .clone()
+        .oneshot(
+            Request::post("/api/v1/blog")
+                .header("content-type", "application/json")
+                .header(AUTHORIZATION, bearer("tok"))
+                .body(Body::from(
+                    r##"{"title":"Snapshot Test","body":"body content here","lang":"ko"}"##,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let json = body_json(res).await;
+    let slug = json["data"]["slug"].as_str().unwrap().to_string();
+
+    // SSR 보조 호출이 실패(예: index.html 미임베드)해도 publish API는 200을 반환해야 한다.
+    let res = app
+        .oneshot(
+            Request::post(format!("/api/v1/blog/{slug}/publish"))
+                .header(AUTHORIZATION, bearer("tok"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let json = body_json(res).await;
+    assert!(json["data"]["published_at"].is_string());
 }

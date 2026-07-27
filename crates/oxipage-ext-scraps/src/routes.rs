@@ -6,6 +6,7 @@ use oxipage_core::auth::AdminAuth;
 use oxipage_core::error::ApiError;
 use oxipage_core::extension::DataEnvelope;
 use oxipage_core::search;
+use oxipage_core::snapshot;
 use oxipage_core::state::AppState;
 
 pub async fn list_published(
@@ -88,6 +89,7 @@ pub async fn delete(
     search::delete(&state.db, "scraps", &crate::model::search_doc_id(id))
         .await
         .map_err(ApiError::internal)?;
+    let _ = snapshot::remove_snapshot(&state, &format!("/scraps/{id}")).await;
     Ok(Json(DataEnvelope {
         data: serde_json::json!({ "id": id, "deleted": true }),
     }))
@@ -104,6 +106,25 @@ pub async fn publish(
         .map_err(ApiError::internal)?
         .ok_or_else(|| not_found(id))?;
     reindex(&state, &item).await?;
+    let note = item.note_ko.clone().or_else(|| item.note_en.clone()).unwrap_or_default();
+    let desc: String = note.chars().take(200).collect();
+    snapshot::write_snapshot_for(
+        &state,
+        &format!("/scraps/{}", item.id),
+        &snapshot::SnapshotData {
+            title: item.title.clone(),
+            description: if desc.trim().is_empty() { item.title.clone() } else { desc },
+            canonical_url: format!(
+                "{}/scraps/{}",
+                state.config.site.base_url.trim_end_matches('/'),
+                item.id
+            ),
+            og_image: item.og_image_url.clone(),
+            body_markdown: note,
+            lang: if item.note_ko.is_some() { "ko".to_string() } else { "en".to_string() },
+        },
+    )
+    .await;
     Ok(Json(DataEnvelope { data: item }))
 }
 

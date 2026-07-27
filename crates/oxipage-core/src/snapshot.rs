@@ -68,6 +68,85 @@ pub fn render(data: &SnapshotData, spa_asset: &str) -> String {
     )
 }
 
+/// `index.html`을 베이스로 OG 메타/canonical/본문을 주입한 SSR 출력.
+///
+/// - `<title>…</title>` 을 `data.title` 로 교체.
+/// - `</head>` 직전에 OG 메타 + canonical + description 부착.
+/// - `<div id="root"></div>` 직후에 `<main data-snapshot="true">…</main>` 추가.
+///
+/// 브라우저는 같은 HTML을 받아 React가 `#root` 안의 `main` 요소를 교체한다.
+pub fn render_with_index(index_html: &str, data: &SnapshotData) -> String {
+    let og_image = data
+        .og_image
+        .as_deref()
+        .map(|url| format!("<meta property=\"og:image\" content=\"{}\">", html_escape(url)))
+        .unwrap_or_default();
+    let title = html_escape(&data.title);
+    let desc = html_escape(&data.description);
+    let canonical = html_escape(&data.canonical_url);
+    let body = html_escape(&data.body_markdown);
+
+    let meta_block = format!(
+        "<meta name=\"description\" content=\"{desc}\">\n\
+         <link rel=\"canonical\" href=\"{canonical}\">\n\
+         <meta property=\"og:title\" content=\"{title}\">\n\
+         <meta property=\"og:description\" content=\"{desc}\">\n\
+         <meta property=\"og:type\" content=\"article\">\n\
+         <meta property=\"og:url\" content=\"{canonical}\">\n\
+         {og_image}\n\
+         <meta name=\"twitter:card\" content=\"summary_large_image\">\n\
+         <meta name=\"twitter:title\" content=\"{title}\">\n\
+         <meta name=\"twitter:description\" content=\"{desc}\">"
+    );
+
+    // 1) <title>…</title> 교체 (첫 번째 등장분만).
+    let mut html = if let Some(start) = index_html.find("<title>") {
+        if let Some(end_rel) = index_html[start..].find("</title>") {
+            let end = start + end_rel + "</title>".len();
+            let mut owned = index_html.to_owned();
+            owned.replace_range(start..end, &format!("<title>{title}</title>"));
+            owned
+        } else {
+            index_html.to_owned()
+        }
+    } else {
+        index_html.to_owned()
+    };
+
+    // 2) </head> 직전에 meta_block 주입.
+    if let Some(pos) = html.find("</head>") {
+        html.insert_str(pos, &meta_block);
+        html.insert(pos, '\n');
+    }
+
+    // 3) <div id="root"> 뒤에 SSR 본문 삽입 (React 하이드레이트 시 이 main을 교체).
+    let marker = "<main data-snapshot=\"true\">";
+    let insert_html = format!(
+        "\n{marker}{body}</main>\n",
+        marker = marker,
+        body = body
+    );
+    if let Some(pos) = html.find(r#"<div id="root">"#) {
+        // root div 바로 뒤(=root의 자식 시작점)에 추가.
+        let after = pos + r#"<div id="root">"#.len();
+        html.insert_str(after, &insert_html);
+    }
+
+    html
+}
+
+/// SSR 스냅샷 작성 helper. `index.html` 로드가 가능하고 publish가 의미를 가질 때만 동작.
+/// best-effort: 실패해도 호출자 흐름을 막지 않도록 `Result`를 무시할 수 있도록 tracing만.
+pub async fn write_snapshot_for(ctx: &AppState, path: &str, data: &SnapshotData) {
+    let Some(index_html) = crate::http::spa_index_html() else {
+        tracing::debug!(path, "spa_index_html unavailable; skip snapshot");
+        return;
+    };
+    let html = render_with_index(&index_html, data);
+    if let Err(e) = write_snapshot(ctx, path, &html).await {
+        tracing::warn!(error = ?e, path, "failed to write SSR snapshot");
+    }
+}
 /// `/data/snapshots/<safe-path>.html`에 스냅샷 저장.
 pub async fn write_snapshot(ctx: &AppState, path: &str, html: &str) -> anyhow::Result<()> {
     let dir = ctx.config.server.data_dir.join("snapshots");
@@ -155,5 +234,55 @@ mod tests {
         };
         let html = render(&data, "/a.js");
         assert!(!html.contains("og:image"));
+    }
+
+    #[test]
+    fn render_with_index_replaces_title_and_injects_meta_and_main() {
+        let index = r#"<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Old title</title>
+<script type="module" src="/assets/index.js"></script>
+</head>
+<body>
+<div id="root"></div>
+</body>
+</html>"#;
+        let data = SnapshotData {
+            title: "New <Title>".into(),
+            description: "desc & <tag>".into(),
+            canonical_url: "https://x.com/blog/hello".into(),
+            og_image: Some("https://x.com/img.png".into()),
+            body_markdown: "# Body\n\ntext".into(),
+            lang: "ko".into(),
+        };
+        let out = render_with_index(index, &data);
+        assert!(out.contains("<title>New &lt;Title&gt;</title>"));
+        assert!(!out.contains("Old title"));
+        assert!(out.contains(r#"<meta name="description" content="desc &amp; &lt;tag&gt;">"#));
+        assert!(out.contains(r#"<link rel="canonical" href="https://x.com/blog/hello">"#));
+        assert!(out.contains(r#"<meta property="og:image" content="https://x.com/img.png">"#));
+        assert!(out.contains(r#"<meta property="og:url" content="https://x.com/blog/hello">"#));
+        // main은 div#root 직후 어딘가에 있고, data-snapshot 마커가 있다 (정확한 공백은 format! 결과에 의존).
+        assert!(out.contains(r#"<main data-snapshot="true">"#));
+        assert!(out.contains("# Body"));
+        assert!(out.contains("</main>"));
+    }
+
+    #[test]
+    fn render_with_index_skips_og_image_when_none() {
+        let index = r#"<!DOCTYPE html><html><head><title>t</title></head><body><div id="root"></div></body></html>"#;
+        let data = SnapshotData {
+            title: "T".into(),
+            description: "d".into(),
+            canonical_url: "https://x.com/".into(),
+            og_image: None,
+            body_markdown: "".into(),
+            lang: "en".into(),
+        };
+        let out = render_with_index(index, &data);
+        assert!(!out.contains("og:image"));
+        assert!(out.contains("rel=\"canonical\""));
     }
 }

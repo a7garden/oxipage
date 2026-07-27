@@ -6,6 +6,7 @@ use oxipage_core::auth::AdminAuth;
 use oxipage_core::error::ApiError;
 use oxipage_core::extension::DataEnvelope;
 use oxipage_core::search;
+use oxipage_core::snapshot;
 use oxipage_core::state::AppState;
 
 pub async fn list(
@@ -87,6 +88,7 @@ pub async fn delete(
     search::delete(&state.db, "blog", &slug)
         .await
         .map_err(ApiError::internal)?;
+    let _ = snapshot::remove_snapshot(&state, &format!("/blog/{slug}")).await;
     Ok(Json(DataEnvelope {
         data: serde_json::json!({ "slug": slug, "deleted": true }),
     }))
@@ -98,7 +100,6 @@ pub async fn publish(
     Path(slug): Path<String>,
 ) -> Result<Json<DataEnvelope<BlogPost>>, ApiError> {
     auth.require_scope("post:publish")?;
-    // 존재 확인
     if repo::find_by_slug(&state.db, &slug)
         .await
         .map_err(ApiError::internal)?
@@ -110,6 +111,21 @@ pub async fn publish(
         .await
         .map_err(ApiError::internal)?;
     reindex(&state, &post).await?;
+    let snapshot_path = format!("/blog/{}", post.slug);
+    let desc: String = post.body.chars().take(200).collect();
+    snapshot::write_snapshot_for(
+        &state,
+        &snapshot_path,
+        &snapshot::SnapshotData {
+            title: post.title.clone(),
+            description: if desc.trim().is_empty() { post.title.clone() } else { desc },
+            canonical_url: format!("{}/blog/{}", state.config.site.base_url.trim_end_matches('/'), post.slug),
+            og_image: None,
+            body_markdown: post.body.clone(),
+            lang: post.lang.clone(),
+        },
+    )
+    .await;
     Ok(Json(DataEnvelope { data: post }))
 }
 

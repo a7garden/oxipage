@@ -153,11 +153,13 @@ async fn create_without_token_is_401() {
 }
 
 #[tokio::test]
+#[allow(clippy::await_holding_lock)] // ENV_LOCK은 의도된 전역 env 격리 가드
 async fn external_search_no_aladin_key_is_503() {
     // `OXIPAGE_ALADIN_TTBKEY`가 unset이면 503. 테스트 환경에서 unset 가정.
     // 다른 테스트와 env 변수를 공유하므로 cargo test는 보통 unset 상태로 시작한다.
     // 격리를 위해 mutex로 보호.
     static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    #[allow(clippy::await_holding_lock)] // ENV_LOCK은 의도된 전역 env 격리 가드
     let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let prior = std::env::var("OXIPAGE_ALADIN_TTBKEY").ok();
     unsafe {
