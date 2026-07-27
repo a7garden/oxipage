@@ -1366,7 +1366,7 @@ async fn manifest_lists_enabled_extensions() {
 async fn extension_routes_are_mounted_under_api_v1() {
     let app = test_app().await;
     let res = app
-        .oneshot(Request::get("/api/v1/dummy/").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/v1/dummy").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
@@ -2151,7 +2151,7 @@ async function apiFetch<T>(path: string): Promise<T> {
 }
 
 export const fetchManifest = () => apiFetch<Manifest>('/lobby/manifest');
-export const fetchProfile = () => apiFetch<Profile>('/profile/');
+export const fetchProfile = () => apiFetch<Profile>('/profile');
 ```
 
 `web/src/shared/language.tsx`:

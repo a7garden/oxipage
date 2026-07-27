@@ -109,10 +109,10 @@ impl Config {
     }
 
     pub fn apply_env_overrides(&mut self) {
-        if let Ok(port) = std::env::var("OXIPAGE_PORT") {
-            if let Ok(port) = port.parse::<u16>() {
-                self.server.port = port;
-            }
+        if let Ok(port) = std::env::var("OXIPAGE_PORT")
+            && let Ok(port) = port.parse::<u16>()
+        {
+            self.server.port = port;
         }
         if let Ok(dir) = std::env::var("OXIPAGE_DATA_DIR") {
             self.server.data_dir = PathBuf::from(dir);
