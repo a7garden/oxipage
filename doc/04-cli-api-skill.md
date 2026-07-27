@@ -26,7 +26,7 @@ oxipage auth login
 ```text
 # 인증
 oxipage auth login
-oxipage auth token create --label <name> [--scope post:write,post:publish]
+oxipage auth token create --label <name> [--scopes post:write,post:publish]
 oxipage auth token list
 oxipage auth token revoke <token-id>
 
@@ -166,7 +166,7 @@ description: >
 ## 인증(토큰)
 
 - 이 스킬을 쓰려면 oh-my-pi 실행 환경에 Oxipage PAT가 **사전 프로비저닝**되어 있어야 합니다:
-  1. 오너가 로컬에서 `oxipage auth token create --label omp-agent --scope post:write` (에이전트엔 `post:publish`를 주지 않습니다 — 초안 우선 원칙).
+  1. 오너가 로컬에서 `oxipage auth token create --label omp-agent --scopes post:write` (에이전트엔 `post:publish`를 주지 않습니다 — 초안 우선 원칙).
   2. 발급받은 평문 토큰을 oh-my-pi 환경변수 `OXIPAGE_TOKEN`으로 주입. 평문은 이때 한 번만 보이므로 즉시 환경에 넣으세요.
   3. CLI는 `OXIPAGE_TOKEN`이 있으면 자동으로 `Authorization: Bearer` 헤더에 붙입니다. 없으면 모든 쓰기 명령이 401로 실패합니다.
 - 토큰 만료·스코프 부족(403)이면 **재발급을 사용자에게 요청** — 스킬 스스로 토큰을 발급하거나 권한을 올리지 않습니다.

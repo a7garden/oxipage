@@ -27,7 +27,7 @@ graph LR
 - **Caddy는 컨테이너화하지 않고 macOS 호스트에 네이티브로(`brew install caddy` + launchd)** 둡니다. 지금 시점에 Apple `container`로 리버스 프록시까지 컨테이너 2개로 오케스트레이션하려면 아직 미성숙한 서드파티 compose 도구에 의존해야 하는데, TLS 종료 역할 하나만 하는 Caddy를 굳이 컨테이너에 넣을 이유가 없습니다. Apple `container`가 compose를 네이티브 지원하게 되면 이 부분은 쉽게 컨테이너로 옮길 수 있도록, Caddy 설정 자체는 처음부터 독립 파일(`deploy/Caddyfile.example`)로 관리합니다.
 - **Cloudflare Tunnel(`cloudflared`)** 로 홈 네트워크 공유기의 포트 포워딩 없이 외부에 노출합니다. 가정용 회선에 인바운드 포트를 여는 것 자체가 불필요한 공격 표면이므로, 이미 많이 쓰이는 이 패턴을 기본값으로 권장합니다.
 - 컨테이너는 Apple `container`의 "컨테이너별 고정 IP" 특성을 활용해 포트 매핑 없이 Caddy가 그 IP로 바로 프록시합니다.
-- **기본 실행 모델:** `oxipage-core` 바이너리를 launchd(macOS, `deploy/oxipage.plist.example`) 또는 systemd(Linux, `deploy/oxipage.service.example`)로 직접 기동하는 것이 기본 경로입니다. container를 쓰는 경우에도 Caddy→컨테이너 흐름은 동일합니다. OSS 사용자(§5.7)가 Apple Silicon/macOS 없이도 Linux 서버 한 대에서 동일하게 운영할 수 있는 것도 이 경로 덕분입니다.
+- **기본 실행 모델:** `oxipage-server` 바이너리를 launchd(macOS, `deploy/oxipage.plist.example`) 또는 systemd(Linux, `deploy/oxipage.service.example`)로 직접 기동하는 것이 기본 경로입니다. container를 쓰는 경우에도 Caddy→컨테이너 흐름은 동일합니다. OSS 사용자(§5.7)가 Apple Silicon/macOS 없이도 Linux 서버 한 대에서 동일하게 운영할 수 있는 것도 이 경로 덕분입니다.
 
 ## 5.3 이미지 빌드 및 실행 (예시, 정확한 플래그는 구현 시점의 `container --help`로 재확인)
 
@@ -38,13 +38,13 @@ graph LR
 FROM rust:1-slim AS build
 WORKDIR /app
 COPY . .
-RUN cargo build --release -p oxipage-core
+RUN cargo build --release -p oxipage-server
 
 FROM debian:stable-slim
-COPY --from=build /app/target/release/oxipage-core /usr/local/bin/oxipage-core
+COPY --from=build /app/target/release/oxipage-server /usr/local/bin/oxipage-server
 # 프론트엔드(web/dist)는 rust-embed로 이미 바이너리에 내장되어 별도 COPY 불필요
 EXPOSE 8787
-ENTRYPOINT ["/usr/local/bin/oxipage-core"]
+ENTRYPOINT ["/usr/local/bin/oxipage-server"]
 ```
 
 ```bash

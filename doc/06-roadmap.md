@@ -10,9 +10,9 @@
 - `oxipage-core`: Axum 서버 부트스트랩, SQLite 연결, `oxipage.toml` 로딩, 확장 레지스트리 골격
 - `web/`: Vite+React+TS 스캐폴드, 3장 OKLCH 토큰 세트 적용, 다크/라이트 토글
 - `profile` 확장(가장 단순한 싱글턴)만 우선 구현해 "명함 페이지 하나"가 실제로 뜨는지 확인
-- `oxipage-core` 바이너리 로컬 빌드·실행 성공 (container 패키징은 선택, 5장 §5.2-5.3)
+- `oxipage-server` 바이너리 로컬 빌드·실행 성공 (container 패키징은 선택, 5장 §5.2-5.3)
 
-**완료 기준:** `oxipage-core` 바이너리를 로컬에서 빌드·실행해 브라우저로 접속, 명함 페이지가 라이트/다크 둘 다 정상 렌더. (container 패키징은 선택 — `container build && container run`으로도 동일 결과가 나오는지 1회 확인만.)
+**완료 기준:** `oxipage-server` 바이너리를 로컬에서 빌드·실행해 브라우저로 접속, 명함 페이지가 라이트/다크 둘 다 정상 렌더. (container 패키징은 선택 — `container build && container run`으로도 동일 결과가 나오는지 1회 확인만.)
 
 ## Phase 1 — 핵심 콘텐츠 확장 + CLI
 

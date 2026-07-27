@@ -1,21 +1,32 @@
 # 7장 — 남은 작업 (Remaining Work)
 
-> Phase 0(뼈대) 완료 이후, v1 완성까지 남은 단계와 항목을 정리합니다.
-> 본 문서는 `doc/06-roadmap.md`의 단계 계획을 현재 진행 상태에 맞춰 구체화한 실행 지표입니다.
-> 각 Phase의 완료 기준과 선행 조건은 그대로 유효하며, 아래에 현재 시점의 상세 작업 단위를 덧붙입니다.
+> Phase별 범위와 완료 기준을 정리한 참조 문서. **현재 진행 상태의 단일 진실 소스는
+> [`08-remaining-implementation.md`](08-remaining-implementation.md)** 이다 — 잔여/완료
+> 항목은 그쪽에서 단위별로 추적한다. 본 문서는 각 Phase가 *무엇*을 포함하는지,
+> 어떤 선행 조건이 있는지를 설명하는 용도로 함께 둔다.
+>
+> Phase 0~5가 대부분 구현 완료된 상태(2026-07-27)이므로, 아래 각 Phase의 "작업 항목"은
+> 과거 계획을 보존한 것이며 현재 상태는 §7.1과 `08`을 기준으로 볼 것.
 
-## 7.1 현재 상태 (Phase 0 완료)
+## 7.1 현재 상태 (2026-07-27 갱신)
 
-| 항목 | 상태 |
+Phase 0~5가 대부분 구현되었다. 단위별 완료/잔여 상태는 [`08`](08-remaining-implementation.md) §8.1
+참조. 요약: Foundation·Phase 1~4는 완료, Phase 5는 5/6(WASM 스파이크 잔여), 검증은
+배포 스모크·브라우저 접근성 실측이 남아 있다(외부 자격증명 필요).
+
+| 영역 | 상태 |
 |---|---|
-| Cargo 워크스페이스(`oxipage-core` lib / `oxipage-ext-profile` / `oxipage-server` bin) | ✅ |
-| Axum 0.8 HTTP 서버, SQLite(WAL) + 확장별 네임스페이스 마이그레이션 러너, 확장 레지스트리 | ✅ |
-| `profile` 확장 — 명함 페이지(GET/PUT `/api/v1/profile`), `on_startup` 싱글턴 시드 | ✅ |
-| Vite 7 + React 19 + TS SPA, `rust-embed`로 바이너리 내장 | ✅ |
-| OKLCH 디자인 토큰(`doc/03` §3.3 verbatim), 다크/라이트 FOUC 방지 전환 | ✅ |
-| 로비 셸(매니페스트 기반 카드 그리드), KO/EN 언어 토글, 서버 `default_lang` 반영 | ✅ |
-| 릴리스 바이너리 빌드·실행, `/healthz`, 로비 매니페스트, SPA 폭백 | ✅ |
-| 검증: `cargo test --workspace` 17/17, `clippy -D warnings` 클린, 릴리스 스모크 8/8, 브라우저 라이트/다크 렌더 확인 | ✅ |
+| Cargo 워크스페이스(core/server/cli + 9개 확장) | ✅ |
+| Axum 0.8 서버, SQLite(WAL) + 확장별 네임스페이스 마이그레이션, 레지스트리 | ✅ |
+| FTS5(`tokenize='trigram'`) 전문검색, SSR 발행 시점 스냅샷, PAT 스코프 인증, 레이트리밋, OpenAPI | ✅ |
+| 9개 확장 + 공통 Rating 값객체 + 백그라운드 잡 스케줄러 | ✅ |
+| Vite 7 + React 19 + TS SPA, OKLCH 토큰, 다크/라이트, 로비 3모드, `/search` | ✅ |
+| Oxipage CLI(init/status/serve/auth/blog/project/link/lobby) + oh-my-pi SKILL | ✅ |
+| 배포 템플릿·LICENSE(MIT)·SDK 문서·레지스트리·starter | ✅ |
+| Phase 2 확장의 CLI 서브커맨드(novel/review/scrap/activity) | ⏳ API/웹으로만 (후순위) |
+| WASM 컴포넌트 런타임 로딩 스파이크 (Phase 5 옵션) | ⏳ 수요 확인 후 |
+| 검증: `cargo test --workspace` 90 tests ok · clippy `-D warnings` 클린 · web 빌드 OK · SSR E2E 스모크 | ✅ |
+| 검증: 배포 스모크·브라우저 접근성 실측 | ⏳ 외부 자격증명 필요 |
 
 ## 7.2 Phase 0에서 이월된 항목
 
@@ -61,7 +72,7 @@
 - `oxipage-ext-novels`: `Novel` + `NovelChapter`(`char_count` 자동 계산, `doc/02` §2.5).
 - `oxipage-ext-scraps` + HN(Firebase API)/GeekNews(RSS) 수집 잡(`doc/02` §2.7). **발행은 항상 사람 선택** — 백그라운드 잡은 "추천 큐"만 채운다.
 - `oxipage-ext-activity` + GitHub 활동(`doc/02` §2.8): webhook 1순위 + Events API 15분 폴링(보조). **공개 Events API만 사용 → private repo 노출 안 됨(설계 보장)**.
-- 공통 `Rating`(0~20 정수 = 0.5점 단위) 값 객체 + 프론트 별점 5개 컴포넌트(`--color-rating-fill`).
+- 공통 `Rating`(0~10 정수 = 0.5점 단위) 값 객체 + 프론트 별점 5개 컴포넌트(`--color-rating-fill`).
 - 백그라운드 잡 스케줄러: `tokio-cron-scheduler` 코어 단일 인스턴스, 각 확장 `background_jobs()` 등록(`doc/01` §1.9 표 참고).
 
 **완료 기준:** 영화 리뷰 1건을 TMDB 검색부터 `SeriesGroup` 묶음까지 CLI로 완결, 로비에서 최근 활동/스크랩이 실시간에 가깝게 갱신.

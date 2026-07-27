@@ -182,7 +182,7 @@ pub trait Extension: Send + Sync {
 
 v1은 "1 인스턴스 = 1 오너" 전제이므로 계정 시스템을 최소화합니다.
 
-- **CLI/API용:** Personal Access Token(PAT). `oxipage auth token create --label "omp-agent" --scope post:write`로 발급. **PAT는 ≥256비트 난수 고엔트로피 토큰이므로 매요청 조회에 쓰는 빠른 해시(SHA-256 또는 HMAC-SHA256)로만 저장**합니다(느린 해시를 쓰면 쓰기 API마다 비용이 누적되어 DoS를 자초). 클라이언트는 최초 1회만 평문을 받고, 요청은 `Authorization: Bearer <token>` 헤더로 보냅니다.
+- **CLI/API용:** Personal Access Token(PAT). `oxipage auth token create --label "omp-agent" --scopes post:write`로 발급. **PAT는 ≥256비트 난수 고엔트로피 토큰이므로 매요청 조회에 쓰는 빠른 해시(SHA-256 또는 HMAC-SHA256)로만 저장**합니다(느린 해시를 쓰면 쓰기 API마다 비용이 누적되어 DoS를 자초). 클라이언트는 최초 1회만 평문을 받고, 요청은 `Authorization: Bearer <token>` 헤더로 보냅니다.
 - **웹 관리자 UI용(있다면, 후순위 §6):** 비밀번호 1개(Argon2id 해시) + 세션 쿠키(HttpOnly, SameSite=Strict) + CSRF 토큰.
 - **공개 읽기 API**(블로그 목록 조회 등)는 인증 불필요. 쓰기 API는 전부 토큰 필요.
 - Phase 2(멀티유저 SaaS화)는 명시적으로 범위 밖(§0.6)이므로 이 인증 모델을 억지로 확장하지 않습니다.

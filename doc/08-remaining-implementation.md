@@ -16,7 +16,7 @@
 | Phase 5 | 5/6 | deploy·LICENSE·SDK 문서·레지스트리·starter·개인화. **WASM 옵션 남음** |
 | Verification | 2/3 | cargo test/clippy -D warnings 통과·SSR 엔드투엔드 스모크 완료. **배포 스모크·브라우저 접근성 실측 남음** |
 
-**검증 상태:** `cargo test --workspace` 100 tests ok · `cargo clippy --workspace --all-targets -- -D warnings` ok ·
+**검증 상태:** `cargo test --workspace` 90 tests ok · `cargo clippy --workspace --all-targets -- -D warnings` ok ·
 `cd web && bun run build` ok · SSR end-to-end: blog post create→publish→`data/snapshots/blog_*.html` 생성(og:title/og:url/canonical/main data-snapshot 확인)→DELETE→파일 제거.
 
 ## 8.2 SSR 스냅샷 확장 연결 (Phase 3, ✅ 완료 — 2026-07-27)

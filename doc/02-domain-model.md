@@ -132,7 +132,7 @@ GitHub의 공개 Events API만 사용하므로 **비공개 저장소의 활동�
 | `media_type` | enum `movie \| tv` | TV는 시즌/에피소드 세분화 없이 "작품 단위" |
 | `title`, `poster_path`, `release_year` | | TMDB에서 캐시해온 값 |
 | `watched_at` | date | |
-| `rating` | `Rating` (0~20) | |
+| `rating` | `Rating` (0~10) | |
 | `review_ko` / `review_en` | markdown, nullable | |
 | `rewatch` | bool | |
 | `series_group_id` | nullable FK → `SeriesGroup` | |
@@ -179,7 +179,7 @@ TMDB API 사용 시 TMDB의 attribution 요구사항(예: "This product uses the
 | `source` | enum `aladin \| google_books \| open_library \| manual` | |
 | `external_id` / `isbn13` | nullable | |
 | `title`, `author`, `cover_image_url` | | 외부 API에서 캐시 |
-| `rating` | `Rating` (0~20) | |
+| `rating` | `Rating` (0~10) | |
 | `review_ko` / `review_en` | markdown, nullable | |
 | `status` | enum `wishlist \| reading \| completed \| dropped` | |
 | `started_at` / `finished_at` | date, nullable | |
