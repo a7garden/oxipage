@@ -1,0 +1,25 @@
+# Rust
+/target
+
+# Node / web frontend
+/web/node_modules
+/web/dist
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data
+/data
+*.db
+*.sqlite
+*.sqlite-*
+
+# Logs
+*.log
+
+# macOS / editor
+.DS_Store
+.idea/
+.vscode/
