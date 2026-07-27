@@ -1,0 +1,16 @@
+[site]
+name = "내 작업실"
+base_url = "http://127.0.0.1:8787"
+default_lang = "ko"
+languages = ["ko", "en"]
+
+[server]
+host = "127.0.0.1"
+port = 8787
+data_dir = "data"
+
+[extensions]
+enabled = ["profile"]
+
+[lobby]
+default_mode = "grid"
