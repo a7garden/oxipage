@@ -1,19 +1,19 @@
-# Oxipage Extension SDK — 새 확장 만들기 (doc/01 §1.4)
+# Oxipage Extension SDK — building a new extension (doc/01 §1.4)
 
-Oxipage 확장은 Cargo 워크스페이스 멤버 크레이트로, `oxipage_core::extension::Extension`
-트레이트를 구현한다. 이 문서는 처음부터 확장 하나를 만드는 과정을 안내한다.
+An Oxipage extension is a Cargo workspace member crate that implements the
+`oxipage_core::extension::Extension` trait. This guide walks through building one from scratch.
 
-## 1. 크레이트 스캐폴드
+## 1. Crate scaffold
 
 ```
 crates/oxipage-ext-myfeature/
 ├── Cargo.toml
 ├── migrations/0001_init.sql
 ├── src/lib.rs        # Extension impl
-├── src/model.rs      # sqlx::FromRow 모델 + Input/Patch
-├── src/repo.rs       # DB 함수
-├── src/routes.rs     # axum 핸들러
-└── tests/api.rs      # 통합 테스트
+├── src/model.rs      # sqlx::FromRow models + Input/Patch
+├── src/repo.rs       # DB functions
+├── src/routes.rs     # axum handlers
+└── tests/api.rs      # integration tests
 ```
 
 `Cargo.toml`:
@@ -42,9 +42,9 @@ tokio.workspace = true
 tower = { version = "0.5", features = ["util"] }
 ```
 
-workspace `Cargo.toml`의 `members`에 크레이트 추가.
+Add the crate to `members` in the workspace `Cargo.toml`.
 
-## 2. Extension 트레이트 구현
+## 2. Implementing the Extension trait
 
 ```rust
 use async_trait::async_trait;
@@ -66,46 +66,49 @@ impl Extension for MyFeatureExtension {
     }
     fn routes(&self) -> Router<AppState> {
         Router::new().route("/", get(routes::list).post(routes::create))
-        // axum 0.8: 경로 파라미터는 {slug} 형식 (NOT :slug). trailing slash 없음.
+        // axum 0.8: path params use the {slug} form (NOT :slug). No trailing slash.
     }
     async fn lobby_summary(&self, ctx: &AppState) -> Option<LobbyCard> { /* ... */ }
 }
 ```
 
-## 3. 핵심 규칙 (준수 필수)
+## 3. Core rules (must follow)
 
-1. **확장 테이블 네임스페이스**: 각 확장의 테이블은 고유 접두사/이름. 코어 마이그레이션
-   러너가 확장 id별로 스키마 마이그레이션을 격리 추적.
-2. **FTS5 공통 인덱스**: 발행 시점에 `oxipage_core::search::upsert(pool, "myfeature",
-   &doc_id, &title, &body, lang, published_at)`. 삭제/비활성화 시 `delete` /
-   `delete_extension`. (doc/02 §2.13)
-3. **초안 우선 원칙**: `create`는 무조건 `published_at = NULL`. 발행은 별도 POST
-   `/{id}/publish` 액션만 (doc/04 §4.3).
-4. **쓰기 라우트 인증**: 핸들러 인자 `_auth: AdminAuth` → 진입 자체가 `post:write` 스코프
-   필요. 발행 액션은 본문 첫 줄 `auth.require_scope("post:publish")?;`. 토큰 관리는
-   `require_scope("admin")?` (doc/01 §1.8).
-5. **에러**: `oxipage_core::error::ApiError` (new/validation/internal). 응답 봉투는
-   `DataEnvelope<T>`.
-6. **`order`/`display_order`**: `order`는 SQL 예약어 → 항상 `display_order` 사용.
-7. **다른 확장 테이블 직접 JOIN 금지**: 필요하면 코어 API로 조합 (doc/02 서문).
-8. **백그라운드 잡**: 외부 API 폴링/캐시 갱신이 필요하면 `background_jobs()`에서
-   `ScheduledJob` 반환. 키가 없으면 조용히 비활성화 (doc/01 §1.9).
-9. **외부 API 키**: `oxipage.toml [integrations]`의 환경변수 이름 → `Config::integrations`
-   헬퍼(`tmdb_key()`/`aladin_key()`/`github_username()`). 평문 키를 설정 파일에 적지 말 것.
+1. **Extension table namespace:** each extension's tables use a unique prefix/name. The core
+   migration runner tracks schema migrations per extension id, keeping them isolated.
+2. **FTS5 shared index:** on publish, upsert into the shared index via
+   `oxipage_core::search::upsert(pool, "myfeature", &doc_id, &title, &body, lang, published_at)`.
+   On delete/disable, call `delete` / `delete_extension` (doc/02 §2.13).
+3. **Draft-first principle:** `create` always sets `published_at = NULL`. Publishing is a separate
+   `POST /{id}/publish` action only (doc/04 §4.3).
+4. **Write-route auth:** a handler argument `_auth: AdminAuth` means entry itself requires the
+   `post:write` scope. Publish actions call `auth.require_scope("post:publish")?;` as the first
+   line. Token management calls `require_scope("admin")?` (doc/01 §1.8).
+5. **Errors:** use `oxipage_core::error::ApiError` (`new` / `validation` / `internal`). The response
+   envelope is `DataEnvelope<T>`.
+6. **`order` / `display_order`:** `order` is a SQL reserved word — always use `display_order`.
+7. **No cross-extension JOINs:** if you need data from another extension, compose via the core API
+   (doc/02 preamble).
+8. **Background jobs:** if you need external-API polling or cache refresh, return a `ScheduledJob`
+   from `background_jobs()`. If the key is absent, silently disable (doc/01 §1.9).
+9. **External API keys:** the `[integrations]` section of `oxipage.toml` holds the *env-var name*;
+   read the value via the `Config::integrations` helpers (`tmdb_key()` / `aladin_key()` /
+   `github_username()`). Never put plaintext keys in the config file.
 
-## 4. 서버 등록
+## 4. Server registration
 
-`crates/oxipage-server/Cargo.toml`에 의존성 추가 + `src/lib.rs`의
-`all_extensions()` vec에 `Arc::new(MyFeatureExtension)` 한 줄 추가.
+Add the dependency to `crates/oxipage-server/Cargo.toml` and add one line —
+`Arc::new(MyFeatureExtension)` — to the `all_extensions()` vec in `src/lib.rs`.
 
-## 5. 테스트 패턴
+## 5. Test patterns
 
-`tests/api.rs`에서 in-memory DB + `ExtensionRegistry`로 앱 조립 후 `oneshot`.
-기본 케이스: 401(토큰 없음), 503(서버 토큰 없음), 422(검증), create→show→publish 흐름,
-FTS upsert 검증. `oxipage-ext-blog`/`oxipage-ext-projects`가 레퍼런스.
+In `tests/api.rs`, assemble the app with an in-memory DB and an `ExtensionRegistry`, then drive it
+with `oneshot`. Baseline cases: 401 (no token), 503 (no server token), 422 (validation), the
+create → show → publish flow, and FTS upsert verification. `oxipage-ext-blog` and
+`oxipage-ext-projects` are the references.
 
-## 6. 런타임 설치 확장 (알려진 한계, doc/01 §1.4)
+## 6. Runtime-installable extensions (known limitation, doc/01 §1.4)
 
-v1은 컴파일 타임 정적 링크만 지원. WASM 컴포넌트 기반 런타임 로딩은 Phase 5 스파이크
-대상이며, **런타임 설치 확장은 CLI 서브커맨드를 추가할 수 없다** (clap 정적 링크 필요).
-서드파티 확장은 API/웹으로만 다룬다.
+v1 supports compile-time static linking only. WASM-component-based runtime loading is a Phase 5
+spike, and **runtime-installed extensions cannot add CLI subcommands** (clap requires static
+linking). Third-party extensions are reachable via the API and web only.

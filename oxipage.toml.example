@@ -1,22 +1,22 @@
-# Oxipage 설정 예시 (doc/04 §4.4). 복사해서 oxipage.toml로 사용.
-# 실제 배포 시 [site].base_url, [integrations] 등을 수정.
-# 시크릿(API 키 값)은 이 파일에 평문으로 적지 말 것 — 환경변수 이름만.
+# Oxipage configuration example (doc/04 §4.4). Copy to oxipage.toml and edit.
+# Adjust [site].base_url, [integrations], etc. for your deployment.
+# Never put secret API-key VALUES in this file — only the names of the env vars that hold them.
 
 [site]
-name = "내 Oxipage"
-base_url = "https://example.com"          # 공개 도메인. CLI가 여기를 기본 엔드포인트로 씀.
+name = "My Oxipage"
+base_url = "https://example.com"          # public domain. The CLI defaults to this endpoint.
 default_lang = "ko"                         # "ko" | "en"
 languages = ["ko", "en"]
 
 [server]
-host = "127.0.0.1"                          # 리버스 프록시 후단이면 127.0.0.1
+host = "127.0.0.1"                          # 0.0.0.0 when behind a reverse proxy
 port = 8787
-data_dir = "data"                           # SQLite db + 미디어. 절대경로 권장(/srv/oxipage/data).
-# api_endpoint = "https://example.com/api/v1"  # base_url과 다를 때만.
+data_dir = "data"                           # SQLite db + media. Prefer an absolute path in prod (/srv/oxipage/data).
+# api_endpoint = "https://example.com/api/v1"  # only if different from base_url.
 
 [extensions]
-# 비어 있으면 컴파일 타임에 포함된 전부 활성화.
-# 특정 확장만 쓰려면 명시. 순서는 무의미 (lobby.display_order가 표시 순서 결정).
+# Empty = every compiled-in extension is active.
+# To enable only specific ones, list them. Order is irrelevant (lobby.display_order controls display order).
 enabled = [
     "profile",
     "blog",
@@ -30,12 +30,12 @@ enabled = [
 ]
 
 [integrations]
-# github_username = "yourname"             # activity 확장 (공개 Events API).
-# tmdb_api_key_env = "OXIPAGE_TMDB_KEY"     # movies. 미설정 시 manual 모드.
-# aladin_ttbkey_env = "OXIPAGE_ALADIN_TTBKEY"  # books 1순위. 미설정 시 Google Books 폴백.
+# github_username = "yourname"             # activity extension (public Events API).
+# tmdb_api_key_env = "OXIPAGE_TMDB_KEY"     # movies. Manual mode if unset.
+# aladin_ttbkey_env = "OXIPAGE_ALADIN_TTBKEY"  # books, first choice. Falls back to Google Books if unset.
 
 [lobby]
-default_mode = "grid"                       # "canvas" | "grid" | "list". per-extension 오버라이드는 API/CLI로.
+default_mode = "grid"                       # "canvas" | "grid" | "list". Per-extension overrides via API/CLI.
 
 # [lobby.overrides]                         # doc/04 §4.4 — per-extension display_mode.
 # projects = "canvas"

@@ -1,41 +1,43 @@
 # oxipage-starter
 
-원클릭 설치 템플릿 저장소 (doc/05 §5.7, doc/07 §7.7). 이 디렉토리는 별도 GitHub
-저장소(`oxipage-starter`)로 분리할 예정 — 여기엔 설치 스크립트와 템플릿 안내만 둔다.
+One-click install template repo (doc/05 §5.7, doc/07 §7.7). This directory is meant to be split
+into a separate GitHub repo (`oxipage-starter`) — for now it holds only the install script outline
+and template notes.
 
-## 빠른 시작 (curl … | sh)
+## Quick start (curl … | sh)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/oxipage/oxipage-starter/main/install.sh | sh
 ```
 
-`install.sh`가 하는 일:
-1. Rust toolchain 확인 (`rustup`) + `cargo`.
-2. `git clone oxipage-starter` → 작업 디렉토리.
-3. `cp oxipage.toml.example oxipage.toml` + 대화형으로 `[site]`/`[integrations]` 채움.
-4. `cargo build --release -p oxipage-server` (또는 릴리스 바이너리 다운로드).
-5. `OXIPAGE_ADMIN_TOKEN=$(openssl rand -hex 32) ./oxipage-core serve` 기동 안내.
-6. 첫 PAT 발급: `OXIPAGE_TOKEN=<admin> oxipage auth token create --label owner --scope admin`.
+What `install.sh` does:
 
-## 템플릿 내용 (별도 저장소 분리 시)
+1. Check the Rust toolchain (`rustup`) + `cargo`.
+2. `git clone oxipage-starter` into a working directory.
+3. `cp oxipage.toml.example oxipage.toml` and interactively fill in `[site]` / `[integrations]`.
+4. `cargo build --release -p oxipage-server` (or download a release binary).
+5. Guide you to start it: `OXIPAGE_ADMIN_TOKEN=$(openssl rand -hex 32) ./oxipage-server`.
+6. Mint the first PAT: `OXIPAGE_TOKEN=<admin> oxipage auth token create --label owner --scopes admin`.
+
+## Template contents (when split into its own repo)
 
 ```
 oxipage-starter/
 ├── install.sh
-├── oxipage.toml.example     # 이 저장소 루트의 것과 동일
-├── README.md                # 5분 시작 가이드
+├── oxipage.toml.example     # identical to the main repo's
+├── README.md                # 5-minute quickstart
 ├── .gitignore               # data/, oxipage.db, secrets
-└── deploy/                  # Caddyfile/plist/service 예시 (이 저장소 deploy/와 동일)
+└── deploy/                  # Caddyfile/plist/service examples (same as main repo deploy/)
 ```
 
-## 현재 상태
+## Current status
 
-Phase 5 OSS 제품화의 일부. 메인 저장소의 `oxipage.toml.example`, `deploy/`,
-`docs/extension-sdk.md`, `registry/index.json`이 템플릿 소스. 별도 저장소 분리는
-릴리스 시점에 진행.
+Part of Phase 5 OSS productization. The main repo's `oxipage.toml.example`, `deploy/`,
+`docs/extension-sdk.md`, and `registry/index.json` are the template sources. Splitting into the
+separate repo happens at release time.
 
-## 알려진 한계
+## Known limitations
 
-- v1은 컴파일 타임 정적 링크만 지원 → `oxipage extension install`이 런타임 확장을
-  설치하지 못함 (doc/01 §1.4). starter 템플릿은 "전체 확장 포함 빌드"만 제공.
-- WASM 컴포넌트 기반 런타임 로딩은 별도 스파이크 (doc/07 §7.7).
+- v1 supports compile-time static linking only, so `oxipage extension install` cannot install a
+  runtime extension (doc/01 §1.4). The starter template ships a "full build with all extensions."
+- WASM-component-based runtime loading is a separate spike (doc/07 §7.7).
