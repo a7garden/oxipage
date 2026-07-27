@@ -2,14 +2,27 @@
 resolver = "2"
 members = [
     "crates/oxipage-core",
-    "crates/oxipage-ext-profile",
     "crates/oxipage-server",
+    "crates/oxipage-cli",
+    "crates/oxipage-ext-activity",
+    "crates/oxipage-ext-blog",
+    "crates/oxipage-ext-books",
+    "crates/oxipage-ext-links",
+    "crates/oxipage-ext-movies",
+    "crates/oxipage-ext-novels",
+    "crates/oxipage-ext-profile",
+    "crates/oxipage-ext-projects",
+    "crates/oxipage-ext-scraps",
 ]
 
 [workspace.dependencies]
 anyhow = "1"
 async-trait = "0.1"
 axum = "0.8"
+sha2 = "0.10"
+clap = { version = "4", features = ["derive", "env"] }
+directories = "5"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"] }
 mime_guess = "2"
 rust-embed = "8"
 serde = { version = "1", features = ["derive"] }

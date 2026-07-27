@@ -1,11 +1,23 @@
 use crate::extension::Migration;
 use sqlx::SqlitePool;
 
-pub const CORE_MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    name: "lobby_config",
-    sql: include_str!("../migrations/core/0001_lobby_config.sql"),
-}];
+pub const CORE_MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        name: "lobby_config",
+        sql: include_str!("../migrations/core/0001_lobby_config.sql"),
+    },
+    Migration {
+        version: 2,
+        name: "search_documents",
+        sql: include_str!("../migrations/core/0002_search_documents.sql"),
+    },
+    Migration {
+        version: 3,
+        name: "auth_token",
+        sql: include_str!("../migrations/core/0003_auth_token.sql"),
+    },
+];
 
 pub async fn run_migrations(
     pool: &SqlitePool,

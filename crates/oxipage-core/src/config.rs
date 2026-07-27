@@ -9,6 +9,8 @@ pub struct Config {
     #[serde(default)]
     pub extensions: ExtensionsConfig,
     #[serde(default)]
+    pub integrations: IntegrationsConfig,
+    #[serde(default)]
     pub lobby: LobbySection,
 }
 
@@ -23,6 +25,7 @@ impl Default for Config {
             },
             server: ServerConfig::default(),
             extensions: ExtensionsConfig::default(),
+            integrations: IntegrationsConfig::default(),
             lobby: LobbySection::default(),
         }
     }
@@ -70,6 +73,42 @@ impl Default for ServerConfig {
 pub struct ExtensionsConfig {
     #[serde(default)]
     pub enabled: Vec<String>,
+}
+
+/// doc/04 §4.4 [integrations]. 값 자체가 아닌 환경변수 이름을 저장 (git 커밋 안전).
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct IntegrationsConfig {
+    #[serde(default)]
+    pub github_username: Option<String>,
+    #[serde(default)]
+    pub tmdb_api_key_env: Option<String>,
+    #[serde(default)]
+    pub aladin_ttbkey_env: Option<String>,
+}
+
+impl IntegrationsConfig {
+    /// github_username을 TOML에서 읽거나 OXIPAGE_GITHUB_USERNAME 폴백.
+    pub fn github_username(&self) -> Option<String> {
+        self.github_username
+            .clone()
+            .or_else(|| std::env::var("OXIPAGE_GITHUB_USERNAME").ok())
+            .filter(|s| !s.is_empty())
+    }
+
+    /// tmdb_api_key_env가 가리키는 환경변수에서 키 값을 읽거나 OXIPAGE_TMDB_KEY 폴백.
+    pub fn tmdb_key(&self) -> Option<String> {
+        let env_name = self.tmdb_api_key_env.as_deref().unwrap_or("OXIPAGE_TMDB_KEY");
+        std::env::var(env_name).ok().filter(|s| !s.is_empty())
+    }
+
+    /// 알라딘 TTBKey. 환경변수 이름 또는 OXIPAGE_ALADIN_TTBKEY 폴백.
+    pub fn aladin_key(&self) -> Option<String> {
+        let env_name = self
+            .aladin_ttbkey_env
+            .as_deref()
+            .unwrap_or("OXIPAGE_ALADIN_TTBKEY");
+        std::env::var(env_name).ok().filter(|s| !s.is_empty())
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

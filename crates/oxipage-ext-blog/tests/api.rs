@@ -1,0 +1,234 @@
+use axum::Router;
+use axum::body::{Body, to_bytes};
+use axum::http::{Request, StatusCode, header::AUTHORIZATION};
+use oxipage_core::config::Config;
+use oxipage_core::registry::ExtensionRegistry;
+use oxipage_core::state::AppState;
+use oxipage_ext_blog::BlogExtension;
+use std::sync::Arc;
+use tower::ServiceExt;
+
+async fn test_app(admin_token: Option<&str>) -> Router {
+    let pool = oxipage_core::db::connect_memory().await.unwrap();
+    let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(BlogExtension)]));
+    registry.run_migrations(&pool).await.unwrap();
+    let state = AppState {
+        db: pool,
+        config: Arc::new(Config::default()),
+        admin_token: admin_token.map(Arc::<str>::from),
+        registry: registry.clone(),
+    };
+    for e in registry.iter() {
+        e.on_startup(&state).await.unwrap();
+    }
+    let ext_router = registry.find("blog").unwrap().routes();
+    Router::new()
+        .nest("/api/v1/blog", ext_router)
+        .with_state(state)
+}
+
+async fn body_json(res: axum::response::Response) -> serde_json::Value {
+    let bytes = to_bytes(res.into_body(), usize::MAX).await.unwrap();
+    serde_json::from_slice(&bytes).unwrap()
+}
+
+fn bearer(token: &str) -> String {
+    format!("Bearer {token}")
+}
+
+#[tokio::test]
+async fn create_without_token_is_401() {
+    let app = test_app(Some("tok")).await;
+    let res = app
+        .oneshot(
+            Request::post("/api/v1/blog")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"title":"x"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn create_without_admin_configured_is_503() {
+    let app = test_app(None).await;
+    let res = app
+        .oneshot(
+            Request::post("/api/v1/blog")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"title":"x"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
+}
+
+#[tokio::test]
+async fn create_with_empty_title_is_422() {
+    let app = test_app(Some("tok")).await;
+    let res = app
+        .oneshot(
+            Request::post("/api/v1/blog")
+                .header("content-type", "application/json")
+                .header(AUTHORIZATION, bearer("tok"))
+                .body(Body::from(r#"{"title":"  "}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn create_invalid_lang_is_422() {
+    let app = test_app(Some("tok")).await;
+    let res = app
+        .oneshot(
+            Request::post("/api/v1/blog")
+                .header("content-type", "application/json")
+                .header(AUTHORIZATION, bearer("tok"))
+                .body(Body::from(r#"{"title":"x","lang":"ja"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn draft_create_then_publish_flow() {
+    let app = test_app(Some("tok")).await;
+    let res = app
+        .clone()
+        .oneshot(
+            Request::post("/api/v1/blog")
+                .header("content-type", "application/json")
+                .header(AUTHORIZATION, bearer("tok"))
+                .body(Body::from(
+                    r##"{"title":"Hello Rust","body":"# body","lang":"en","tags":["rust"]}"##,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let json = body_json(res).await;
+    let slug = json["data"]["slug"].as_str().unwrap().to_string();
+    assert!(json["data"]["published_at"].is_null());
+
+    // 초안은 공개 show에서 404
+    let res = app
+        .clone()
+        .oneshot(Request::get(format!("/api/v1/blog/{slug}")).body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::NOT_FOUND);
+
+    // 발행본 목록은 비어 있음
+    let res = app
+        .clone()
+        .oneshot(Request::get("/api/v1/blog").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let json = body_json(res).await;
+    assert_eq!(json["data"].as_array().unwrap().len(), 0);
+
+    // 초안 목록에는 1개
+    let res = app
+        .clone()
+        .oneshot(Request::get("/api/v1/blog?draft=true").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let json = body_json(res).await;
+    assert_eq!(json["data"].as_array().unwrap().len(), 1);
+
+    // 발행
+    let res = app
+        .clone()
+        .oneshot(
+            Request::post(format!("/api/v1/blog/{slug}/publish"))
+                .header(AUTHORIZATION, bearer("tok"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let json = body_json(res).await;
+    assert!(json["data"]["published_at"].is_string());
+
+    // 이제 show가 200
+    let res = app
+        .clone()
+        .oneshot(Request::get(format!("/api/v1/blog/{slug}")).body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // 발행본 목록에 1개
+    let res = app
+        .oneshot(Request::get("/api/v1/blog").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let json = body_json(res).await;
+    assert_eq!(json["data"].as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn publish_without_admin_configured_is_503() {
+    let app = test_app(None).await;
+    let res = app
+        .oneshot(
+            Request::post("/api/v1/blog/hello/publish")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
+}
+
+#[tokio::test]
+async fn fts_index_on_publish() {
+    let pool = oxipage_core::db::connect_memory().await.unwrap();
+    let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(BlogExtension)]));
+    registry.run_migrations(&pool).await.unwrap();
+
+    let _draft = oxipage_ext_blog::repo::create(
+        &pool,
+        &oxipage_ext_blog::model::BlogPostInput {
+            title: "Rust Ownership".into(),
+            body: "Ownership borrowing lifetime".into(),
+            lang: "en".into(),
+            tags: vec![],
+            translation_group_id: None,
+            slug: Some("rust-ownership".into()),
+        },
+        "rust-ownership",
+    )
+    .await
+    .unwrap();
+    let post = oxipage_ext_blog::repo::publish(&pool, "rust-ownership")
+        .await
+        .unwrap();
+    oxipage_core::search::upsert(
+        &pool,
+        "blog",
+        &post.slug,
+        &post.title,
+        &post.body,
+        Some(&post.lang),
+        post.published_at.as_deref(),
+    )
+    .await
+    .unwrap();
+
+    let hits = oxipage_core::search::search(&pool, "ownership", None, 10)
+        .await
+        .unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].doc_id, "rust-ownership");
+}

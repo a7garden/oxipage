@@ -11,7 +11,15 @@ path = "src/main.rs"
 anyhow.workspace = true
 axum.workspace = true
 oxipage-core = { path = "../oxipage-core" }
+oxipage-ext-activity = { path = "../oxipage-ext-activity" }
+oxipage-ext-blog = { path = "../oxipage-ext-blog" }
+oxipage-ext-books = { path = "../oxipage-ext-books" }
+oxipage-ext-links = { path = "../oxipage-ext-links" }
+oxipage-ext-movies = { path = "../oxipage-ext-movies" }
+oxipage-ext-novels = { path = "../oxipage-ext-novels" }
 oxipage-ext-profile = { path = "../oxipage-ext-profile" }
+oxipage-ext-projects = { path = "../oxipage-ext-projects" }
+oxipage-ext-scraps = { path = "../oxipage-ext-scraps" }
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
