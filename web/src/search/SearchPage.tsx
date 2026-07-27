@@ -1,17 +1,23 @@
-import { useState, type FormEvent } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router';
-import { searchAll } from '../shared/api';
-import { useLanguage } from '../shared/language';
-import './search.css';
+import { useState, type FormEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router";
+import { SearchIcon } from "lucide-react";
+
+import { searchAll } from "../shared/api";
+import { useLanguage } from "../shared/language";
+import { Badge } from "../shared/ui/badge";
+import { Button } from "../shared/ui/button";
+import { Card } from "../shared/ui/card";
+import { Input } from "../shared/ui/input";
+import { PageTitle } from "../shared/ui/page-header";
 
 export function SearchPage() {
   const { lang } = useLanguage();
-  const [q, setQ] = useState('');
-  const [submitted, setSubmitted] = useState('');
+  const [q, setQ] = useState("");
+  const [submitted, setSubmitted] = useState("");
 
   const { data: hits, isFetching } = useQuery({
-    queryKey: ['search', submitted],
+    queryKey: ["search", submitted],
     queryFn: () => searchAll(submitted, lang),
     enabled: submitted.length > 0,
   });
@@ -23,52 +29,66 @@ export function SearchPage() {
 
   // doc_id → 프론트 경로 추정. novels "slug/chapters/N" → /novels/{slug}, 그 외 /{ext}/{doc_id}.
   function docUrl(extId: string, docId: string): string {
-    if (docId.includes('/')) {
-      return `/${extId}/${docId.split('/')[0]}`;
+    if (docId.includes("/")) {
+      return `/${extId}/${docId.split("/")[0]}`;
     }
     return `/${extId}/${docId}`;
   }
 
   return (
-    <article>
-      <h1 className="page-title">{lang === 'ko' ? '검색' : 'Search'}</h1>
-      <form className="search-form" role="search" onSubmit={onSubmit}>
-        <input
+    <article className="space-y-6">
+      <PageTitle>{lang === "ko" ? "검색" : "Search"}</PageTitle>
+
+      <form role="search" onSubmit={onSubmit} className="flex gap-2">
+        <Input
           type="search"
-          className="search-input"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder={lang === 'ko' ? '검색어 입력…' : 'Search…'}
-          aria-label={lang === 'ko' ? '검색어' : 'Search query'}
+          placeholder={lang === "ko" ? "검색어 입력…" : "Search…"}
+          aria-label={lang === "ko" ? "검색어" : "Search query"}
           autoFocus
         />
-        <button type="submit" className="search-submit">
-          {lang === 'ko' ? '검색' : 'Search'}
-        </button>
+        <Button type="submit">
+          <SearchIcon />
+          <span className="hidden sm:inline">
+            {lang === "ko" ? "검색" : "Search"}
+          </span>
+        </Button>
       </form>
 
-      {isFetching && <p className="text-tertiary">…</p>}
+      {isFetching && <p className="text-subtle">…</p>}
 
       {submitted && !isFetching && hits && hits.length === 0 && (
-        <p className="text-tertiary">
-          {lang === 'ko' ? '결과가 없습니다.' : 'No results.'}
+        <p className="text-subtle">
+          {lang === "ko"
+            ? `"${submitted}"에 대한 결과가 없습니다.`
+            : `No results for "${submitted}".`}
         </p>
       )}
 
       {hits && hits.length > 0 && (
-        <ul className="search-results">
+        <ul className="space-y-3">
           {hits.map((h, i) => (
-            <li key={`${h.extension_id}-${h.doc_id}-${i}`} className="card search-result">
-              <Link to={docUrl(h.extension_id, h.doc_id)}>
-                <div className="search-result-head">
-                  <span className="search-result-ext text-tertiary">{h.extension_id}</span>
-                  <h2>{h.title}</h2>
-                </div>
-                <p
-                  className="search-result-snippet text-secondary"
-                  dangerouslySetInnerHTML={{ __html: h.snippet }}
-                />
-              </Link>
+            <li key={`${h.extension_id}-${h.doc_id}-${i}`}>
+              <Card className="transition-[border-color,box-shadow] duration-200 hover:border-primary/40 hover:shadow-md">
+                <Link
+                  to={docUrl(h.extension_id, h.doc_id)}
+                  className="block p-4 text-foreground no-underline"
+                >
+                  <div className="mb-1 flex items-baseline gap-2">
+                    <Badge variant="secondary" className="uppercase tracking-wide">
+                      {h.extension_id}
+                    </Badge>
+                    <h2 className="text-base font-medium text-foreground">
+                      {h.title}
+                    </h2>
+                  </div>
+                  <p
+                    className="text-sm text-muted"
+                    dangerouslySetInnerHTML={{ __html: h.snippet }}
+                  />
+                </Link>
+              </Card>
             </li>
           ))}
         </ul>
