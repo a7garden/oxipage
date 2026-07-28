@@ -1,4 +1,9 @@
 # 12장 — Admin Console (관리 GUI)
+> **v2 변경 (2026-07-28):** "Admin Console"이 "Management Console"(`oxipage console`)로 통합되었다.
+> 이전 `oxipage admin` 서브커맨드 + `oxipage-server` 바이너리가 단일 `oxipage console` 명령으로 합쳐졌고,
+> `oxipage-admin` crate는 `oxipage-console` crate의 admin 모듈로 흡수되었다.
+> 이 장의 개념은 그대로 유효하다 (관리 GUI + 사이트 프록시 + 테마 카탈로그).
+
 
 ## 12.1 동기
 
