@@ -159,7 +159,7 @@ cargo build -p oxipage-server --features wasm
 
 ```sh
 cargo clippy --workspace --all-targets -- -D warnings   # clean
-cargo test --workspace                                   # 97 tests ok (3 wasm host + 설치 round-trip 포함)
+cargo test --workspace                                   # 108 tests ok (3 wasm host + 설치 round-trip 포함)
 ```
 
 ## 7. 다음 단계 (프로덕션 하드닝, 범위 밖)

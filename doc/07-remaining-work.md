@@ -25,7 +25,7 @@ Phase 0~5가 대부분 구현되었다. 단위별 완료/잔여 상태는 [`08`]
 | 배포 템플릿·LICENSE(MIT)·SDK 문서·레지스트리·starter | ✅ |
 | Phase 2 확장의 CLI 서브커맨드(novel/review/scrap/activity) | ⏳ API/웹으로만 (후순위) |
 | WASM 컴포넌트 런타임 로딩 스파이크 (Phase 5 옵션) | ✅ 코어 모듈 스파이크 완료 ([docs/wasm-spike.md](../docs/wasm-spike.md)) |
-| 검증: `cargo test --workspace` 97 tests ok · clippy `-D warnings` 클린 · web 빌드 OK · SSR E2E 스모크 | ✅ |
+| 검증: `cargo test --workspace` 108 tests ok · clippy `-D warnings` 클린 · web 빌드 OK · SSR E2E 스모크 | ✅ |
 | 검증: 배포 스모크·브라우저 접근성 실측 | ⏳ 외부 자격증명 필요 |
 
 ## 7.2 Phase 0에서 이월된 항목
