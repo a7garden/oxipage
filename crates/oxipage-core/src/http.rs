@@ -123,7 +123,10 @@ async fn healthz() -> Json<serde_json::Value> {
 
 
 async fn docs_spec(State(state): State<AppState>) -> Json<serde_json::Value> {
-    Json(crate::openapi::openapi_spec(&state.config.site.base_url))
+    Json(crate::openapi::openapi_spec(
+        &state.config.site.base_url,
+        &state.registry,
+    ))
 }
 
 async fn build_handler(
