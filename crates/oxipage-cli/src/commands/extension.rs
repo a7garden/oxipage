@@ -4,7 +4,7 @@ use clap::Subcommand;
 use serde_json::json;
 use super::require_token;
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Clone)]
 pub enum ExtensionCommand {
     /// 설치된 확장 목록 + 활성/purge 상태
     List,

@@ -2,7 +2,7 @@ use crate::client::Client;
 use crate::output::Output;
 use clap::Args;
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 pub struct CacheArgs {
     /// Extension to refresh (omit for all)
     #[arg(long)]

@@ -177,10 +177,6 @@ const HN_TOP_LIMIT: usize = 20;
 
 #[async_trait]
 impl ScheduledJob for ScrapCollectJob {
-    fn schedule(&self) -> &str {
-        "0 */30 * * * *"
-    }
-
     fn name(&self) -> &str {
         "scraps_collect"
     }

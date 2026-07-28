@@ -2,7 +2,7 @@ use clap::Subcommand;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Clone)]
 pub enum BackupCommand {
     /// SQLite VACUUM INTO 포인트-인-타임 스냅샷.
     /// 로컬 DB의 일관된 복사본을 data_dir/backups/ 에 생성한다.

@@ -4,7 +4,7 @@ use clap::Subcommand;
 use serde_json::json;
 use super::require_token;
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Clone)]
 pub enum ProjectCommand {
     Add {
         #[arg(long)]

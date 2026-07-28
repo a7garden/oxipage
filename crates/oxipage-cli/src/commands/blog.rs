@@ -4,7 +4,7 @@ use clap::Subcommand;
 use serde_json::json;
 use super::require_token;
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Clone)]
 pub enum BlogCommand {
     /// 새 초안 생성 (doc/04 §4.3 초안 우선 원칙: add/new는 초안만).
     New {

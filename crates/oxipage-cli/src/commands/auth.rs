@@ -5,7 +5,7 @@ use clap::Subcommand;
 use serde_json::json;
 use super::require_token;
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Clone)]
 pub enum AuthCommand {
     /// (Phase 4 PAT 완비 전까지) 브라우저 로그인 대신 안내만 출력.
     Login,
@@ -23,7 +23,7 @@ pub enum AuthCommand {
     Token(TokenCommand),
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Clone)]
 pub enum TokenCommand {
     /// 새 PAT 발급. admin 스코프 토큰(OXIPAGE_ADMIN_TOKEN 또는 admin PAT) 필요.
     /// 평문은 이때 한 번만 반환 — 즉시 안전한 곳에 보관.

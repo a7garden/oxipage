@@ -81,7 +81,7 @@ pub struct CliSubcommand {
     pub about: &'static str,
     /// 위치 인자.
     pub args: Vec<CliArg>,
-    /// 핸들러. None인 경우 서버 위임 (`POST /api/v1/cli/exec/{name}/{subcommand}`).
+    /// 핸들러. None인 경우 서버 위임 (`POST /api/console/cli/exec/{name}/{subcommand}`).
     pub handler: Option<Arc<dyn CliHandler>>,
 }
 
@@ -96,7 +96,7 @@ pub struct CliArg {
 
 // ───────────────────────── 서버 매니페스트 (doc/11 §11.2.3) ─────────────────────────
 
-/// 서버 `/api/v1/cli/commands` 응답 형식.
+/// 서버 `/api/console/cli/commands` 응답 형식.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CliCommandManifest {
     pub extensions: Vec<CliCommandSpec>,
@@ -135,7 +135,7 @@ pub trait Extension: Send + Sync {
     /// 이 확장이 소유한 SQLite 마이그레이션 (독립 네임스페이스 테이블).
     fn migrations(&self) -> Vec<Migration>;
 
-    /// `/api/v1/{id}/**` 하위에 마운트될 라우터.
+    /// `/api/console/{id}/**` 하위에 마운트될 라우터.
     fn routes(&self) -> Router<AppState>;
 
     /// 로비 카드에 표시할 요약 데이터 (최근 글 3개, 활동 스파크라인 등).
@@ -213,7 +213,7 @@ pub trait RouteDispatcher: Send + Sync {
 
     /// 요청 디스패치. method/path/body 를 WASM 모듈에 전달하고 응답을 반환한다.
     /// path 는 확장 prefix 이후의 경로 (예: 확장 id 가 "wasm-demo" 이고
-    /// 요청이 "/api/v1/wasm-demo/info" 이면 path="/info").
+    /// 요청이 "/api/console/wasm-demo/info" 이면 path="/info").
     async fn dispatch(
         &self,
         method: &str,

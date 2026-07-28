@@ -2,7 +2,7 @@
 //!
 //! **편차:** `utoipa` 자동 생성 대신 수동 `serde_json` 스펙. 의존성 절약 + 코어
 //! 라우트를 즉시 문서화. 확장 라우트는 차후 `Extension::openapi_paths()` 훅으로
-//! 병합(별도 작업). `/api/v1/docs/openapi.json` + `/api/v1/docs`(Swagger UI CDN).
+//! 병합(별도 작업). `/api/console/docs/openapi.json` + `/api/console/docs`(Swagger UI CDN).
 
 use serde_json::{json, Value};
 
@@ -27,7 +27,7 @@ pub fn openapi_spec(base_url: &str) -> Value {
             }
         },
         "paths": {
-            "/api/v1/lobby/manifest": {
+            "/api/console/lobby/manifest": {
                 "get": {
                     "tags": ["lobby"],
                     "summary": "로비 매니페스트 (site + extensions + per-extension lobby config)",
@@ -35,7 +35,7 @@ pub fn openapi_spec(base_url: &str) -> Value {
                     "responses": ok_data("Manifest")
                 }
             },
-            "/api/v1/lobby/config": {
+            "/api/console/lobby/config": {
                 "get": {
                     "tags": ["lobby"],
                     "summary": "모든 확장의 로비 표시 설정",
@@ -43,7 +43,7 @@ pub fn openapi_spec(base_url: &str) -> Value {
                     "responses": ok_data("LobbyConfig[]")
                 }
             },
-            "/api/v1/lobby/config/{ext_id}": {
+            "/api/console/lobby/config/{ext_id}": {
                 "put": {
                     "tags": ["lobby"],
                     "summary": "확장별 로비 표시 모드/순서 갱신 (post:write)",
@@ -52,7 +52,7 @@ pub fn openapi_spec(base_url: &str) -> Value {
                     "responses": ok_data("LobbyConfig")
                 }
             },
-            "/api/v1/auth/tokens": {
+            "/api/console/auth/tokens": {
                 "get": {
                     "tags": ["auth"],
                     "summary": "PAT 목록 (admin 스코프)",
@@ -66,7 +66,7 @@ pub fn openapi_spec(base_url: &str) -> Value {
                     "responses": ok_data("PatCreated")
                 }
             },
-            "/api/v1/auth/tokens/{id}": {
+            "/api/console/auth/tokens/{id}": {
                 "delete": {
                     "tags": ["auth"],
                     "summary": "PAT revoke (admin 스코프)",
@@ -75,7 +75,7 @@ pub fn openapi_spec(base_url: &str) -> Value {
                     "responses": ok_data("Revoked")
                 }
             },
-            "/api/v1/search": {
+            "/api/console/search": {
                 "get": {
                     "tags": ["search"],
                     "summary": "전문 검색 (FTS5 trigram). 발행된 문서만.",
@@ -88,41 +88,41 @@ pub fn openapi_spec(base_url: &str) -> Value {
                     "responses": ok_data("SearchHit[]")
                 }
             },
-            "/api/v1/blog/posts": {
+            "/api/console/blog/posts": {
                 "get": { "tags": ["blog"], "summary": "발행본 목록 (?draft=true&lang=)", "security": [], "responses": ok_data("BlogPost[]") },
                 "post": { "tags": ["blog"], "summary": "초안 생성 (post:write)", "security": [{ "bearerAuth": [] }], "responses": ok_data("BlogPost") }
             },
-            "/api/v1/blog/posts/{slug}/publish": {
+            "/api/console/blog/posts/{slug}/publish": {
                 "post": { "tags": ["blog"], "summary": "초안 발행 (post:publish)", "security": [{ "bearerAuth": [] }], "responses": ok_data("BlogPost") }
             },
-            "/api/v1/projects": {
+            "/api/console/projects": {
                 "get": { "tags": ["projects"], "summary": "발행본 목록", "security": [], "responses": ok_data("Project[]") },
                 "post": { "tags": ["projects"], "summary": "초안 생성 (post:write)", "security": [{ "bearerAuth": [] }], "responses": ok_data("Project") }
             },
-            "/api/v1/links": {
+            "/api/console/links": {
                 "get": { "tags": ["links"], "summary": "링크 목록", "security": [], "responses": ok_data("LinkCard[]") },
                 "post": { "tags": ["links"], "summary": "링크 생성 (post:write, 즉시 발행)", "security": [{ "bearerAuth": [] }], "responses": ok_data("LinkCard") }
             },
-            "/api/v1/novels": {
+            "/api/console/novels": {
                 "get": { "tags": ["novels"], "summary": "발행본 목록", "security": [], "responses": ok_data("Novel[]") },
                 "post": { "tags": ["novels"], "summary": "소설 초안 생성 (post:write)", "security": [{ "bearerAuth": [] }], "responses": ok_data("Novel") }
             },
-            "/api/v1/movies": {
+            "/api/console/movies": {
                 "get": { "tags": ["movies"], "summary": "발행본 목록", "security": [], "responses": ok_data("MovieEntry[]") },
                 "post": { "tags": ["movies"], "summary": "영화 리뷰 초안 (post:write)", "security": [{ "bearerAuth": [] }], "responses": ok_data("MovieEntry") }
             },
-            "/api/v1/books": {
+            "/api/console/books": {
                 "get": { "tags": ["books"], "summary": "발행본 목록", "security": [], "responses": ok_data("Book[]") },
                 "post": { "tags": ["books"], "summary": "도서 리뷰 초안 (post:write)", "security": [{ "bearerAuth": [] }], "responses": ok_data("Book") }
             },
-            "/api/v1/scraps": {
+            "/api/console/scraps": {
                 "get": { "tags": ["scraps"], "summary": "발행본 스크랩 목록", "security": [], "responses": ok_data("ScrapItem[]") },
                 "post": { "tags": ["scraps"], "summary": "수동 스크랩 추가 (post:write)", "security": [{ "bearerAuth": [] }], "responses": ok_data("ScrapItem") }
             },
-            "/api/v1/activity": {
+            "/api/console/activity": {
                 "get": { "tags": ["activity"], "summary": "최근 활동 목록 (읽기 전용 캐시)", "security": [], "responses": ok_data("ActivityEvent[]") }
             },
-            "/api/v1/activity/webhook": {
+            "/api/console/activity/webhook": {
                 "post": { "tags": ["activity"], "summary": "GitHub webhook 수신 (공개, 서명 검증은 Phase 4+)", "security": [], "responses": { "200": { "description": "ok" } } }
             },
             "/healthz": {
@@ -145,7 +145,7 @@ fn ok_data(type_name: &str) -> Value {
     })
 }
 
-/// Swagger UI CDN HTML. /api/v1/docs에서 서빙.
+/// Swagger UI CDN HTML. /api/console/docs에서 서빙.
 pub fn swagger_ui_html(spec_url: &str) -> String {
     const TPL: &str = r##"<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Oxipage API Docs</title>

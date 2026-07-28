@@ -3,7 +3,7 @@ use crate::sites;
 use clap::Subcommand;
 use serde_json::json;
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Clone)]
 pub enum SiteCommand {
     /// 새 사이트 등록
     Add {

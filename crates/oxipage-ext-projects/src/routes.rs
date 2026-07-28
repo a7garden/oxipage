@@ -6,7 +6,6 @@ use oxipage_core::auth::AdminAuth;
 use oxipage_core::error::ApiError;
 use oxipage_core::extension::DataEnvelope;
 use oxipage_core::search;
-use oxipage_core::snapshot;
 use oxipage_core::state::AppState;
 
 pub async fn list(
@@ -99,7 +98,6 @@ pub async fn delete(
     search::delete(&state.db, "projects", &slug)
         .await
         .map_err(ApiError::internal)?;
-    let _ = snapshot::remove_snapshot(&state, &format!("/projects/{slug}")).await;
     Ok(Json(DataEnvelope {
         data: serde_json::json!({ "slug": slug, "deleted": true }),
     }))
@@ -134,19 +132,6 @@ pub async fn publish(
         project.tech_stack.join(", ")
     );
     let snapshot_path = format!("/projects/{}", project.slug);
-    snapshot::write_snapshot_for(
-        &state,
-        &snapshot_path,
-        &snapshot::SnapshotData {
-            title,
-            description: if truncated.trim().is_empty() { body_md.chars().take(200).collect() } else { truncated },
-            canonical_url: format!("{}/projects/{}", state.config.site.base_url.trim_end_matches('/'), project.slug),
-            og_image: None,
-            body_markdown: body_md,
-            lang: "en".to_string(),
-        },
-    )
-    .await;
     Ok(Json(DataEnvelope { data: project }))
 }
 

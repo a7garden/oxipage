@@ -3,7 +3,7 @@
 use clap::Args;
 use crate::output::Output;
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 pub struct OpenArgs {
     /// Admin 콘솔 오픈 (기본: 메인 사이트 :8787)
     #[arg(long)]

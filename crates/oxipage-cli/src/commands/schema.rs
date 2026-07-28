@@ -1,7 +1,7 @@
 use clap::Args;
 use std::path::PathBuf;
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 pub struct SchemaCommand {
     /// Filter by extension name
     #[arg(long)]

@@ -29,7 +29,7 @@ impl CliHandler for ActivitySyncHandler {
     {
         let client = client.clone();
         Box::pin(async move {
-            let resp = client.post_raw("/api/v1/activity/sync", serde_json::json!({})).await
+            let resp = client.post_raw("/api/console/activity/sync", serde_json::json!({})).await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("{}", serde_json::to_string_pretty(&resp)?);
             Ok(())
@@ -42,10 +42,6 @@ pub struct ActivitySyncJob;
 
 #[async_trait]
 impl ScheduledJob for ActivitySyncJob {
-    fn schedule(&self) -> &str {
-        "0 */15 * * * *"
-    }
-
     fn name(&self) -> &str {
         "activity_sync"
     }

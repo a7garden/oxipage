@@ -12,7 +12,6 @@ use oxipage_core::error::ApiError;
 use oxipage_core::extension::DataEnvelope;
 use oxipage_core::rating::Rating;
 use oxipage_core::search;
-use oxipage_core::snapshot;
 use oxipage_core::state::AppState;
 
 // ─── MovieEntry ───
@@ -174,7 +173,6 @@ pub async fn delete(
     search::delete(&state.db, "movies", &slug)
         .await
         .map_err(ApiError::internal)?;
-    let _ = snapshot::remove_snapshot(&state, &format!("/movies/{slug}")).await;
     Ok(Json(DataEnvelope {
         data: serde_json::json!({ "slug": slug, "deleted": true }),
     }))
@@ -206,23 +204,6 @@ pub async fn publish(
             format!("https://image.tmdb.org/t/p/w500{p}")
         }
     });
-    snapshot::write_snapshot_for(
-        &state,
-        &format!("/movies/{}", entry.slug),
-        &snapshot::SnapshotData {
-            title: entry.title.clone(),
-            description: if desc.trim().is_empty() { entry.title.clone() } else { desc },
-            canonical_url: format!(
-                "{}/movies/{}",
-                state.config.site.base_url.trim_end_matches('/'),
-                entry.slug
-            ),
-            og_image,
-            body_markdown: review,
-            lang: if entry.review_ko.is_some() { "ko".to_string() } else { "en".to_string() },
-        },
-    )
-    .await;
     Ok(Json(DataEnvelope { data: entry }))
 }
 

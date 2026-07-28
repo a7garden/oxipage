@@ -2,7 +2,7 @@ use crate::output::Output;
 use clap::Args;
 use std::path::{Path, PathBuf};
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 pub struct DeployArgs {
     /// Target platform: github-pages, cloudflare, netlify
     #[arg(long, default_value = "github-pages")]

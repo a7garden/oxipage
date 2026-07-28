@@ -61,11 +61,6 @@ struct Manifest {
     extensions: Vec<ManifestExtension>,
 }
 
-async fn api_v1_redirect(req: axum::extract::Request) -> axum::response::Response {
-    let new_path = req.uri().path().replacen("/api/v1", "/api/console", 1);
-    axum::response::Redirect::permanent(&new_path).into_response()
-}
-
 pub fn build_app(state: AppState) -> Router {
     let mut api = Router::new()
         .route("/lobby/manifest", get(lobby_manifest))
@@ -116,8 +111,6 @@ pub fn build_app(state: AppState) -> Router {
     Router::new()
         .route("/healthz", get(healthz))
         .nest("/api/console", api)
-        .route("/api/v1/{*path}", axum::routing::any(api_v1_redirect))
-        .route("/api/v1", axum::routing::any(api_v1_redirect))
         .fallback(static_handler)
         .with_state(state)
         .layer(axum::middleware::from_fn_with_state(
@@ -178,7 +171,7 @@ async fn cache_refresh_handler(
 }
 
 async fn docs_ui() -> axum::response::Response {
-    let html = crate::openapi::swagger_ui_html("/api/v1/docs/openapi.json");
+    let html = crate::openapi::swagger_ui_html("/api/console/docs/openapi.json");
     (
         [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
         html,
@@ -186,7 +179,7 @@ async fn docs_ui() -> axum::response::Response {
         .into_response()
 }
 /// 동적 라우트 폴백. WASM(런타임 적재) 확장의 HTTP 요청을 디스패치한다.
-/// `/api/v1/{ext_id}/**` 경로에서 ext_id가 WASM 확장이면 route_dispatcher 로 위임.
+/// `/api/console/{ext_id}/**` 경로에서 ext_id가 WASM 확장이면 route_dispatcher 로 위임.
 /// 그 외에는 일반 404.
 async fn api_fallback(State(state): State<AppState>, request: Request) -> Response {
     let path = request.uri().path().to_string();
@@ -874,10 +867,10 @@ fn is_safe_extension_name(name: &str) -> bool {
         && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
-/// `/api/v1/{ext}/**` 경로에서 ext 세그먼트 추출. 코어 라우트(lobby/auth/search/docs)는
+/// `/api/console/{ext}/**` 경로에서 ext 세그먼트 추출. 코어 라우트(lobby/auth/search/docs)는
 /// registry.find 가 None이므로 게이트 대상이 아니다.
 fn extension_id_from_path(path: &str) -> Option<String> {
-    // nest 내부 layer라 path는 /api/v1 prefix가 벗겨진 상태다 ("/dummy", "/lobby/manifest").
+    // nest 내부 layer라 path는 /api/console prefix가 벗겨진 상태다 ("/dummy", "/lobby/manifest").
     let seg = path.trim_start_matches('/').split('/').next()?;
     if seg.is_empty() {
         None
@@ -1078,7 +1071,7 @@ const THEMES: &[ThemeCatalogEntry] = &[
     },
 ];
 
-/// GET /api/v1/themes — 카탈로그 (인증 불요, 공개 웹이 읽음)
+/// GET /api/console/themes — 카탈로그 (인증 불요, 공개 웹이 읽음)
 async fn theme_catalog() -> Json<DataEnvelope<Vec<serde_json::Value>>> {
     let list: Vec<serde_json::Value> = THEMES
         .iter()
@@ -1095,7 +1088,7 @@ async fn theme_catalog() -> Json<DataEnvelope<Vec<serde_json::Value>>> {
     Json(DataEnvelope { data: list })
 }
 
-/// GET /api/v1/theme — 현재 적용 테마 (인증 불요, 공개 웹이 읽음)
+/// GET /api/console/theme — 현재 적용 테마 (인증 불요, 공개 웹이 읽음)
 async fn theme_get(State(state): State<AppState>) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
     let row: Option<(String,)> = sqlx::query_as(
         "SELECT theme_id FROM theme_config WHERE id = 1",
@@ -1110,7 +1103,7 @@ async fn theme_get(State(state): State<AppState>) -> Result<Json<DataEnvelope<se
     }))
 }
 
-/// PUT /api/v1/theme — 테마 변경 (admin 스코프)
+/// PUT /api/console/theme — 테마 변경 (admin 스코프)
 #[derive(serde::Deserialize)]
 struct ThemePutInput {
     theme_id: String,

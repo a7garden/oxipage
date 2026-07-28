@@ -370,7 +370,7 @@ pub async fn setup_gate(
 
 // ─── Handlers ───
 
-/// GET /api/v1/setup/status
+/// GET /api/console/setup/status
 pub async fn setup_status_handler(
     State(state): State<AppState>,
 ) -> Result<Json<DataEnvelope<StatusResult>>, ApiError> {
@@ -399,7 +399,7 @@ pub async fn setup_status_handler(
     }))
 }
 
-/// POST /api/v1/setup/site
+/// POST /api/console/setup/site
 pub async fn setup_site_handler(
     State(state): State<AppState>,
     Json(input): Json<SiteInput>,
@@ -442,7 +442,7 @@ pub async fn setup_site_handler(
     }))
 }
 
-/// POST /api/v1/setup/admin
+/// POST /api/console/setup/admin
 pub async fn setup_admin_handler(
     State(state): State<AppState>,
     Json(input): Json<AdminInput>,
@@ -468,7 +468,7 @@ pub async fn setup_admin_handler(
     }))
 }
 
-/// POST /api/v1/setup/extensions
+/// POST /api/console/setup/extensions
 pub async fn setup_extensions_handler(
     State(state): State<AppState>,
     Json(input): Json<ExtensionsInput>,
@@ -522,7 +522,7 @@ pub async fn setup_extensions_handler(
     }))
 }
 
-/// POST /api/v1/setup/profile
+/// POST /api/console/setup/profile
 pub async fn setup_profile_handler(
     State(state): State<AppState>,
     Json(input): Json<ProfileInput>,
@@ -551,7 +551,7 @@ pub async fn setup_profile_handler(
     }))
 }
 
-/// POST /api/v1/setup/theme
+/// POST /api/console/setup/theme
 pub async fn setup_theme_handler(
     State(state): State<AppState>,
     Json(input): Json<ThemeInput>,
@@ -590,7 +590,7 @@ pub async fn setup_theme_handler(
     }))
 }
 
-/// POST /api/v1/setup/content
+/// POST /api/console/setup/content
 pub async fn setup_content_handler(
     State(state): State<AppState>,
     Json(input): Json<ContentInput>,
@@ -636,7 +636,7 @@ pub async fn setup_content_handler(
     }))
 }
 
-/// POST /api/v1/setup/complete
+/// POST /api/console/setup/complete
 pub async fn setup_complete_handler(
     State(state): State<AppState>,
 ) -> Result<Json<DataEnvelope<CompleteResult>>, ApiError> {

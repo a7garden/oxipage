@@ -4,7 +4,7 @@ use clap::Subcommand;
 use serde_json::json;
 use super::require_token;
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Clone)]
 pub enum LobbyCommand {
     /// 확장별 로비 표시 모드 설정 (doc/03 §3.6).
     Layout {

@@ -39,7 +39,7 @@ pub struct Cli {
     pub command: Command,
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Clone)]
 pub enum Command {
     /// oxipage.toml 스캐폴딩
     Init {

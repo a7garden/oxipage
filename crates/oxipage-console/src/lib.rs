@@ -214,14 +214,4 @@ async fn shutdown_signal() {
     tracing::info!("shutdown signal received");
 }
 
-// ───────────────────── v1 호환: deprecation aliases ─────────────────────
-#[deprecated(note = "Use run_console() — v2 renames server to console")]
-pub async fn run_server() -> anyhow::Result<()> {
-    run_console().await
-}
-
-#[deprecated(note = "Use run_console_with_extensions()")]
-pub async fn run_server_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow::Result<()> {
-    run_console_with_extensions(all).await
-}
 pub mod admin;

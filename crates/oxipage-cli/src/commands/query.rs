@@ -1,7 +1,7 @@
 use clap::Args;
 use std::path::PathBuf;
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 pub struct QueryCommand {
     /// SQL query string (SELECT only)
     pub sql: String,
