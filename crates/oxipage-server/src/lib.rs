@@ -54,6 +54,22 @@ pub async fn run_server_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow:
     };
     let config = Arc::new(config);
 
+    // 런타임 WASM 확장 적재 (doc/08 §8.4, feature gate). data/extensions/*.wasm 을
+    // 스캔해 정적 확장 목록에 추가한다. 라우트가 없으므로 lobby 카드만 기여한다.
+    // 빈 디렉토리/누락이면 load_all_from_dir 이 빈 vec 를 반환한다.
+    let all = {
+        #[cfg(feature = "wasm")]
+        {
+            let mut all = all;
+            all.extend(oxipage_wasm::load_all_from_dir(
+                &config.server.data_dir.join("extensions"),
+            ));
+            all
+        }
+        #[cfg(not(feature = "wasm"))]
+        { all }
+    };
+
     // 단일 진실 소스 (doc/02 §2.13): 모든 컴파일 확장이 registry에 들어가 라우트까지 항상
     // 마운트된다. toml [extensions].enabled는 첫 부팅 시드로만 쓰이고 이후엔 DB가 결정.
     let registry = Arc::new(ExtensionRegistry::new(all));

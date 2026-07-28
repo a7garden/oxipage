@@ -39,7 +39,7 @@ struct ManifestLocalized {
 
 #[derive(serde::Serialize)]
 struct ManifestExtension {
-    id: &'static str,
+    id: String,
     display_name: ManifestLocalized,
     lobby: LobbyConfigInfo,
 }
@@ -71,7 +71,8 @@ pub fn build_app(state: AppState) -> Router {
         .route("/extensions", get(extensions_list))
         .route("/extensions/{id}/enable", axum::routing::post(extension_enable))
         .route("/extensions/{id}/disable", axum::routing::post(extension_disable))
-        .route("/extensions/{id}", axum::routing::delete(extension_purge));
+        .route("/extensions/{id}", axum::routing::delete(extension_purge))
+        .route("/extensions/install", axum::routing::post(extension_install));
     for ext in state.registry.iter() {
         api = api.nest(&format!("/{}", ext.id()), ext.routes());
     }
@@ -142,7 +143,7 @@ async fn lobby_manifest(State(state): State<AppState>) -> Json<DataEnvelope<Mani
         }
         let lobby = lobby_config_for(&state, e.id(), idx as i64).await;
         extensions.push(ManifestExtension {
-            id: e.id(),
+            id: e.id().to_string(),
             display_name: ManifestLocalized {
                 ko: e.display_name(Lang::Ko),
                 en: e.display_name(Lang::En),
@@ -536,8 +537,132 @@ async fn extension_purge(
     }))
 }
 
+// ─── wasm runtime install (doc/08 §8.4) ───
+//
+// install 은 wasm 바이트를 data/extensions/<name>.wasm 에 저장하고 extension_state
+// 행을 추가만 한다. 실제 적재(인스턴스화)는 oxipage-wasm 이 다음 부팅 시 수행
+// (server `wasm` feature). 따라서 이 핸들러 자체는 wasmtime/oxipage-wasm 에 의존하지
+// 않는다 — 코어 어디서나 동작.
+
+/// 임베드된 레지스트리 카탈로그 (빌드 시점 snapshot of registry/index.json).
+const REGISTRY_INDEX_JSON: &str = include_str!("../../../registry/index.json");
+/// 임베드된 데모 wasm 아티팩트 — install 오프라인 검증용 (remote 다운로드 경로와 별개).
+const DEMO_WASM_BYTES: &[u8] =
+    include_bytes!("../../../crates/oxipage-ext-wasm-demo/artifacts/wasm-demo.wasm");
+
+#[derive(serde::Deserialize)]
+struct RegistryIndex {
+    extensions: Vec<RegistryEntry>,
+}
+
+#[derive(serde::Deserialize)]
+struct RegistryEntry {
+    name: String,
+    #[serde(default)]
+    runtime_loadable: bool,
+    #[serde(default)]
+    wasm_url: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct InstallInput {
+    name: String,
+}
+
+async fn extension_install(
+    auth: AdminAuth,
+    State(state): State<AppState>,
+    Json(input): Json<InstallInput>,
+) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
+    auth.require_scope("admin")?;
+    let name = input.name;
+    if !is_safe_extension_name(&name) {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "bad_request",
+            "invalid extension name",
+        ));
+    }
+    let index: RegistryIndex = serde_json::from_str(REGISTRY_INDEX_JSON)
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "registry_error", &e.to_string()))?;
+    let entry = index
+        .extensions
+        .iter()
+        .find(|e| e.name == name)
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "not_found", "unknown extension name"))?;
+    if !entry.runtime_loadable {
+        return Err(ApiError::new(
+            StatusCode::CONFLICT,
+            "not_runtime_loadable",
+            "this extension is compile-time only; it cannot be installed at runtime",
+        ));
+    }
+    // wasm 바이트 획득: 데모는 임베드, 그 외는 wasm_url 에서 다운로드.
+    let bytes: Vec<u8> = if name == "wasm-demo" {
+        DEMO_WASM_BYTES.to_vec()
+    } else {
+        let url = entry
+            .wasm_url
+            .as_deref()
+            .ok_or_else(|| ApiError::new(StatusCode::CONFLICT, "no_wasm_url", "registry entry has no wasm_url"))?;
+        let resp = reqwest::get(url)
+            .await
+            .map_err(|e| ApiError::new(StatusCode::BAD_GATEWAY, "download_failed", &e.to_string()))?;
+        if !resp.status().is_success() {
+            return Err(ApiError::new(
+                StatusCode::BAD_GATEWAY,
+                "download_failed",
+                &format!("registry returned {}", resp.status()),
+            ));
+        }
+        resp.bytes()
+            .await
+            .map_err(|e| ApiError::new(StatusCode::BAD_GATEWAY, "download_failed", &e.to_string()))?
+            .to_vec()
+    };
+    let dir = state.config.server.data_dir.join("extensions");
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "fs_error", &e.to_string()))?;
+    let path = dir.join(format!("{name}.wasm"));
+    std::fs::write(&path, &bytes)
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "fs_error", &e.to_string()))?;
+    // extension_state 행 (enabled=0). 다음 부팅 시 load_all_from_dir 이 적재.
+    sqlx::query(
+        "INSERT INTO extension_state (extension_id, enabled, purged)
+         VALUES (?1, 0, 0)
+         ON CONFLICT(extension_id) DO UPDATE SET purged = 0",
+    )
+    .bind(&name)
+    .execute(&state.db)
+    .await
+    .map_err(|e| ApiError::from(anyhow::anyhow!(e)))?;
+    tracing::info!(
+        extension = %name,
+        path = %path.display(),
+        bytes = bytes.len(),
+        "installed wasm extension (restart to activate)"
+    );
+    Ok(Json(DataEnvelope {
+        data: serde_json::json!({
+            "name": name,
+            "path": path.display().to_string(),
+            "bytes": bytes.len(),
+            "note": "restart oxipage-server (built with --features wasm) to activate",
+        }),
+    }))
+}
+
 fn is_safe_ident(name: &str) -> bool {
     !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+/// 런타임 설치 확장 이름 검증. is_safe_ident 와 달리 하이픈을 허용한다 —
+/// 이름은 파일명(data/extensions/<name>.wasm)과 매개변수화 SQL 바인드에만 쓰이므로
+/// 하이픈이 안전하다 (경로 순회 차단: `/` `\` `.` 는 여전히 거부). SQL 식별자로
+/// 보간되는 table_names() 에는 이 함수를 쓰면 안 된다 — is_safe_ident 를 쓸 것.
+fn is_safe_extension_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
 /// `/api/v1/{ext}/**` 경로에서 ext 세그먼트 추출. 코어 라우트(lobby/auth/search/docs)는

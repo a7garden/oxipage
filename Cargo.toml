@@ -4,6 +4,8 @@ members = [
     "crates/oxipage-core",
     "crates/oxipage-server",
     "crates/oxipage-cli",
+    "crates/oxipage-wasm",
+    "crates/oxipage-ext-wasm-demo",
     "crates/oxipage-ext-activity",
     "crates/oxipage-ext-blog",
     "crates/oxipage-ext-books",
@@ -34,6 +36,7 @@ toml = "0.8"
 tower-http = { version = "0.6", features = ["trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+wasmtime = { version = "33", default-features = false, features = ["cranelift", "runtime", "parallel-compilation", "cache"] }
 
 [profile.release]
 lto = true

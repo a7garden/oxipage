@@ -7,10 +7,16 @@ edition = "2024"
 name = "oxipage-server"
 path = "src/main.rs"
 
+[features]
+# doc/08 §8.4: WASM 런타임 적재 스파이크. 기본 off — 활성화 시 data/extensions/*.wasm
+# 을 부팅 시 스캔해 확장 목록에 추가한다 (oxipage-wasm / wasmtime 링크).
+wasm = ["dep:oxipage-wasm"]
+
 [dependencies]
 anyhow.workspace = true
 axum.workspace = true
 oxipage-core = { path = "../oxipage-core" }
+oxipage-wasm = { path = "../oxipage-wasm", optional = true }
 oxipage-ext-activity = { path = "../oxipage-ext-activity" }
 oxipage-ext-blog = { path = "../oxipage-ext-blog" }
 oxipage-ext-books = { path = "../oxipage-ext-books" }

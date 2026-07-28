@@ -57,7 +57,7 @@ pub struct PageSpec {
 #[async_trait]
 pub trait Extension: Send + Sync {
     /// 고유 식별자. oxipage.toml의 enabled 목록, API 경로 프리픽스, 로비 매니페스트 키로 재사용.
-    fn id(&self) -> &'static str;
+    fn id(&self) -> &str;
 
     fn display_name(&self, lang: Lang) -> String;
 

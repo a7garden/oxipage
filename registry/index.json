@@ -84,6 +84,15 @@
       "source": "crates/oxipage-ext-activity",
       "runtime_loadable": false,
       "integrations": ["github"]
+    },
+    {
+      "name": "wasm-demo",
+      "display_name": { "ko": "WASM 데모", "en": "WASM Demo" },
+      "description": "WASM 런타임 적재 데모 확장 (doc/08 §8.4). 런타임 설치 가능 — API/웹으로만 노출.",
+      "homepage": "https://github.com/oxipage/oxipage",
+      "source": "crates/oxipage-ext-wasm-demo",
+      "runtime_loadable": true,
+      "tags": ["wasm", "demo"]
     }
   ]
 }

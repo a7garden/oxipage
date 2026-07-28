@@ -1,0 +1,25 @@
+# 워크스페이스 전역 cargo 설정.
+#
+# wasm32-unknown-unknown 타겟 rustflags 는 데모 확장(oxipage-ext-wasm-demo)의
+# ABI export 를 위해 필요하다. cargo 가 .cargo/config.toml 을 cwd 기준 상향 탐색하므로
+# 워크스페이스 루트에 둔다. 이 플래그는 wasm32 타겟에만 적용되므로 호스트 빌드
+# (aarch64-apple-darwin 등)의 다른 크레이트에는 영향 없음.
+#
+# - panic=abort: 언와인딩 불필요 (host 가 trap 을 잡는다).
+# - --no-entry: _start 없음 (호스트가 instantiate 만 한다).
+# - --export-memory: linear memory 를 "memory" 이름으로 노출 (memory 는 symbol 이
+#   아니므로 --export=memory 가 아닌 전용 플래그를 쓴다). ptr/len ABI 가 호스트 읽기를 필요.
+# - --export=<sym>: wasmtime 호스트가 get_export 로 찾을 함수 export 들.
+[target.wasm32-unknown-unknown]
+rustflags = [
+  "-C", "panic=abort",
+  "-C", "link-arg=--no-entry",
+  "-C", "link-arg=--export-memory",
+  "-C", "link-arg=--export=init",
+  "-C", "link-arg=--export=ext_id_ptr",
+  "-C", "link-arg=--export=ext_id_len",
+  "-C", "link-arg=--export=display_name_ptr",
+  "-C", "link-arg=--export=display_name_len",
+  "-C", "link-arg=--export=lobby_card_ptr",
+  "-C", "link-arg=--export=lobby_card_len",
+]

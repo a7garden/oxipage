@@ -322,3 +322,61 @@ async fn purge_marks_extension_and_gates_routes() {
         .unwrap();
     assert_eq!(gated.status(), StatusCode::NOT_FOUND);
 }
+
+// ─── wasm runtime install (doc/08 §8.4) ───
+
+#[tokio::test]
+async fn install_writes_wasm_and_registers_state() {
+    // data_dir 을 임시 디렉토리로 격리 — 테스트가 리포지토리 data/ 를 더럽히지 않게.
+    let data_dir =
+        std::env::temp_dir().join(format!("oxipage-install-test-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&data_dir);
+    std::fs::create_dir_all(&data_dir).unwrap();
+
+    let pool = oxipage_core::db::connect_memory().await.unwrap();
+    let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(DummyExt)]));
+    registry.run_migrations(&pool, &[]).await.unwrap();
+    let mut config = Config::default();
+    config.server.data_dir = data_dir.clone();
+    let state = AppState {
+        db: pool.clone(),
+        config: Arc::new(config),
+        admin_token: Some(Arc::from("test-admin-token")),
+        registry,
+    };
+    let app = oxipage_core::http::build_app(state);
+
+    // 하이픈이 포함된 이름("wasm-demo")이 is_safe_extension_name 을 통과하는지 검증.
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/v1/extensions/install")
+        .header("authorization", "Bearer test-admin-token")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"wasm-demo"}"#))
+        .unwrap();
+    let res = app.oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK, "install should succeed");
+    let body = body_string(res).await;
+    assert!(body.contains("wasm-demo"), "body: {body}");
+    assert!(body.contains("\"bytes\""), "body should report byte count: {body}");
+
+    // 1. .wasm 파일이 data/extensions/<name>.wasm 에 쓰였는지.
+    let wasm_path = data_dir.join("extensions").join("wasm-demo.wasm");
+    assert!(wasm_path.exists(), "wasm artifact should be written at {}", wasm_path.display());
+    let meta = std::fs::metadata(&wasm_path).unwrap();
+    assert!(meta.len() > 100, "wasm artifact non-trivial size, got {}", meta.len());
+
+    // 2. extension_state 행이 enabled=0 으로 추가됐는지 (부팅 시 적재 대기).
+    let (enabled,): (i64,) =
+        sqlx::query_as("SELECT enabled FROM extension_state WHERE extension_id = ?")
+            .bind("wasm-demo")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        enabled, 0,
+        "newly installed wasm ext should be disabled (enabled=0) until restart+enable"
+    );
+
+    let _ = std::fs::remove_dir_all(&data_dir);
+}

@@ -156,6 +156,9 @@ pub enum ExtensionCommand {
         #[arg(long)]
         yes: bool,
     },
+    /// WASM 확장 런타임 설치 (doc/08 §8.4). data/extensions/<name>.wasm 저장.
+    /// 활성화에는 --features wasm 으로 빌드된 서버 재기동 필요.
+    Install { name: String },
 }
 
 // ───────────────────────── dispatch ─────────────────────────
@@ -654,6 +657,13 @@ async fn extension(
             }
             let res = client.delete(&format!("/api/v1/extensions/{name}")).await?;
             out.data(res, "extension purged")
+        }
+        ExtensionCommand::Install { name } => {
+            require_token(&client)?;
+            let res = client
+                .post_raw("/api/v1/extensions/install", json!({ "name": name }))
+                .await?;
+            out.data(res, "extension install")
         }
     }
 }
