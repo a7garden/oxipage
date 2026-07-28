@@ -73,6 +73,8 @@ export function SetupWizard() {
   const [completeResult, setCompleteResult] = useState<CompleteResult | null>(
     null,
   );
+  // site step에서 입력한 이름을 보존. profile step이 있을 때 display_name을 pre-fill한다.
+  const [siteName, setSiteName] = useState<string>("");
 
   const steps = useMemo(() => buildSteps(status), [status]);
   const current = steps[stepIdx];
@@ -99,19 +101,6 @@ export function SetupWizard() {
     }
   };
 
-  const handleFinish = async () => {
-    setLoading(true);
-    try {
-      const r = await submitComplete();
-      setCompleteResult(r);
-    } catch (err) {
-      console.error("setup complete failed:", err);
-      alert(`완료 처리 중 오류: ${err instanceof Error ? err.message : "알 수 없는 오류"}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (!status || !current) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -130,9 +119,12 @@ export function SetupWizard() {
         return (
           <StepSite
             loading={loading}
-            onNext={(data) =>
-              handleNext(() => submitSite(data as { name: string; base_url?: string }))
-            }
+            onNext={(data) => {
+              setSiteName(data.name);
+              return handleNext(() =>
+                submitSite(data as { name: string; base_url?: string }),
+              );
+            }}
           />
         );
       case "extensions":
@@ -148,10 +140,16 @@ export function SetupWizard() {
             }
           />
         );
-      case "extension-step":
+      case "extension-step": {
+        // profile step("profile")인 경우 display_name을 site 1단계에서 입력한 값으로 pre-fill.
+        const initial =
+          current.step.id === "profile" && siteName
+            ? { display_name: siteName }
+            : undefined;
         return (
           <GenericStep
             step={current.step}
+            initialValues={initial}
             loading={loading}
             onBack={() => setStepIdx((i) => Math.max(0, i - 1))}
             onNext={(form) =>
@@ -159,6 +157,7 @@ export function SetupWizard() {
             }
           />
         );
+      }
       case "external-keys":
         return (
           <ExternalKeysStep
@@ -179,7 +178,7 @@ export function SetupWizard() {
                 await submitTheme(
                   data as { theme_id: string; lobby_mode?: string },
                 );
-                // theme 저장이 성공하면 곧바로 setup 완료 (서버가 seed_sample_data를 호출).
+                // theme 저장 성공 후 곧바로 setup 완료 (서버가 seed_sample_data를 호출).
                 const r = await submitComplete();
                 setCompleteResult(r);
               })

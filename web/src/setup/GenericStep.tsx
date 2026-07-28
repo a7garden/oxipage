@@ -8,17 +8,20 @@ import type { ExtensionStepInfo } from "./api";
 
 interface Props {
   step: ExtensionStepInfo;
+  /// 필드 pre-fill 값. 예: profile step에 siteName을 display_name으로 주입.
+  initialValues?: Record<string, string>;
   onNext: (form: Record<string, string>) => void;
   onBack: () => void;
   loading: boolean;
 }
 
-export function GenericStep({ step, onNext, onBack, loading }: Props) {
-  // 필드별 로컬 상태. 시작은 빈 문자열.
+export function GenericStep({ step, initialValues, onNext, onBack, loading }: Props) {
+  // 필드별 로컬 상태. 시작은 initialValues 또는 빈 문자열.
   const [values, setValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(step.fields.map((f) => [f.name, ""])),
+    Object.fromEntries(
+      step.fields.map((f) => [f.name, initialValues?.[f.name] ?? ""]),
+    ),
   );
-
   const set = (name: string, v: string) =>
     setValues((prev) => ({ ...prev, [name]: v }));
 

@@ -342,14 +342,8 @@ pub async fn setup_site_handler(
         .execute(&state.db)
         .await
         .map_err(|e| ApiError::internal(anyhow::anyhow!(e)))?;
-
-    sqlx::query(
-        "UPDATE profile SET display_name = ?1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = 1",
-    )
-    .bind(&name)
-    .execute(&state.db)
-    .await
-    .map_err(|e| ApiError::internal(anyhow::anyhow!(e)))?;
+    // `name`을 profile 표로 흘리는 것은 profile 확장의 `setup_wizard_step`이 처리한다.
+    // 코어는 site_identity (setup_state + site_override)만 다룬다.
 
     *state.site_override.write().await = Some(SiteOverride {
         name: name.clone(),
