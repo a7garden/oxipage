@@ -2,6 +2,9 @@ use crate::scheduler::ScheduledJob;
 use crate::state::AppState;
 use async_trait::async_trait;
 use axum::Router;
+use std::collections::BTreeMap;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -52,6 +55,74 @@ pub struct PageSpec {
     pub path: String,
     /// 확장 내 문서 식별자 (slug 등).
     pub doc_id: String,
+}
+
+/// CLI 핸들러 트레이트 — 인자 맵을 받아 HTTP 호출로 명령을 실행한다.
+pub trait CliHandler: Send + Sync {
+    /// 인자 맵 (--key value 쌍)을 받아 CLI 명령을 실행한다.
+    fn run(&self, args: BTreeMap<String, String>, client: &crate::client::Client)
+        -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>>;
+}
+/// CLI 서브커맨드 하나의 정의. 확장이 `cli_commands()`로 반환한다.
+#[derive(Clone)]
+pub struct CliCommand {
+    /// 명령 이름 (예: "novels"). 확장 id와 동일할 필요는 없지만 관례상 일치 권장.
+    pub name: &'static str,
+    /// `oxipage novels --help` 상단에 표시될 설명.
+    pub about: &'static str,
+    /// 이 명령의 하위 서브커맨드들.
+    pub subcommands: Vec<CliSubcommand>,
+}
+
+/// 단일 서브커맨드 (예: "oxipage novels new").
+#[derive(Clone)]
+pub struct CliSubcommand {
+    pub name: &'static str,
+    pub about: &'static str,
+    /// 위치 인자.
+    pub args: Vec<CliArg>,
+    /// 핸들러. None인 경우 서버 위임 (`POST /api/v1/cli/exec/{name}/{subcommand}`).
+    pub handler: Option<Arc<dyn CliHandler>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CliArg {
+    /// "--slug" 또는 "--title-ko" 등.
+    pub long: &'static str,
+    pub short: Option<char>,
+    pub help: &'static str,
+    pub required: bool,
+}
+
+// ───────────────────────── 서버 매니페스트 (doc/11 §11.2.3) ─────────────────────────
+
+/// 서버 `/api/v1/cli/commands` 응답 형식.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CliCommandManifest {
+    pub extensions: Vec<CliCommandSpec>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CliCommandSpec {
+    pub extension_id: String,
+    pub name: String,
+    pub about: String,
+    pub subcommands: Vec<CliSubcommandSpec>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CliSubcommandSpec {
+    pub name: String,
+    pub about: String,
+    pub args: Vec<CliArgSpec>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CliArgSpec {
+    pub long: String,
+    pub short: Option<char>,
+    pub help: String,
+    pub required: bool,
 }
 
 #[async_trait]
@@ -105,6 +176,11 @@ pub trait Extension: Send + Sync {
     /// 폴백 핸들러가 요청 시점에 디스패치한다.
     fn route_dispatcher(&self) -> Option<&dyn RouteDispatcher> {
         None
+    }
+
+    /// 이 확장이 CLI에 등록할 서브커맨드. 기본 구현: 빈 vec (CLI 명령이 없는 확장).
+    fn cli_commands(&self) -> Vec<CliCommand> {
+        Vec::new()
     }
 }
 

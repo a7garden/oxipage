@@ -1,6 +1,6 @@
 use crate::auth::{self, AdminAuth, PatRow};
 use crate::error::ApiError;
-use crate::extension::{Extension, Lang};
+use crate::extension::{CliArgSpec, CliCommandManifest, CliCommandSpec, CliSubcommandSpec, Extension, Lang};
 use crate::search::SearchHit;
 use crate::state::AppState;
 use std::sync::Arc;
@@ -73,7 +73,9 @@ pub fn build_app(state: AppState) -> Router {
         .route("/extensions/{id}/disable", axum::routing::post(extension_disable))
         .route("/extensions/{id}", axum::routing::delete(extension_purge))
         .route("/extensions/install", axum::routing::post(extension_install))
-        .route("/backup/snapshot", axum::routing::post(backup_snapshot));
+        .route("/backup/snapshot", axum::routing::post(backup_snapshot))
+        .route("/cli/commands", get(cli_commands_handler))
+        .route("/cli/exec/{ext_id}/{sub_command}", axum::routing::post(cli_exec_handler));
     for ext in state.registry.iter() {
         // WASM(런타임 적재) 확장은 route_dispatcher()가 Some → 네스팅하지 않고
         // 폴백 핸들러가 요청 시점에 동적 디스패치한다. 핫 리로드 지원.
@@ -838,4 +840,123 @@ async fn extension_gate(
         .into_response();
     }
     next.run(request).await
+}
+
+// ─── CLI 동적 명령 (doc/11) ───
+
+async fn cli_commands_handler(
+    State(state): State<AppState>,
+) -> Json<CliCommandManifest> {
+    // 활성 확장 상태 스냅샷을 미리 수집 (async boundary)
+    let statuses = state.registry.status_snapshot().await;
+
+    let extensions: Vec<CliCommandSpec> = state
+        .registry
+        .iter()
+        .into_iter()
+        .filter(|ext| {
+            statuses
+                .get(ext.id())
+                .map(|s| s.active())
+                .unwrap_or(false)
+        })
+        .flat_map(|ext| {
+            let id = ext.id().to_string();
+            ext.cli_commands().into_iter().map(move |cmd| CliCommandSpec {
+                extension_id: id.clone(),
+                name: cmd.name.to_string(),
+                about: cmd.about.to_string(),
+                subcommands: cmd
+                    .subcommands
+                    .into_iter()
+                    .map(|sub| CliSubcommandSpec {
+                        name: sub.name.to_string(),
+                        about: sub.about.to_string(),
+                        args: sub
+                            .args
+                            .into_iter()
+                            .map(|a| CliArgSpec {
+                                long: a.long.to_string(),
+                                short: a.short,
+                                help: a.help.to_string(),
+                                required: a.required,
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+            })
+        })
+        .collect();
+    Json(CliCommandManifest { extensions })
+}
+
+#[derive(serde::Deserialize)]
+struct CliExecInput {
+    args: std::collections::BTreeMap<String, String>,
+}
+
+/// WASM 확장이 핸들러 없는 CLI 명령을 위임받아 실행.
+/// 핸들러가 None인 확장의 CLI 명령은 이 엔드포인트로 요청이 온다.
+/// 컴파일 확장은 직접 `CliHandler`를 가지므로 이 경로를 거치지 않는다.
+async fn cli_exec_handler(
+    State(state): State<AppState>,
+    Path((ext_id, sub_command)): Path<(String, String)>,
+    Json(input): Json<CliExecInput>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let ext = state
+        .registry
+        .find(&ext_id)
+        .ok_or_else(|| {
+            let msg = format!("extension '{ext_id}' not found");
+            ApiError::new(
+                axum::http::StatusCode::NOT_FOUND,
+                "extension_not_found",
+                &msg,
+            )
+        })?;
+
+    // 확장의 cli_commands()에서 서브커맨드 찾기
+    let cmd = ext
+        .cli_commands()
+        .into_iter()
+        .find_map(|c| {
+            c.subcommands
+                .into_iter()
+                .find(|s| s.name == sub_command)
+        })
+        .ok_or_else(|| {
+            let msg = format!(
+                "subcommand '{sub_command}' not found in extension '{ext_id}'"
+            );
+            ApiError::new(
+                axum::http::StatusCode::NOT_FOUND,
+                "subcommand_not_found",
+                &msg,
+            )
+        })?;
+
+    // 핸들러가 있으면 서버에서 실행할 수 없다 — 컴파일 확장 전용
+    if cmd.handler.is_some() {
+        let msg = format!(
+            "command '{ext_id} {sub_command}' has a native handler and cannot be proxied"
+        );
+        return Err(ApiError::new(
+            axum::http::StatusCode::BAD_REQUEST,
+            "handler_not_proxyable",
+            &msg,
+        ));
+    }
+
+    // TODO: WASM 확장은 여기서 arg 검증 후 적절한 API 호출로 변환.
+    // 현재 Phase 1: stub — args를 그대로 반영해 echo
+    tracing::info!(
+        "cli exec proxy: ext={ext_id} sub={sub_command} args={:?}",
+        input.args
+    );
+    Ok(Json(serde_json::json!({
+        "status": "stub",
+        "ext_id": ext_id,
+        "sub_command": sub_command,
+        "args": input.args,
+    })))
 }
