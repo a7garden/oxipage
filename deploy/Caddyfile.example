@@ -11,6 +11,12 @@ example.com {
     encode zstd gzip
 
     # 정적 자산/SPA는 코어가 rust-embed로 서빙하므로 모두 역프록시.
+    #
+    # 프록시 대상은 배포 모드에 따라 다르다 (doc/05 §5.2):
+    #   - binary-direct (기본):  127.0.0.1:8787  ← 아래 기본값
+    #   - container 모드:        Apple `container`가 할당한 컨테이너 전용 고정 IP.
+    #     `container inspect oxipage`로 IP를 확인해 아래 주석을 풀어 교체한다:
+    #       reverse_proxy 192.168.64.2:8787 { ... }
     reverse_proxy 127.0.0.1:8787 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}

@@ -26,8 +26,11 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates tzdata && rm -rf /var/lib/apt/lists/*
 WORKDIR /srv/oxipage
+# 최소 권한 실행 (doc/05 §5.5). root로 실행하면 컨테이너 탈출 시 호스트 위험.
+RUN groupadd -r oxipage && useradd -r -g oxipage -d /srv/oxipage -s /sbin/nologin oxipage
 COPY --from=rust-builder /src/target/release/oxipage-server /usr/local/bin/oxipage-server
 COPY oxipage.toml.example ./oxipage.toml
+RUN mkdir -p /srv/oxipage/data && chown -R oxipage:oxipage /srv/oxipage
 
 # 데이터 볼륨(SQLite db, 미디어)은 /data 로 마운트.
 VOLUME ["/srv/oxipage/data"]
@@ -36,4 +39,5 @@ ENV RUST_LOG=info
 ENV OXIPAGE_CONFIG=/srv/oxipage/oxipage.toml
 
 # 서버 바이너리는 서브커맨드 없이 직접 기동한다(인자 무시). oxipage.toml + 환경변수로 설정.
+USER oxipage
 CMD ["oxipage-server"]
