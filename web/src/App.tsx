@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { BrowserRouter, Link, Route, Routes } from "react-router";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Languages, Search } from "lucide-react";
 
 import { fetchManifest } from "./shared/api";
@@ -9,6 +9,7 @@ import { ProfilePage } from "./extensions/profile/ProfilePage";
 import { LanguageProvider, useLanguage } from "./shared/language";
 import type { Lang } from "./shared/language";
 import { ThemeToggle } from "./shared/ThemeToggle";
+import { applyServerTheme } from "./shared/theme";
 import { Button } from "./shared/ui/button";
 import { Container } from "./shared/ui/container";
 import { Skeleton } from "./shared/ui/skeleton";
@@ -62,6 +63,9 @@ function PageFallback() {
 }
 
 function Shell() {
+  useEffect(() => {
+    applyServerTheme();
+  }, []);
   const { data: manifest } = useQuery({ queryKey: ["manifest"], queryFn: fetchManifest });
   const defaultLang: Lang = manifest?.site.default_lang === "en" ? "en" : "ko";
   const siteName = manifest?.site.name ?? "Oxipage";
