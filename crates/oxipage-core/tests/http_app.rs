@@ -53,6 +53,7 @@ async fn test_app() -> axum::Router {
         registry,
                 wasm_loader: None,
         site_override: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        builders: std::sync::Arc::new(vec![]),
     };
     oxipage_core::http::build_app(state)
 }
@@ -147,6 +148,7 @@ async fn pat_setup(admin_token: Option<&str>) -> (axum::Router, SqlitePool) {
         registry,
                 wasm_loader: None,
         site_override: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        builders: std::sync::Arc::new(vec![]),
     };
     let app = oxipage_core::http::build_app(state);
     (app, pool)
@@ -247,6 +249,7 @@ async fn admin_app() -> axum::Router {
         registry,
                 wasm_loader: None,
         site_override: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        builders: std::sync::Arc::new(vec![]),
     };
     oxipage_core::http::build_app(state)
 }
@@ -351,6 +354,7 @@ async fn install_writes_wasm_and_registers_state() {
         registry,
                 wasm_loader: None,
         site_override: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        builders: std::sync::Arc::new(vec![]),
     };
     let app = oxipage_core::http::build_app(state);
 

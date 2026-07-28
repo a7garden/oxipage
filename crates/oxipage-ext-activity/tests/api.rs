@@ -29,6 +29,7 @@ async fn test_app(admin_token: Option<&str>) -> Router {
         registry: registry.clone(),
                 wasm_loader: None,
         site_override: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        builders: std::sync::Arc::new(vec![]),
     };
     Router::new()
         .nest(
