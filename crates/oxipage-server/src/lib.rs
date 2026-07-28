@@ -130,6 +130,7 @@ pub async fn run_server_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow:
         registry: registry.clone(),
         wasm_loader,
         site_override: Arc::new(RwLock::new(None)),
+        builders: Arc::new(all_builders()),
     };
     for ext in registry.iter() {
         let status = registry.status_of(ext.id()).await;

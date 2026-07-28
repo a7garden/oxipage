@@ -1,3 +1,4 @@
+use crate::builder::BuildExt;
 use crate::config::Config;
 use crate::extension::WasmLoader;
 use crate::registry::ExtensionRegistry;
@@ -26,6 +27,8 @@ pub struct AppState {
     /// Setup 마법사가 설정한 사이트명/URL 오버라이드 (doc/13).
     /// None = config.site 사용 (기본).
     pub site_override: Arc<RwLock<Option<SiteOverride>>>,
+    /// BuildExt 인스턴스 (v2 SSG 빌드용).
+    pub builders: Arc<Vec<Box<dyn BuildExt>>>,
 }
 
 impl AppState {

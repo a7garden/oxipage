@@ -1,4 +1,6 @@
 use crate::auth::{self, AdminAuth, PatRow};
+use crate::build::build_site;
+use crate::build_writer::write_build_output;
 use crate::setup;
 use crate::error::ApiError;
 use crate::extension::{CliArgSpec, CliCommandManifest, CliCommandSpec, CliSubcommandSpec, Extension, Lang};
@@ -78,7 +80,8 @@ pub fn build_app(state: AppState) -> Router {
         .route("/cli/commands", get(cli_commands_handler))
         .route("/cli/exec/{ext_id}/{sub_command}", axum::routing::post(cli_exec_handler))
         .route("/theme", get(theme_get).put(theme_put))
-        .route("/themes", get(theme_catalog));
+        .route("/themes", get(theme_catalog))
+        .route("/build", axum::routing::post(build_handler));
     // Setup API (loopback-only, unauthenticated, doc/13)
     api = setup::setup_routes(api);
     // setup_gate: /setup/* 경로만 loopback-only + 완료 후 410
@@ -123,6 +126,28 @@ async fn healthz() -> Json<serde_json::Value> {
 
 async fn docs_spec(State(state): State<AppState>) -> Json<serde_json::Value> {
     Json(crate::openapi::openapi_spec(&state.config.site.base_url))
+}
+
+async fn build_handler(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let config = &state.config;
+    let out_dir = config.server.data_dir.join("out");
+    let media_dir = config.server.data_dir.join("media");
+    let web_dist = std::path::PathBuf::from("web/dist");
+
+    let output = build_site(&state.db, &state.builders)
+        .map_err(|e| ApiError::internal(anyhow::anyhow!("{}", e)))?;
+
+    write_build_output(&output, &out_dir, &media_dir, &web_dist)
+        .map_err(|e| ApiError::internal(anyhow::anyhow!("{}", e)))?;
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "pages": output.pages.len(),
+        "extensions": output.extensions_data.len(),
+        "out_dir": out_dir.to_string_lossy(),
+    })))
 }
 
 async fn docs_ui() -> axum::response::Response {

@@ -2,6 +2,7 @@ pub mod auth;
 pub mod backup;
 pub mod build;
 pub mod builder;
+pub mod build_writer;
 pub mod config;
 pub mod db;
 pub mod error;
