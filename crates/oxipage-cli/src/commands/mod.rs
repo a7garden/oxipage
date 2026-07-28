@@ -4,23 +4,29 @@ mod auth;
 mod backup;
 mod blog;
 mod build;
+mod deploy;
 mod extension;
 mod init_status_serve;
 mod link;
 mod lobby;
 mod open;
 mod project;
+mod query;
+mod schema;
 mod site;
 
 pub use auth::AuthCommand;
 pub use backup::BackupCommand;
 pub use blog::BlogCommand;
 pub use build::BuildCommand;
+pub use deploy::DeployArgs;
 pub use extension::ExtensionCommand;
 pub use link::LinkCommand;
 pub use lobby::LobbyCommand;
 pub use open::OpenArgs;
 pub use project::ProjectCommand;
+pub use query::QueryCommand;
+pub use schema::SchemaCommand;
 pub use site::SiteCommand;
 
 use crate::client::Client;
@@ -82,6 +88,10 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
         Command::Extension(c) => extension::extension(c, &out, &client).await,
         Command::Backup(c) => backup::backup(c, &out, &client).await,
         Command::Build(c) => build::build(c, &out, &client).await,
+        Command::Deploy(c) => deploy::deploy(c, &out, &client).await,
+        Command::Query(c) => query::query(c).await,
+        Command::Schema(c) => schema::schema(c).await,
+        Command::Schema(c) => schema::schema(c).await,
         Command::Site(_) => unreachable!(), // handled above
         Command::Admin { .. } => unreachable!(), // handled above
         Command::Dynamic(ref args) => {

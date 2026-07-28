@@ -85,6 +85,12 @@ pub enum Command {
     /// 정적 사이트 빌드 (v2 SSG)
     #[command(subcommand)]
     Build(commands::BuildCommand),
+    /// 정적 사이트 배포 (GitHub Pages 등)
+    Deploy(commands::DeployArgs),
+    /// 직접 SQL 질의 (읽기 전용, 로컬 DB)
+    Query(commands::QueryCommand),
+    /// DB 스키마 조회
+    Schema(commands::SchemaCommand),
     /// 사이트 프로필 관리 (doc/09) — 접속 대상 서버 등록/전환
     #[command(subcommand)]
     Site(commands::SiteCommand),
