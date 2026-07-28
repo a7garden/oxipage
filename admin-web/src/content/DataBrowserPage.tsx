@@ -127,7 +127,7 @@ export function DataBrowserPage() {
               borderRadius: 6,
               fontSize: 13,
               border: "1px solid #e8e4e0",
-              background: activeExt === ext.id ? "oklch(52% 0.20 290)" : "#fff",
+              background: activeExt === ext.id ? "oklch(50% 0.14 160)" : "#fff",
               color: activeExt === ext.id ? "#fff" : "#555",
               cursor: "pointer",
             }}

@@ -80,7 +80,7 @@ export function BlogListPage() {
               borderRadius: 6,
               fontSize: 13,
               border: "1px solid #e8e4e0",
-              background: draftFilter === f.value ? "oklch(52% 0.20 290)" : "#fff",
+              background: draftFilter === f.value ? "oklch(50% 0.14 160)" : "#fff",
               color: draftFilter === f.value ? "#fff" : "#555",
               cursor: "pointer",
             }}

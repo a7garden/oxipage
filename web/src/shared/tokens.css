@@ -1,6 +1,6 @@
 /* ============================================================
    Oxipage Design Tokens v2
-   OKLCH paper/ink + deep indigo-violet. Preserved from v1.
+   OKLCH paper/ink + pine green. Preserved from v1.
    Tailwind v4 exposure via @theme inline (keeps var() refs so
    runtime data-theme switching is honored).
    ============================================================ */
@@ -18,11 +18,11 @@
   --p-neutral-950: oklch(13%   0.020 265);
   --p-neutral-999: oklch(0%    0 0);            /* pure black for shadows */
 
-  /* Accent — "deep indigo-violet" */
-  --p-accent-400: oklch(78% 0.14 290);
-  --p-accent-500: oklch(62% 0.19 290);
-  --p-accent-600: oklch(52% 0.20 290);
-  --p-accent-700: oklch(42% 0.18 290);
+  /* Accent — "pine green" */
+  --p-accent-400: oklch(78% 0.12 160);
+  --p-accent-500: oklch(62% 0.14 160);
+  --p-accent-600: oklch(50% 0.14 160);
+  --p-accent-700: oklch(40% 0.12 160);
 
   /* Rating gold — "gold leaf on ink" */
   --p-gold-400: oklch(82% 0.15 85);
