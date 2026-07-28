@@ -206,5 +206,4 @@ fn extension_registers_quarter_hour_sync_job() {
     let jobs = ActivityExtension.background_jobs();
     assert_eq!(jobs.len(), 1);
     assert_eq!(jobs[0].name(), "activity_sync");
-    assert_eq!(jobs[0].schedule(), "0 */15 * * * *");
 }

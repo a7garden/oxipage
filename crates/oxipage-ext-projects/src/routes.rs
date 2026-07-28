@@ -126,12 +126,12 @@ pub async fn publish(
     let description = project.description_en.clone()
         .or_else(|| project.description_ko.clone())
         .unwrap_or_default();
-    let truncated: String = description.chars().take(200).collect();
-    let body_md = format!(
+    let _truncated: String = description.chars().take(200).collect();
+    let _body_md = format!(
         "{title}\n\n{description}\n\ntech_stack: {}",
         project.tech_stack.join(", ")
     );
-    let snapshot_path = format!("/projects/{}", project.slug);
+    let _snapshot_path = format!("/projects/{}", project.slug);
     Ok(Json(DataEnvelope { data: project }))
 }
 

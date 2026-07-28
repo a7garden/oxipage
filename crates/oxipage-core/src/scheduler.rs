@@ -58,6 +58,7 @@ impl Scheduler {
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    use crate::registry::ExtensionRegistry;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct CountingJob {
@@ -82,9 +83,15 @@ mod tests {
     }
 
     fn test_app_state() -> AppState {
-        // We don't actually exercise the state here; just satisfy the type.
-        // In real code, run_all_once is called from the cache/refresh handler
-        // with a fully-initialized AppState.
-        panic!("test helper shouldn't be called in this test");
+        let pool = sqlx::SqlitePool::connect_lazy(":memory:").unwrap();
+        AppState {
+            db: pool,
+            config: Arc::new(crate::config::Config::default()),
+            admin_token: None,
+            registry: Arc::new(ExtensionRegistry::new(vec![])),
+            wasm_loader: None,
+            site_override: Arc::new(tokio::sync::RwLock::new(None)),
+            builders: Arc::new(vec![]),
+        }
     }
 }

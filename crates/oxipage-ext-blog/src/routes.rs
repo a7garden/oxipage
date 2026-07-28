@@ -109,8 +109,8 @@ pub async fn publish(
         .await
         .map_err(ApiError::internal)?;
     reindex(&state, &post).await?;
-    let snapshot_path = format!("/blog/{}", post.slug);
-    let desc: String = post.body.chars().take(200).collect();
+    let _snapshot_path = format!("/blog/{}", post.slug);
+    let _desc: String = post.body.chars().take(200).collect();
     Ok(Json(DataEnvelope { data: post }))
 }
 

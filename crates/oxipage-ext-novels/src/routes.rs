@@ -103,7 +103,7 @@ pub async fn publish_novel(
     .await
     .map_err(ApiError::internal)?;
     let synopsis = novel.synopsis.clone().unwrap_or_default();
-    let desc: String = synopsis.chars().take(200).collect();
+    let _desc: String = synopsis.chars().take(200).collect();
     Ok(Json(DataEnvelope { data: novel }))
 }
 
@@ -227,7 +227,7 @@ pub async fn publish_chapter(
     )
     .await
     .map_err(ApiError::internal)?;
-    let preview: String = ch.body.chars().take(200).collect();
+    let _preview: String = ch.body.chars().take(200).collect();
     Ok(Json(DataEnvelope { data: ch }))
 }
 

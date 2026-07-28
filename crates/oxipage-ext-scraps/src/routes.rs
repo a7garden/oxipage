@@ -105,7 +105,7 @@ pub async fn publish(
         .ok_or_else(|| not_found(id))?;
     reindex(&state, &item).await?;
     let note = item.note_ko.clone().or_else(|| item.note_en.clone()).unwrap_or_default();
-    let desc: String = note.chars().take(200).collect();
+    let _desc: String = note.chars().take(200).collect();
     Ok(Json(DataEnvelope { data: item }))
 }
 

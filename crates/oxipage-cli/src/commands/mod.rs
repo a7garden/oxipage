@@ -94,7 +94,6 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
         Command::Deploy(c) => deploy::deploy(c, &out).await,
         Command::Query(c) => query::query(c).await,
         Command::Schema(c) => schema::schema(c).await,
-        Command::Schema(c) => schema::schema(c).await,
         Command::Site(_) => unreachable!(), // handled above
         Command::Admin { .. } => unreachable!(), // handled above
         Command::Dynamic(ref args) => {

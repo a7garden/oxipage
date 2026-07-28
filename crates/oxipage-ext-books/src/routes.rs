@@ -112,7 +112,7 @@ pub async fn publish(
         .map_err(ApiError::internal)?;
     reindex(&state, &book).await?;
     let review = book.review_ko.clone().or_else(|| book.review_en.clone()).unwrap_or_default();
-    let desc: String = review.chars().take(200).collect();
+    let _desc: String = review.chars().take(200).collect();
     Ok(Json(DataEnvelope { data: book }))
 }
 

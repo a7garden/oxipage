@@ -196,8 +196,8 @@ pub async fn publish(
         .map_err(ApiError::internal)?;
     reindex(&state, &entry).await?;
     let review = entry.review_ko.clone().or_else(|| entry.review_en.clone()).unwrap_or_default();
-    let desc: String = review.chars().take(200).collect();
-    let og_image = entry.poster_path.clone().map(|p| {
+    let _desc: String = review.chars().take(200).collect();
+    let _og_image = entry.poster_path.clone().map(|p| {
         if p.starts_with("http") {
             p
         } else {

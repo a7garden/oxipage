@@ -42,7 +42,7 @@ async fn deploy_github_pages(
     }
 
     if dry_run {
-        out.ok(format!("dry-run: would deploy {} to GitHub Pages", out_dir.display()));
+        let _ = out.ok(format!("dry-run: would deploy {} to GitHub Pages", out_dir.display()));
         return Ok(());
     }
 
@@ -129,7 +129,7 @@ async fn deploy_github_pages(
         .ok();
 
     if commit_status.status.success() {
-        out.ok("Deployed to GitHub Pages");
+        let _ = out.ok("Deployed to GitHub Pages");
     } else {
         let stderr = String::from_utf8_lossy(&commit_status.stderr);
         anyhow::bail!("GitHub Pages deploy failed: {}", stderr);

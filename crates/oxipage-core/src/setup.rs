@@ -148,25 +148,23 @@ async fn get_completed_steps(state: &AppState) -> Result<Vec<String>, ApiError> 
     let mut steps = Vec::new();
 
     // site: site_name이 설정되었는가
-    match sqlx::query_as::<_, (Option<String>,)>(
+    if let Ok((Some(_),)) = sqlx::query_as::<_, (Option<String>,)>(
         "SELECT site_name FROM setup_state WHERE id = 1",
     )
     .fetch_one(&state.db)
     .await
     {
-        Ok((Some(_),)) => steps.push("site".into()),
-        _ => {}
+        steps.push("site".into());
     }
 
     // admin: admin_password_hash가 설정되었는가
-    match sqlx::query_as::<_, (Option<String>,)>(
+    if let Ok((Some(_),)) = sqlx::query_as::<_, (Option<String>,)>(
         "SELECT admin_password_hash FROM setup_state WHERE id = 1",
     )
     .fetch_one(&state.db)
     .await
     {
-        Ok((Some(_),)) => steps.push("admin".into()),
-        _ => {}
+        steps.push("admin".into());
     }
 
     // extensions: enabled가 1개 이상인가
@@ -239,11 +237,9 @@ fn update_toml_site(name: &str, base_url: &str) -> anyhow::Result<()> {
     let content = std::fs::read_to_string(&config_path)?;
     let mut toml_val: toml::Value = content.parse::<toml::Value>()?;
 
-    if let Some(site) = toml_val.get_mut("site") {
-        if let Some(table) = site.as_table_mut() {
-            table.insert("name".into(), toml::Value::String(name.into()));
-            table.insert("base_url".into(), toml::Value::String(base_url.into()));
-        }
+    if let Some(table) = toml_val.get_mut("site").and_then(|s| s.as_table_mut()) {
+        table.insert("name".into(), toml::Value::String(name.into()));
+        table.insert("base_url".into(), toml::Value::String(base_url.into()));
     }
 
     let out = toml::to_string(&toml_val)?;
@@ -302,15 +298,14 @@ pub fn setup_routes(api: Router<AppState>) -> Router<AppState> {
 
 /// Check if setup wizard should run (no setup_completed_at in setup_state).
 pub async fn is_setup_needed(db: &sqlx::SqlitePool) -> bool {
-    match sqlx::query_as::<_, (Option<String>,)>(
-        "SELECT setup_completed_at FROM setup_state WHERE id = 1",
+    matches!(
+        sqlx::query_as::<_, (Option<String>,)>(
+            "SELECT setup_completed_at FROM setup_state WHERE id = 1",
+        )
+        .fetch_one(db)
+        .await,
+        Ok((None,))
     )
-    .fetch_one(db)
-    .await
-    {
-        Ok((None,)) => true,
-        _ => false,
-    }
 }
 
 /// Setup 게이트 미들웨어.
@@ -328,7 +323,7 @@ pub async fn setup_gate(
         let is_loopback = request
             .extensions()
             .get::<ConnectInfo<SocketAddr>>()
-            .map_or(false, |ci| ci.0.ip().is_loopback());
+            .is_some_and(|ci| ci.0.ip().is_loopback());
         if !is_loopback {
             return ApiError::new(
                 StatusCode::FORBIDDEN,
@@ -620,15 +615,11 @@ pub async fn setup_content_handler(
         }
     }
 
-    if let Some(ref key) = input.tmdb_key {
-        if !key.is_empty() {
-            set_extension_config(&state, "movies", "tmdb_key", key).await?;
-        }
+    if let Some(key) = input.tmdb_key.as_ref().filter(|k| !k.is_empty()) {
+        set_extension_config(&state, "movies", "tmdb_key", key).await?;
     }
-    if let Some(ref key) = input.aladin_key {
-        if !key.is_empty() {
-            set_extension_config(&state, "books", "aladin_key", key).await?;
-        }
+    if let Some(key) = input.aladin_key.as_ref().filter(|k| !k.is_empty()) {
+        set_extension_config(&state, "books", "aladin_key", key).await?;
     }
 
     Ok(Json(DataEnvelope {

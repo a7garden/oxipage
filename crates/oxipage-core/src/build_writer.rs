@@ -5,7 +5,7 @@
 
 use crate::builder::BuildOutput;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Write a completed `BuildOutput` to the filesystem under `out_dir`.
 ///

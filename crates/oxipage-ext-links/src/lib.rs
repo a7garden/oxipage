@@ -75,14 +75,13 @@ impl BuildExt for LinksExtension {
     fn build_pages(&self, db: &SqlitePool) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
         let handle = Handle::current();
         let cards: Vec<model::LinkCard> = handle.block_on(repo::list(db, None, 500))?;
-        let html = cards.iter().map(|c| {
+        let _html = cards.iter().map(|c| {
             format!("<li><a href=\"{}\">{}</a></li>", c.url, c.title)
         }).collect::<Vec<_>>().join("\n");
         Ok(vec![StaticPage {
             path: "links/index.html".into(),
-            content: format!(
-                r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Links</title><link rel="canonical" href="/links/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#),
+            content: r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Links</title><link rel="canonical" href="/links/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#.to_string(),
         }])
     }
 

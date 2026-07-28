@@ -1,6 +1,5 @@
 use clap::Subcommand;
 use std::path::PathBuf;
-use anyhow::Context;
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum BuildCommand {

@@ -1,8 +1,7 @@
 use crate::client::Client;
 use crate::output::Output;
-use serde_json::json;
 use axum::Router;
-use axum::routing::get;
+use serde_json::json;
 use std::net::SocketAddr;
 use std::path::Path;
 use tokio::net::TcpListener;

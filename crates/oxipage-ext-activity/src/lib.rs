@@ -154,12 +154,11 @@ impl BuildExt for ActivityExtension {
 
     fn build_pages(&self, db: &SqlitePool) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
         let handle = Handle::current();
-        let events: Vec<model::ActivityEvent> = handle.block_on(repo::list(db, None, 200))?;
+        let _events: Vec<model::ActivityEvent> = handle.block_on(repo::list(db, None, 200))?;
         Ok(vec![StaticPage {
             path: "activity/index.html".into(),
-            content: format!(
-                r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Activity</title><link rel="canonical" href="/activity/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#),
+            content: r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Activity</title><link rel="canonical" href="/activity/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#.to_string(),
         }])
     }
 
