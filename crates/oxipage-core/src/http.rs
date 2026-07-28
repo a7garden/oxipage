@@ -61,6 +61,11 @@ struct Manifest {
     extensions: Vec<ManifestExtension>,
 }
 
+async fn api_v1_redirect(req: axum::extract::Request) -> axum::response::Response {
+    let new_path = req.uri().path().replacen("/api/v1", "/api/console", 1);
+    axum::response::Redirect::permanent(&new_path).into_response()
+}
+
 pub fn build_app(state: AppState) -> Router {
     let mut api = Router::new()
         .route("/lobby/manifest", get(lobby_manifest))
@@ -110,7 +115,9 @@ pub fn build_app(state: AppState) -> Router {
     let limiter = crate::rate_limit::RateLimiter::new(120); // IP당 120/min
     Router::new()
         .route("/healthz", get(healthz))
-        .nest("/api/v1", api)
+        .nest("/api/console", api)
+        .route("/api/v1/{*path}", axum::routing::any(api_v1_redirect))
+        .route("/api/v1", axum::routing::any(api_v1_redirect))
         .fallback(static_handler)
         .with_state(state)
         .layer(axum::middleware::from_fn_with_state(
