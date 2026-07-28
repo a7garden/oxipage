@@ -22,6 +22,11 @@ pub const CORE_MIGRATIONS: &[Migration] = &[
         name: "extension_state",
         sql: include_str!("../migrations/core/0004_extension_state.sql"),
     },
+    Migration {
+        version: 5,
+        name: "theme_config",
+        sql: include_str!("../migrations/core/0005_theme_config.sql"),
+    },
 ];
 
 pub async fn run_migrations(
