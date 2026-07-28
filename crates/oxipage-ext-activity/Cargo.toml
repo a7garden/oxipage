@@ -12,6 +12,8 @@ anyhow.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 oxipage-core = { path = "../oxipage-core" }
+hmac.workspace = true
+sha2.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
