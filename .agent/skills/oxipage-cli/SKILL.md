@@ -40,7 +40,7 @@ description: >
 ```text
 oxipage init                                   # scaffold oxipage.toml (profile-only, Korean defaults)
 oxipage status [--json]                         # server + content summary
-oxipage serve [--port 8787]                     # start the local dev server
+oxipage console [--port 8787]                     # start the local dev server
 oxipage auth set <token>                        # store token in credentials file (0600)
 oxipage auth status | unset                      # check / clear stored token
 oxipage auth token create --label X --scopes post:write,post:publish   # issue a PAT (needs admin, plain shown once)
@@ -66,7 +66,7 @@ oxipage deploy [--target github-pages|cloudflare|netlify] [--site <name>] [--jso
 oxipage query "<SQL>" [--json]                      # direct SQL query (read-only)
 oxipage schema [--extension <name>] [--json]        # DB schema discovery
 oxipage cache refresh [--extension <name>] [--json] # refresh external API cache
-oxipage serve --preview [--port 8787]               # preview built static site
+oxipage console --preview [--port 8787]               # preview built static site
 ```
 
 > CLI subcommands for the Phase 2 extensions (`novel`, `review movie`, `review book`, `scrap`,
@@ -91,7 +91,7 @@ oxipage serve --preview [--port 8787]               # preview built static site
 ### Build and deploy the static site
 1. After content changes, run `oxipage build --json` to regenerate the static site.
 2. Run `oxipage deploy --target github-pages --json` to publish to GitHub Pages.
-3. For local preview first: `oxipage serve --preview` then open http://127.0.0.1:8787.
+3. For local preview first: `oxipage console --preview` then open http://127.0.0.1:8787.
 
 ### Query content (AI agent SQL access)
 1. Check schema: `oxipage schema --json`

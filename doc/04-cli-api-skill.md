@@ -2,7 +2,7 @@
 
 ## 4.1 원칙: CLI는 API의 레퍼런스 클라이언트
 
-`oxipage` CLI가 하는 모든 일은 인증된 HTTP 호출입니다. CLI가 로컬에서 직접 DB나 파일을 건드리는 경로는 없습니다(단, `oxipage serve`로 로컬 개발 서버를 띄우는 것 자체는 예외 — 이때는 CLI가 곧 서버 프로세스를 기동하는 것). 이렇게 하면:
+`oxipage` CLI가 하는 모든 일은 인증된 HTTP 호출입니다. CLI가 로컬에서 직접 DB나 파일을 건드리는 경로는 없습니다(단, `oxipage console`로 로컬 개발 서버를 띄우는 것 자체는 예외 — 이때는 CLI가 곧 서버 프로세스를 기동하는 것). 이렇게 하면:
 
 - API 문서 = CLI 문서 (둘이 어긋날 일이 없음)
 - oh-my-pi 같은 에이전트가 CLI를 몰라도 API를 직접 호출해 같은 일을 할 수 있음
@@ -33,7 +33,7 @@ oxipage auth token revoke <token-id>
 # 프로젝트 관리
 oxipage init                                   # oxipage.toml 스캐폴딩
 oxipage status [--json]                         # 초안/최근 게시물/배포 상태 요약
-oxipage serve [--port 8787]                     # 로컬 개발 서버
+oxipage console [--port 8787]                     # 로컬 개발 서버
 oxipage deploy                                   # 컨테이너 빌드 + Mac mini 배포 (5장)
 oxipage backup export [--out FILE]
 

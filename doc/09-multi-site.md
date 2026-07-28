@@ -35,7 +35,7 @@ oxipage --site flyio status           # → per-command override
 ### 사이트가 아닌 것
 
 - 사이트는 `oxipage.toml` 설정과 무관하다 — 서버 구성이 아니라 **CLI가 어디로 접속할지**만 결정한다
-- 사이트는 `oxipage serve`의 동작과 무관하다 — `serve`는 로컬 `oxipage.toml`을 읽어 서버를 기동하며, `--site`는 `serve`에 영향을 주지 않는다
+- 사이트는 `oxipage console`의 동작과 무관하다 — `serve`는 로컬 `oxipage.toml`을 읽어 서버를 기동하며, `--site`는 `serve`에 영향을 주지 않는다
 - 사이트는 확장이나 콘텐츠 스키마와 무관하다 — 각 서버 인스턴스가 자체적으로 가짐
 
 ## 9.3 저장소
@@ -193,7 +193,7 @@ CLI가 엔드포인트와 토큰을 결정하는 순서:
 
 ## 9.6 기존 명령과의 상호작용
 
-### `oxipage serve`
+### `oxipage console`
 
 `serve`는 사이트 개념과 무관하다. 항상 로컬의 `oxipage.toml`을 읽어 서버를 기동한다.
 
@@ -254,7 +254,7 @@ oxipage site edit alibaba --token <발급받은 토큰>
 
 본 설계 범위 밖이나, 자연스러운 확장 지점:
 
-1. **`--site`를 `serve`에 연결**: `oxipage site use alibaba && oxipage serve`가 `alibaba` 사이트에 해당하는 원격 `oxipage.toml`을 다운로드해 로컬에서 복제 서버를 띄우는 흐름. 현재는 범위 밖.
+1. **`--site`를 `serve`에 연결**: `oxipage site use alibaba && oxipage console`가 `alibaba` 사이트에 해당하는 원격 `oxipage.toml`을 다운로드해 로컬에서 복제 서버를 띄우는 흐름. 현재는 범위 밖.
 2. **OS 키체인 통합**: Phase 4 PAT 체계 도입 시, 토큰을 `sites.toml` 대신 macOS Keychain / freedesktop Secret Service에 저장
 3. **`site clone`**: 원격 서버의 `oxipage.toml` + 데이터를 로컬로 복제
 4. **`site health`**: `GET /api/v1/health`로 사이트 접속 가능 여부 확인

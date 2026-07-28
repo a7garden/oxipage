@@ -166,7 +166,7 @@ Phase 1 진행 시 A→C 순이 무난하며, B는 자격증명이 확보되는 
 | 5 | `oxipage deploy` CLI 명령 (GitHub Pages 1순위, git worktree 기반) | CLI | 4 |
 | 6 | `oxipage query` / `oxipage schema` CLI 명령 (AI 에이전트용) | CLI | 없음 |
 | 7 | `oxipage cache refresh` CLI 명령 (외부 API 수집, 빌드와 분리) | CLI | 없음 |
-| 8 | `oxipage serve --preview` (out/ 디렉토리 HTTP 서빙) | Server | 4 |
+| 8 | `oxipage console --preview` (out/ 디렉토리 HTTP 서빙) | Server | 4 |
 | 9 | React SPA `VITE_DATA_MODE` 전환 (개발: API, 프로덕션: 정적 JSON) | Web | 4 |
 | 10 | Admin-web은 불변 (확인) | Admin | 없음 |
 | 11 | README / 설계 문서 업데이트 | Docs | 전체 |

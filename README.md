@@ -235,13 +235,13 @@ are also supported.
 Before deploying, preview the static site locally:
 
 ```bash
-oxipage serve --preview
+oxipage console --preview
 # → http://127.0.0.1:8787 serves out/
 ```
 
 ### Management server (localhost only)
 
-The content management server (`oxipage serve`) still runs locally for the admin-web UI and
+The content management server (`oxipage console`) still runs locally for the admin-web UI and
 API. This server is never exposed to the internet.
 
 ### Data backups

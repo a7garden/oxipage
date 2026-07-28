@@ -106,7 +106,7 @@
 - `oxipage cache refresh` 명령: 외부 API 수집 (빌드와 분리)
 - React SPA 데이터 레이어: `VITE_DATA_MODE` 분기 (개발: API → 프로덕션: 정적 JSON)
 - 배포 모델 변경: launchd/systemd 상시 서버 → `oxipage build && oxipage deploy`
-- `oxipage serve --preview`: 정적 사이트 로컬 미리보기
+- `oxipage console --preview`: 정적 사이트 로컬 미리보기
 
 **완료 기준:** `oxipage build && oxipage deploy`로 정적 사이트가 GitHub Pages에서 라이브. CLI로 콘텐츠 관리, 빌드, 배포 전부 한 방에 가능.
 

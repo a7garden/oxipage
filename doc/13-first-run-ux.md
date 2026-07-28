@@ -11,7 +11,7 @@
 cargo install oxipage-cli          # ← 패키지명 불일치 (oxipage 아님)
 oxipage init                       # ← TOML 생성 (profile만 enabled)
 export OXIPAGE_ADMIN_TOKEN=xxx     # ← 어디서? 어떻게?
-oxipage serve                      # ← 서버 기동
+oxipage console                      # ← 서버 기동
 # 브라우저 수동 오픈 http://127.0.0.1:8787
 # 빈 로비만 보임 — 뭘 해야 할지 모름
 # admin 콘솔? oxipage admin? 별도 포트?
@@ -31,7 +31,7 @@ oxipage serve                      # ← 서버 기동
 | # | 목표 | 측정 |
 |---|---|---|
 | G1 | `cargo install oxipage` 한 줄로 설치 | crates.io에 `oxipage` 패키지 존재, 바이너리명 `oxipage` |
-| G2 | `oxipage serve` 한 줄로 서버 + 브라우저 자동 오픈 | 첫 부팅 시 `/setup`으로 자동 이동 |
+| G2 | `oxipage console` 한 줄로 서버 + 브라우저 자동 오픈 | 첫 부팅 시 `/setup`으로 자동 이동 |
 | G3 | 웹 마법사 6-step으로 초기 설정 완료 | 사이트명, admin 비밀번호, 확장, 프로필, 테마/레이아웃, 샘플글+API키 |
 | G4 | 마법사 완료 후 즉시 사용 가능 | 로비에 콘텐츠 표시, CLI 토큰 자동 저장 |
 | G5 | Admin 콘솔 발견 가능 | 메인 UI 헤더 "관리" 버튼 |
@@ -43,13 +43,13 @@ oxipage serve                      # ← 서버 기동
 
 | 컴포넌트 | 포트 | 바인딩 | 역할 |
 |---|---|---|---|
-| **메인 서버** (`oxipage serve`) | 8787 (configurable) | config.host | Public SPA + API + **`/setup` 마법사** |
+| **메인 서버** (`oxipage console`) | 8787 (configurable) | config.host | Public SPA + API + **`/setup` 마법사** |
 | **Admin 콘솔** (`oxipage admin`) | 8788 (configurable) | **127.0.0.1 강제** | 멀티사이트 컨트롤 플레인 (sites.toml + 프록시) |
 
 **합치지 않는 이유:** Admin 콘솔의 본질은 "여러 oxipage 인스턴스를 관리하는 로컬 컨트롤 플레인" (doc/09, doc/12). 마법사가 만드는 결과물(site name, admin 비밀번호, 확장 enable, 프로필, 테마)은 **이 인스턴스 자신의 로컬 상태**이다. 둘은 다른 concern. 억지로 합치면 보안 경계가 흐려진다(메인 서버는 인터넷 노출 가능, admin은 loopback 전용).
 
 **발견성 해결:**
-- `oxipage serve` 첫 부팅 → 브라우저 `:8787/setup` 자동 오픈
+- `oxipage console` 첫 부팅 → 브라우저 `:8787/setup` 자동 오픈
 - 설정 완료 후 메인 UI 헤더 "관리 콘솔" 버튼 → `:8788` 안내/오픈
 
 ### chicken-and-egg 해법: Setup 모드
@@ -89,22 +89,22 @@ name = "oxipage"           # ← "oxipage-cli" → "oxipage" 로 변경
 
 | 명령 | 변경 | 설명 |
 |---|---|---|
-| `oxipage serve` | **수정** | 첫 부팅 감지 시 브라우저 자동 오픈 (`/setup` 또는 `/`) |
+| `oxipage console` | **수정** | 첫 부팅 감지 시 브라우저 자동 오픈 (`/setup` 또는 `/`) |
 | `oxipage open` | **신규** | 실행 중 서버의 URL을 브라우저로 오픈. `--admin` 플래그 시 :8788 |
-| `oxipage init` | **수정** | `--wizard` 플래그 추가: init + serve + 브라우저 오픈을 한 방에 |
+| `oxipage init` | **수정** | `--wizard` 플래그 추가: init + console + 브라우저 오픈을 한 방에 |
 | `oxipage admin` | **유지** | 별도 프로세스. 단, `127.0.0.1` 바인딩 강제 |
 
-#### `oxipage serve` 변경 상세
+#### `oxipage console` 변경 상세
 
 ```rust
-// serve 시작 후:
+// console 시작 후:
 if is_first_boot(&db).await {
     // setup 모드 — 브라우저 자동 오픈
-    let url = format!("http://{}:{}/setup", config.server.host, config.server.port);
+    let url = format!("http://{}:{}/setup", config.consoler.host, config.consoler.port);
     open_browser(&url);
     tracing::info!("first boot detected — setup wizard opened at {url}");
 } else {
-    let url = format!("http://{}:{}", config.server.host, config.server.port);
+    let url = format!("http://{}:{}", config.consoler.host, config.consoler.port);
     tracing::info!("oxipage ready at {url}");
 }
 ```
@@ -119,7 +119,7 @@ pub struct OpenArgs {
     /// admin 콘솔 오픈
     #[arg(long)]
     admin: bool,
-    /// 커스텀 포트 (기본: serve=8787, admin=8788)
+    /// 커스텀 포트 (기본: console=8787, admin=8788)
     #[arg(long)]
     port: Option<u16>,
 }
@@ -129,7 +129,7 @@ pub struct OpenArgs {
 
 ```bash
 $ oxipage init --wizard
-# → oxipage.toml 생성 (없으면) + oxipage serve + 브라우저 자동 오픈
+# → oxipage.toml 생성 (없으면) + oxipage console + 브라우저 자동 오픈
 # = "한 줄로 시작하기"
 ```
 
@@ -397,7 +397,7 @@ set_permissions(&creds_path, 0o600)?;
 **소유권 caveat:** 프로덕션(launchd/systemd)에서 서비스 유저 ≠ 인터랙티브
 유저인 경우 서비스 유저의 home에 credentials가 저장되어 CLI가 못 읽는
 문제가 발생. **v1 대응**:
-- 자동 저장은 **인터랙티브 실행**(터미널에서 `oxipage serve`)일 때만 시도
+- 자동 저장은 **인터랙티브 실행**(터미널에서 `oxipage console`)일 때만 시도
   — `isatty(stdout)` 또는 `OXIPAGE_AUTO_CREDS=1` env로 판별
 - launchd 백그라운드 실행이면 자동 저장 skip
 - `setup/complete` 응답에 항상 PAT 평문 포함 → 완료 화면에서 수동
@@ -718,7 +718,7 @@ base_url = "http://127.0.0.1:8787"
 default_lang = "ko"
 languages = ["ko", "en"]
 
-[server]
+[consoler]
 host = "127.0.0.1"
 port = 8787
 data_dir = "data"
@@ -732,7 +732,7 @@ default_mode = "grid"
 ```
 
 - `enabled` 기본값: `["profile"]` → `["profile", "blog", "projects", "links"]`
-- 마법사가 이 값을 덮어쓰므로 init 직후 serve하면 마법사에서 최종 결정
+- 마법사가 이 값을 덮어쓰므로 init 직후 console하면 마법사에서 최종 결정
 
 ### 13.10.2 샘플 환영 글
 
@@ -769,7 +769,7 @@ Oxipage 설치가 완료되었습니다. 🎉
 | 잘못된 테마 ID | 400 `invalid_theme` |
 | 존재하지 않는 확장 ID | 400 `unknown_extension` |
 | step 순서 위반 (admin 전에 extensions) | 허용 — step은 독립적, 순서 강제 안 함 |
-| `oxipage serve` 중 브라우저 오픈 실 | 경고 로그만, 서버는 계속 |
+| `oxipage console` 중 브라우저 오픈 실 | 경고 로그만, 서버는 계속 |
 
 ## 13.12 전체 흐름 다이어그램
 
@@ -784,7 +784,7 @@ sequenceDiagram
     U->>CLI: cargo install oxipage
     U->>CLI: oxipage init --wizard
     CLI->>CLI: oxipage.toml 생성
-    CLI->>S: oxipage serve (내부)
+    CLI->>S: oxipage console (내부)
     S->>S: DB 마이그레이션 + setup_state 확인
     S->>S: setup_completed_at = NULL → setup 모드
     S->>B: open http://127.0.0.1:8787/setup
@@ -833,7 +833,7 @@ sequenceDiagram
 |---|---|---|
 | **P1** | setup_state 테이블 + setup API 8개 + loopback 게이트 | core 마이그레이션 |
 | **P2** | 마법사 UI 6-step (web/ SPA) | P1 API |
-| **P3** | `oxipage serve` 첫 부팅 감지 + 브라우저 자동 오픈 | P1 |
+| **P3** | `oxipage console` 첫 부팅 감지 + 브라우저 자동 오픈 | P1 |
 | **P4** | `oxipage open` 신규 명령 | 없음 |
 | **P5** | `oxipage init --wizard` 단축 | P3 |
 | **P6** | crates.io 패키지명 `oxipage` 변경 | Cargo.toml |

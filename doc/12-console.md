@@ -403,7 +403,7 @@ oxipage admin [--port <N>]
 
 ```
 $ oxipage admin
-oxipage admin console listening on http://127.0.0.1:8788
+oxipage management console listening on http://127.0.0.1:8788
 sites: 3 registered (selfhost*, alibaba, flyio)
 open http://127.0.0.1:8788 in your browser
 ```
