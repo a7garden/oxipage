@@ -1620,6 +1620,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.19",
  "tokio",
+ "toml",
 ]
 
 [[package]]
@@ -1631,6 +1632,7 @@ dependencies = [
  "axum",
  "base64",
  "ed25519-dalek",
+ "futures-core",
  "mime_guess",
  "reqwest",
  "rust-embed",

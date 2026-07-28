@@ -21,6 +21,7 @@ members = [
 anyhow = "1"
 async-trait = "0.1"
 axum = { version = "0.8", features = ["macros"] }
+futures-core = "0.3"
 sha2 = "0.10"
 ed25519-dalek = { version = "2", features = ["std"] }
 base64 = "0.22"
