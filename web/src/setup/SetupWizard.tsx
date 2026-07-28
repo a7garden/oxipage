@@ -1,28 +1,51 @@
-// SetupWizard — 6-step 설정 마법사 (doc/13 §13.7.3)
+// SetupWizard — status 응답의 extension_steps/external_api_keys로 step을 동적 조립.
+// 코어가 profile/movies/books를 모른다 — 확장이 자기 SetupStep으로 선언한다.
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   fetchSetupStatus,
   submitSite,
-
   submitExtensions,
-  submitProfile,
+  submitExtensionStep,
+  submitExternalKeys,
   submitTheme,
-  submitContent,
   submitComplete,
   type CompleteResult,
+  type ExtensionStepInfo,
   type SetupStatus,
 } from "./api";
 import { SetupGuard } from "./SetupGuard";
 import { StepSite } from "./StepSite";
-
 import { StepExtensions } from "./StepExtensions";
-import { StepProfile } from "./StepProfile";
+import { GenericStep } from "./GenericStep";
+import { ExternalKeysStep } from "./ExternalKeysStep";
 import { StepTheme } from "./StepTheme";
-import { StepContent } from "./StepContent";
 import { StepDone } from "./StepDone";
 
-const STEP_NAMES = ["site", "extensions", "profile", "theme", "content"];
+type Step =
+  | { type: "site"; id: string }
+  | { type: "extensions"; id: string }
+  | { type: "extension-step"; id: string; step: ExtensionStepInfo }
+  | { type: "external-keys"; id: string }
+  | { type: "theme"; id: string }
+  | { type: "done"; id: string };
+
+function buildSteps(status: SetupStatus | null): Step[] {
+  if (!status) return [];
+  const out: Step[] = [
+    { type: "site", id: "site" },
+    { type: "extensions", id: "extensions" },
+  ];
+  for (const step of status.extension_steps ?? []) {
+    out.push({ type: "extension-step", id: step.id, step });
+  }
+  if ((status.external_api_keys ?? []).length > 0) {
+    out.push({ type: "external-keys", id: "external-keys" });
+  }
+  out.push({ type: "theme", id: "theme" });
+  out.push({ type: "done", id: "done" });
+  return out;
+}
 
 function StepIndicator({ current, total }: { current: number; total: number }) {
   return (
@@ -30,8 +53,12 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
       {Array.from({ length: total }, (_, i) => (
         <div
           key={i}
-          className={`h-2 rounded-full transition-all duration-300 ${
-            i <= current ? "w-8 bg-[var(--color-accent)]" : "w-2 bg-[var(--color-border)]"
+          className={`h-2 rounded-full transition-colors ${
+            i === current
+              ? "bg-primary w-8"
+              : i < current
+                ? "bg-primary/40 w-2"
+                : "bg-line w-2"
           }`}
         />
       ))}
@@ -40,42 +67,32 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
 }
 
 export function SetupWizard() {
-  const [step, setStep] = useState(0);
+  const [stepIdx, setStepIdx] = useState(0);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<SetupStatus | null>(null);
-  const [completeResult, setCompleteResult] = useState<CompleteResult | null>(null);
-  const [siteName, setSiteName] = useState("");
+  const [completeResult, setCompleteResult] = useState<CompleteResult | null>(
+    null,
+  );
+
+  const steps = useMemo(() => buildSteps(status), [status]);
+  const current = steps[stepIdx];
 
   useEffect(() => {
     fetchSetupStatus()
-      .then((s) => {
-        setStatus(s);
-        // Resume from last completed step
-        const completed = s.completed_steps ?? [];
-        const lastIdx = Math.max(
-          0,
-          ...STEP_NAMES.map((name, i) => (completed.includes(name) ? i + 1 : -1)),
-        );
-        if (lastIdx > 0 && lastIdx <= STEP_NAMES.length) {
-          setStep(lastIdx);
-        }
-      })
+      .then((s) => setStatus(s))
       .catch(() => {
         // If 410, setup is already done — redirect
         window.location.href = "/";
       });
   }, []);
 
-  const handleNext = async (stepName: string, data: unknown, saveFn: (d: unknown) => Promise<unknown>) => {
+  const handleNext = async (submit: () => Promise<unknown>) => {
     setLoading(true);
     try {
-      await saveFn(data);
-      const nextIdx = STEP_NAMES.indexOf(stepName) + 1;
-      if (nextIdx < STEP_NAMES.length) {
-        setStep(nextIdx);
-      }
+      await submit();
+      setStepIdx((i) => i + 1);
     } catch (err) {
-      console.error(`setup step ${stepName} failed:`, err);
+      console.error(`setup step failed:`, err);
       alert(`저장 중 오류: ${err instanceof Error ? err.message : "알 수 없는 오류"}`);
     } finally {
       setLoading(false);
@@ -85,9 +102,8 @@ export function SetupWizard() {
   const handleFinish = async () => {
     setLoading(true);
     try {
-      const result = await submitComplete();
-      setCompleteResult(result);
-      setStep(STEP_NAMES.length + 1);
+      const r = await submitComplete();
+      setCompleteResult(r);
     } catch (err) {
       console.error("setup complete failed:", err);
       alert(`완료 처리 중 오류: ${err instanceof Error ? err.message : "알 수 없는 오류"}`);
@@ -96,89 +112,89 @@ export function SetupWizard() {
     }
   };
 
-  if (!status) {
+  if (!status || !current) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-subtle">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <p className="text-subtle">불러오는 중…</p>
       </div>
     );
   }
 
-  // Done screen
   if (completeResult) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="w-full max-w-lg">
-          <StepIndicator current={STEP_NAMES.length + 1} total={STEP_NAMES.length + 1} />
-          <StepDone result={completeResult} />
-        </div>
-      </div>
-    );
+    return <StepDone result={completeResult} />;
   }
 
   const renderStep = () => {
-    switch (step) {
-      case 0:
+    switch (current.type) {
+      case "site":
         return (
           <StepSite
-            onNext={(data) => {
-              setSiteName(data.name);
-              handleNext("site", data, (d) => submitSite(d as { name: string; base_url?: string }));
-            }}
             loading={loading}
+            onNext={(data) =>
+              handleNext(() => submitSite(data as { name: string; base_url?: string }))
+            }
           />
         );
-      case 1:
+      case "extensions":
         return (
           <StepExtensions
             extensions={status.available_extensions ?? []}
+            loading={loading}
+            onBack={() => setStepIdx((i) => Math.max(0, i - 1))}
             onNext={(data) =>
-              handleNext("extensions", data, (d) => submitExtensions(d as { enabled: string[] }))
+              handleNext(() =>
+                submitExtensions(data as { enabled: string[] }),
+              )
             }
-            onBack={() => setStep(0)}
-            loading={loading}
           />
         );
-      case 2:
+      case "extension-step":
         return (
-          <StepProfile
-            siteName={siteName}
-            onNext={(data) => handleNext("profile", data, (d) => submitProfile(d as Parameters<typeof submitProfile>[0]))}
-            onBack={() => setStep(1)}
+          <GenericStep
+            step={current.step}
             loading={loading}
+            onBack={() => setStepIdx((i) => Math.max(0, i - 1))}
+            onNext={(form) =>
+              handleNext(() => submitExtensionStep(current.step.id, form))
+            }
           />
         );
-      case 3:
+      case "external-keys":
+        return (
+          <ExternalKeysStep
+            keys={status.external_api_keys ?? []}
+            loading={loading}
+            onBack={() => setStepIdx((i) => Math.max(0, i - 1))}
+            onNext={(values) => handleNext(() => submitExternalKeys(values))}
+          />
+        );
+      case "theme":
         return (
           <StepTheme
             themes={status.available_themes ?? []}
-            onNext={(data) =>
-              handleNext("theme", data, (d) => submitTheme(d as { theme_id: string; lobby_mode?: string }))
-            }
-            onBack={() => setStep(2)}
             loading={loading}
+            onBack={() => setStepIdx((i) => Math.max(0, i - 1))}
+            onNext={(data) =>
+              handleNext(async () => {
+                await submitTheme(
+                  data as { theme_id: string; lobby_mode?: string },
+                );
+                // theme 저장이 성공하면 곧바로 setup 완료 (서버가 seed_sample_data를 호출).
+                const r = await submitComplete();
+                setCompleteResult(r);
+              })
+            }
           />
         );
-      case 4:
-        return (
-          <StepContent
-            onNext={(data) =>
-              handleNext("content", data, (d) => submitContent(d as Parameters<typeof submitContent>[0]))
-            }
-            onBack={() => setStep(3)}
-            loading={loading}
-            onFinish={handleFinish}
-          />
-        );
-      default:
-        return null;
+      case "done":
+        return <StepDone result={{ ok: true, message: "" }} />;
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-lg">
-        <StepIndicator current={step} total={STEP_NAMES.length + 1} />
+      <div className="w-full max-w-2xl">
+        <StepIndicator current={stepIdx} total={steps.length} />
         {renderStep()}
       </div>
     </div>
