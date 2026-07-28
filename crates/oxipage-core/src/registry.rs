@@ -8,13 +8,18 @@
 //! - `enabled=false`: soft disable — 라우트 404 + `on_disable()`로 FTS 즉시 정리. DB/미디어 유지.
 //! - `purged=true`:   hard purge 흔적 — 부팅 시 마이그레이션 스킵, `enable`이 플래그 클리어 +
 //!   마이그레이션 재실행으로 복구. 데이터는 이미 DROP되었으므로 빈 테이블로 재생성.
+//!
+//! **핫 리로드 (doc/08 §8.4 v2).** `extensions` 벡터는 `std::sync::RwLock`으로 보호되어
+//! 런타임에 WASM 확장을 추가할 수 있다. `find`/`iter`는 락을 잡고 `Arc`를 복제해 반환한다
+//! (Arc clone은 atomic increment로 사실상 무비용). 런타임 상태 캐시(`runtime`)는
+//! `tokio::sync::RwLock`을 유지한다 — DB I/O와 분리된 짧은 구간만 잠근다.
 
 use crate::extension::Extension;
 use crate::migrate;
 use sqlx::SqlitePool;
 use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use std::sync::{Arc, RwLock};
+use tokio::sync::RwLock as AsyncRwLock;
 
 #[derive(Debug, Clone, Copy)]
 pub struct RuntimeStatus {
@@ -30,24 +35,47 @@ impl RuntimeStatus {
 }
 
 pub struct ExtensionRegistry {
-    extensions: Vec<Arc<dyn Extension>>,
-    runtime: RwLock<HashMap<String, RuntimeStatus>>,
+    /// std RwLock — 핫 리로드(런타임 WASM 확장 추가)를 지원.
+    /// 등록(install)은 드물고 push 한 줄이므로 std 락으로 충분하다.
+    extensions: RwLock<Vec<Arc<dyn Extension>>>,
+    /// 런타임 활성/비활성 상태 캐시. DB I/O 와 분리된 짧은 구간만 잠근다.
+    runtime: AsyncRwLock<HashMap<String, RuntimeStatus>>,
 }
 
 impl ExtensionRegistry {
     pub fn new(extensions: Vec<Arc<dyn Extension>>) -> Self {
         Self {
-            extensions,
-            runtime: RwLock::new(HashMap::new()),
+            extensions: RwLock::new(extensions),
+            runtime: AsyncRwLock::new(HashMap::new()),
         }
     }
 
-    pub fn find(&self, id: &str) -> Option<&Arc<dyn Extension>> {
-        self.extensions.iter().find(|e| e.id() == id)
+    /// id로 확장 검색. `Arc` 복제 반환 (std RwLock read lock → clone → unlock).
+    pub fn find(&self, id: &str) -> Option<Arc<dyn Extension>> {
+        self.extensions
+            .read()
+            .unwrap()
+            .iter()
+            .find(|e| e.id() == id)
+            .cloned()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &Arc<dyn Extension>> {
-        self.extensions.iter()
+    /// 확장 목록 스냅샷. `Arc` 복제 — 비용은 무시 가능 (atomic increment).
+    pub fn iter(&self) -> Vec<Arc<dyn Extension>> {
+        self.extensions.read().unwrap().clone()
+    }
+
+    /// 런타임 확장 등록 + 활성화 (핫 리로드). install 엔드포인트가 호출한다.
+    /// extensions Vec 에 push 하고 runtime 캐시에 enabled=true 로 삽입한다.
+    /// DB extension_state 행은 호출자가 이미 썼다고 가정한다.
+    pub async fn register_and_activate(&self, ext: Arc<dyn Extension>) -> String {
+        let id = ext.id().to_string();
+        self.extensions.write().unwrap().push(ext);
+        self.runtime
+            .write()
+            .await
+            .insert(id.clone(), RuntimeStatus { enabled: true, purged: false });
+        id
     }
 
     /// 부팅 시 DB에서 런타임 상태 로드. 행이 없으면 toml enabled 목록으로 시드:
@@ -60,8 +88,9 @@ impl ExtensionRegistry {
     ) -> anyhow::Result<()> {
         // DB I/O를 write lock 바깥에서 수행 (lock을 디스크 I/O 동안 hold하면
         // extension_state 접근이 직렬화되고 데드락 위험이 있다).
+        let snapshot = self.iter();
         let mut entries = Vec::new();
-        for ext in &self.extensions {
+        for ext in &snapshot {
             let row: Option<(i64, i64)> =
                 sqlx::query_as("SELECT enabled, purged FROM extension_state WHERE extension_id = ?")
                     .bind(ext.id())
@@ -176,7 +205,8 @@ impl ExtensionRegistry {
     ) -> anyhow::Result<()> {
         migrate::run_migrations(pool, "_core", migrate::CORE_MIGRATIONS).await?;
         self.seed_runtime_state(pool, toml_enabled).await?;
-        for ext in &self.extensions {
+        let snapshot = self.iter();
+        for ext in &snapshot {
             let purged = self
                 .status_of(ext.id())
                 .await
@@ -192,9 +222,10 @@ impl ExtensionRegistry {
     /// 특정 확장의 마이그레이션을 강제 재실행 (enable-after-purge). schema_migrations 행을
     /// 먼저 비우면 run_migrations가 버전 무관하게 재적용한다.
     pub async fn rerun_migrations(&self, pool: &SqlitePool, id: &str) -> anyhow::Result<()> {
-        let Some(migrations) = self.find(id).map(|e| e.migrations()) else {
+        let Some(ext) = self.find(id) else {
             return Ok(());
         };
+        let migrations = ext.migrations();
         sqlx::query("DELETE FROM schema_migrations WHERE extension = ?")
             .bind(id)
             .execute(pool)

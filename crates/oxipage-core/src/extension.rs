@@ -97,6 +97,64 @@ pub trait Extension: Send + Sync {
     fn table_names(&self) -> Vec<&'static str> {
         Vec::new()
     }
+
+    /// 런타임 적재(WASM) 확장이 동적 라우트를 제공하면 Some.
+    /// 컴파일 확장은 None — 정적 `Router`를 반환하므로 라우트가 빌드 타임에 확정된다.
+    /// WASM 확장은 라우트를 넘길 수 없으므로, 이 메서드로 동적 디스패치를 제공한다.
+    /// 코어 `build_app`은 네스팅 루프에서 `route_dispatcher()`가 Some인 확장을 건너뛰고,
+    /// 폴백 핸들러가 요청 시점에 디스패치한다.
+    fn route_dispatcher(&self) -> Option<&dyn RouteDispatcher> {
+        None
+    }
+}
+
+// ───────────────────────── 동적 라우트 디스패치 (WASM) ─────────────────────────
+
+/// WASM 확장의 단일 라우트 선언.
+#[derive(Debug, Clone)]
+pub struct RouteSpec {
+    /// HTTP 메서드 ("GET", "POST", "PUT", "DELETE", "PATCH").
+    pub method: String,
+    /// 확장 내 상대 경로 ("/info", "/items/{id}").
+    pub path: String,
+}
+
+/// WASM 확장의 라우트 응답.
+#[derive(Debug)]
+pub struct RouteResponse {
+    pub status: u16,
+    /// 응답 본문 (보통 JSON UTF-8).
+    pub body: Vec<u8>,
+}
+
+/// 런타임 적재 확장이 HTTP 요청을 처리하는 인터페이스.
+/// `Extension::route_dispatcher()`가 반환하면, 코어 폴백 핸들러가 이 trait으로
+/// 요청을 위임한다. 컴파일 확장은 구현하지 않는다.
+#[async_trait]
+pub trait RouteDispatcher: Send + Sync {
+    /// 라우트 매니페스트 (load 시점 추출).
+    fn route_specs(&self) -> &[RouteSpec];
+
+    /// 요청 디스패치. method/path/body 를 WASM 모듈에 전달하고 응답을 반환한다.
+    /// path 는 확장 prefix 이후의 경로 (예: 확장 id 가 "wasm-demo" 이고
+    /// 요청이 "/api/v1/wasm-demo/info" 이면 path="/info").
+    async fn dispatch(
+        &self,
+        method: &str,
+        path: &str,
+        body: Vec<u8>,
+        ctx: &AppState,
+    ) -> RouteResponse;
+}
+
+// ───────────────────────── WASM 로더 (core → wasm crate) ─────────────────────────
+
+/// `.wasm` 파일에서 `Extension` 트레이트 객체를 생성하는 팩토리.
+/// 코어(`oxipage-core`)는 wasmtime 에 의존하지 않으므로, 실제 로딩은 이 trait의
+/// 구현체(`oxipage-wasm`)가 담당한다. 서버가 `--features wasm` 으로 빌드되었을 때
+/// `AppState.wasm_loader` 에 주입되어 install 엔드포인트의 라이브 활성화에 쓰인다.
+pub trait WasmLoader: Send + Sync {
+    fn load(&self, path: &std::path::Path) -> anyhow::Result<Arc<dyn Extension>>;
 }
 
 /// 공통 데이터 봉투 helpers — 확장 routes에서 재사용.
