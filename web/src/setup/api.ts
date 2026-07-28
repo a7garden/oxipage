@@ -1,6 +1,6 @@
 // Setup wizard API client (doc/13 §13.7.3)
 
-const BASE = "/api/v1/setup";
+const BASE = "/api/console/setup";
 
 export interface SetupStatus {
   setup_mode: boolean;

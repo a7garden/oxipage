@@ -80,7 +80,7 @@ async function apiFetch<T>(path: string): Promise<T> {
     return res.json() as Promise<T>;
   }
 
-  const res = await fetch(`/api/v1${path}`);
+  const res = await fetch(`/api/console${path}`);
   if (!res.ok) {
     throw new ApiError(res.status, `API request failed: ${res.status} ${path}`);
   }

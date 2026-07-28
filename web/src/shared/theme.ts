@@ -70,8 +70,8 @@ interface ThemeEntry {
 export async function applyServerTheme(): Promise<void> {
   try {
     const [themeRes, catalogRes] = await Promise.all([
-      fetch('/api/v1/theme'),
-      fetch('/api/v1/themes'),
+      fetch('/api/console/theme'),
+      fetch('/api/console/themes'),
     ]);
     if (!themeRes.ok || !catalogRes.ok) return;
 

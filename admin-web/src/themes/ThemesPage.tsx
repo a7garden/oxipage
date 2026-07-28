@@ -18,7 +18,7 @@ export function ThemesPage() {
       const [catRes, currentRes] = await Promise.all([
         getThemeCatalog(),
         activeSite
-          ? (fetch(`/api/admin/proxy/${activeSite.name}/api/v1/theme`).then((r) =>
+          ? (fetch(`/api/admin/proxy/${activeSite.name}/api/console/theme`).then((r) =>
               r.json(),
             ) as Promise<{ data: { theme_id: string } }>)
           : Promise.resolve({ data: { theme_id: "paper" } }),

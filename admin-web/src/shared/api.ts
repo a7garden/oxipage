@@ -1,5 +1,5 @@
 // Admin API client. All calls are same-origin (no token exposure).
-// Proxy calls flow through: /api/admin/proxy/{site}/api/v1/...
+// Proxy calls flow through: /api/admin/proxy/{site}/api/console/...
 
 import { createContext, useContext } from "react";
 
