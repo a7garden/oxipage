@@ -82,6 +82,9 @@ pub enum Command {
     /// 백업 (doc/05 §5.4) — SQLite VACUUM INTO 스냅샷
     #[command(subcommand)]
     Backup(commands::BackupCommand),
+    /// 정적 사이트 빌드 (v2 SSG)
+    #[command(subcommand)]
+    Build(commands::BuildCommand),
     /// 사이트 프로필 관리 (doc/09) — 접속 대상 서버 등록/전환
     #[command(subcommand)]
     Site(commands::SiteCommand),

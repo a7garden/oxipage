@@ -3,6 +3,7 @@
 mod auth;
 mod backup;
 mod blog;
+mod build;
 mod extension;
 mod init_status_serve;
 mod link;
@@ -14,6 +15,7 @@ mod site;
 pub use auth::AuthCommand;
 pub use backup::BackupCommand;
 pub use blog::BlogCommand;
+pub use build::BuildCommand;
 pub use extension::ExtensionCommand;
 pub use link::LinkCommand;
 pub use lobby::LobbyCommand;
@@ -79,6 +81,7 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
         Command::Lobby(c) => lobby::lobby(c, &out, &client).await,
         Command::Extension(c) => extension::extension(c, &out, &client).await,
         Command::Backup(c) => backup::backup(c, &out, &client).await,
+        Command::Build(c) => build::build(c, &out, &client).await,
         Command::Site(_) => unreachable!(), // handled above
         Command::Admin { .. } => unreachable!(), // handled above
         Command::Dynamic(ref args) => {
