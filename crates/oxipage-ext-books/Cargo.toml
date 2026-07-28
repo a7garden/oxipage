@@ -13,6 +13,7 @@ path = "src/lib.rs"
 anyhow.workspace = true
 async-trait.workspace = true
 axum.workspace = true
+erased-serde.workspace = true
 oxipage-core = { version = "0.1.0", path = "../oxipage-core" }
 reqwest = { workspace = true }
 serde.workspace = true

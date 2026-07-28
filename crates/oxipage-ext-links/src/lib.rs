@@ -5,8 +5,13 @@ pub mod routes;
 use async_trait::async_trait;
 use axum::Router;
 use axum::routing::get;
+
+use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
+use std::error::Error;
+use sqlx::SqlitePool;
 use oxipage_core::extension::{Extension, Lang, LobbyCard, LobbyCardItem, Migration};
 use oxipage_core::state::AppState;
+use tokio::runtime::Handle;
 
 pub struct LinksExtension;
 
@@ -61,5 +66,33 @@ impl Extension for LinksExtension {
             id: self.id().to_string(),
             items,
         })
+    }
+}
+
+impl BuildExt for LinksExtension {
+    fn ext_id(&self) -> &'static str { "links" }
+
+    fn build_pages(&self, db: &SqlitePool) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
+        let handle = Handle::current();
+        let cards: Vec<model::LinkCard> = handle.block_on(repo::list(db, None, 500))?;
+        let html = cards.iter().map(|c| {
+            format!("<li><a href=\"{}\">{}</a></li>", c.url, c.title)
+        }).collect::<Vec<_>>().join("\n");
+        Ok(vec![StaticPage {
+            path: "links/index.html".into(),
+            content: format!(
+                r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Links</title><link rel="canonical" href="/links/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#),
+        }])
+    }
+
+    fn build_data(&self, db: &SqlitePool) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
+        let handle = Handle::current();
+        let cards: Vec<model::LinkCard> = handle.block_on(repo::list(db, None, 500))?;
+        Ok(Box::new(cards))
+    }
+
+    fn build_search_docs(&self, _db: &SqlitePool) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+        Ok(vec![])
     }
 }

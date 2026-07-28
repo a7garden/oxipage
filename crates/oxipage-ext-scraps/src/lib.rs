@@ -6,6 +6,8 @@ use async_trait::async_trait;
 use axum::Router;
 use axum::routing::{get, post};
 use oxipage_core::client::Client;
+
+use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
 use oxipage_core::extension::{CliArg, CliCommand, CliSubcommand, CliHandler, Extension, Lang, LobbyCard, LobbyCardItem, Migration};
 use oxipage_core::scheduler::ScheduledJob;
 use oxipage_core::state::AppState;
@@ -13,6 +15,9 @@ use std::collections::BTreeMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+use tokio::runtime::Handle;
+use std::error::Error;
+use sqlx::SqlitePool;
 
 // ── CLI handlers ──
 
@@ -220,7 +225,6 @@ impl ScheduledJob for ScrapCollectJob {
                         &ctx.db,
                         "geeknews",
                         &item.link,
-                        &item.link,
                         &item.title,
                         None,
                     )
@@ -276,4 +280,46 @@ async fn fetch_geeknews(
     const RSS: &str = "https://news.hada.io/rss";
     let xml = http.get(RSS).send().await?.text().await?;
     Ok(integration::parse_geeknews_rss(&xml))
+}
+
+impl BuildExt for ScrapsExtension {
+    fn ext_id(&self) -> &'static str { "scraps" }
+
+    fn build_pages(&self, db: &SqlitePool) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
+        let handle = Handle::current();
+        let items: Vec<model::ScrapItem> = handle.block_on(repo::list(db, true, None, 200))?;
+        let mut pages = Vec::with_capacity(items.len());
+        for item in &items {
+            let excerpt: String = item.note_ko.as_deref().or(item.note_en.as_deref()).unwrap_or("").chars().take(160).collect();
+            pages.push(StaticPage {
+                path: format!("scraps/{}/index.html", item.id),
+                content: format!(
+                    r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{title}</title><meta property="og:title" content="{title}"><meta property="og:description" content="{excerpt}">
+<meta property="og:type" content="website"><meta property="og:url" content="/scraps/{id}/">
+<link rel="canonical" href="/scraps/{id}/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#,
+                    title=item.title, excerpt=excerpt, id=item.id),
+            });
+        }
+        Ok(pages)
+    }
+
+    fn build_data(&self, db: &SqlitePool) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
+        let handle = Handle::current();
+        let items: Vec<model::ScrapItem> = handle.block_on(repo::list(db, true, None, 200))?;
+        Ok(Box::new(items))
+    }
+
+    fn build_search_docs(&self, db: &SqlitePool) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+        let handle = Handle::current();
+        let items: Vec<model::ScrapItem> = handle.block_on(repo::list(db, true, None, 200))?;
+        Ok(items.into_iter().map(|s| {
+            let body = s.note_ko.or(s.note_en).unwrap_or_default();
+            let excerpt: String = body.chars().take(200).collect();
+            SearchDoc {
+                id: format!("scraps/{}", s.id), title: s.title, body_preview: excerpt,
+                doc_type: "scraps".into(), url: format!("/scraps/{}", s.id), published_at: s.published_at,
+            }
+        }).collect())
+    }
 }

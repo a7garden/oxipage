@@ -7,6 +7,8 @@ use async_trait::async_trait;
 use axum::Router;
 use axum::routing::{get, post};
 use oxipage_core::client::Client;
+
+use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
 use oxipage_core::extension::{CliCommand, CliSubcommand, CliHandler, Extension, Lang, LobbyCard, LobbyCardItem, Migration};
 use oxipage_core::scheduler::ScheduledJob;
 use oxipage_core::state::AppState;
@@ -14,6 +16,9 @@ use std::collections::BTreeMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+use tokio::runtime::Handle;
+use std::error::Error;
+use sqlx::SqlitePool;
 
 // ── CLI handlers ──
 
@@ -145,5 +150,30 @@ impl Extension for ActivityExtension {
                 },
             ],
         }]
+    }
+}
+
+impl BuildExt for ActivityExtension {
+    fn ext_id(&self) -> &'static str { "activity" }
+
+    fn build_pages(&self, db: &SqlitePool) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
+        let handle = Handle::current();
+        let events: Vec<model::ActivityEvent> = handle.block_on(repo::list(db, None, 200))?;
+        Ok(vec![StaticPage {
+            path: "activity/index.html".into(),
+            content: format!(
+                r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Activity</title><link rel="canonical" href="/activity/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#),
+        }])
+    }
+
+    fn build_data(&self, db: &SqlitePool) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
+        let handle = Handle::current();
+        let events: Vec<model::ActivityEvent> = handle.block_on(repo::list(db, None, 200))?;
+        Ok(Box::new(events))
+    }
+
+    fn build_search_docs(&self, _db: &SqlitePool) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+        Ok(vec![])
     }
 }
