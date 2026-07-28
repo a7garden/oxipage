@@ -256,7 +256,7 @@ pub async fn revoke_pat(state: &AppState, id: i64) -> anyhow::Result<bool> {
     Ok(res.rows_affected() > 0)
 }
 
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+pub fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
     }
