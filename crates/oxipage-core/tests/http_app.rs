@@ -79,7 +79,7 @@ async fn manifest_lists_enabled_extensions() {
     let app = test_app().await;
     let res = app
         .oneshot(
-            Request::get("/api/v1/lobby/manifest")
+            Request::get("/api/console/lobby/manifest")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -97,7 +97,7 @@ async fn manifest_lists_enabled_extensions() {
 async fn extension_routes_are_mounted_under_api_v1() {
     let app = test_app().await;
     let res = app
-        .oneshot(Request::get("/api/v1/dummy").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/console/dummy").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
@@ -124,7 +124,7 @@ async fn spa_fallback_serves_index_html_for_unknown_paths() {
 async fn unknown_api_path_returns_404_json() {
     let app = test_app().await;
     let res = app
-        .oneshot(Request::get("/api/v1/nope/").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/console/nope/").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
@@ -174,7 +174,7 @@ async fn seed_pat(pool: &SqlitePool, label: &str, scopes: &[&str]) -> String {
 
 async fn put_lobby_config(app: axum::Router, token: &str) -> axum::response::Response {
     app.oneshot(
-        Request::put("/api/v1/lobby/config/dummy")
+        Request::put("/api/console/lobby/config/dummy")
             .header("content-type", "application/json")
             .header("authorization", format!("Bearer {token}"))
             .body(Body::from(r#"{"display_mode":"grid"}"#))
@@ -186,7 +186,7 @@ async fn put_lobby_config(app: axum::Router, token: &str) -> axum::response::Res
 
 async fn post_create_pat(app: axum::Router, token: &str) -> axum::response::Response {
     app.oneshot(
-        Request::post("/api/v1/auth/tokens")
+        Request::post("/api/console/auth/tokens")
             .header("content-type", "application/json")
             .header("authorization", format!("Bearer {token}"))
             .body(Body::from(r#"{"label":"x","scopes":["read"]}"#))
@@ -266,7 +266,7 @@ fn admin_req(method: &str, uri: &str) -> Request<Body> {
 #[tokio::test]
 async fn extensions_list_returns_admin_state() {
     let app = admin_app().await;
-    let res = app.oneshot(admin_req("GET", "/api/v1/extensions")).await.unwrap();
+    let res = app.oneshot(admin_req("GET", "/api/console/extensions")).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let body = body_string(res).await;
     assert!(body.contains("dummy"), "body: {body}");
@@ -277,18 +277,18 @@ async fn disable_gates_extension_routes() {
     let app = admin_app().await;
     let before = app
         .clone()
-        .oneshot(Request::get("/api/v1/dummy").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/console/dummy").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(before.status(), StatusCode::OK);
     let res = app
         .clone()
-        .oneshot(admin_req("POST", "/api/v1/extensions/dummy/disable"))
+        .oneshot(admin_req("POST", "/api/console/extensions/dummy/disable"))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let gated = app
-        .oneshot(Request::get("/api/v1/dummy").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/console/dummy").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(gated.status(), StatusCode::NOT_FOUND);
@@ -298,17 +298,17 @@ async fn disable_gates_extension_routes() {
 async fn enable_restores_extension_routes() {
     let app = admin_app().await;
     app.clone()
-        .oneshot(admin_req("POST", "/api/v1/extensions/dummy/disable"))
+        .oneshot(admin_req("POST", "/api/console/extensions/dummy/disable"))
         .await
         .unwrap();
     let res = app
         .clone()
-        .oneshot(admin_req("POST", "/api/v1/extensions/dummy/enable"))
+        .oneshot(admin_req("POST", "/api/console/extensions/dummy/enable"))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let after = app
-        .oneshot(Request::get("/api/v1/dummy").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/console/dummy").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(after.status(), StatusCode::OK);
@@ -319,14 +319,14 @@ async fn purge_marks_extension_and_gates_routes() {
     let app = admin_app().await;
     let res = app
         .clone()
-        .oneshot(admin_req("DELETE", "/api/v1/extensions/dummy"))
+        .oneshot(admin_req("DELETE", "/api/console/extensions/dummy"))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let body = body_string(res).await;
     assert!(body.contains("\"purged\":true"), "body: {body}");
     let gated = app
-        .oneshot(Request::get("/api/v1/dummy").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/console/dummy").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(gated.status(), StatusCode::NOT_FOUND);
@@ -361,7 +361,7 @@ async fn install_writes_wasm_and_registers_state() {
     // 하이픈이 포함된 이름("wasm-demo")이 is_safe_extension_name 을 통과하는지 검증.
     let req = Request::builder()
         .method("POST")
-        .uri("/api/v1/extensions/install")
+        .uri("/api/console/extensions/install")
         .header("authorization", "Bearer test-admin-token")
         .header("content-type", "application/json")
         .body(Body::from(r#"{"name":"wasm-demo"}"#))
