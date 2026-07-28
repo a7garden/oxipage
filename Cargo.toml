@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
     "crates/oxipage-core",
-    "crates/oxipage-server",
+    "crates/oxipage-console",
     "crates/oxipage-cli",
     "crates/oxipage-wasm",
     "crates/oxipage-ext-wasm-demo",
@@ -15,7 +15,6 @@ members = [
     "crates/oxipage-ext-profile",
     "crates/oxipage-ext-projects",
     "crates/oxipage-ext-scraps",
-    "crates/oxipage-admin",
 ]
 
 [workspace.package]

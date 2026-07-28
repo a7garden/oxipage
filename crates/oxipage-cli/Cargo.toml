@@ -15,7 +15,7 @@ axum.workspace = true
 clap.workspace = true
 directories.workspace = true
 oxipage-core = { version = "0.1.0", path = "../oxipage-core" }
-oxipage-server = { version = "0.1.0", path = "../oxipage-server" }
+oxipage-console = { version = "0.1.0", path = "../oxipage-console" }
 oxipage-admin = { version = "0.1.0", path = "../oxipage-admin" }
 rusqlite = { version = "0.32", features = ["serde_json"] }
 reqwest.workspace = true

@@ -849,7 +849,7 @@ async fn extension_install(
             "path": path.display().to_string(),
             "bytes": bytes.len(),
             "activated": false,
-            "note": "restart oxipage-server (built with --features wasm) to activate",
+            "note": "restart oxipage-console (built with --features wasm) to activate",
         }),
     }))
 }

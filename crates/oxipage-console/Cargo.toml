@@ -1,12 +1,12 @@
 [package]
-name = "oxipage-server"
+name = "oxipage-console"
 version = "0.1.0"
 edition = "2024"
 license.workspace = true
-description = "Oxipage 서버 바이너리 — 모든 확장을 통합한 Axum HTTP 서버 (doc/01)"
+description = "Oxipage 관리 콘솔 — 로컬 HTTP 서버 (admin UI + API, v2 SSG 모드)"
 
 [[bin]]
-name = "oxipage-server"
+name = "oxipage-console"
 path = "src/main.rs"
 
 [features]
