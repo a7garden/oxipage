@@ -100,7 +100,7 @@ pub(crate) async fn serve(port: Option<u16>, preview: bool, _config_path: Option
             std::env::set_var("OXIPAGE_PORT", p.to_string());
         }
     }
-    oxipage_server::run_server().await
+    oxipage_console::run_server().await
 }
 
 pub(crate) async fn admin(port: Option<u16>) -> anyhow::Result<()> {

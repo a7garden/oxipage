@@ -243,7 +243,7 @@ async fn dispatch_dynamic(
 /// 동적 명령 레지스트리: 컴파일 확장 목록 + 서버 디스커버리 병합.
 async fn resolve_command_registry(client: &Client) -> anyhow::Result<DynamicRegistry> {
     // 1. 컴파일 확장의 CLI 커맨드
-    let compiled: Vec<CliCommand> = oxipage_server::all_extensions()
+    let compiled: Vec<CliCommand> = oxipage_console::all_extensions()
         .iter()
         .flat_map(|ext| ext.cli_commands())
         .collect();

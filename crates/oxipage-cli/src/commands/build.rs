@@ -35,7 +35,7 @@ pub(crate) async fn build(c: BuildCommand) -> anyhow::Result<()> {
             let pool = oxipage_core::db::connect(&db_path).await?;
 
             // 3. Get all builders
-            let builders = oxipage_server::all_builders();
+            let builders = oxipage_console::all_builders();
             let builder_refs: Vec<Box<dyn oxipage_core::builder::BuildExt>> = builders;
 
             // 4. Run build pipeline
