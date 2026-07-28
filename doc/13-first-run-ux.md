@@ -172,18 +172,20 @@ INSERT OR IGNORE INTO setup_state (id) VALUES (1);
 ### 13.5.2 Setup API 엔드포인트
 
 모든 setup 엔드포인트는 **무인증 + loopback-only**:
-
 | Method | Path | 설명 |
 |---|---|---|
-| GET | `/api/v1/setup/status` | setup 모드 여부 + 완료된 step 목록 |
+| GET | `/api/v1/setup/status` | setup 모드 여부 + 완료된 step + **활성 확장의 step 목록 + 외부 API 키 목록** (registry 디스패치) |
 | POST | `/api/v1/setup/site` | 사이트명 + base_url 설정 |
-| POST | `/api/v1/setup/admin` | admin 비밀번호 설정 (argon2id) |
 | POST | `/api/v1/setup/extensions` | 활성화할 확장 목록 |
-| POST | `/api/v1/setup/profile` | 프로필 기본 정보 |
+| POST | `/api/v1/setup/extension-step/{id}` | **확장이 자기 `SetupStep::save_handler`로 form 저장** (registry 디스패치) |
+| POST | `/api/v1/setup/external-keys` | **활성 확장이 노출한 외부 API 키 일괄 저장** (registry 디스패치) |
 | POST | `/api/v1/setup/theme` | 테마 + 로비 레이아웃 |
-| POST | `/api/v1/setup/content` | 샘플 블로그 글 + 외부 API 키 (skip 가능) |
-| POST | `/api/v1/setup/complete` | 최종 커밋 — setup_completed_at 기록 + 첫 PAT 생성 |
+| POST | `/api/v1/setup/complete` | 최종 커밋 — setup_completed_at 기록 + **활성 확장의 seed_sample_data() 호출** |
 
+> **2026-07-29 변경:** `/setup/profile`, `/setup/content`, `/setup/admin` 엔드포인트 제거.
+> 코어가 profile/blog/movies/books/activity의 도메인 필드를 더 이상 모른다 — 각 확장이
+> 자기 `Extension::setup_wizard_step()` / `external_api_keys()` / `seed_sample_data()`로
+> 자기 데이터를 자기 시점에 제공한다. 자세한 트레이트 경계는 `docs/extension-sdk.md` §3.5 참고.
 #### Loopback 게이트 미들웨어
 
 ```rust
