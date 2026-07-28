@@ -46,11 +46,6 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-      - name: Publish — oxipage-admin (Tier 0)
-        run: cargo publish -p oxipage-admin --no-verify
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-
       - name: Publish — extensions (Tier 1)
         run: |
           cargo publish -p oxipage-ext-activity --no-verify
@@ -65,8 +60,8 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-      - name: Publish — oxipage-server (Tier 2)
-        run: cargo publish -p oxipage-server --no-verify
+      - name: Publish — oxipage-console (Tier 2)
+        run: cargo publish -p oxipage-console --no-verify
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
