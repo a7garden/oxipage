@@ -5,6 +5,7 @@
 //! 런타임 탑재/제거는 DB `extension_state` 기반 (doc/02 §2.13). 새 확장 추가 시
 //! `all_extensions()`에 한 줄 추가하고 Cargo.toml 의존성을 추가.
 
+use oxipage_core::builder::BuildExt;
 use oxipage_core::config::Config;
 use oxipage_core::extension::Extension;
 use oxipage_core::registry::ExtensionRegistry;
@@ -29,6 +30,21 @@ pub fn all_extensions() -> Vec<Arc<dyn Extension>> {
         Arc::new(oxipage_ext_books::BooksExtension),
         Arc::new(oxipage_ext_scraps::ScrapsExtension),
         Arc::new(oxipage_ext_activity::ActivityExtension),
+    ]
+}
+
+/// 컴파일된 모든 확장의 BuildExt 인스턴스.
+pub fn all_builders() -> Vec<Box<dyn BuildExt>> {
+    vec![
+        Box::new(oxipage_ext_profile::ProfileExtension),
+        Box::new(oxipage_ext_blog::BlogExtension),
+        Box::new(oxipage_ext_projects::ProjectsExtension),
+        Box::new(oxipage_ext_links::LinksExtension),
+        Box::new(oxipage_ext_novels::NovelsExtension),
+        Box::new(oxipage_ext_movies::MoviesExtension),
+        Box::new(oxipage_ext_books::BooksExtension),
+        Box::new(oxipage_ext_scraps::ScrapsExtension),
+        Box::new(oxipage_ext_activity::ActivityExtension),
     ]
 }
 

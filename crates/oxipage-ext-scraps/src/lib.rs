@@ -225,6 +225,7 @@ impl ScheduledJob for ScrapCollectJob {
                         &ctx.db,
                         "geeknews",
                         &item.link,
+                        &item.link,
                         &item.title,
                         None,
                     )
