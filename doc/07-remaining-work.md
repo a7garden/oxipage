@@ -11,8 +11,8 @@
 ## 7.1 현재 상태 (2026-07-27 갱신)
 
 Phase 0~5가 대부분 구현되었다. 단위별 완료/잔여 상태는 [`08`](08-remaining-implementation.md) §8.1
-참조. 요약: Foundation·Phase 1~4는 완료, Phase 5는 5/6(WASM 스파이크 잔여), 검증은
-배포 스모크·브라우저 접근성 실측이 남아 있다(외부 자격증명 필요).
+참조. 요약: Foundation·Phase 1~5는 완료(WASM 스파이크 포함, 코어 모듈 경로),
+검증은 배포 스모크·브라우저 접근성 실측이 남아 있다(외부 자격증명 필요).
 
 | 영역 | 상태 |
 |---|---|
@@ -24,8 +24,8 @@ Phase 0~5가 대부분 구현되었다. 단위별 완료/잔여 상태는 [`08`]
 | Oxipage CLI(init/status/serve/auth/blog/project/link/lobby) + oh-my-pi SKILL | ✅ |
 | 배포 템플릿·LICENSE(MIT)·SDK 문서·레지스트리·starter | ✅ |
 | Phase 2 확장의 CLI 서브커맨드(novel/review/scrap/activity) | ⏳ API/웹으로만 (후순위) |
-| WASM 컴포넌트 런타임 로딩 스파이크 (Phase 5 옵션) | ⏳ 수요 확인 후 |
-| 검증: `cargo test --workspace` 90 tests ok · clippy `-D warnings` 클린 · web 빌드 OK · SSR E2E 스모크 | ✅ |
+| WASM 컴포넌트 런타임 로딩 스파이크 (Phase 5 옵션) | ✅ 코어 모듈 스파이크 완료 ([docs/wasm-spike.md](../docs/wasm-spike.md)) |
+| 검증: `cargo test --workspace` 97 tests ok · clippy `-D warnings` 클린 · web 빌드 OK · SSR E2E 스모크 | ✅ |
 | 검증: 배포 스모크·브라우저 접근성 실측 | ⏳ 외부 자격증명 필요 |
 
 ## 7.2 Phase 0에서 이월된 항목

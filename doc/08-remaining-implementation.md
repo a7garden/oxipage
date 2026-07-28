@@ -13,7 +13,7 @@
 | Phase 2 | 7/7 | novels·movies·books·scraps·activity + 별점 + background_jobs |
 | Phase 3 | 5/5 | 로비 3모드·LobbyConfig API·/search UI·**SSR 확장 연결(7개 publish+7 delete)**·**WCAG AA 실측+토큰 조정** |
 | Phase 4 | 4/4 | PAT 스코프 분리·레이트리밋(build_app 연결)·OpenAPI/Swagger·SKILL.md |
-| Phase 5 | 5/6 | deploy·LICENSE·SDK 문서·레지스트리·starter·개인화. **WASM 옵션 남음** |
+| Phase 5 | 6/6 | deploy·LICENSE·SDK 문서·레지스트리·starter·개인화·**WASM 스파이크(§8.4)** |
 | Verification | 2/3 | cargo test/clippy -D warnings 통과·SSR 엔드투엔드 스모크 완료. **배포 스모크·브라우저 접근성 실측 남음** |
 
 **검증 상태:** `cargo test --workspace` 90 tests ok · `cargo clippy --workspace --all-targets -- -D warnings` ok ·
@@ -80,23 +80,41 @@
 **알려진 한계:** 라이트 gold-600 / surface-50 (card 배경) = 4.34:1로 미세 미달.
 별점 컴포넌트가 card 위에 놓이지 않는다는 설계 전제. 추후 card 위 별점 도입 시 재검토.
 
-## 8.4 WASM 컴포넌트 스파이크 (Phase 5, 옵션)
+## 8.4 WASM 컴포넌트 스파이크 (Phase 5, ✅ 완료 — 2026-07-28)
 
-**상태:** 미착수. doc/07 §7.7 "수요 확인 후" — 우선순위 낮음.
+**상태:** ✅ 완료. doc/01 §1.4 의 WASM 런타임 적재 메커니즘을 코어 WASM 모듈 경로로
+증명(wasmtime 임베딩 + capability-based 샌드박스 + 수동 ABI). 상세 설계/한계/다음
+단계는 [`docs/wasm-spike.md`](../docs/wasm-spike.md).
 
-**남은 작업 (스파이크 범위):**
+**구현 내역:**
 
-1. **`wasmtime` 의존성 추가** — workspace deps.
-2. **`Extension` 트레이트의 호스트 함수 미러링 설계** — WASM 컴포넌트가 호출할
-   host functions(DB 접근, HTTP, 로비 카드 등)을 capability 기반 샌드박스로.
-3. **최소 예제 확장 1개를 WASM으로 컴파일** — `oxipage-ext-wasm-demo` (예: hello
-   world 카드 반환).
-4. **`oxipage extension install <name>`** — `registry/index.json`에서 메타데이터
-   읽어 `.wasm` 파일 다운로드 + `/data/extensions/` 저장. 단, **런타임 설치 확장은
-   CLI 서브커맨드 추가 불가** (doc/01 §1.4 알려진 한계) — API/웹으로만.
-5. **문서화** — `docs/wasm-spike.md`에 설계/한계/다음 단계.
+1. **`wasmtime` 의존성** — workspace deps (`v33`, features `cranelift`/`runtime`/
+   `parallel-compilation`/`cache`).
+2. **`oxipage-wasm` 호스트 크레이트** — `WasmExtensionAdapter: impl Extension`,
+   capability 링커(`host_now_unix`/`host_log`), `load_all_from_dir` 로더.
+3. **`oxipage-ext-wasm-demo` 데모 확장** — `no_std` 코어 WASM 모듈(cdylib,
+   `wasm32-unknown-unknown`). lobby 카드 JSON 을 `host_now_unix()` 결과로 동적 생성.
+4. **`oxipage extension install <name>`** — `POST /api/v1/extensions/install` 이
+   임베드된 `registry/index.json` 에서 `runtime_loadable: true` 항목 조회 → `.wasm`
+   저장 + `extension_state` 행. **런타임 설치 확장은 CLI 서브커맨드 추가 불가**
+   (doc/01 §1.4 알려진 한계) — API/웹으로만.
+5. **서버 통합(feature `wasm`)** — 부팅 시 `data/extensions/*.wasm` 스캔해 정적
+   확장 목록에 추가.
+6. **문서화** — `docs/wasm-spike.md`.
 
-doc/07 §7.7 명시: "명시적 설계 제약". 본 스파크는 가능성 탐색이며 v1 기능이 아님.
+**의도적 편차 (deliberate deviations):**
+- doc/01 §1.4 의 "컴포넌트 모델" 대신 **코어 WASM 모듈 + 수동 ABI** (환경에
+  `cargo-component`/`wit-bindgen` 미설치; ~10배 단순). 컴포넌트 모델은 프로덕션
+  하드닝 타겟(docs/wasm-spike.md §7).
+- `Extension::id(&self) -> &'static str` → `-> &str` 로 축소. 런타임 학습 id 를
+  leak/unsafe 없이 소유 String 의 참조로 노출. 모든 기존 구현(리터럴)은 그대로.
+
+**검증:** `cargo test -p oxipage-wasm`(3 tests: 메타데이터/lobby 카드/로더 복원력) ·
+`cargo test -p oxipage-core --test http_app install_writes_wasm`(install round-trip:
+파일 쓰기 + extension_state) · `cargo clippy --workspace --all-targets -- -D warnings`
+클린 · `cargo build -p oxipage-server --features wasm` OK.
+
+doc/07 §7.7 의 "명시적 설계 제약" 유지 — 본 스파이크는 가능성 탐색이며 v1 기능이 아님.
 
 ## 8.5 배포 스모크 (Verification, 외부 자격증명 필요)
 
