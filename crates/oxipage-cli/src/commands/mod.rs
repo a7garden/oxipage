@@ -7,7 +7,7 @@ mod build;
 mod cache;
 mod deploy;
 mod extension;
-mod init_status_serve;
+mod init_console;
 mod link;
 mod lobby;
 mod open;
@@ -66,21 +66,21 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
 
     // Admin is like Serve — local process, not an HTTP command. No auth needed.
     if let Command::Admin { port } = &cli.command {
-        return init_status_serve::admin(*port).await;
+        return init_console::admin(*port).await;
     }
 
     // Open doesn't need HTTP — just open browser
     match cli.command {
         Command::Init { wizard } => {
-            init_status_serve::init(&out, cli.config.as_deref())?;
+            init_console::init(&out, cli.config.as_deref())?;
             if wizard {
-                init_status_serve::serve(None, false, cli.config.as_deref()).await
+                init_console::console(None, false, cli.config.as_deref()).await
             } else {
                 Ok(())
             }
         }
-        Command::Status => init_status_serve::status(&out, &client).await,
-        Command::Serve { port, preview } => init_status_serve::serve(port, preview, cli.config.as_deref()).await,
+        Command::Status => init_console::status(&out, &client).await,
+        Command::Console { port, preview } => init_console::console(port, preview, cli.config.as_deref()).await,
         Command::Auth(c) => auth::auth(c, &out, &client).await,
         Command::Blog(c) => blog::blog(c, &out, &client).await,
         Command::Open { admin, port } => open::open(OpenArgs { admin, port }, &out),

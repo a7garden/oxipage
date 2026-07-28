@@ -1678,7 +1678,6 @@ dependencies = [
  "axum",
  "clap",
  "directories",
- "oxipage-admin",
  "oxipage-console",
  "oxipage-core",
  "reqwest",
@@ -1692,30 +1691,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "oxipage-admin"
+name = "oxipage-console"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
  "directories",
  "mime_guess",
- "reqwest",
- "rust-embed",
- "serde",
- "serde_json",
- "thiserror 2.0.19",
- "tokio",
- "toml",
- "tower-http",
- "tracing",
-]
-
-[[package]]
-name = "oxipage-console"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
  "oxipage-core",
  "oxipage-ext-activity",
  "oxipage-ext-blog",
@@ -1727,7 +1709,13 @@ dependencies = [
  "oxipage-ext-projects",
  "oxipage-ext-scraps",
  "oxipage-wasm",
+ "reqwest",
+ "rust-embed",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.19",
  "tokio",
+ "toml",
  "tracing",
  "tracing-subscriber",
 ]

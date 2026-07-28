@@ -5,8 +5,8 @@
 //!
 //! `ANY /api/admin/proxy/{site}/{*path}` → `{site.endpoint}/{path}` + `Authorization: Bearer {site.token}`
 
-use crate::sites_api::SitesFile;
-use crate::{AdminContext, AdminError};
+use super::sites_api::SitesFile;
+use super::{AdminContext, AdminError};
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, Method};
 use axum::body::Bytes;

@@ -3,7 +3,7 @@
 //! 큐레이션된 테마 프리셋 목록. Admin SPA가 이 카탈로그를 렌더링하고,
 //! 선택된 테마는 `PUT /api/v1/theme`으로 사이트 서버에 저장한다 (proxy 통해).
 
-use crate::AdminContext;
+use super::AdminContext;
 use axum::extract::State;
 use axum::Json;
 use serde::Serialize;

@@ -50,7 +50,7 @@ pub enum Command {
     /// 초안/최근 게시물/서버 상태 요약
     Status,
     /// 로컬 개발 서버 기동 (유일하게 HTTP를 거치지 않는 예외)
-    Serve {
+    Console {
         #[arg(long)]
         port: Option<u16>,
         /// Preview mode: serve out/ directory as static files

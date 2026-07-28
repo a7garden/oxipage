@@ -3,7 +3,7 @@
 //! `~/.config/oxipage/sites.toml`을 직접 읽고 쓴다. 토큰은 목록에서 마스킹.
 //! 파일 권한: Unix에서 0600.
 
-use crate::{AdminContext, AdminError};
+use super::{AdminContext, AdminError};
 use axum::extract::{Path, State};
 use axum::Json;
 use serde::{Deserialize, Serialize};

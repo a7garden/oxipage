@@ -80,7 +80,7 @@ pub(crate) async fn status(out: &Output, client: &Client) -> anyhow::Result<()> 
     Ok(())
 }
 
-pub(crate) async fn serve(port: Option<u16>, preview: bool, _config_path: Option<&std::path::Path>) -> anyhow::Result<()> {
+pub(crate) async fn console(port: Option<u16>, preview: bool, _config_path: Option<&std::path::Path>) -> anyhow::Result<()> {
     if preview {
         // Preview mode: serve out/ directory
         let port = port.unwrap_or(8787);
@@ -100,13 +100,13 @@ pub(crate) async fn serve(port: Option<u16>, preview: bool, _config_path: Option
             std::env::set_var("OXIPAGE_PORT", p.to_string());
         }
     }
-    oxipage_console::run_server().await
+    oxipage_console::run_console().await
 }
 
 pub(crate) async fn admin(port: Option<u16>) -> anyhow::Result<()> {
     let p = port.unwrap_or(8788);
     println!("oxipage admin console starting on http://127.0.0.1:{p}");
-    oxipage_admin::run_admin(p).await?;
+    oxipage_console::admin::run_admin(p).await?;
     Ok(())
 }
 
