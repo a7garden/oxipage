@@ -9,7 +9,7 @@ use axum::routing::{get, post};
 use oxipage_core::client::Client;
 
 use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
-use oxipage_core::extension::{CliCommand, CliSubcommand, CliHandler, Extension, Lang, LobbyCard, LobbyCardItem, Migration};
+use oxipage_core::extension::{CliCommand, CliSubcommand, CliHandler, ExternalApiKey, ExternalKeyScope, Extension, Lang, LobbyCard, LobbyCardItem, Migration};
 use oxipage_core::scheduler::ScheduledJob;
 use oxipage_core::state::AppState;
 use std::collections::BTreeMap;
@@ -145,6 +145,18 @@ impl Extension for ActivityExtension {
                     handler: Some(Arc::new(ActivitySyncHandler)),
                 },
             ],
+        }]
+    }
+
+    fn external_api_keys(&self) -> Vec<ExternalApiKey> {
+        vec![ExternalApiKey {
+            id: "github_username",
+            label_ko: "GitHub 사용자명",
+            label_en: "GitHub username",
+            env_var: "OXIPAGE_GITHUB_USERNAME",
+            required: false,
+            // activity 확장은 config.integrations에서 username을 읽으므로 env만 set.
+            scope: ExternalKeyScope::EnvOnly,
         }]
     }
 }

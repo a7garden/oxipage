@@ -9,7 +9,7 @@ use axum::routing::{get, post};
 use oxipage_core::client::Client;
 
 use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
-use oxipage_core::extension::{CliArg, CliHandler, CliCommand, CliSubcommand, Extension, Lang, LobbyCard, LobbyCardItem, Migration};
+use oxipage_core::extension::{CliArg, CliHandler, CliCommand, CliSubcommand, ExternalApiKey, ExternalKeyScope, Extension, Lang, LobbyCard, LobbyCardItem, Migration};
 use oxipage_core::state::AppState;
 use std::collections::BTreeMap;
 use std::future::Future;
@@ -144,8 +144,19 @@ impl Extension for MoviesExtension {
             ],
         }]
     }
-}
 
+    fn external_api_keys(&self) -> Vec<ExternalApiKey> {
+        vec![ExternalApiKey {
+            id: "tmdb_key",
+            label_ko: "TMDB API 키",
+            label_en: "TMDB API key",
+            env_var: "OXIPAGE_TMDB_KEY",
+            required: false,
+            scope: ExternalKeyScope::ExtensionConfig,
+        }]
+    }
+
+}
 impl BuildExt for MoviesExtension {
     fn ext_id(&self) -> &'static str { "movies" }
 

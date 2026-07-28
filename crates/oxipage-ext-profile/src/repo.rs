@@ -42,6 +42,42 @@ pub async fn upsert(pool: &SqlitePool, input: &ProfileInput) -> anyhow::Result<P
     Ok(profile)
 }
 
+/// setup wizard가 form을 받아 부분 업데이트할 때 사용. 빈 문자열은 NULL로 저장.
+/// 누락된 필드는 그대로 유지(COALESCE 패턴).
+pub async fn update_from_setup_form(
+    pool: &SqlitePool,
+    form: &serde_json::Map<String, serde_json::Value>,
+) -> anyhow::Result<()> {
+    let get = |k: &str| form.get(k).and_then(|v| v.as_str()).map(str::to_string);
+    let dn = get("display_name");
+    let tagline_ko = get("tagline_ko");
+    let tagline_en = get("tagline_en");
+    let github = get("github_username");
+    let bio_ko = get("bio_ko");
+    let bio_en = get("bio_en");
+
+    sqlx::query(
+        "UPDATE profile SET
+            display_name = COALESCE(NULLIF(?1, ''), display_name),
+            tagline_ko = NULLIF(?2, ''),
+            tagline_en = NULLIF(?3, ''),
+            github_username = NULLIF(?4, ''),
+            bio_ko = NULLIF(?5, ''),
+            bio_en = NULLIF(?6, ''),
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE id = 1",
+    )
+    .bind(dn.unwrap_or_default())
+    .bind(tagline_ko.unwrap_or_default())
+    .bind(tagline_en.unwrap_or_default())
+    .bind(github.unwrap_or_default())
+    .bind(bio_ko.unwrap_or_default())
+    .bind(bio_en.unwrap_or_default())
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 /// 싱글턴 행이 없으면 기본값으로 만든다 (서버 부팅 시 호출).
 pub async fn ensure_singleton(pool: &SqlitePool, display_name: &str) -> anyhow::Result<()> {
     sqlx::query("INSERT OR IGNORE INTO profile (id, display_name) VALUES (1, ?)")

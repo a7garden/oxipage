@@ -11,6 +11,26 @@ use oxipage_core::state::AppState;
 use sqlx::SqlitePool;
 use std::error::Error;
 
+/// 환영 글 slug. 이미 같은 slug가 있으면 시드하지 않음 (멱등성).
+const WELCOME_POST_SLUG: &str = "환영합니다";
+
+/// 환영 글 본문 (markdown). 확장이 자기 도메인 데이터를 정의한다 — 코어는 모른다.
+const WELCOME_POST_BODY: &str = r#"# 환영합니다!
+
+Oxipage 설치가 완료되었습니다.
+
+이 글은 설정 마법사가 생성한 샘플 글입니다.
+삭제하거나 수정해도 됩니다.
+
+## 다음 단계
+
+- **CLI**로 글 쓰기: `oxipage blog new "제목" --file draft.md`
+- **관리 콘솔**에서 콘텐츠 관리: 헤더의 설정 버튼
+- **프로젝트** 추가: `oxipage project add --title-ko "..." --title-en "..."`
+
+즐거운 블로그 생활 되세요!
+"#;
+
 pub struct BlogExtension;
 
 #[async_trait]
@@ -48,6 +68,31 @@ impl Extension for BlogExtension {
             )
             .route("/{slug}/publish", post(routes::publish))
     }
+    async fn seed_sample_data(&self, ctx: &AppState) -> anyhow::Result<()> {
+        let exists: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM blog_post WHERE slug = ?1",
+        )
+        .bind(WELCOME_POST_SLUG)
+        .fetch_one(&ctx.db)
+        .await?;
+        if exists.0 > 0 {
+            return Ok(()); // 멱등성 — 이미 있으면 시드 안 함
+        }
+        sqlx::query(
+            "INSERT INTO blog_post (slug, title, body, lang, tags, published_at, created_at, updated_at)
+             VALUES (?1, ?2, ?3, 'ko', '[]',
+                     strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+                     strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+                     strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+        )
+        .bind(WELCOME_POST_SLUG)
+        .bind(WELCOME_POST_SLUG) // title도 동일
+        .bind(WELCOME_POST_BODY)
+        .execute(&ctx.db)
+        .await?;
+        Ok(())
+    }
+
 
     async fn lobby_summary(&self, ctx: &AppState) -> Option<LobbyCard> {
         let posts = repo::list(&ctx.db, false, None, 3).await.ok()?;

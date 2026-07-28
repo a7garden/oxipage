@@ -9,10 +9,9 @@ use axum::routing::{get, post};
 use oxipage_core::client::Client;
 
 use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
-use oxipage_core::extension::{CliArg, CliHandler, CliCommand, CliSubcommand, Extension, Lang, LobbyCard, LobbyCardItem, Migration};
+use oxipage_core::extension::{CliArg, CliHandler, CliCommand, CliSubcommand, ExternalApiKey, ExternalKeyScope, Extension, Lang, LobbyCard, LobbyCardItem, Migration};
 use oxipage_core::state::AppState;
 use std::collections::BTreeMap;
-use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::error::Error;
@@ -116,6 +115,17 @@ impl Extension for BooksExtension {
                     handler: Some(Arc::new(BookAddHandler)),
                 },
             ],
+        }]
+    }
+
+    fn external_api_keys(&self) -> Vec<ExternalApiKey> {
+        vec![ExternalApiKey {
+            id: "aladin_key",
+            label_ko: "알라딘 TTBKey",
+            label_en: "Aladin TTBKey",
+            env_var: "OXIPAGE_ALADIN_TTBKEY",
+            required: false,
+            scope: ExternalKeyScope::ExtensionConfig,
         }]
     }
 }
