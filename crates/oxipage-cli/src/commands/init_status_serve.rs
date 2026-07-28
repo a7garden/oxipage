@@ -1,7 +1,12 @@
 use crate::client::Client;
 use crate::output::Output;
 use serde_json::json;
+use axum::Router;
+use axum::routing::get;
+use std::net::SocketAddr;
 use std::path::Path;
+use tokio::net::TcpListener;
+use tower_http::services::ServeDir;
 
 const DEFAULT_TOML: &str = r#"[site]
 name = "내 Oxipage"
@@ -75,7 +80,18 @@ pub(crate) async fn status(out: &Output, client: &Client) -> anyhow::Result<()> 
     Ok(())
 }
 
-pub(crate) async fn serve(port: Option<u16>, _config_path: Option<&std::path::Path>) -> anyhow::Result<()> {
+pub(crate) async fn serve(port: Option<u16>, preview: bool, _config_path: Option<&std::path::Path>) -> anyhow::Result<()> {
+    if preview {
+        // Preview mode: serve out/ directory
+        let port = port.unwrap_or(8787);
+        let out_dir = std::path::PathBuf::from("data/out");
+        if !out_dir.exists() {
+            anyhow::bail!("out directory not found at {}. Run `oxipage build` first.", out_dir.display());
+        }
+        println!("preview server on http://127.0.0.1:{}", port);
+        serve_static_dir(&out_dir, port).await?;
+        return Ok(());
+    }
     if let Some(p) = port {
         // SAFETY: CLI는 단일 스레드 진입점이며 set_var 직후 run_server가 값을 읽어
         // SocketAddr에 반영한다. 다른 스레드가 환경변수를 경쟁 읽지 않는다.
@@ -91,6 +107,16 @@ pub(crate) async fn admin(port: Option<u16>) -> anyhow::Result<()> {
     let p = port.unwrap_or(8788);
     println!("oxipage admin console starting on http://127.0.0.1:{p}");
     oxipage_admin::run_admin(p).await?;
+    Ok(())
+}
+
+/// Start a lightweight HTTP server that serves a static directory.
+async fn serve_static_dir(dir: &Path, port: u16) -> anyhow::Result<()> {
+    let app = Router::new()
+        .fallback_service(ServeDir::new(dir).append_index_html_on_directories(true));
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    let listener = TcpListener::bind(addr).await?;
+    axum::serve(listener, app).await?;
     Ok(())
 }
 

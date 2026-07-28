@@ -4,6 +4,7 @@ mod auth;
 mod backup;
 mod blog;
 mod build;
+mod cache;
 mod deploy;
 mod extension;
 mod init_status_serve;
@@ -19,6 +20,7 @@ pub use auth::AuthCommand;
 pub use backup::BackupCommand;
 pub use blog::BlogCommand;
 pub use build::BuildCommand;
+pub use cache::CacheArgs;
 pub use deploy::DeployArgs;
 pub use extension::ExtensionCommand;
 pub use link::LinkCommand;
@@ -72,13 +74,13 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
         Command::Init { wizard } => {
             init_status_serve::init(&out, cli.config.as_deref())?;
             if wizard {
-                init_status_serve::serve(None, cli.config.as_deref()).await
+                init_status_serve::serve(None, false, cli.config.as_deref()).await
             } else {
                 Ok(())
             }
         }
         Command::Status => init_status_serve::status(&out, &client).await,
-        Command::Serve { port } => init_status_serve::serve(port, cli.config.as_deref()).await,
+        Command::Serve { port, preview } => init_status_serve::serve(port, preview, cli.config.as_deref()).await,
         Command::Auth(c) => auth::auth(c, &out, &client).await,
         Command::Blog(c) => blog::blog(c, &out, &client).await,
         Command::Open { admin, port } => open::open(OpenArgs { admin, port }, &out),
@@ -88,6 +90,7 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
         Command::Extension(c) => extension::extension(c, &out, &client).await,
         Command::Backup(c) => backup::backup(c, &out, &client).await,
         Command::Build(c) => build::build(c, &out, &client).await,
+        Command::Cache(c) => cache::cache(c, &out, &client).await,
         Command::Deploy(c) => deploy::deploy(c, &out, &client).await,
         Command::Query(c) => query::query(c).await,
         Command::Schema(c) => schema::schema(c).await,

@@ -53,6 +53,9 @@ pub enum Command {
     Serve {
         #[arg(long)]
         port: Option<u16>,
+        /// Preview mode: serve out/ directory as static files
+        #[arg(long)]
+        preview: bool,
     },
     /// 브라우저로 사이트 오픈 (doc/13 §13.4.2)
     Open {
@@ -85,6 +88,8 @@ pub enum Command {
     /// 정적 사이트 빌드 (v2 SSG)
     #[command(subcommand)]
     Build(commands::BuildCommand),
+    /// 외부 캐시 갱신 (GitHub, TMDB, 알라딘 등)
+    Cache(commands::CacheArgs),
     /// 정적 사이트 배포 (GitHub Pages 등)
     Deploy(commands::DeployArgs),
     /// 직접 SQL 질의 (읽기 전용, 로컬 DB)
