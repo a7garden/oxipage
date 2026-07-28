@@ -92,7 +92,8 @@
       "homepage": "https://github.com/oxipage/oxipage",
       "source": "crates/oxipage-ext-wasm-demo",
       "runtime_loadable": true,
-      "tags": ["wasm", "demo"]
+      "tags": ["wasm", "demo"],
+      "signature": "iV3Ipuo5qNf73vj9s1L2JT6b8rqvbARsG6MnVEBMkItdyRvJfmoQ6iRPPlCPfnWIK7ZJ56UTRQ8d1YRaLcdlBw=="
     }
   ]
 }

@@ -72,12 +72,18 @@ pub fn build_app(state: AppState) -> Router {
         .route("/extensions/{id}/enable", axum::routing::post(extension_enable))
         .route("/extensions/{id}/disable", axum::routing::post(extension_disable))
         .route("/extensions/{id}", axum::routing::delete(extension_purge))
-        .route("/extensions/install", axum::routing::post(extension_install));
+        .route("/extensions/install", axum::routing::post(extension_install))
+        .route("/backup/snapshot", axum::routing::post(backup_snapshot));
     for ext in state.registry.iter() {
+        // WASM(런타임 적재) 확장은 route_dispatcher()가 Some → 네스팅하지 않고
+        // 폴백 핸들러가 요청 시점에 동적 디스패치한다. 핫 리로드 지원.
+        if ext.route_dispatcher().is_some() {
+            continue;
+        }
         api = api.nest(&format!("/{}", ext.id()), ext.routes());
     }
     let api = api
-        .fallback(api_not_found)
+        .fallback(api_fallback)
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             extension_gate,
@@ -113,8 +119,36 @@ async fn docs_ui() -> axum::response::Response {
     )
         .into_response()
 }
-async fn api_not_found() -> ApiError {
-    ApiError::new(StatusCode::NOT_FOUND, "not_found", "resource not found")
+/// 동적 라우트 폴백. WASM(런타임 적재) 확장의 HTTP 요청을 디스패치한다.
+/// `/api/v1/{ext_id}/**` 경로에서 ext_id가 WASM 확장이면 route_dispatcher 로 위임.
+/// 그 외에는 일반 404.
+async fn api_fallback(State(state): State<AppState>, request: Request) -> Response {
+    let path = request.uri().path().to_string();
+    let method = request.method().to_string();
+    if let Some(ext_id) = extension_id_from_path(&path)
+        && let Some(ext) = state.registry.find(&ext_id)
+        && let Some(dispatcher) = ext.route_dispatcher()
+    {
+        // 확장 prefix 이후 경로 추출 ("/wasm-demo/info" → "/info").
+        let prefix_len = 1 + ext_id.len(); // '/' + ext_id
+        let sub_path = if path.len() > prefix_len {
+            &path[prefix_len..]
+        } else {
+            "/"
+        };
+        let body = axum::body::to_bytes(request.into_body(), 1024 * 1024)
+            .await
+            .unwrap_or_default()
+            .to_vec();
+        let resp = dispatcher.dispatch(&method, sub_path, body, &state).await;
+        return (
+            StatusCode::from_u16(resp.status).unwrap_or(StatusCode::OK),
+            [(header::CONTENT_TYPE, "application/json; charset=utf-8")],
+            resp.body,
+        )
+            .into_response();
+    }
+    ApiError::new(StatusCode::NOT_FOUND, "not_found", "resource not found").into_response()
 }
 
 #[derive(serde::Deserialize)]
@@ -137,7 +171,7 @@ async fn search_handler(
 
 async fn lobby_manifest(State(state): State<AppState>) -> Json<DataEnvelope<Manifest>> {
     let mut extensions = Vec::new();
-    for (idx, e) in state.registry.iter().enumerate() {
+    for (idx, e) in state.registry.iter().into_iter().enumerate() {
         if !state.registry.is_active(e.id()).await {
             continue;
         }
@@ -194,7 +228,7 @@ async fn lobby_config_list(
     State(state): State<AppState>,
 ) -> Json<DataEnvelope<Vec<LobbyConfigEntry>>> {
     let mut entries = Vec::new();
-    for (idx, e) in state.registry.iter().enumerate() {
+    for (idx, e) in state.registry.iter().into_iter().enumerate() {
         if !state.registry.is_active(e.id()).await {
             continue;
         }
@@ -366,6 +400,36 @@ async fn auth_tokens_revoke(
     }))
 }
 
+// ─── backup (doc/05 §5.4) ───
+
+/// `VACUUM INTO` 포인트-인-타임 스냅샷. admin 스코프 필요.
+/// `data_dir/backups/oxipage-<epoch>.db`에 일관된 DB 복사본을 생성한다.
+async fn backup_snapshot(
+    auth: AdminAuth,
+    State(state): State<AppState>,
+) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
+    auth.require_scope("admin")?;
+    let backups_dir = state.config.server.data_dir.join("backups");
+    tokio::fs::create_dir_all(&backups_dir)
+        .await
+        .map_err(|e| ApiError::internal(e.into()))?;
+    let epoch = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let filename = crate::backup::snapshot_filename(epoch);
+    let dest = backups_dir.join(&filename);
+    crate::backup::vacuum_into(&state.db, &dest)
+        .await
+        .map_err(ApiError::internal)?;
+    Ok(Json(DataEnvelope {
+        data: serde_json::json!({
+            "path": dest.display().to_string(),
+            "filename": filename,
+        }),
+    }))
+}
+
 async fn static_handler(uri: Uri) -> Response {
     let path = uri.path().trim_start_matches('/');
     serve_asset(path)
@@ -439,9 +503,7 @@ async fn extension_enable(
 ) -> Result<Json<DataEnvelope<ExtensionInfo>>, ApiError> {
     auth.require_scope("admin")?;
     let ext = state
-        .registry
-        .find(&id)
-        .cloned()
+        .registry.find(&id)
         .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "extension_not_found", "unknown extension id"))?;
     let prev = state.registry.status_of(&id).await;
     let was_purged = prev.map(|s| s.purged).unwrap_or(false);
@@ -471,9 +533,7 @@ async fn extension_disable(
 ) -> Result<Json<DataEnvelope<ExtensionInfo>>, ApiError> {
     auth.require_scope("admin")?;
     let ext = state
-        .registry
-        .find(&id)
-        .cloned()
+        .registry.find(&id)
         .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "extension_not_found", "unknown extension id"))?;
     let prev = state.registry.set_enabled(&state.db, &id, false).await?;
     if prev.map(|s| s.enabled).unwrap_or(false) {
@@ -495,9 +555,7 @@ async fn extension_purge(
 ) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
     auth.require_scope("admin")?;
     let ext = state
-        .registry
-        .find(&id)
-        .cloned()
+        .registry.find(&id)
         .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "extension_not_found", "unknown extension id"))?;
     // 1. disable + FTS 정리.
     state.registry.set_enabled(&state.db, &id, false).await?;
@@ -550,6 +608,10 @@ const REGISTRY_INDEX_JSON: &str = include_str!("../../../registry/index.json");
 const DEMO_WASM_BYTES: &[u8] =
     include_bytes!("../../../crates/oxipage-ext-wasm-demo/artifacts/wasm-demo.wasm");
 
+/// 신뢰하는 ed25519 공개키 (base64). .wasm 아티팩트 서명 검증에 사용.
+/// 프로덕션에서는 config 로 주입 가능. 데모용 고정 키.
+const TRUSTED_WASM_PUBKEY_B64: &str = "Yokw8k5OJv9Ty0b1PhaZ3zYitU9tY7q9Yvebjxa8aiA=";
+
 #[derive(serde::Deserialize)]
 struct RegistryIndex {
     extensions: Vec<RegistryEntry>,
@@ -562,6 +624,35 @@ struct RegistryEntry {
     runtime_loadable: bool,
     #[serde(default)]
     wasm_url: Option<String>,
+    /// base64 ed25519 서명. 있으면 install 시 검증.
+    #[serde(default)]
+    signature: Option<String>,
+}
+
+/// .wasm 바이트의 ed25519 서명을 검증. 실패 시 CONFLICT 에러.
+fn verify_wasm_signature(bytes: &[u8], signature_b64: &str) -> Result<(), ApiError> {
+    use base64::Engine;
+    use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+
+    let pubkey_raw = base64::engine::general_purpose::STANDARD
+        .decode(TRUSTED_WASM_PUBKEY_B64)
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "sig_key_error", &e.to_string()))?;
+    let pubkey_arr: [u8; 32] = pubkey_raw
+        .as_slice()
+        .try_into()
+        .map_err(|_| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "sig_key_error", "pubkey not 32 bytes"))?;
+    let pubkey = VerifyingKey::from_bytes(&pubkey_arr)
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "sig_key_error", &e.to_string()))?;
+
+    let sig_raw = base64::engine::general_purpose::STANDARD
+        .decode(signature_b64)
+        .map_err(|e| ApiError::new(StatusCode::BAD_REQUEST, "bad_signature", &e.to_string()))?;
+    let sig = Signature::from_slice(&sig_raw)
+        .map_err(|_| ApiError::new(StatusCode::BAD_REQUEST, "bad_signature", "malformed signature bytes"))?;
+
+    pubkey
+        .verify(bytes, &sig)
+        .map_err(|_| ApiError::new(StatusCode::CONFLICT, "signature_mismatch", "wasm artifact signature verification failed"))
 }
 
 #[derive(serde::Deserialize)]
@@ -620,13 +711,64 @@ async fn extension_install(
             .map_err(|e| ApiError::new(StatusCode::BAD_GATEWAY, "download_failed", &e.to_string()))?
             .to_vec()
     };
+
+    // 서명 검증: registry entry 에 signature 가 있으면 ed25519 검증 (§7 #5).
+    if let Some(sig) = &entry.signature {
+        verify_wasm_signature(&bytes, sig)?;
+    }
     let dir = state.config.server.data_dir.join("extensions");
     std::fs::create_dir_all(&dir)
         .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "fs_error", &e.to_string()))?;
     let path = dir.join(format!("{name}.wasm"));
     std::fs::write(&path, &bytes)
         .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "fs_error", &e.to_string()))?;
-    // extension_state 행 (enabled=0). 다음 부팅 시 load_all_from_dir 이 적재.
+
+    // 라이브 활성화: wasm_loader 가 있으면 즉시 로드·등록·활성화 (재기동 불필요).
+    if let Some(loader) = &state.wasm_loader {
+        match loader.load(&path) {
+            Ok(ext) => {
+                // extension_state 행 (enabled=1 — 라이브 활성화됨).
+                sqlx::query(
+                    "INSERT INTO extension_state (extension_id, enabled, purged)
+                     VALUES (?1, 1, 0)
+                     ON CONFLICT(extension_id) DO UPDATE SET purged = 0, enabled = 1",
+                )
+                .bind(&name)
+                .execute(&state.db)
+                .await
+                .map_err(|e| ApiError::from(anyhow::anyhow!(e)))?;
+
+                let id = state.registry.register_and_activate(ext.clone()).await;
+
+                if let Err(e) = ext.on_startup(&state).await {
+                    tracing::warn!(extension = %id, error = %e, "on_startup failed for live-loaded extension");
+                }
+                tracing::info!(
+                    extension = %id,
+                    path = %path.display(),
+                    bytes = bytes.len(),
+                    "installed wasm extension (live activated)"
+                );
+                return Ok(Json(DataEnvelope {
+                    data: serde_json::json!({
+                        "name": name,
+                        "path": path.display().to_string(),
+                        "bytes": bytes.len(),
+                        "activated": true,
+                    }),
+                }));
+            }
+            Err(e) => {
+                tracing::warn!(
+                    extension = %name,
+                    error = %e,
+                    "wasm live-activation failed — restart to retry"
+                );
+            }
+        }
+    }
+
+    // extension_state 행 (enabled=0). wasm_loader 가 없거나 로드 실패 → 재기동 필요.
     sqlx::query(
         "INSERT INTO extension_state (extension_id, enabled, purged)
          VALUES (?1, 0, 0)
@@ -647,6 +789,7 @@ async fn extension_install(
             "name": name,
             "path": path.display().to_string(),
             "bytes": bytes.len(),
+            "activated": false,
             "note": "restart oxipage-server (built with --features wasm) to activate",
         }),
     }))
