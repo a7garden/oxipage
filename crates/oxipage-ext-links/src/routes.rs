@@ -2,7 +2,7 @@ use crate::model::{LinkCardInput, LinkCardPatch, ListQuery};
 use crate::repo;
 use axum::Json;
 use axum::extract::{Path, Query, State};
-use oxipage_core::auth::AdminAuth;
+
 use oxipage_core::error::ApiError;
 use oxipage_core::extension::DataEnvelope;
 use oxipage_core::state::AppState;
@@ -19,7 +19,6 @@ pub async fn list(
 }
 
 pub async fn create(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Json(input): Json<LinkCardInput>,
 ) -> Result<Json<DataEnvelope<crate::model::LinkCard>>, ApiError> {
@@ -42,7 +41,6 @@ pub async fn show(
 }
 
 pub async fn update(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(patch): Json<LinkCardPatch>,
@@ -65,7 +63,6 @@ pub async fn update(
 }
 
 pub async fn delete(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {

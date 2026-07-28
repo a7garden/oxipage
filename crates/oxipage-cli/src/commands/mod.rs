@@ -1,6 +1,5 @@
 //! 서브커맨드 정의 + 디스패치. 서브모듈은 commands/ 디렉토리에 분산.
 
-mod auth;
 mod backup;
 mod blog;
 mod build;
@@ -16,7 +15,6 @@ mod query;
 mod schema;
 mod site;
 
-pub use auth::AuthCommand;
 pub use backup::BackupCommand;
 pub use blog::BlogCommand;
 pub use build::BuildCommand;
@@ -32,7 +30,6 @@ pub use schema::SchemaCommand;
 pub use site::SiteCommand;
 
 use crate::client::Client;
-use crate::credentials;
 use crate::output::Output;
 use crate::sites;
 use crate::{Cli, Command};
@@ -81,11 +78,10 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
         }
         Command::Status => init_console::status(&out, &client).await,
         Command::Console { port, preview } => init_console::console(port, preview, cli.config.as_deref()).await,
-        Command::Auth(c) => auth::auth(c, &out, &client).await,
-        Command::Blog(c) => blog::blog(c, &out, &client).await,
+        Command::Blog(c) => blog::blog(c, &out).await,
         Command::Open { admin, port } => open::open(OpenArgs { admin, port }, &out),
-        Command::Project(c) => project::project(c, &out, &client).await,
-        Command::Link(c) => link::link(c, &out, &client).await,
+        Command::Project(c) => project::project(c, &out).await,
+        Command::Link(c) => link::link(c, &out).await,
         Command::Lobby(c) => lobby::lobby(c, &out, &client).await,
         Command::Extension(c) => extension::extension(c, &out, &client).await,
         Command::Backup(c) => backup::backup(c).await,
@@ -186,18 +182,30 @@ fn resolve_token(
     {
         return Ok(Some(t));
     }
-    // 6. ~/.config/oxipage/credentials (legacy)
-    Ok(credentials::load_token().unwrap_or(None))
+    Ok(None)
 }
 
-/// Used by sub-module handlers.
-pub(crate) fn require_token(client: &Client) -> anyhow::Result<()> {
-    if !client.has_token() {
-        anyhow::bail!(
-            "no token found — set OXIPAGE_TOKEN env, pass --token, or run `oxipage auth token set <token>`"
-        );
+/// config/env에서 data_dir 해상. build.rs와 동일 로직.
+pub(super) fn resolve_data_dir() -> anyhow::Result<std::path::PathBuf> {
+    let config_path = std::env::var("OXIPAGE_CONFIG")
+        .map(std::path::PathBuf::from)
+        .ok()
+        .filter(|p| p.exists());
+    if let Some(ref path) = config_path {
+        let toml_str = std::fs::read_to_string(path)?;
+        let value: toml::Value = toml::from_str(&toml_str)?;
+        if let Some(data_dir) = value
+            .get("server")
+            .and_then(|s| s.get("data_dir"))
+            .and_then(|d| d.as_str())
+        {
+            return Ok(std::path::PathBuf::from(data_dir));
+        }
     }
-    Ok(())
+    if let Ok(dir) = std::env::var("OXIPAGE_DATA_DIR") {
+        return Ok(std::path::PathBuf::from(dir));
+    }
+    Ok(std::path::PathBuf::from("data"))
 }
 
 // ──────────────────── 동적 명령 디스패치 (doc/11) ────────────────────

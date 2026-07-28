@@ -1,6 +1,6 @@
 -- setup_state: 첫 부팅 UX 마법사의 상태 저장 (doc/13).
 -- id=1 singleton. setup_completed_at IS NULL = setup 모드 진행 중.
--- admin_password_hash는 Argon2id. PAT는 auth_token 테이블에 별도 저장.
+-- admin_password_hash는 사용 중단(auth 폐지). 호환성을 위해 컬럼 유지.
 CREATE TABLE IF NOT EXISTS setup_state (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     setup_completed_at TEXT,

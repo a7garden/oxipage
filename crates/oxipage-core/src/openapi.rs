@@ -17,15 +17,10 @@ pub fn openapi_spec(base_url: &str) -> Value {
         "info": {
             "title": "Oxipage API",
             "version": "0.1.0",
-            "description": "개인 창작 작업실 홈페이지 API (doc/04 §4.5). 공개 읽기는 인증 불필요, 쓰기는 Bearer 토큰(PAT 또는 OXIPAGE_ADMIN_TOKEN).",
+            "description": "개인 창작 작업실 홈페이지 API (doc/04 §4.5). 모든 엔드포인트 공개 — 로컬 관리 서버 전용.",
             "license": { "name": "MIT" }
         },
         "servers": [{ "url": server }],
-        "components": {
-            "securitySchemes": {
-                "bearerAuth": { "type": "http", "scheme": "bearer" }
-            }
-        },
         "paths": {
             "/api/console/lobby/manifest": {
                 "get": {
@@ -47,32 +42,9 @@ pub fn openapi_spec(base_url: &str) -> Value {
                 "put": {
                     "tags": ["lobby"],
                     "summary": "확장별 로비 표시 모드/순서 갱신 (post:write)",
-                    "security": [{ "bearerAuth": [] }],
+                    "security": [],
                     "parameters": [{ "name": "ext_id", "in": "path", "required": true, "schema": { "type": "string" } }],
                     "responses": ok_data("LobbyConfig")
-                }
-            },
-            "/api/console/auth/tokens": {
-                "get": {
-                    "tags": ["auth"],
-                    "summary": "PAT 목록 (admin 스코프)",
-                    "security": [{ "bearerAuth": [] }],
-                    "responses": ok_data("PatRow[]")
-                },
-                "post": {
-                    "tags": ["auth"],
-                    "summary": "새 PAT 발급 (admin 스코프). 평문은 1회만 반환.",
-                    "security": [{ "bearerAuth": [] }],
-                    "responses": ok_data("PatCreated")
-                }
-            },
-            "/api/console/auth/tokens/{id}": {
-                "delete": {
-                    "tags": ["auth"],
-                    "summary": "PAT revoke (admin 스코프)",
-                    "security": [{ "bearerAuth": [] }],
-                    "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
-                    "responses": ok_data("Revoked")
                 }
             },
             "/api/console/search": {
@@ -90,34 +62,34 @@ pub fn openapi_spec(base_url: &str) -> Value {
             },
             "/api/console/blog/posts": {
                 "get": { "tags": ["blog"], "summary": "발행본 목록 (?draft=true&lang=)", "security": [], "responses": ok_data("BlogPost[]") },
-                "post": { "tags": ["blog"], "summary": "초안 생성 (post:write)", "security": [{ "bearerAuth": [] }], "responses": ok_data("BlogPost") }
+                "post": { "tags": ["blog"], "summary": "초안 생성 (post:write)", "security": [], "responses": ok_data("BlogPost") }
             },
             "/api/console/blog/posts/{slug}/publish": {
-                "post": { "tags": ["blog"], "summary": "초안 발행 (post:publish)", "security": [{ "bearerAuth": [] }], "responses": ok_data("BlogPost") }
+                "post": { "tags": ["blog"], "summary": "초안 발행 (post:publish)", "security": [], "responses": ok_data("BlogPost") }
             },
             "/api/console/projects": {
                 "get": { "tags": ["projects"], "summary": "발행본 목록", "security": [], "responses": ok_data("Project[]") },
-                "post": { "tags": ["projects"], "summary": "초안 생성 (post:write)", "security": [{ "bearerAuth": [] }], "responses": ok_data("Project") }
+                "post": { "tags": ["projects"], "summary": "초안 생성 (post:write)", "security": [], "responses": ok_data("Project") }
             },
             "/api/console/links": {
                 "get": { "tags": ["links"], "summary": "링크 목록", "security": [], "responses": ok_data("LinkCard[]") },
-                "post": { "tags": ["links"], "summary": "링크 생성 (post:write, 즉시 발행)", "security": [{ "bearerAuth": [] }], "responses": ok_data("LinkCard") }
+                "post": { "tags": ["links"], "summary": "링크 생성 (post:write, 즉시 발행)", "security": [], "responses": ok_data("LinkCard") }
             },
             "/api/console/novels": {
                 "get": { "tags": ["novels"], "summary": "발행본 목록", "security": [], "responses": ok_data("Novel[]") },
-                "post": { "tags": ["novels"], "summary": "소설 초안 생성 (post:write)", "security": [{ "bearerAuth": [] }], "responses": ok_data("Novel") }
+                "post": { "tags": ["novels"], "summary": "소설 초안 생성 (post:write)", "security": [], "responses": ok_data("Novel") }
             },
             "/api/console/movies": {
                 "get": { "tags": ["movies"], "summary": "발행본 목록", "security": [], "responses": ok_data("MovieEntry[]") },
-                "post": { "tags": ["movies"], "summary": "영화 리뷰 초안 (post:write)", "security": [{ "bearerAuth": [] }], "responses": ok_data("MovieEntry") }
+                "post": { "tags": ["movies"], "summary": "영화 리뷰 초안 (post:write)", "security": [], "responses": ok_data("MovieEntry") }
             },
             "/api/console/books": {
                 "get": { "tags": ["books"], "summary": "발행본 목록", "security": [], "responses": ok_data("Book[]") },
-                "post": { "tags": ["books"], "summary": "도서 리뷰 초안 (post:write)", "security": [{ "bearerAuth": [] }], "responses": ok_data("Book") }
+                "post": { "tags": ["books"], "summary": "도서 리뷰 초안 (post:write)", "security": [], "responses": ok_data("Book") }
             },
             "/api/console/scraps": {
                 "get": { "tags": ["scraps"], "summary": "발행본 스크랩 목록", "security": [], "responses": ok_data("ScrapItem[]") },
-                "post": { "tags": ["scraps"], "summary": "수동 스크랩 추가 (post:write)", "security": [{ "bearerAuth": [] }], "responses": ok_data("ScrapItem") }
+                "post": { "tags": ["scraps"], "summary": "수동 스크랩 추가 (post:write)", "security": [], "responses": ok_data("ScrapItem") }
             },
             "/api/console/activity": {
                 "get": { "tags": ["activity"], "summary": "최근 활동 목록 (읽기 전용 캐시)", "security": [], "responses": ok_data("ActivityEvent[]") }

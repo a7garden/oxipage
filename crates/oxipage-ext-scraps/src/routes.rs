@@ -2,7 +2,7 @@ use crate::model::{ListQuery, ScrapInput, ScrapItem, ScrapPatch};
 use crate::repo;
 use axum::Json;
 use axum::extract::{Path, Query, State};
-use oxipage_core::auth::AdminAuth;
+
 use oxipage_core::error::ApiError;
 use oxipage_core::extension::DataEnvelope;
 use oxipage_core::search;
@@ -20,7 +20,6 @@ pub async fn list_published(
 }
 
 pub async fn list_queue(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Query(q): Query<ListQuery>,
 ) -> Result<Json<DataEnvelope<Vec<ScrapItem>>>, ApiError> {
@@ -32,7 +31,6 @@ pub async fn list_queue(
 }
 
 pub async fn create_manual(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Json(input): Json<ScrapInput>,
 ) -> Result<Json<DataEnvelope<ScrapItem>>, ApiError> {
@@ -59,7 +57,6 @@ pub async fn show(
 }
 
 pub async fn update(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(patch): Json<ScrapPatch>,
@@ -75,7 +72,6 @@ pub async fn update(
 }
 
 pub async fn delete(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
@@ -94,11 +90,10 @@ pub async fn delete(
 }
 
 pub async fn publish(
-    auth: AdminAuth,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<DataEnvelope<ScrapItem>>, ApiError> {
-    auth.require_scope("post:publish")?;
+    
     let item = repo::publish(&state.db, id)
         .await
         .map_err(ApiError::internal)?

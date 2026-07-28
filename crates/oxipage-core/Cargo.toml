@@ -3,7 +3,7 @@ name = "oxipage-core"
 version = "0.2.0"
 edition = "2024"
 license.workspace = true
-description = "Oxipage 코어 라이브러리 — Axum 서버 부트스트랩, SQLite 마이그레이션, 인증, Extension trait, SSR 스냅샷, 레이트리밋"
+description = "Oxipage 코어 라이브러리 — Axum 서버 부트스트랩, SQLite 마이그레이션, Extension trait, SSR 스냅샷, 레이트리밋"
 
 [lib]
 name = "oxipage_core"
@@ -11,21 +11,18 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow.workspace = true
-argon2.workspace = true
 async-trait.workspace = true
 futures-core.workspace = true
 axum.workspace = true
 base64.workspace = true
 ed25519-dalek.workspace = true
 erased-serde.workspace = true
-directories.workspace = true
 mime_guess.workspace = true
 reqwest.workspace = true
 rayon.workspace = true
 rust-embed.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-sha2.workspace = true
 sqlx.workspace = true
 thiserror.workspace = true
 tokio.workspace = true

@@ -4,7 +4,6 @@
 
 mod client;
 mod commands;
-mod credentials;
 mod output;
 mod sites;
 
@@ -64,9 +63,6 @@ pub enum Command {
         #[arg(long)]
         port: Option<u16>,
     },
-    /// 인증 (PAT 체계는 Phase 4; Phase 1은 OXIPAGE_TOKEN/credentials 저장만)
-    #[command(subcommand)]
-    Auth(commands::AuthCommand),
     /// 블로그 (doc/02 §2.6)
     #[command(subcommand)]
     Blog(commands::BlogCommand),

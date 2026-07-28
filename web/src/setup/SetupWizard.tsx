@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import {
   fetchSetupStatus,
   submitSite,
-  submitAdmin,
+
   submitExtensions,
   submitProfile,
   submitTheme,
@@ -15,14 +15,14 @@ import {
 } from "./api";
 import { SetupGuard } from "./SetupGuard";
 import { StepSite } from "./StepSite";
-import { StepAdmin } from "./StepAdmin";
+
 import { StepExtensions } from "./StepExtensions";
 import { StepProfile } from "./StepProfile";
 import { StepTheme } from "./StepTheme";
 import { StepContent } from "./StepContent";
 import { StepDone } from "./StepDone";
 
-const STEP_NAMES = ["site", "admin", "extensions", "profile", "theme", "content"];
+const STEP_NAMES = ["site", "extensions", "profile", "theme", "content"];
 
 function StepIndicator({ current, total }: { current: number; total: number }) {
   return (
@@ -130,50 +130,42 @@ export function SetupWizard() {
         );
       case 1:
         return (
-          <StepAdmin
-            onNext={(data) => handleNext("admin", data, (d) => submitAdmin(d as { password: string }))}
+          <StepExtensions
+            extensions={status.available_extensions ?? []}
+            onNext={(data) =>
+              handleNext("extensions", data, (d) => submitExtensions(d as { enabled: string[] }))
+            }
             onBack={() => setStep(0)}
             loading={loading}
           />
         );
       case 2:
         return (
-          <StepExtensions
-            extensions={status.available_extensions ?? []}
-            onNext={(data) =>
-              handleNext("extensions", data, (d) => submitExtensions(d as { enabled: string[] }))
-            }
+          <StepProfile
+            siteName={siteName}
+            onNext={(data) => handleNext("profile", data, (d) => submitProfile(d as Parameters<typeof submitProfile>[0]))}
             onBack={() => setStep(1)}
             loading={loading}
           />
         );
       case 3:
         return (
-          <StepProfile
-            siteName={siteName}
-            onNext={(data) => handleNext("profile", data, (d) => submitProfile(d as Parameters<typeof submitProfile>[0]))}
+          <StepTheme
+            themes={status.available_themes ?? []}
+            onNext={(data) =>
+              handleNext("theme", data, (d) => submitTheme(d as { theme_id: string; lobby_mode?: string }))
+            }
             onBack={() => setStep(2)}
             loading={loading}
           />
         );
       case 4:
         return (
-          <StepTheme
-            themes={status.available_themes ?? []}
-            onNext={(data) =>
-              handleNext("theme", data, (d) => submitTheme(d as { theme_id: string; lobby_mode?: string }))
-            }
-            onBack={() => setStep(3)}
-            loading={loading}
-          />
-        );
-      case 5:
-        return (
           <StepContent
             onNext={(data) =>
               handleNext("content", data, (d) => submitContent(d as Parameters<typeof submitContent>[0]))
             }
-            onBack={() => setStep(4)}
+            onBack={() => setStep(3)}
             loading={loading}
             onFinish={handleFinish}
           />

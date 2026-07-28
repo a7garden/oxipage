@@ -255,12 +255,12 @@ async fn setup_gate(request: Request, next: Next) -> Response {
 
 ```json
 // Request
-{"password": "minimum-8-characters"}
+{"password": "minimum-4-characters"}
 // Response
 {"data": {"ok": true}}
 ```
 
-- 비밀번호 ≥ 8자 검증
+- 비밀번호 ≥ 4자 검증 (PIN 허용)
 - argon2id 해시 → `setup_state.admin_password_hash` 저장
 - `OXIPAGE_ADMIN_TOKEN` env 하위 호환: env가 설정되어 있으면 비밀번호 검증 대신 env 토큰 사용
 
@@ -472,7 +472,7 @@ set_permissions(&creds_path, 0o600)?;
 └──────────────────────────────────────┘
 ```
 
-- 비밀번호 ≥ 8자, 확인 일치 검증 (클라이언트)
+- 비밀번호 ≥ 4자, 확인 일치 검증 (클라이언트)
 - "다음" → `POST /api/v1/setup/admin`
 
 #### Step 3: 확장 선택
@@ -765,7 +765,7 @@ Oxipage 설치가 완료되었습니다. 🎉
 | setup 미완료 시 `/` 접근 | `/setup` 으로 리다이렉트 |
 | setup API 원격 접근 | 403 `setup_loopback_only` |
 | setup 완료 후 setup API 호출 | 410 Gone |
-| 비밀번호 < 8자 | 400 `password_too_short` |
+| 비밀번호 < 4자 | 400 `password_too_short` |
 | 잘못된 테마 ID | 400 `invalid_theme` |
 | 존재하지 않는 확장 ID | 400 `unknown_extension` |
 | step 순서 위반 (admin 전에 extensions) | 허용 — step은 독립적, 순서 강제 안 함 |
@@ -818,7 +818,7 @@ sequenceDiagram
 |---|---|
 | Setup API loopback 게이트 | 원격 IP 모의로 403 확인 |
 | Setup 완료 후 410 | complete 호출 후 전 엔드포인트 410 |
-| 비밀번호 검증 | 7자 → 400, 8자 → 200 |
+| 비밀번호 검증 | 3자 → 400, 4자 → 200 |
 | PAT 자동 생성 | complete 후 auth_token 테이블에 1건 |
 | Credentials 파일 저장 | complete 후 파일 존재 + 0600 권한 |
 | 확장 enable/disable | setup/extensions 후 extension_state 확인 |

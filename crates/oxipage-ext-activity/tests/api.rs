@@ -15,7 +15,7 @@ type HmacSha256 = Hmac<Sha256>;
 
 const TEST_SECRET: &str = "test-webhook-secret";
 
-async fn test_app(admin_token: Option<&str>) -> Router {
+async fn test_app(_admin_token: Option<&str>) -> Router {
     // webhook 핸들러가 환경변수에서 시크릿을 읽으므로 테스트 시작 시 설정.
     // SAFETY: 단일 스레드 테스트 시작 시점, 다른 스레드가 env를 읽지 않음.
     unsafe { std::env::set_var("OXIPAGE_GITHUB_WEBHOOK_SECRET", TEST_SECRET) };
@@ -25,7 +25,6 @@ async fn test_app(admin_token: Option<&str>) -> Router {
     let state = AppState {
         db: pool,
         config: Arc::new(Config::default()),
-        admin_token: admin_token.map(Arc::<str>::from),
         registry: registry.clone(),
                 wasm_loader: None,
         site_override: std::sync::Arc::new(tokio::sync::RwLock::new(None)),

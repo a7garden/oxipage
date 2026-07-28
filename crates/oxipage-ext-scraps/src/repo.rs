@@ -149,7 +149,7 @@ pub async fn update(pool: &SqlitePool, id: i64, patch: &ScrapPatch) -> anyhow::R
     Ok(item)
 }
 
-/// 큐 후보를 발행본으로 승격. 호출자가 caller(AdminAuth)를 검증했다고 가정.
+/// 큐 후보를 발행본으로 승격. 호출자가 적절한 권한을 가졌다고 가정.
 /// 대상 row가 없거나 이미 발행된 경우 None을 반환해 호출자가 404/409를 만들 수 있게 한다.
 pub async fn publish(pool: &SqlitePool, id: i64) -> anyhow::Result<Option<ScrapItem>> {
     let item = sqlx::query_as::<_, ScrapItem>(&format!(

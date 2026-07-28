@@ -209,14 +209,9 @@ pub trait Extension: Send + Sync {
 
 > **v2 변경 (2026-07-28):** 관리 모드에서는 FTS5로 인덱싱하고, `BuildExt.build_search_docs()`가 인덱스 결과를 정적 JSON으로 덤프합니다. 프로덕션 사이트에서 검색은 클라이언트가 이 JSON을 받아 `String.includes()`로 필터링합니다.
 
-## 1.8 인증
+## 1.8 인증 (폐지)
 
-v1은 "1 인스턴스 = 1 오너" 전제이므로 계정 시스템을 최소화합니다.
-
-- **CLI/API용:** Personal Access Token(PAT). `oxipage auth token create --label "omp-agent" --scopes post:write`로 발급. **PAT는 ≥256비트 난수 고엔트로피 토큰이므로 매요청 조회에 쓰는 빠른 해시(SHA-256 또는 HMAC-SHA256)로만 저장**합니다(느린 해시를 쓰면 쓰기 API마다 비용이 누적되어 DoS를 자초). 클라이언트는 최초 1회만 평문을 받고, 요청은 `Authorization: Bearer <token>` 헤더로 보냅니다.
-- **웹 관리자 UI용(있다면, 후순위 §6):** 비밀번호 1개(Argon2id 해시) + 세션 쿠키(HttpOnly, SameSite=Strict) + CSRF 토큰.
-- **공개 읽기 API**(블로그 목록 조회 등)는 인증 불필요. 쓰기 API는 전부 토큰 필요.
-- Phase 2(멀티유저 SaaS화)는 명시적으로 범위 밖(§0.6)이므로 이 인증 모델을 억지로 확장하지 않습니다.
+정적 사이트 아키텍처로 전환하면서 인증 시스템을 제거했습니다. 관리 서버(`oxipage console`)는 기본 loopback(127.0.0.1)에서만 동작하며, 모든 API 라우트가 인증 없이 공개되어 있습니다. 원격 노출이 필요한 경우 사용자가 명시적으로 `host`를 변경해야 하며, 그에 따른 보안 책임은 사용자에게 있습니다.
 
 ## 1.9 백그라운드 잡
 

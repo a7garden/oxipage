@@ -87,7 +87,6 @@ mod tests {
         AppState {
             db: pool,
             config: Arc::new(crate::config::Config::default()),
-            admin_token: None,
             registry: Arc::new(ExtensionRegistry::new(vec![])),
             wasm_loader: None,
             site_override: Arc::new(tokio::sync::RwLock::new(None)),

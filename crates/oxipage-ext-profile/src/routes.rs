@@ -2,7 +2,7 @@ use crate::model::{Profile, ProfileInput};
 use crate::repo;
 use axum::Json;
 use axum::extract::State;
-use oxipage_core::auth::AdminAuth;
+
 use oxipage_core::error::ApiError;
 use oxipage_core::state::AppState;
 
@@ -26,7 +26,6 @@ pub async fn get_profile(
 }
 
 pub async fn put_profile(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Json(input): Json<ProfileInput>,
 ) -> Result<Json<DataEnvelope<Profile>>, ApiError> {

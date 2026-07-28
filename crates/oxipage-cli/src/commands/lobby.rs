@@ -2,7 +2,7 @@ use crate::client::Client;
 use crate::output::Output;
 use clap::Subcommand;
 use serde_json::json;
-use super::require_token;
+
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum LobbyCommand {
@@ -27,7 +27,7 @@ pub(crate) async fn lobby(
             if !matches!(mode.as_str(), "canvas" | "grid" | "list") {
                 anyhow::bail!("mode must be canvas|grid|list (got {mode})");
             }
-            require_token(client)?;
+            
             let payload = json!({ "display_mode": mode });
             let res = client
                 .put(&format!("/api/v1/lobby/config/{extension}"), &payload)

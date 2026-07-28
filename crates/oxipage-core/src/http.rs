@@ -1,4 +1,3 @@
-use crate::auth::{self, AdminAuth, PatRow};
 use crate::build::build_site;
 use crate::build_writer::write_build_output;
 use crate::setup;
@@ -66,8 +65,6 @@ pub fn build_app(state: AppState) -> Router {
         .route("/lobby/manifest", get(lobby_manifest))
         .route("/lobby/config", get(lobby_config_list))
         .route("/lobby/config/{ext_id}", axum::routing::put(lobby_config_update))
-        .route("/auth/tokens", get(auth_tokens_list).post(auth_tokens_create))
-        .route("/auth/tokens/{id}", axum::routing::delete(auth_tokens_revoke))
         .route("/search", get(search_handler))
         .route("/docs", get(docs_ui))
         .route("/docs/openapi.json", get(docs_spec))
@@ -325,7 +322,6 @@ struct LobbyConfigUpdate {
 }
 
 async fn lobby_config_update(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Path(ext_id): Path<String>,
     Json(input): Json<LobbyConfigUpdate>,
@@ -378,96 +374,14 @@ async fn lobby_config_update(
     }))
 }
 
-// ─── auth tokens (PAT, doc/01 §1.8, doc/04 §4.2) ───
-
-#[derive(serde::Deserialize)]
-struct PatCreate {
-    label: String,
-    #[serde(default)]
-    scopes: Vec<String>,
-}
-
-#[derive(serde::Serialize)]
-struct PatCreated {
-    plain_token: String,
-    id: i64,
-    label: String,
-    token_prefix: String,
-    scopes: Vec<String>,
-}
-
-async fn auth_tokens_create(
-    auth: AdminAuth,
-    State(state): State<AppState>,
-    Json(input): Json<PatCreate>,
-) -> Result<Json<DataEnvelope<PatCreated>>, ApiError> {
-    auth.require_scope("admin")?;
-    if input.label.trim().is_empty() {
-        return Err(ApiError::validation("label", "label must not be empty"));
-    }
-    for s in &input.scopes {
-        if !matches!(s.as_str(), "post:write" | "post:publish" | "read" | "admin") {
-            return Err(ApiError::validation(
-                "scopes",
-                "scope must be post:write|post:publish|read|admin",
-            ));
-        }
-    }
-    let (plain, row) = auth::create_pat(&state, &input.label, &input.scopes)
-        .await
-        .map_err(ApiError::internal)?;
-    Ok(Json(DataEnvelope {
-        data: PatCreated {
-            plain_token: plain,
-            id: row.id,
-            label: row.label,
-            token_prefix: row.token_prefix,
-            scopes: input.scopes,
-        },
-    }))
-}
-
-async fn auth_tokens_list(
-    auth: AdminAuth,
-    State(state): State<AppState>,
-) -> Result<Json<DataEnvelope<Vec<PatRow>>>, ApiError> {
-    auth.require_scope("admin")?;
-    let rows = auth::list_pats(&state)
-        .await
-        .map_err(ApiError::internal)?;
-    Ok(Json(DataEnvelope { data: rows }))
-}
-
-async fn auth_tokens_revoke(
-    auth: AdminAuth,
-    State(state): State<AppState>,
-    Path(id): Path<i64>,
-) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
-    auth.require_scope("admin")?;
-    let removed = auth::revoke_pat(&state, id)
-        .await
-        .map_err(ApiError::internal)?;
-    if !removed {
-        return Err(ApiError::new(
-            StatusCode::NOT_FOUND,
-            "not_found",
-            "active token with that id not found",
-        ));
-    }
-    Ok(Json(DataEnvelope {
-        data: serde_json::json!({ "id": id, "revoked": true }),
-    }))
-}
 
 // ─── backup (doc/05 §5.4) ───
 
 /// `VACUUM INTO` 포인트-인-타임 스냅샷. admin 스코프 필요.
 /// `data_dir/backups/oxipage-<epoch>.db`에 일관된 DB 복사본을 생성한다.
 async fn backup_snapshot(
-    auth: AdminAuth,
     State(state): State<AppState>,
 ) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
-    auth.require_scope("admin")?;
     let backups_dir = state.config.server.data_dir.join("backups");
     tokio::fs::create_dir_all(&backups_dir)
         .await
@@ -534,10 +448,8 @@ async fn extension_info(state: &AppState, ext: &Arc<dyn Extension>) -> Extension
 }
 
 async fn extensions_list(
-    auth: AdminAuth,
     State(state): State<AppState>,
 ) -> Result<Json<DataEnvelope<Vec<ExtensionInfo>>>, ApiError> {
-    auth.require_scope("admin")?;
     let snapshot = state.registry.status_snapshot().await;
     let mut out = Vec::new();
     for e in state.registry.iter() {
@@ -556,11 +468,9 @@ async fn extensions_list(
 }
 
 async fn extension_enable(
-    auth: AdminAuth,
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<DataEnvelope<ExtensionInfo>>, ApiError> {
-    auth.require_scope("admin")?;
     let ext = state
         .registry.find(&id)
         .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "extension_not_found", "unknown extension id"))?;
@@ -586,11 +496,9 @@ async fn extension_enable(
 }
 
 async fn extension_disable(
-    auth: AdminAuth,
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<DataEnvelope<ExtensionInfo>>, ApiError> {
-    auth.require_scope("admin")?;
     let ext = state
         .registry.find(&id)
         .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "extension_not_found", "unknown extension id"))?;
@@ -608,11 +516,9 @@ async fn extension_disable(
 }
 
 async fn extension_purge(
-    auth: AdminAuth,
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
-    auth.require_scope("admin")?;
     let ext = state
         .registry.find(&id)
         .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "extension_not_found", "unknown extension id"))?;
@@ -720,11 +626,9 @@ struct InstallInput {
 }
 
 async fn extension_install(
-    auth: AdminAuth,
     State(state): State<AppState>,
     Json(input): Json<InstallInput>,
 ) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
-    auth.require_scope("admin")?;
     let name = input.name;
     if !is_safe_extension_name(&name) {
         return Err(ApiError::new(
@@ -1038,9 +942,9 @@ const THEMES: &[ThemeCatalogEntry] = &[
         name_ko: "종이",
         name_en: "Paper",
         mode: "light",
-        accent_hue: 290.0,
-        description_ko: "따뜻한 종이 배경, 인디고-바이올렛 악센트",
-        description_en: "Warm paper background, indigo-violet accent",
+        accent_hue: 160.0,
+        description_ko: "따뜻한 종이 배경, 파인 그린 악센트",
+        description_en: "Warm paper background, pine green accent",
     },
     ThemeCatalogEntry {
         id: "midnight",
@@ -1110,11 +1014,9 @@ struct ThemePutInput {
 }
 
 async fn theme_put(
-    auth: AdminAuth,
     State(state): State<AppState>,
     Json(input): Json<ThemePutInput>,
 ) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
-    auth.require_scope("admin")?;
 
     // 유효한 테마인지 확인
     let valid = THEMES.iter().any(|t| t.id == input.theme_id);

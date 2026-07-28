@@ -38,7 +38,7 @@ export function StepSite({ onNext, loading }: Props) {
               : "border-line hover:bg-surface"
           }`}
         >
-          🇰🇷 한국어
+          한국어
         </button>
         <button
           onClick={() => setLang("en")}
@@ -48,7 +48,7 @@ export function StepSite({ onNext, loading }: Props) {
               : "border-line hover:bg-surface"
           }`}
         >
-          🇺🇸 English
+          English
         </button>
       </div>
 

@@ -2,6 +2,8 @@
 name = "oxipage-ext-projects"
 version = "0.2.0"
 edition = "2024"
+license.workspace = true
+description = "프로젝트 포트폴리오 확장 — 구조적 이중언어, 스크린샷 갤러리 (doc/02 §2.4)"
 
 [lib]
 name = "oxipage_ext_projects"

@@ -6,7 +6,7 @@ use axum::body::Bytes;
 use axum::extract::{Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use hmac::{Hmac, Mac};
-use oxipage_core::auth::AdminAuth;
+
 use oxipage_core::error::ApiError;
 use oxipage_core::extension::DataEnvelope;
 use oxipage_core::state::AppState;
@@ -60,6 +60,18 @@ pub async fn webhook(
 }
 
 /// `X-Hub-Signature-256: sha256=<hex>` 헤더를 HMAC-SHA256으로 검증한다.
+/// Constant-time byte comparison (timing-attack safe).
+fn ct_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}
+
 fn verify_signature(secret: &str, headers: &HeaderMap, body: &[u8]) -> Result<(), ApiError> {
     let provided = headers
         .get("x-hub-signature-256")
@@ -93,7 +105,7 @@ fn verify_signature(secret: &str, headers: &HeaderMap, body: &[u8]) -> Result<()
         )
     })?;
 
-    if !oxipage_core::auth::constant_time_eq(&provided_bytes, &expected) {
+    if !ct_eq(&provided_bytes, &expected) {
         return Err(ApiError::new(
             StatusCode::UNAUTHORIZED,
             "invalid_signature",
@@ -114,7 +126,6 @@ fn hex_decode(s: &str) -> Option<Vec<u8>> {
 }
 
 pub async fn sync(
-    _auth: AdminAuth,
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let client = GithubClient::with_username(state.config.integrations.github_username())

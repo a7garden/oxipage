@@ -1,4 +1,3 @@
-pub mod auth;
 pub mod backup;
 pub mod build;
 pub mod builder;

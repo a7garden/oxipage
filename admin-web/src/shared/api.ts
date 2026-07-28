@@ -199,33 +199,6 @@ export interface BlogPatch {
   tags?: string[];
 }
 
-// ─── Tokens (console local API) ───
-
-export interface PatRow {
-  id: number;
-  label: string;
-  scopes: string;
-  created_at: string;
-}
-
-export async function listTokens(): Promise<{ data: PatRow[] }> {
-  return consoleFetch("/auth/tokens");
-}
-
-export async function createToken(
-  label: string,
-  scopes?: string,
-): Promise<{ data: { id: number; label: string; token: string } }> {
-  return consoleFetch("/auth/tokens", {
-    method: "POST",
-    body: { label, scopes: scopes || "admin" },
-  });
-}
-
-export async function revokeToken(id: number): Promise<void> {
-  await consoleFetch(`/auth/tokens/${id}`, { method: "DELETE" });
-}
-
 // ─── Theme (was proxied) ───
 
 export interface CurrentTheme {

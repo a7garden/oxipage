@@ -2,6 +2,8 @@
 name = "oxipage-ext-novels"
 version = "0.2.0"
 edition = "2024"
+license.workspace = true
+description = "소설 확장 — 챕터, 공백제외 자수 자동 계산 (doc/02 §2.5)"
 
 [lib]
 name = "oxipage_ext_novels"

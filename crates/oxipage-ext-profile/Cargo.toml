@@ -2,6 +2,8 @@
 name = "oxipage-ext-profile"
 version = "0.2.0"
 edition = "2024"
+license.workspace = true
+description = "프로필 확장 — 소개 명함 / 포트폴리오 싱글턴 (doc/02 §2.3)"
 
 [dependencies]
 anyhow.workspace = true

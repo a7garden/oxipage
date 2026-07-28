@@ -4,11 +4,9 @@
 //! - loopback(127.0.0.1/::1) 외 403
 //! - setup 완료 후 410 Gone
 
-use crate::auth;
 use crate::error::ApiError;
 use crate::extension::DataEnvelope;
 use crate::state::{AppState, SiteOverride};
-use argon2::Argon2;
 use axum::extract::{ConnectInfo, Request, State};
 use axum::http::StatusCode;
 use axum::middleware::Next;
@@ -32,7 +30,7 @@ Oxipage 설치가 완료되었습니다.
 ## 다음 단계
 
 - **CLI**로 글 쓰기: `oxipage blog new "제목" --file draft.md`
-- **관리 콘솔**에서 콘텐츠 관리: 헤더의 ⚙️ 버튼
+- **관리 콘솔**에서 콘텐츠 관리: 헤더의 설정 버튼
 - **프로젝트** 추가: `oxipage project add --title-ko "..." --title-en "..."`
 
 즐거운 블로그 생활 되세요!
@@ -41,7 +39,7 @@ Oxipage 설치가 완료되었습니다.
 const THEMES: &[ThemeEntry] = &[
     ThemeEntry { id: "paper", name_ko: "종이", name_en: "Paper", mode: "light",
         description_ko: "따뜻한 종이 배경", description_en: "Warm paper background",
-        preview_colors: ["#fafaf5", "#f5f2ed", "#2d2934", "#5e3cbd"] },
+        preview_colors: ["#fafaf5", "#f5f2ed", "#2d2934", "#2d7a5c"] },
     ThemeEntry { id: "midnight", name_ko: "한밤", name_en: "Midnight", mode: "dark",
         description_ko: "깊은 밤하늘", description_en: "Deep night sky",
         preview_colors: ["#1a1a2e", "#16213e", "#e0e0e0", "#4fc3f7"] },
@@ -61,10 +59,6 @@ pub struct SiteInput {
     pub base_url: Option<String>,
 }
 
-#[derive(Deserialize)]
-pub struct AdminInput {
-    pub password: String,
-}
 
 #[derive(Serialize, Deserialize)]
 pub struct ExtensionsInput {
@@ -100,8 +94,6 @@ fn default_true() -> bool { true }
 #[derive(Serialize)]
 pub struct CompleteResult {
     pub ok: bool,
-    pub token: String,
-    pub token_label: String,
     pub message: String,
 }
 
@@ -157,15 +149,8 @@ async fn get_completed_steps(state: &AppState) -> Result<Vec<String>, ApiError> 
         steps.push("site".into());
     }
 
-    // admin: admin_password_hash가 설정되었는가
-    if let Ok((Some(_),)) = sqlx::query_as::<_, (Option<String>,)>(
-        "SELECT admin_password_hash FROM setup_state WHERE id = 1",
-    )
-    .fetch_one(&state.db)
-    .await
-    {
-        steps.push("admin".into());
-    }
+    // admin: auth 폐지 — 비밀번호 단계 제거, 항상 완료로 처리
+    steps.push("admin".into());
 
     // extensions: enabled가 1개 이상인가
     match sqlx::query_as::<_, (i64,)>(
@@ -209,20 +194,6 @@ async fn get_completed_steps(state: &AppState) -> Result<Vec<String>, ApiError> 
     Ok(steps)
 }
 
-/// argon2id 해싱 (doc/13 §13.6.2)
-fn hash_password(password: &str) -> anyhow::Result<String> {
-    use base64::Engine;
-    let salt = crate::auth::generate_plain_token();
-    let mut hash = vec![0u8; 32];
-    Argon2::default()
-        .hash_password_into(password.as_bytes(), salt.as_bytes(), &mut hash)
-        .map_err(|e| anyhow::anyhow!("argon2 hash failed: {e}"))?;
-    Ok(format!(
-        "argon2id$v=19$m=19456,t=2,p=1${}${}",
-        base64::engine::general_purpose::STANDARD.encode(salt.as_bytes()),
-        base64::engine::general_purpose::STANDARD.encode(&hash),
-    ))
-}
 
 /// TOML 파일 갱신 (site name)
 fn update_toml_site(name: &str, base_url: &str) -> anyhow::Result<()> {
@@ -262,22 +233,6 @@ async fn set_extension_config(state: &AppState, ext_id: &str, key: &str, value: 
     Ok(())
 }
 
-/// PAT를 credentials 파일에 쓰기 (best-effort)
-fn write_credentials(token: &str) {
-    use std::path::PathBuf;
-    let creds_path = directories::ProjectDirs::from("", "", "oxipage")
-        .map(|d| d.config_dir().join("credentials"))
-        .unwrap_or_else(|| PathBuf::from(".oxipage-credentials"));
-
-    if let Some(parent) = creds_path.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-    if std::fs::write(&creds_path, token).is_ok() {
-        #[cfg(unix)]
-        let _ = std::fs::set_permissions(&creds_path, std::os::unix::fs::PermissionsExt::from_mode(0o600));
-        tracing::info!("wrote PAT to credentials file: {}", creds_path.display());
-    }
-}
 
 // ─── Route builder ───
 
@@ -437,30 +392,9 @@ pub async fn setup_site_handler(
     }))
 }
 
-/// POST /api/console/setup/admin
-pub async fn setup_admin_handler(
-    State(state): State<AppState>,
-    Json(input): Json<AdminInput>,
-) -> Result<Json<DataEnvelope<SimpleOk>>, ApiError> {
-    if input.password.len() < 8 {
-        return Err(ApiError::new(
-            StatusCode::BAD_REQUEST,
-            "password_too_short",
-            "password must be at least 8 characters",
-        ));
-    }
-
-    let hash = hash_password(&input.password).map_err(|e| ApiError::internal(anyhow::anyhow!(e)))?;
-
-    sqlx::query("UPDATE setup_state SET admin_password_hash = ?1 WHERE id = 1")
-        .bind(&hash)
-        .execute(&state.db)
-        .await
-        .map_err(|e| ApiError::internal(anyhow::anyhow!(e)))?;
-
-    Ok(Json(DataEnvelope {
-        data: SimpleOk { ok: true },
-    }))
+/// POST /api/console/setup/admin — auth 폐지로 no-op (항상 ok).
+pub async fn setup_admin_handler() -> Json<DataEnvelope<SimpleOk>> {
+    Json(DataEnvelope { data: SimpleOk { ok: true } })
 }
 
 /// POST /api/console/setup/extensions
@@ -631,13 +565,6 @@ pub async fn setup_content_handler(
 pub async fn setup_complete_handler(
     State(state): State<AppState>,
 ) -> Result<Json<DataEnvelope<CompleteResult>>, ApiError> {
-    // Create first PAT (admin scope)
-    let scopes = vec!["admin".to_string()];
-    let (plain, row) = auth::create_pat(&state, "setup-wizard", &scopes)
-        .await
-        .map_err(|e| ApiError::internal(anyhow::anyhow!(e)))?;
-
-    // Mark setup as completed
     sqlx::query(
         "UPDATE setup_state SET setup_completed_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = 1",
     )
@@ -645,15 +572,10 @@ pub async fn setup_complete_handler(
     .await
     .map_err(|e| ApiError::internal(anyhow::anyhow!(e)))?;
 
-    // Write PAT to credentials file (best-effort)
-    write_credentials(&plain);
-
     Ok(Json(DataEnvelope {
         data: CompleteResult {
             ok: true,
-            token: plain,
-            token_label: row.label,
-            message: "설정이 완료되었습니다. 이 토큰은 한 번만 표시됩니다.".into(),
+            message: "설정이 완료되었습니다.".into(),
         },
     }))
 }

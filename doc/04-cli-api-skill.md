@@ -2,34 +2,19 @@
 
 ## 4.1 원칙: CLI는 API의 레퍼런스 클라이언트
 
-`oxipage` CLI가 하는 모든 일은 인증된 HTTP 호출입니다. CLI가 로컬에서 직접 DB나 파일을 건드리는 경로는 없습니다(단, `oxipage console`로 로컬 개발 서버를 띄우는 것 자체는 예외 — 이때는 CLI가 곧 서버 프로세스를 기동하는 것). 이렇게 하면:
+`oxipage` CLI가 하는 모든 일은 HTTP API 호출입니다. 인증은 폐지되었으므로 토큰이 필요 없습니다(단, `oxipage console`로 로컬 관리 서버를 띄우는 것 자체는 예외 — 이때는 CLI가 곧 서버 프로세스를 기동하는 것). 이렇게 하면:
 
 - API 문서 = CLI 문서 (둘이 어긋날 일이 없음)
 - oh-my-pi 같은 에이전트가 CLI를 몰라도 API를 직접 호출해 같은 일을 할 수 있음
 - 웹 관리자 UI(있다면)도 같은 API를 씀 — 3개의 프론트엔드(CLI/웹/에이전트)가 API 하나를 공유
 
-## 4.2 인증 흐름
+## 4.2 인증 (폐지)
 
-```
-oxipage auth login
-  → 브라우저가 열리고 로컬 인스턴스의 관리자 비밀번호로 1회 로그인
-  → 성공 시 PAT(Personal Access Token) 발급
-  → 토큰은 OS 키체인(가능하면) 또는 ~/.config/oxipage/credentials (0600) 에 저장
-```
-
-- 토큰 발급/회수는 `oxipage auth token create|list|revoke`로도 세분화 관리(예: "omp-agent" 라벨의 토큰만 따로 발급해서, 에이전트가 폭주해도 그 토큰만 회수하면 됨)
-- 토큰에는 `scope`를 둘 수 있음: `post:write`(초안 생성/수정), `post:publish`(발행), `read`(공개 정보는 원래 인증 불필요하므로 주로 초안 읽기용). 에이전트용 토큰은 기본적으로 `post:write`만 주고 `post:publish`는 사람이 별도로 부여하는 것을 권장(§4.5 안전장치와 연결).
-- **CLI는 토큰을 `OXIPAGE_TOKEN` 환경변수**(또는 키체인/credentials 파일)에서 읽습니다. 에이전트·CI 환경에서는 환경변수 주입이 표준 경로입니다(§4.6 스킬의 프로비저닝 흐름 참조).
+정적 사이트 아키텍처에서 인증이 제거되었습니다. 모든 API 라우트가 공개되어 있으며, 관리 서버는 loopback에서만 동작합니다.
 
 ## 4.3 명령 체계
 
 ```text
-# 인증
-oxipage auth login
-oxipage auth token create --label <name> [--scopes post:write,post:publish]
-oxipage auth token list
-oxipage auth token revoke <token-id>
-
 # 프로젝트 관리
 oxipage init                                   # oxipage.toml 스캐폴딩
 oxipage status [--json]                         # 초안/최근 게시물/배포 상태 요약

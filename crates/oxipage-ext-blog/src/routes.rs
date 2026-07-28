@@ -2,7 +2,7 @@ use crate::model::{BlogPatch, BlogPost, BlogPostInput, ListQuery};
 use crate::repo;
 use axum::Json;
 use axum::extract::{Path, Query, State};
-use oxipage_core::auth::AdminAuth;
+
 use oxipage_core::error::ApiError;
 use oxipage_core::extension::DataEnvelope;
 use oxipage_core::search;
@@ -20,7 +20,6 @@ pub async fn list(
 }
 
 pub async fn create(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Json(input): Json<BlogPostInput>,
 ) -> Result<Json<DataEnvelope<BlogPost>>, ApiError> {
@@ -51,7 +50,6 @@ pub async fn show(
 }
 
 pub async fn update(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Path(slug): Path<String>,
     Json(patch): Json<BlogPatch>,
@@ -74,7 +72,6 @@ pub async fn update(
 }
 
 pub async fn delete(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Path(slug): Path<String>,
 ) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
@@ -93,11 +90,10 @@ pub async fn delete(
 }
 
 pub async fn publish(
-    auth: AdminAuth,
     State(state): State<AppState>,
     Path(slug): Path<String>,
 ) -> Result<Json<DataEnvelope<BlogPost>>, ApiError> {
-    auth.require_scope("post:publish")?;
+    
     if repo::find_by_slug(&state.db, &slug)
         .await
         .map_err(ApiError::internal)?

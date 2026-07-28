@@ -2,6 +2,8 @@
 name = "oxipage-ext-scraps"
 version = "0.2.0"
 edition = "2024"
+license.workspace = true
+description = "스크랩 확장 — 북마크/메모 수집, 백그라운드 수집 잡 (doc/02 §2.10)"
 
 [lib]
 name = "oxipage_ext_scraps"

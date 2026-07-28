@@ -2,7 +2,7 @@ use crate::model::{ChapterInput, ChapterPatch, ListQuery, Novel, NovelChapter, N
 use crate::repo;
 use axum::Json;
 use axum::extract::{Path, Query, State};
-use oxipage_core::auth::AdminAuth;
+
 use oxipage_core::error::ApiError;
 use oxipage_core::extension::DataEnvelope;
 use oxipage_core::search;
@@ -22,7 +22,6 @@ pub async fn list_novels(
 }
 
 pub async fn create_novel(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Json(input): Json<NovelInput>,
 ) -> Result<Json<DataEnvelope<Novel>>, ApiError> {
@@ -57,7 +56,6 @@ pub async fn show_novel(
 }
 
 pub async fn delete_novel(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Path(slug): Path<String>,
 ) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
@@ -76,11 +74,10 @@ pub async fn delete_novel(
 }
 
 pub async fn publish_novel(
-    auth: AdminAuth,
     State(state): State<AppState>,
     Path(slug): Path<String>,
 ) -> Result<Json<DataEnvelope<Novel>>, ApiError> {
-    auth.require_scope("post:publish")?;
+    
     if repo::find_novel_by_slug(&state.db, &slug)
         .await
         .map_err(ApiError::internal)?
@@ -120,7 +117,6 @@ pub async fn list_chapters(
 }
 
 pub async fn list_chapters_draft(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Path(slug): Path<String>,
 ) -> Result<Json<DataEnvelope<Vec<NovelChapter>>>, ApiError> {
@@ -131,7 +127,6 @@ pub async fn list_chapters_draft(
 }
 
 pub async fn create_chapter(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Path(slug): Path<String>,
     Json(input): Json<ChapterInput>,
@@ -160,7 +155,6 @@ pub async fn show_chapter(
 }
 
 pub async fn update_chapter(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Path((slug, order)): Path<(String, i32)>,
     Json(patch): Json<ChapterPatch>,
@@ -187,7 +181,6 @@ pub async fn update_chapter(
 }
 
 pub async fn delete_chapter(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Path((slug, order)): Path<(String, i32)>,
 ) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
@@ -207,11 +200,10 @@ pub async fn delete_chapter(
 }
 
 pub async fn publish_chapter(
-    auth: AdminAuth,
     State(state): State<AppState>,
     Path((slug, order)): Path<(String, i32)>,
 ) -> Result<Json<DataEnvelope<NovelChapter>>, ApiError> {
-    auth.require_scope("post:publish")?;
+    
     let ch = repo::publish_chapter(&state.db, &slug, order)
         .await
         .map_err(ApiError::internal)?;

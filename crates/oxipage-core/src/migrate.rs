@@ -13,11 +13,6 @@ pub const CORE_MIGRATIONS: &[Migration] = &[
         sql: include_str!("../migrations/core/0002_search_documents.sql"),
     },
     Migration {
-        version: 3,
-        name: "auth_token",
-        sql: include_str!("../migrations/core/0003_auth_token.sql"),
-    },
-    Migration {
         version: 4,
         name: "extension_state",
         sql: include_str!("../migrations/core/0004_extension_state.sql"),

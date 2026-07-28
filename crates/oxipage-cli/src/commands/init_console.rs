@@ -51,7 +51,6 @@ pub(crate) async fn status(out: &Output, client: &Client) -> anyhow::Result<()> 
             "endpoint": client.endpoint(),
             "health": health,
             "manifest": manifest,
-            "authenticated": client.has_token(),
         });
         println!("{}", serde_json::to_string_pretty(&summary)?);
         return Ok(());
@@ -72,10 +71,6 @@ pub(crate) async fn status(out: &Output, client: &Client) -> anyhow::Result<()> 
     println!("endpoint:      {}", client.endpoint());
     println!("site:          {site_name}");
     println!("extensions:    {ext_count} enabled");
-    println!(
-        "authenticated: {}",
-        if client.has_token() { "yes" } else { "no" }
-    );
     Ok(())
 }
 

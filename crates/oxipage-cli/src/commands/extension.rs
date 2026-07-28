@@ -2,7 +2,7 @@ use crate::client::Client;
 use crate::output::Output;
 use clap::Subcommand;
 use serde_json::json;
-use super::require_token;
+
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum ExtensionCommand {
@@ -31,26 +31,26 @@ pub(crate) async fn extension(
 ) -> anyhow::Result<()> {
     match c {
         ExtensionCommand::List => {
-            require_token(client)?;
+            
             let res = client.get("/api/v1/extensions").await?;
             out.data(res, "extensions")
         }
         ExtensionCommand::Enable { name } => {
-            require_token(client)?;
+            
             let res = client
                 .post_raw(&format!("/api/v1/extensions/{name}/enable"), json!({}))
                 .await?;
             out.data(res, "extension enabled")
         }
         ExtensionCommand::Disable { name } => {
-            require_token(client)?;
+            
             let res = client
                 .post_raw(&format!("/api/v1/extensions/{name}/disable"), json!({}))
                 .await?;
             out.data(res, "extension disabled")
         }
         ExtensionCommand::Purge { name, yes } => {
-            require_token(client)?;
+            
             if !yes {
                 anyhow::bail!(
                     "purge is destructive — pass --yes to confirm (drops tables + removes media for '{name}')"
@@ -60,7 +60,7 @@ pub(crate) async fn extension(
             out.data(res, "extension purged")
         }
         ExtensionCommand::Install { name } => {
-            require_token(client)?;
+            
             let res = client
                 .post_raw("/api/v1/extensions/install", json!({ "name": name }))
                 .await?;

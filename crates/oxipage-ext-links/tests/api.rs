@@ -8,14 +8,13 @@ use oxipage_ext_links::LinksExtension;
 use std::sync::Arc;
 use tower::ServiceExt;
 
-async fn test_app(admin_token: Option<&str>) -> Router {
+async fn test_app(_admin_token: Option<&str>) -> Router {
     let pool = oxipage_core::db::connect_memory().await.unwrap();
     let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(LinksExtension)]));
     registry.run_migrations(&pool, &[]).await.unwrap();
     let state = AppState {
         db: pool,
         config: Arc::new(Config::default()),
-        admin_token: admin_token.map(Arc::<str>::from),
         registry: registry.clone(),
                 wasm_loader: None,
         site_override: std::sync::Arc::new(tokio::sync::RwLock::new(None)),

@@ -96,16 +96,6 @@ pub async fn run_console_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow
     let db = oxipage_core::db::connect(&db_path).await?;
     registry.run_migrations(&db, &toml_enabled).await?;
 
-    let admin_token: Option<Arc<str>> = std::env::var("OXIPAGE_ADMIN_TOKEN")
-        .ok()
-        .filter(|t| !t.is_empty())
-        .map(Arc::from);
-    if admin_token.is_none() {
-        tracing::warn!(
-            "OXIPAGE_ADMIN_TOKEN is not set; write APIs will return 503 admin_not_configured"
-        );
-    }
-
     // 첫 부팅 감지 — setup 마법사로 브라우저 오픈 (doc/13)
     if oxipage_core::setup::is_setup_needed(&db).await {
         let url = format!("http://{}:{}/setup", config.server.host, config.server.port);
@@ -126,7 +116,6 @@ pub async fn run_console_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow
     let state = AppState {
         db,
         config: config.clone(),
-        admin_token: admin_token.clone(),
         registry: registry.clone(),
         wasm_loader,
         site_override: Arc::new(RwLock::new(None)),

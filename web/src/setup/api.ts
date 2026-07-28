@@ -24,8 +24,6 @@ export interface ThemeInfo {
 
 export interface CompleteResult {
   ok: boolean;
-  token: string;
-  token_label: string;
   message: string;
 }
 
@@ -65,9 +63,6 @@ export async function submitSite(data: { name: string; base_url?: string }) {
   return post<{ ok: boolean }>("/site", data);
 }
 
-export async function submitAdmin(data: { password: string }) {
-  return post<{ ok: boolean }>("/admin", data);
-}
 
 export async function submitExtensions(data: { enabled: string[] }) {
   return post<{ enabled: string[] }>("/extensions", data);

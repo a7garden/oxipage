@@ -2,7 +2,7 @@ use crate::model::{ListQuery, ProjectDetail, ProjectInput, ProjectPatch, Screens
 use crate::repo;
 use axum::Json;
 use axum::extract::{Path, Query, State};
-use oxipage_core::auth::AdminAuth;
+
 use oxipage_core::error::ApiError;
 use oxipage_core::extension::DataEnvelope;
 use oxipage_core::search;
@@ -20,7 +20,6 @@ pub async fn list(
 }
 
 pub async fn create(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Json(input): Json<ProjectInput>,
 ) -> Result<Json<DataEnvelope<crate::model::Project>>, ApiError> {
@@ -61,7 +60,6 @@ pub async fn show(
 }
 
 pub async fn update(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Path(slug): Path<String>,
     Json(patch): Json<ProjectPatch>,
@@ -85,7 +83,6 @@ pub async fn update(
 }
 
 pub async fn delete(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Path(slug): Path<String>,
 ) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
@@ -104,11 +101,10 @@ pub async fn delete(
 }
 
 pub async fn publish(
-    auth: AdminAuth,
     State(state): State<AppState>,
     Path(slug): Path<String>,
 ) -> Result<Json<DataEnvelope<crate::model::Project>>, ApiError> {
-    auth.require_scope("post:publish")?;
+    
     if repo::find_by_slug(&state.db, &slug)
         .await
         .map_err(ApiError::internal)?
@@ -136,7 +132,6 @@ pub async fn publish(
 }
 
 pub async fn add_screenshot(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Path(slug): Path<String>,
     Json(input): Json<ScreenshotInput>,
@@ -158,7 +153,6 @@ pub async fn add_screenshot(
 }
 
 pub async fn delete_screenshot(
-    _auth: AdminAuth,
     State(state): State<AppState>,
     Path((slug, sid)): Path<(String, i64)>,
 ) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
