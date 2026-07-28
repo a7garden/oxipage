@@ -10,13 +10,13 @@
 |---|---|---|
 | Foundation | 4/4 | FTS5·Rating·scheduler·Extension trait·IntegrationsConfig·CLI 스캐폴드 |
 | Phase 1 | 5/5 | blog·projects·links + CLI + 프론트 lazy route |
-| Phase 2 | 7/7 | novels·movies·books·scraps·activity + 별점 + background_jobs |
+| Phase 2 | 7/7 | novels·movies·books·scraps·activity + 별점 + background_jobs (2026-07-28 수정: 스케줄러 연결 + job body 구현, §8.10) |
 | Phase 3 | 5/5 | 로비 3모드·LobbyConfig API·/search UI·**SSR 확장 연결(7개 publish+7 delete)**·**WCAG AA 실측+토큰 조정** |
 | Phase 4 | 4/4 | PAT 스코프 분리·레이트리밋(build_app 연결)·OpenAPI/Swagger·SKILL.md |
 | Phase 5 | 6/6 | deploy·LICENSE·SDK 문서·레지스트리·starter·개인화·**WASM 스파이크(§8.4)** |
 | Verification | 2/3 | cargo test/clippy -D warnings 통과·SSR 엔드투엔드 스모크 완료. **배포 스모크·브라우저 접근성 실측 남음** |
 
-**검증 상태:** `cargo test --workspace` 90 tests ok · `cargo clippy --workspace --all-targets -- -D warnings` ok ·
+**검증 상태:** `cargo test --workspace` 128 tests ok · `cargo clippy --workspace --all-targets -- -D warnings` ok ·
 `cd web && bun run build` ok · SSR end-to-end: blog post create→publish→`data/snapshots/blog_*.html` 생성(og:title/og:url/canonical/main data-snapshot 확인)→DELETE→파일 제거.
 
 ## 8.2 SSR 스냅샷 확장 연결 (Phase 3, ✅ 완료 — 2026-07-27)
@@ -80,41 +80,40 @@
 **알려진 한계:** 라이트 gold-600 / surface-50 (card 배경) = 4.34:1로 미세 미달.
 별점 컴포넌트가 card 위에 놓이지 않는다는 설계 전제. 추후 card 위 별점 도입 시 재검토.
 
-## 8.4 WASM 컴포넌트 스파이크 (Phase 5, ✅ 완료 — 2026-07-28)
+## 8.4 WASM 런타임 적재 v2 (Phase 5, ✅ 완료 — 2026-07-28)
 
-**상태:** ✅ 완료. doc/01 §1.4 의 WASM 런타임 적재 메커니즘을 코어 WASM 모듈 경로로
-증명(wasmtime 임베딩 + capability-based 샌드박스 + 수동 ABI). 상세 설계/한계/다음
-단계는 [`docs/wasm-spike.md`](../docs/wasm-spike.md).
+**상태:** ✅ v2 완료. v1 스파이크의 한계 3종(store 재사용, HTTP 라우트, 핫 리로드)를
+해결하고 §7의 fuel 제한·DB/HTTP capability·ed25519 서명 검증을 구현. 상세는
+[`docs/wasm-spike.md`](../docs/wasm-spike.md).
 
-**구현 내역:**
+**v2 구현 내역:**
 
-1. **`wasmtime` 의존성** — workspace deps (`v33`, features `cranelift`/`runtime`/
-   `parallel-compilation`/`cache`).
-2. **`oxipage-wasm` 호스트 크레이트** — `WasmExtensionAdapter: impl Extension`,
-   capability 링커(`host_now_unix`/`host_log`), `load_all_from_dir` 로더.
-3. **`oxipage-ext-wasm-demo` 데모 확장** — `no_std` 코어 WASM 모듈(cdylib,
-   `wasm32-unknown-unknown`). lobby 카드 JSON 을 `host_now_unix()` 결과로 동적 생성.
-4. **`oxipage extension install <name>`** — `POST /api/v1/extensions/install` 이
-   임베드된 `registry/index.json` 에서 `runtime_loadable: true` 항목 조회 → `.wasm`
-   저장 + `extension_state` 행. **런타임 설치 확장은 CLI 서브커맨드 추가 불가**
-   (doc/01 §1.4 알려진 한계) — API/웹으로만.
-5. **서버 통합(feature `wasm`)** — 부팅 시 `data/extensions/*.wasm` 스캔해 정적
-   확장 목록에 추가.
-6. **문서화** — `docs/wasm-spike.md`.
+1. **Store 재사용** — lobby Store+Instance를 `Mutex`로 캐싱. 매 호출 재인스턴스화 제거.
+2. **Fuel 제한** — `consume_fuel(true)` + `set_fuel(10M/request, 1M/lobby)`. CPU DoS 방지.
+3. **HTTP 라우트** — route manifest ABI + `handle_request` + `RouteDispatcher` trait.
+   폴백 핸들러가 동적 디스패치. 데모: GET /info, /time, /db.
+4. **DB/HTTP capability** — `host_db_query`(SELECT 한정, JSON 반환), `host_http_get`.
+5. **핫 리로드** — `ExtensionRegistry` RwLock + `WasmLoader` trait + install 라이브 활성화.
+6. **서명 검증** — ed25519 (`ed25519-dalek`). registry `signature` 필드로 `.wasm` 위변조 탐지.
+7. **core trait 확장** — `RouteDispatcher`/`WasmLoader` trait 추가. 컴파일 확장은 영향 없음.
 
-**의도적 편차 (deliberate deviations):**
-- doc/01 §1.4 의 "컴포넌트 모델" 대신 **코어 WASM 모듈 + 수동 ABI** (환경에
-  `cargo-component`/`wit-bindgen` 미설치; ~10배 단순). 컴포넌트 모델은 프로덕션
-  하드닝 타겟(docs/wasm-spike.md §7).
-- `Extension::id(&self) -> &'static str` → `-> &str` 로 축소. 런타임 학습 id 를
-  leak/unsafe 없이 소유 String 의 참조로 노출. 모든 기존 구현(리터럴)은 그대로.
+**v1 구현 내역 (유지):**
 
-**검증:** `cargo test -p oxipage-wasm`(3 tests: 메타데이터/lobby 카드/로더 복원력) ·
-`cargo test -p oxipage-core --test http_app install_writes_wasm`(install round-trip:
-파일 쓰기 + extension_state) · `cargo clippy --workspace --all-targets -- -D warnings`
-클린 · `cargo build -p oxipage-server --features wasm` OK.
+1. **`wasmtime` v33** — workspace deps. 코어 WASM 모듈 + 수동 ABI.
+2. **`oxipage-wasm` 호스트** — `WasmExtensionAdapter: impl Extension + RouteDispatcher`.
+3. **`oxipage-ext-wasm-demo`** — `no_std` cdylib. lobby 카드 + 3개 라우트.
+4. **`oxipage extension install`** — `POST /extensions/install` → 서명 검증 → 파일/DB/활성화.
+5. **서버 통합(feature `wasm`)** — 부팅 시 `data/extensions/*.wasm` + install 시 라이브 등록.
 
-doc/07 §7.7 의 "명시적 설계 제약" 유지 — 본 스파이크는 가능성 탐색이며 v1 기능이 아님.
+**의도적 편차 (유지):**
+- 코어 WASM 모듈 + 수동 ABI (`cargo-component`/`wit-bindgen` 미설치). 컴포넌트 모델은 future work.
+- `Extension::id(&self) -> &str` 축소 유지.
+
+**검증:** `cargo test -p oxipage-wasm`(6 tests) · install round-trip(서명 검증 포함) ·
+`cargo clippy --workspace --all-targets -- -D warnings` 클린 ·
+`cargo clippy -p oxipage-server --features wasm -- -D warnings` 클린.
+
+**남은 과제:** 컴포넌트 모델(WIT), 메모리 상한, 다중 서명 키, 원격 레지스트리, 핫 언로드.
 
 ## 8.5 배포 스모크 (Verification, 외부 자격증명 필요)
 
@@ -194,3 +193,64 @@ doc/07 §7.7 의 "명시적 설계 제약" 유지 — 본 스파이크는 가능
   `write`로 통째 재작성**(이 세션에서 4회 연속 `vec![` 누락/중복 사고).
 - **subagent 429:** Phase 2처럼 병렬 dispatch 시 가끔 `Token Plan usage limit`로
   즉시 죽음. inline 폴백 준비.
+
+## 8.10 셀프호스팅 갭 수정 (2026-07-28)
+
+**배경:** 셀프호스팅 아키텍처 평가에서 설계 문서가 "완료"로 표기한 핵심 운영
+서브시스템들이 코드에 통합되지 않은 채 dead code로 남아 있고, tracker(§7.1,
+§8.1)가 이를 거짓으로 완료 표기하고 있음이 확인됐다. 아래 항목을 수정했다.
+
+### 수정 내역
+
+1. **백그라운드 잡 스케줄러 통합 (치명적 갭)**
+   - `ScheduledJob::run` 시그니처를 `run(&self)` → `run(&self, &AppState)`로 변경
+     (`crates/oxipage-core/src/scheduler.rs`). 이전 시그니처는 job body가 DB
+     pool/config에 접근할 수 없어 구조적으로 no-op이었다.
+   - `Scheduler`에 6-field cron 파서 + `spawn_all()` 드라이버 추가
+     (`tokio::time::sleep` 기반, `tokio-cron-scheduler` 외부 의존성 없이).
+   - `run_server_with_extensions`(`crates/oxipage-server/src/lib.rs`)에 활성
+     확장의 `background_jobs()` 수집 + `scheduler.spawn_all(state)` 연결.
+   - `ActivitySyncJob::run` 실제 구현: `GithubClient::fetch_public_events()` →
+     `repo::upsert()` (`crates/oxipage-ext-activity/src/lib.rs`).
+   - `ScrapCollectJob::run` 실제 구현: HN topstories + GeekNews RSS fetch →
+     `repo::upsert_queue_item()` (`crates/oxipage-ext-scraps/src/lib.rs`).
+     scraps에 `reqwest` 의존성 추가.
+   - workspace `Cargo.toml`에 tokio `time` feature 추가.
+
+2. **GitHub webhook HMAC-SHA256 서명 검증 (보안 결함)**
+   - `crates/oxipage-ext-activity/src/routes.rs`의 `webhook` 핸들러에
+     `X-Hub-Signature-256` 검증 추가. `OXIPAGE_GITHUB_WEBHOOK_SECRET` 환경변수
+     필요 — 미설정 시 503(조용히 비활성화 원칙).
+   - `hmac`/`sha2` 의존성 추가, `oxipage_core::auth::constant_time_eq` pub 노출.
+   - 단위 테스트 6건 + 통합 테스트 2건(서명 없음/잘못된 서명 → 401) 추가.
+
+3. **Dockerfile 비root 실행 (보안 결함)**
+   - `deploy/Dockerfile` 런타임 단계에 `groupadd`/`useradd` + `USER oxipage` 추가.
+     doc/05 §5.5 "최소 권한 컨테이너 실행" 준수.
+
+4. **SIGTERM graceful shutdown**
+   - `shutdown_signal()`이 `ctrl_c`(SIGINT)만 잡던 것을 `tokio::select!`로
+     SIGTERM도 대기하도록 수정. systemd/launchd `stop` 시 드레인 보장.
+
+5. **백업 메커니즘 (코드 레벨)**
+   - `crates/oxipage-core/src/backup.rs`: `vacuum_into(pool, dest)` — SQLite
+     `VACUUM INTO` 온라인 포인트-인-타임 스냅샷.
+   - `POST /api/v1/backup/snapshot` (admin) — `data_dir/backups/oxipage-<epoch>.db` 생성.
+   - `oxipage backup snapshot` CLI 서브커맨드.
+
+6. **Caddyfile container 모드 커버**
+   - `deploy/Caddyfile.example`에 binary-direct(127.0.0.1:8787) vs container
+     모드(컨테이너 전용 고정 IP) 분기 주석 추가.
+
+### 검증
+
+- `cargo test --workspace`: **128 tests, 0 failed**
+- `cargo clippy --workspace --all-targets -- -D warnings`: clean
+- `cargo check --workspace --all-targets`: clean
+
+### 여전히 남은 항목 (외부 자격증명 필요)
+
+- **배포 스모크 (§8.5):** Caddy + Cloudflare Tunnel + 실제 도메인 기동 검증.
+- **브라우저 접근성 실측 (§8.6):** VoiceOver/NVDA, prefers-reduced-motion.
+- **litestream 운영 설정:** doc/05 §5.4의 WAL 스트리밍은 운영 레벨(설정 파일)
+  영역. 코드 레벨 폴백(`VACUUM INTO`)은 위 5번에서 구현됨.
