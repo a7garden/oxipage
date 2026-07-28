@@ -161,6 +161,14 @@ pub enum ExtensionCommand {
     Install { name: String },
 }
 
+#[derive(Subcommand, Debug)]
+pub enum BackupCommand {
+    /// SQLite VACUUM INTO 포인트-인-타임 스냅샷 (doc/05 §5.4).
+    /// 서버 측 data_dir/backups/oxipage-<epoch>.db 에 일관된 복사본을 생성한다.
+    /// admin 스코프 토큰 필요.
+    Snapshot,
+}
+
 // ───────────────────────── dispatch ─────────────────────────
 
 pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
@@ -178,6 +186,7 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
         Command::Link(c) => link(c, &out, &endpoint, &token).await,
         Command::Lobby(c) => lobby(c, &out, &endpoint, &token).await,
         Command::Extension(c) => extension(c, &out, &endpoint, &token).await,
+        Command::Backup(c) => backup(c, &out, &endpoint, &token).await,
     }
 }
 
@@ -664,6 +673,24 @@ async fn extension(
                 .post_raw("/api/v1/extensions/install", json!({ "name": name }))
                 .await?;
             out.data(res, "extension install")
+        }
+    }
+}
+
+async fn backup(
+    c: BackupCommand,
+    out: &Output,
+    endpoint: &str,
+    token: &Option<String>,
+) -> anyhow::Result<()> {
+    let client = Client::new(endpoint.to_string(), token.clone())?;
+    match c {
+        BackupCommand::Snapshot => {
+            require_token(&client)?;
+            let res = client
+                .post_raw("/api/v1/backup/snapshot", json!({}))
+                .await?;
+            out.data(res, "backup snapshot")
         }
     }
 }

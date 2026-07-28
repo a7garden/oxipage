@@ -63,6 +63,9 @@ pub enum Command {
     /// 확장 탑재/제거 (doc/02 §2.13, doc/04 §4.3)
     #[command(subcommand)]
     Extension(commands::ExtensionCommand),
+    /// 백업 (doc/05 §5.4) — SQLite VACUUM INTO 스냅샷
+    #[command(subcommand)]
+    Backup(commands::BackupCommand),
 }
 
 #[tokio::main]
