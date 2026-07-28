@@ -6,10 +6,31 @@ pub mod routes;
 use async_trait::async_trait;
 use axum::Router;
 use axum::routing::{get, post};
-use oxipage_core::extension::{Extension, Lang, LobbyCard, LobbyCardItem, Migration};
+use oxipage_core::client::Client;
+use oxipage_core::extension::{CliCommand, CliSubcommand, CliHandler, Extension, Lang, LobbyCard, LobbyCardItem, Migration};
 use oxipage_core::scheduler::ScheduledJob;
 use oxipage_core::state::AppState;
+use std::collections::BTreeMap;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
+
+// ── CLI handlers ──
+
+struct ActivitySyncHandler;
+impl CliHandler for ActivitySyncHandler {
+    fn run(&self, _args: BTreeMap<String, String>, client: &Client)
+        -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>>
+    {
+        let client = client.clone();
+        Box::pin(async move {
+            let resp = client.post_raw("/api/v1/activity/sync", serde_json::json!({})).await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            println!("{}", serde_json::to_string_pretty(&resp)?);
+            Ok(())
+        })
+    }
+}
 
 pub struct ActivityExtension;
 pub struct ActivitySyncJob;
@@ -109,5 +130,20 @@ impl Extension for ActivityExtension {
 
     fn background_jobs(&self) -> Vec<Arc<dyn ScheduledJob>> {
         vec![Arc::new(ActivitySyncJob)]
+    }
+
+    fn cli_commands(&self) -> Vec<CliCommand> {
+        vec![CliCommand {
+            name: "activity",
+            about: "Manage activity feed",
+            subcommands: vec![
+                CliSubcommand {
+                    name: "sync",
+                    about: "Trigger activity sync from GitHub",
+                    args: vec![],
+                    handler: Some(Arc::new(ActivitySyncHandler)),
+                },
+            ],
+        }]
     }
 }
