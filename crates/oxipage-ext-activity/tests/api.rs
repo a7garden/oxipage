@@ -1,15 +1,24 @@
 use axum::Router;
 use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};
+use hmac::{Hmac, Mac};
 use oxipage_core::config::Config;
 use oxipage_core::extension::Extension;
 use oxipage_core::registry::ExtensionRegistry;
 use oxipage_core::state::AppState;
 use oxipage_ext_activity::ActivityExtension;
+use sha2::Sha256;
 use std::sync::Arc;
 use tower::ServiceExt;
 
+type HmacSha256 = Hmac<Sha256>;
+
+const TEST_SECRET: &str = "test-webhook-secret";
+
 async fn test_app(admin_token: Option<&str>) -> Router {
+    // webhook 핸들러가 환경변수에서 시크릿을 읽으므로 테스트 시작 시 설정.
+    // SAFETY: 단일 스레드 테스트 시작 시점, 다른 스레드가 env를 읽지 않음.
+    unsafe { std::env::set_var("OXIPAGE_GITHUB_WEBHOOK_SECRET", TEST_SECRET) };
     let pool = oxipage_core::db::connect_memory().await.unwrap();
     let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(ActivityExtension)]));
     registry.run_migrations(&pool, &[]).await.unwrap();
@@ -18,6 +27,7 @@ async fn test_app(admin_token: Option<&str>) -> Router {
         config: Arc::new(Config::default()),
         admin_token: admin_token.map(Arc::<str>::from),
         registry: registry.clone(),
+        wasm_loader: None,
     };
     Router::new()
         .nest(
@@ -43,11 +53,22 @@ fn push_payload(id: &str, repo: &str, occurred_at: &str) -> String {
     .to_string()
 }
 
+fn sign(secret: &str, body: &[u8]) -> String {
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).unwrap();
+    mac.update(body);
+    let bytes = mac.finalize().into_bytes();
+    let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+    format!("sha256={hex}")
+}
+
+/// 유효한 HMAC 서명을 포함해 webhook을 호출한다.
 async fn webhook(app: &Router, payload: String) -> axum::response::Response {
+    let sig = sign(TEST_SECRET, payload.as_bytes());
     app.clone()
         .oneshot(
             Request::post("/api/v1/activity/webhook")
                 .header("content-type", "application/json")
+                .header("x-hub-signature-256", sig)
                 .body(Body::from(payload))
                 .unwrap(),
         )
@@ -138,8 +159,44 @@ async fn sync_without_token_is_401() {
 #[tokio::test]
 async fn malformed_webhook_is_422() {
     let app = test_app(Some("tok")).await;
-    let res = webhook(&app, serde_json::json!({"type":"PushEvent"}).to_string()).await;
+    // 유효한 서명 + 잘못된 JSON 본문 → 서명 통과 후 validation에서 422.
+    let payload = serde_json::json!({"type":"PushEvent"}).to_string();
+    let res = webhook(&app, payload).await;
     assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn webhook_without_signature_is_401() {
+    let app = test_app(Some("tok")).await;
+    let payload = push_payload("event-x", "owner/repo", "2026-07-27T12:00:00Z");
+    let res = app
+        .oneshot(
+            Request::post("/api/v1/activity/webhook")
+                .header("content-type", "application/json")
+                .body(Body::from(payload))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn webhook_with_bad_signature_is_401() {
+    let app = test_app(Some("tok")).await;
+    let payload = push_payload("event-y", "owner/repo", "2026-07-27T12:00:00Z");
+    let bad_sig = sign("wrong-secret", payload.as_bytes());
+    let res = app
+        .oneshot(
+            Request::post("/api/v1/activity/webhook")
+                .header("content-type", "application/json")
+                .header("x-hub-signature-256", bad_sig)
+                .body(Body::from(payload))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[test]

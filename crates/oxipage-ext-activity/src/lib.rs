@@ -24,13 +24,36 @@ impl ScheduledJob for ActivitySyncJob {
         "activity_sync"
     }
 
-    async fn run(&self) -> anyhow::Result<()> {
-        match std::env::var("OXIPAGE_GITHUB_USERNAME") {
-            Ok(username) if !username.trim().is_empty() => {
-                tracing::info!(%username, "activity sync job is deferred to the authenticated sync endpoint in Phase 2");
-            }
-            _ => tracing::debug!("activity sync skipped: GitHub username is not configured"),
+    /// GitHub 공개 Events API 폴링 (doc/01 §1.9, doc/02 §2.8).
+    /// webhook가 1순위, 이 폴링은 누락 보정용 보조.
+    ///
+    /// **구현 (doc/08 수정):** `ScheduledJob::run(&self, &AppState)` 시그니처로
+    /// DB pool/config에 접근해 실제 fetch/upsert를 수행한다. 이전엔 시그니처가
+    /// `run(&self)`라 "deferred to Phase 2" 로그만 찍는 no-op이었다.
+    async fn run(&self, ctx: &AppState) -> anyhow::Result<()> {
+        let client =
+            client::GithubClient::with_username(ctx.config.integrations.github_username())?;
+        if !client.enabled() {
+            tracing::debug!("activity sync skipped: GitHub username not configured");
+            return Ok(());
         }
+        let events = client.fetch_public_events().await?;
+        let total = events.len();
+        let mut synced = 0usize;
+        for event in events {
+            // 빈 필드 이벤트는 스킵 (routes::validate_event와 동일한 안전망).
+            if event.kind.trim().is_empty()
+                || event.repo.name.trim().is_empty()
+                || event.created_at.trim().is_empty()
+            {
+                continue;
+            }
+            match repo::upsert(&ctx.db, &event.into_input()).await {
+                Ok(_) => synced += 1,
+                Err(e) => tracing::warn!(error = ?e, "activity upsert failed"),
+            }
+        }
+        tracing::info!(total, synced, "activity sync tick completed");
         Ok(())
     }
 }

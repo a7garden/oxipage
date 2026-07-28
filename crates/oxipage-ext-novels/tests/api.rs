@@ -17,6 +17,7 @@ async fn test_app(admin_token: Option<&str>) -> Router {
         config: Arc::new(Config::default()),
         admin_token: admin_token.map(Arc::<str>::from),
         registry: registry.clone(),
+        wasm_loader: None,
     };
     for e in registry.iter() {
         e.on_startup(&state).await.unwrap();
