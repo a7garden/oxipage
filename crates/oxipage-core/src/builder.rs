@@ -10,6 +10,7 @@
 
 use std::error::Error;
 
+use erased_serde::Serialize;
 use sqlx::SqlitePool;
 
 /// A single static HTML page produced during build.
@@ -53,24 +54,24 @@ pub struct BuildOutput {
 /// Implementors must be `Send + Sync` so rayon can process them in parallel.
 /// All methods are synchronous — build is CPU-bound.
 pub trait BuildExt: Send + Sync {
-    /// Associated error type for build operations.
-    type Error: Error + Send + 'static;
-
     /// Extension identifier, e.g. `"blog"`, `"projects"`.
     fn ext_id(&self) -> &'static str;
 
     /// Generate static HTML pages for published content.
     ///
     /// URL path convention: `{ext_id}/{slug}/index.html`.
-    fn build_pages(&self, db: &SqlitePool) -> Result<Vec<StaticPage>, Self::Error>;
+    fn build_pages(&self, db: &SqlitePool) -> Result<Vec<StaticPage>, Box<dyn Error + Send>>;
 
     /// Generate client-side data as a serializable object.
     ///
     /// Will be written to `out/data/{ext_id}.json`.
-    fn build_data(&self, db: &SqlitePool) -> Result<Box<dyn erased_serde::Serialize + Send>, Self::Error>;
+    fn build_data(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Box<dyn Serialize + Send>, Box<dyn Error + Send>>;
 
     /// Generate search index documents for this extension's published content.
-    fn build_search_docs(&self, db: &SqlitePool) -> Result<Vec<SearchDoc>, Self::Error>;
+    fn build_search_docs(&self, db: &SqlitePool) -> Result<Vec<SearchDoc>, Box<dyn Error + Send>>;
 }
 
 impl BuildOutput {
