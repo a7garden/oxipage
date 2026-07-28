@@ -22,13 +22,14 @@ productization (Phase 5) are implemented. The detailed, living tracker is
 
 - **Core:** Axum HTTP server, SQLite (WAL) + per-extension namespaced migrations, FTS5 search
   (`tokenize='trigram'`), publish-time SSR snapshots, PAT scope auth, rate limiting,
-  OpenAPI/Swagger UI, background-job scheduler.
+  OpenAPI/Swagger UI, background-job scheduler (cron-driven, wired into server boot —
+  activity GitHub polling every 15 min, scraps HN/GeekNews collection every 30 min).
 - **9 extensions:** `profile` · `blog` · `projects` · `links` · `novels` · `movies` (TMDB) ·
   `books` (Aladin/Google Books) · `scraps` (HN/GeekNews) · `activity` (GitHub).
-- **CLI:** `init` · `status` · `serve` · `auth` · `blog` · `project` · `link` · `lobby`.
+- **CLI:** `init` · `status` · `serve` · `auth` · `blog` · `project` · `link` · `lobby` · `backup`.
   (CLI subcommands for the Phase 2 extensions — novel/review/scrap/activity — are deferred;
   those are reachable via API/web today.)
-- **Verified:** `cargo test --workspace` **90 tests, 0 failed** · `cargo clippy --workspace
+- **Verified:** `cargo test --workspace` **128 tests, 0 failed** · `cargo clippy --workspace
   --all-targets -- -D warnings` clean · `cd web && bun run build` OK.
 
 ## Requirements
@@ -193,11 +194,16 @@ PAT scopes: `post:write` (create/edit drafts), `post:publish` (publish), `read` 
 hash is stored and verified. Token-management API: `GET/POST /api/v1/auth/tokens`,
 `DELETE /api/v1/auth/tokens/{id}` (all require `admin`).
 
+The GitHub activity webhook (`POST /api/v1/activity/webhook`) is public and verifies requests
+with an HMAC-SHA256 signature (`X-Hub-Signature-256`). Set `OXIPAGE_GITHUB_WEBHOOK_SECRET` to
+the secret you configured in your GitHub webhook settings; if unset, the endpoint returns 503.
+
 ## HTTP API
 
 - Versioned prefix `/api/v1/**`; each extension mounts at `/api/v1/{extension}/**`.
 - `GET /healthz` · `GET /api/v1/lobby/manifest` · `GET /api/v1/search?q=` ·
-  `GET /api/v1/docs` (Swagger UI) · `GET /api/v1/docs/openapi.json`.
+  `GET /api/v1/docs` (Swagger UI) · `GET /api/v1/docs/openapi.json` ·
+  `POST /api/v1/backup/snapshot` (admin — SQLite `VACUUM INTO` point-in-time snapshot).
 - Public reads need no auth (rate-limited to 120 req/min/IP); writes require a bearer token.
 
 ## Deployment
@@ -207,7 +213,12 @@ Templates live in [`deploy/`](deploy/) (`oxipage.plist.example`, `oxipage.servic
 `Caddyfile.example`, `Dockerfile`) with full guidance in
 [`doc/05-deployment-self-hosting.md`](doc/05-deployment-self-hosting.md). Expose it to the
 internet with Cloudflare Tunnel (`cloudflared`) + a host-native Caddy reverse proxy — no
-inbound ports opened on your home network.
+inbound ports opened on your home network. The Dockerfile runs as a non-root `oxipage` user.
+
+**Backups:** `oxipage backup snapshot` (or `POST /api/v1/backup/snapshot`) creates a consistent
+SQLite snapshot via `VACUUM INTO` at `data_dir/backups/oxipage-<epoch>.db`. For continuous
+backup, run [litestream](https://litestream.io) against the WAL (see doc/05 §5.4); media under
+`data_dir/media` needs a separate restic/rclone sync.
 
 ## Project structure
 

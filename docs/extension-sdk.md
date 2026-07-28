@@ -90,7 +90,9 @@ impl Extension for MyFeatureExtension {
 7. **No cross-extension JOINs:** if you need data from another extension, compose via the core API
    (doc/02 preamble).
 8. **Background jobs:** if you need external-API polling or cache refresh, return a `ScheduledJob`
-   from `background_jobs()`. If the key is absent, silently disable (doc/01 §1.9).
+   from `background_jobs()`. The job's `run(&self, ctx: &AppState)` receives the app state so it
+   can access `ctx.db` and `ctx.config`. The core scheduler spawns each active extension's jobs
+   on a cron driver at boot. If the key is absent, silently disable (doc/01 §1.9).
 9. **External API keys:** the `[integrations]` section of `oxipage.toml` holds the *env-var name*;
    read the value via the `Config::integrations` helpers (`tmdb_key()` / `aladin_key()` /
    `github_username()`). Never put plaintext keys in the config file.

@@ -33,6 +33,8 @@ enabled = [
 # github_username = "yourname"             # activity extension (public Events API).
 # tmdb_api_key_env = "OXIPAGE_TMDB_KEY"     # movies. Manual mode if unset.
 # aladin_ttbkey_env = "OXIPAGE_ALADIN_TTBKEY"  # books, first choice. Falls back to Google Books if unset.
+# GitHub webhook HMAC secret (activity). Set the env var OXIPAGE_GITHUB_WEBHOOK_SECRET
+# to the secret you configured in GitHub webhook settings. Webhook returns 503 if unset.
 
 [lobby]
 default_mode = "grid"                       # "canvas" | "grid" | "list". Per-extension overrides via API/CLI.

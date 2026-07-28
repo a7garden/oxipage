@@ -19,13 +19,13 @@ Phase 0~5가 대부분 구현되었다. 단위별 완료/잔여 상태는 [`08`]
 | Cargo 워크스페이스(core/server/cli + 9개 확장) | ✅ |
 | Axum 0.8 서버, SQLite(WAL) + 확장별 네임스페이스 마이그레이션, 레지스트리 | ✅ |
 | FTS5(`tokenize='trigram'`) 전문검색, SSR 발행 시점 스냅샷, PAT 스코프 인증, 레이트리밋, OpenAPI | ✅ |
-| 9개 확장 + 공통 Rating 값객체 + 백그라운드 잡 스케줄러 | ✅ |
+| 9개 확장 + 공통 Rating 값객체 + 백그라운드 잡 스케줄러 | ✅ (2026-07-28 수정: 스케줄러 서버 연결 + job body 구현, §8.10 참조) |
 | Vite 7 + React 19 + TS SPA, OKLCH 토큰, 다크/라이트, 로비 3모드, `/search` | ✅ |
 | Oxipage CLI(init/status/serve/auth/blog/project/link/lobby) + oh-my-pi SKILL | ✅ |
 | 배포 템플릿·LICENSE(MIT)·SDK 문서·레지스트리·starter | ✅ |
 | Phase 2 확장의 CLI 서브커맨드(novel/review/scrap/activity) | ⏳ API/웹으로만 (후순위) |
 | WASM 컴포넌트 런타임 로딩 스파이크 (Phase 5 옵션) | ✅ 코어 모듈 스파이크 완료 ([docs/wasm-spike.md](../docs/wasm-spike.md)) |
-| 검증: `cargo test --workspace` 108 tests ok · clippy `-D warnings` 클린 · web 빌드 OK · SSR E2E 스모크 | ✅ |
+| 검증: `cargo test --workspace` 128 tests ok · clippy `-D warnings` 클린 · web 빌드 OK · SSR E2E 스모크 | ✅ |
 | 검증: 배포 스모크·브라우저 접근성 실측 | ⏳ 외부 자격증명 필요 |
 
 ## 7.2 Phase 0에서 이월된 항목
