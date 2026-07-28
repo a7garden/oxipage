@@ -14,3 +14,4 @@ pub mod scheduler;
 pub mod search;
 pub mod snapshot;
 pub mod state;
+pub mod client;
