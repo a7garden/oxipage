@@ -22,6 +22,8 @@ anyhow = "1"
 async-trait = "0.1"
 axum = { version = "0.8", features = ["macros"] }
 sha2 = "0.10"
+ed25519-dalek = { version = "2", features = ["std"] }
+base64 = "0.22"
 clap = { version = "4", features = ["derive", "env"] }
 directories = "5"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"] }
@@ -31,12 +33,13 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio-rustls", "macros", "json", "chrono"] }
 thiserror = "2"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time"] }
 toml = "0.8"
 tower-http = { version = "0.6", features = ["trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 wasmtime = { version = "33", default-features = false, features = ["cranelift", "runtime", "parallel-compilation", "cache"] }
+hmac = "0.12"
 
 [profile.release]
 lto = true
