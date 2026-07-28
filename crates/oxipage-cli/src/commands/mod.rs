@@ -24,6 +24,9 @@ use crate::credentials;
 use crate::output::Output;
 use crate::sites;
 use crate::{Cli, Command};
+use std::collections::BTreeMap;
+use std::sync::Arc;
+use oxipage_core::extension::{CliCommand, CliHandler};
 
 // ───────────────────────── dispatch ─────────────────────────
 
@@ -61,6 +64,9 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
         Command::Extension(c) => extension::extension(c, &out, &client).await,
         Command::Backup(c) => backup::backup(c, &out, &client).await,
         Command::Site(_) => unreachable!(), // handled above
+        Command::Dynamic(ref args) => {
+            dispatch_dynamic(args, &client, &out).await
+        }
     }
 }
 
@@ -164,6 +170,150 @@ pub(crate) fn require_token(client: &Client) -> anyhow::Result<()> {
         );
     }
     Ok(())
+}
+
+// ──────────────────── 동적 명령 디스패치 (doc/11) ────────────────────
+
+/// Dynamic args를 받아 확장 레지스트리에서 명령을 조회하고 실행한다.
+async fn dispatch_dynamic(
+    args: &[String],
+    client: &Client,
+    out: &Output,
+) -> anyhow::Result<()> {
+    if args.is_empty() {
+        anyhow::bail!("missing dynamic command name.\nRun `oxipage --help` for available commands.");
+    }
+    let ext_name = &args[0];
+    let sub_name = args.get(1).ok_or_else(|| {
+        anyhow::anyhow!(
+            "missing subcommand for extension '{ext_name}'.\nRun `oxipage {ext_name} --help` for available subcommands."
+        )
+    })?;
+    let parsed = parse_dynamic_args(&args[2..]);
+
+    let registry = resolve_command_registry(client).await?;
+    let result = registry.lookup(ext_name, sub_name)?;
+
+    match result {
+        LookupResult::Native(handler) => handler.run(parsed, &client).await,
+        LookupResult::Proxy => {
+            // 핸들러 없음 → 서버 위임 (WASM 확장)
+            let resp = client
+                .post(
+                    &format!("/api/v1/cli/exec/{ext_name}/{sub_name}"),
+                    &serde_json::json!({ "args": parsed }),
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("CLI exec proxy failed: {e}"))?;
+            out.data(resp, "result")?;
+            Ok(())
+        }
+    }
+}
+
+/// 동적 명령 레지스트리: 컴파일 확장 목록 + 서버 디스커버리 병합.
+async fn resolve_command_registry(client: &Client) -> anyhow::Result<DynamicRegistry> {
+    // 1. 컴파일 확장의 CLI 커맨드
+    let compiled: Vec<CliCommand> = oxipage_server::all_extensions()
+        .iter()
+        .flat_map(|ext| ext.cli_commands())
+        .collect();
+
+    // 2. 서버 디스커버리 (실패 시 조용히 폴백)
+    let discovered = match client.get("/api/v1/cli/commands").await {
+        Ok(val) => {
+            let manifest: oxipage_core::extension::CliCommandManifest =
+                serde_json::from_value(val)
+                    .unwrap_or(oxipage_core::extension::CliCommandManifest {
+                        extensions: vec![],
+                    });
+            manifest
+        }
+        Err(_) => oxipage_core::extension::CliCommandManifest {
+            extensions: vec![],
+        },
+    };
+
+    Ok(DynamicRegistry { compiled, discovered })
+}
+
+/// `--key value --flag` 형태의 raw args를 `BTreeMap<String, String>`으로 파싱.
+fn parse_dynamic_args(raw: &[String]) -> BTreeMap<String, String> {
+    let mut map = BTreeMap::new();
+    let mut i = 0;
+    while i < raw.len() {
+        let key = &raw[i];
+        if let Some(stripped) = key.strip_prefix("--") {
+            if i + 1 < raw.len() && !raw[i + 1].starts_with("--") {
+                map.insert(stripped.to_string(), raw[i + 1].clone());
+                i += 2;
+            } else {
+                // 플래그 (값 없음): --flag = true
+                map.insert(stripped.to_string(), "true".to_string());
+                i += 1;
+            }
+        } else if let Some(stripped) = key.strip_prefix('-') {
+            // short flag: -v (boolean) or -t value
+            if i + 1 < raw.len() && !raw[i + 1].starts_with('-') {
+                map.insert(stripped.to_string(), raw[i + 1].clone());
+                i += 2;
+            } else {
+                map.insert(stripped.to_string(), "true".to_string());
+                i += 1;
+            }
+        } else {
+            i += 1;
+        }
+    }
+    map
+}
+
+/// 컴파일 확장 + 서버 디스커버리를 합친 레지스트리.
+struct DynamicRegistry {
+    compiled: Vec<CliCommand>,
+    discovered: oxipage_core::extension::CliCommandManifest,
+}
+
+/// lookup 결과: 핸들러 소유권 여부.
+enum LookupResult {
+    /// 네이티브 핸들러 있음 (컴파일 확장).
+    Native(Arc<dyn CliHandler>),
+    /// 서버 위임 필요 (WASM 확장 또는 핸들러 없는 명령).
+    Proxy,
+}
+
+impl DynamicRegistry {
+    fn lookup(
+        &self,
+        ext_name: &str,
+        sub_name: &str,
+    ) -> anyhow::Result<LookupResult> {
+        // 1. 컴파일 목록에서 검색
+        if let Some(cmd) = self.compiled.iter().find(|c| c.name == ext_name) {
+            if let Some(sub) = cmd.subcommands.iter().find(|s| s.name == sub_name) {
+                if let Some(h) = &sub.handler {
+                    return Ok(LookupResult::Native(Arc::clone(h)));
+                }
+            }
+        }
+
+        // 2. 서버 디스커버리 목록에서 검색 (WASM 확장)
+        if let Some(spec) = self
+            .discovered
+            .extensions
+            .iter()
+            .find(|e| e.name == ext_name || e.extension_id == ext_name)
+        {
+            if spec.subcommands.iter().any(|s| s.name == sub_name) {
+                return Ok(LookupResult::Proxy);
+            }
+        }
+
+        anyhow::bail!(
+            "unknown command: 'oxipage {ext_name} {sub_name}'. \
+             Run `oxipage --help` for available commands."
+        )
+    }
 }
 
 // ───────────────────────── unit tests ─────────────────────────
