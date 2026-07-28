@@ -1,7 +1,7 @@
 // 확장 관리 페이지 — 활성/비활성 토글, purge, 목록 조회
 
 import { useEffect, useState } from "react";
-import { useSite, siteGet, sitePost, siteDelete } from "../shared/api";
+import { useSite, apiGet, apiPost, apiDelete } from "../shared/api";
 import { Card } from "../shared/ui/card";
 import { Button } from "../shared/ui/button";
 
@@ -23,9 +23,7 @@ export function ExtensionsPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await siteGet<{ data: ExtensionInfo[] }>(
-        activeSite.name,
-        "api/v1/extensions",
+      const res = await apiGet<{ data: ExtensionInfo[] }>("api/v1/extensions",
       );
       setExtensions(res.data);
     } catch (e: any) {
@@ -44,14 +42,14 @@ export function ExtensionsPage() {
     const path = enable
       ? `api/v1/extensions/${id}/enable`
       : `api/v1/extensions/${id}/disable`;
-    await sitePost(activeSite.name, path);
+    await apiPost(path);
     await fetchExtensions();
   };
 
   const purgeExtension = async (id: string) => {
     if (!activeSite) return;
     if (!confirm(`정말 ${id} 확장을 purge하시겠습니까? 데이터가 삭제됩니다.`)) return;
-    await siteDelete(activeSite.name, `api/v1/extensions/${id}`);
+    await apiDelete(`/extensions/${id}`);
     await fetchExtensions();
   };
 

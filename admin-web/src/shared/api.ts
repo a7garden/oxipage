@@ -1,5 +1,5 @@
-// Admin API client. All calls are same-origin (no token exposure).
-// Proxy calls flow through: /api/admin/proxy/{site}/api/console/...
+// Admin API client. All calls are same-origin to the local console.
+// v2 SSG: no site proxy. The local console exposes /api/console/*.
 
 import { createContext, useContext } from "react";
 
@@ -8,8 +8,7 @@ import { createContext, useContext } from "react";
 export interface SiteProfile {
   name: string;
   endpoint: string;
-  token_masked: string | null;
-  active: boolean;
+  token?: string | null;
 }
 
 export interface ThemeInfo {
@@ -23,18 +22,19 @@ export interface ThemeInfo {
   preview_colors: string[];
 }
 
-// ─── Active Site Context ───
-
+// ─── Active Site Context (display-only in v2) ───
+// v2: there's only one local site. The "active site" is just a display
+// label. Multi-site config is managed by `oxipage site` CLI.
 export interface SiteContextValue {
   activeSite: SiteProfile | null;
-  setActiveSite: (name: string) => Promise<void>;
+  setActiveSite: (name: string | null) => void;
   sites: SiteProfile[];
   refreshSites: () => Promise<void>;
 }
 
 export const SiteContext = createContext<SiteContextValue>({
   activeSite: null,
-  setActiveSite: async () => {},
+  setActiveSite: () => {},
   sites: [],
   refreshSites: async () => {},
 });
@@ -43,102 +43,132 @@ export function useSite() {
   return useContext(SiteContext);
 }
 
-// ─── Direct Admin API ───
+// ─── Direct Admin API (local console) ───
 
-const BASE = "/api/admin";
+const ADMIN_BASE = "/api/admin";
+const CONSOLE_BASE = "/api/console";
+
+interface FetchOpts {
+  method?: "GET" | "POST" | "PUT" | "DELETE";
+  body?: unknown;
+  signal?: AbortSignal;
+}
+
+async function adminFetch<T>(path: string, opts: FetchOpts = {}): Promise<T> {
+  const { method = "GET", body, signal } = opts;
+  const res = await fetch(`${ADMIN_BASE}${path}`, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+    credentials: "include",
+    signal,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`admin API ${path} failed: ${res.status} ${text}`);
+  }
+  return (await res.json()) as T;
+}
+
+async function consoleFetch<T>(path: string, opts: FetchOpts = {}): Promise<T> {
+  const { method = "GET", body, signal } = opts;
+  const res = await fetch(`${CONSOLE_BASE}${path}`, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+    credentials: "include",
+    signal,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`console API ${path} failed: ${res.status} ${text}`);
+  }
+  return (await res.json()) as T;
+}
+
+// ─── Admin sites/themes ───
 
 export async function listSites(): Promise<{ data: SiteProfile[] }> {
-  const r = await fetch(`${BASE}/sites`);
-  if (!r.ok) throw new Error(`listSites: ${r.status}`);
-  return r.json();
+  return adminFetch("/sites");
 }
 
 export async function addSite(name: string, endpoint: string, token?: string): Promise<void> {
-  const r = await fetch(`${BASE}/sites`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, endpoint, token }),
-  });
-  if (!r.ok) throw new Error(`addSite: ${r.status}`);
+  await adminFetch("/sites", { method: "POST", body: { name, endpoint, token } });
 }
 
 export async function deleteSite(name: string): Promise<void> {
-  const r = await fetch(`${BASE}/sites/${encodeURIComponent(name)}`, { method: "DELETE" });
-  if (!r.ok) throw new Error(`deleteSite: ${r.status}`);
+  await adminFetch(`/sites/${encodeURIComponent(name)}`, { method: "DELETE" });
 }
 
 export async function setActiveSite(name: string): Promise<void> {
-  const r = await fetch(`${BASE}/sites/active`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
-  });
-  if (!r.ok) throw new Error(`setActiveSite: ${r.status}`);
+  await adminFetch("/sites/active", { method: "PUT", body: { name } });
 }
 
 export async function getActiveSite(): Promise<{ data: { name: string | null } }> {
-  const r = await fetch(`${BASE}/sites/active`);
-  if (!r.ok) throw new Error(`getActiveSite: ${r.status}`);
-  return r.json();
+  return adminFetch("/sites/active");
 }
 
 export async function getThemeCatalog(): Promise<{ data: ThemeInfo[] }> {
-  const r = await fetch(`${BASE}/themes`);
-  if (!r.ok) throw new Error(`getThemeCatalog: ${r.status}`);
-  return r.json();
+  return adminFetch("/themes");
 }
 
-// ─── Proxy API (site-scoped) ───
+// ─── Local console API (was: proxy to remote site) ───
+// v2 SSG: no remote sites. Always call the local console.
 
-function sitePath(siteName: string, path: string): string {
-  const clean = path.startsWith("/") ? path.slice(1) : path;
-  return `${BASE}/proxy/${encodeURIComponent(siteName)}/${clean}`;
+
+// ─── Generic console API ───
+
+export async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return consoleFetch<T>(path, { signal });
 }
 
-export async function siteGet<T>(siteName: string, path: string): Promise<T> {
-  const r = await fetch(sitePath(siteName, path));
-  if (!r.ok) {
-    const body = await r.text().catch(() => "");
-    throw new Error(`GET ${path}: ${r.status} ${body}`);
-  }
-  return r.json();
+export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
+  return consoleFetch<T>(path, { method: 'POST', body });
 }
 
-export async function sitePost<T>(siteName: string, path: string, body?: unknown): Promise<T> {
-  const r = await fetch(sitePath(siteName, path), {
-    method: "POST",
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!r.ok) {
-    const text = await r.text().catch(() => "");
-    throw new Error(`POST ${path}: ${r.status} ${text}`);
-  }
-  return r.json();
+export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
+  return consoleFetch<T>(path, { method: 'PUT', body });
 }
 
-export async function sitePut<T>(siteName: string, path: string, body?: unknown): Promise<T> {
-  const r = await fetch(sitePath(siteName, path), {
-    method: "PUT",
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!r.ok) {
-    const text = await r.text().catch(() => "");
-    throw new Error(`PUT ${path}: ${r.status} ${text}`);
-  }
-  return r.json();
+export async function apiDelete(path: string): Promise<void> {
+  await consoleFetch(path, { method: 'DELETE' });
 }
 
-export async function siteDelete(siteName: string, path: string): Promise<void> {
-  const r = await fetch(sitePath(siteName, path), { method: "DELETE" });
-  if (!r.ok) {
-    const text = await r.text().catch(() => "");
-    throw new Error(`DELETE ${path}: ${r.status} ${text}`);
-  }
+export async function listBlogPosts(
+  draft?: boolean,
+  lang?: string,
+): Promise<{ data: BlogPost[] }> {
+  const q = new URLSearchParams();
+  if (draft) q.set("draft", "true");
+  if (lang) q.set("lang", lang);
+  const qs = q.toString();
+  return consoleFetch(`/blog${qs ? `?${qs}` : ""}`);
 }
 
-// ─── Blog-specific API helpers (proxy-scoped) ───
+export async function getBlogPost(slug: string): Promise<{ data: BlogPost }> {
+  return consoleFetch(`/blog/${encodeURIComponent(slug)}`);
+}
+
+export async function createBlogPost(input: BlogPostInput): Promise<{ data: BlogPost }> {
+  return consoleFetch("/blog", { method: "POST", body: input });
+}
+
+export async function updateBlogPost(
+  slug: string,
+  patch: BlogPatch,
+): Promise<{ data: BlogPost }> {
+  return consoleFetch(`/blog/${encodeURIComponent(slug)}`, { method: "PATCH", body: patch });
+}
+
+export async function deleteBlogPost(slug: string): Promise<void> {
+  await consoleFetch(`/blog/${encodeURIComponent(slug)}`, { method: "DELETE" });
+}
+
+export async function publishBlogPost(slug: string): Promise<{ data: BlogPost }> {
+  return consoleFetch(`/blog/${encodeURIComponent(slug)}/publish`, { method: "POST" });
+}
+
+// ─── Types (blog) ───
 
 export interface BlogPost {
   id: number;
@@ -146,6 +176,7 @@ export interface BlogPost {
   title: string;
   body: string;
   lang: string;
+  translation_group_id: number | null;
   tags: string[];
   published_at: string | null;
   created_at: string;
@@ -154,9 +185,10 @@ export interface BlogPost {
 
 export interface BlogPostInput {
   title: string;
-  body?: string;
+  body: string;
   lang?: string;
   tags?: string[];
+  translation_group_id?: number | null;
   slug?: string;
 }
 
@@ -167,55 +199,39 @@ export interface BlogPatch {
   tags?: string[];
 }
 
-export async function listBlogPosts(site: string, draft?: boolean): Promise<{ data: BlogPost[] }> {
-  const q = draft === undefined ? "" : `?draft=${draft}`;
-  return siteGet(site, `api/v1/blog${q}`);
-}
-
-export async function getBlogPost(site: string, slug: string): Promise<{ data: BlogPost }> {
-  return siteGet(site, `api/v1/blog/${encodeURIComponent(slug)}`);
-}
-
-export async function createBlogPost(site: string, input: BlogPostInput): Promise<{ data: BlogPost }> {
-  return sitePost(site, "api/v1/blog", input);
-}
-
-export async function updateBlogPost(site: string, slug: string, patch: BlogPatch): Promise<{ data: BlogPost }> {
-  const r = await fetch(sitePath(site, `api/v1/blog/${encodeURIComponent(slug)}`), {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(patch),
-  });
-  if (!r.ok) throw new Error(`PATCH blog/${slug}: ${r.status}`);
-  return r.json();
-}
-
-export async function deleteBlogPost(site: string, slug: string): Promise<void> {
-  return siteDelete(site, `api/v1/blog/${encodeURIComponent(slug)}`);
-}
-
-export async function publishBlogPost(site: string, slug: string): Promise<{ data: BlogPost }> {
-  return sitePost(site, `api/v1/blog/${encodeURIComponent(slug)}/publish`);
-}
-
-// ─── Tokens ───
+// ─── Tokens (console local API) ───
 
 export interface PatRow {
   id: number;
   label: string;
   scopes: string;
   created_at: string;
-  expires_at: string | null;
 }
 
-export async function listTokens(site: string): Promise<{ data: PatRow[] }> {
-  return siteGet(site, "api/v1/auth/tokens");
+export async function listTokens(): Promise<{ data: PatRow[] }> {
+  return consoleFetch("/auth/tokens");
 }
 
-export async function createToken(site: string, label: string, scopes?: string): Promise<{ data: { id: number; label: string; token: string } }> {
-  return sitePost(site, "api/v1/auth/tokens", { label, scopes: scopes || "admin" });
+export async function createToken(
+  label: string,
+  scopes?: string,
+): Promise<{ data: { id: number; label: string; token: string } }> {
+  return consoleFetch("/auth/tokens", {
+    method: "POST",
+    body: { label, scopes: scopes || "admin" },
+  });
 }
 
-export async function revokeToken(site: string, id: number): Promise<void> {
-  return siteDelete(site, `api/v1/auth/tokens/${id}`);
+export async function revokeToken(id: number): Promise<void> {
+  await consoleFetch(`/auth/tokens/${id}`, { method: "DELETE" });
+}
+
+// ─── Theme (was proxied) ───
+
+export interface CurrentTheme {
+  theme_id: string;
+}
+
+export async function getCurrentTheme(): Promise<{ data: CurrentTheme }> {
+  return consoleFetch("/theme");
 }

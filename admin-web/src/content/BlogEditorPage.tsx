@@ -26,7 +26,7 @@ export function BlogEditorPage() {
     if (!slug || !activeSite) return;
     (async () => {
       try {
-        const res = await getBlogPost(activeSite.name, slug);
+        const res = await getBlogPost(slug);
         setTitle(res.data.title);
         setBody(res.data.body);
         setLang(res.data.lang);
@@ -54,12 +54,12 @@ export function BlogEditorPage() {
     setError(null);
     try {
       if (isNew) {
-        const res = await createBlogPost(activeSite.name, { title, body, lang, tags, slug: undefined });
+        const res = await createBlogPost({ title, body, lang, tags, slug: undefined });
         nav(`/content/blog/${res.data.slug}`, { replace: true });
       } else {
-        await updateBlogPost(activeSite.name, slug!, { title, body, lang, tags });
+        await updateBlogPost(slug!, { title, body, lang, tags });
         if (!draft) {
-          await publishBlogPost(activeSite.name, slug!);
+          await publishBlogPost(slug!);
         }
         nav("/content/blog");
       }

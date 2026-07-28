@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "react-router";
-import { useSite, siteGet, sitePost, siteDelete, type ExtensionInfo } from "../shared/api";
+import { useSite, apiGet, apiPost, apiDelete, type ExtensionInfo } from "../shared/api";
 import { Card } from "../shared/ui/card";
 import { Button } from "../shared/ui/button";
 import { Badge } from "../shared/ui/badge";
@@ -51,7 +51,7 @@ export function DataBrowserPage() {
   // Load extension list from server
   useEffect(() => {
     if (!activeSite) return;
-    siteGet<{ data: ExtensionInfo[] }>(activeSite.name, "api/v1/extensions")
+    apiGet<{ data: ExtensionInfo[] }>("/extensions")
       .then((res) => {
         const avail = res.data
           .filter((e) => e.enabled && DATA_EXTENSIONS.includes(e.id))
@@ -68,7 +68,7 @@ export function DataBrowserPage() {
     const path = DATA_EXTENSIONS.includes(activeExt)
       ? `api/v1/${activeExt}`
       : `api/v1/${activeExt}`;
-    siteGet<{ data: unknown[] }>(activeSite.name, path)
+    apiGet<{ data: unknown[] }>(path)
       .then((res) => setRecords(Array.isArray(res.data) ? res.data : []))
       .catch(() => setRecords([]))
       .finally(() => setLoading(false));
@@ -78,9 +78,9 @@ export function DataBrowserPage() {
     if (!activeSite || !id) return;
     if (!confirm("삭제하시겠습니까?")) return;
     try {
-      await siteDelete(activeSite.name, `api/v1/${activeExt}/${id}`);
+      await apiDelete(`/${activeExt}/${id}`);
       // Refresh
-      const res = await siteGet<{ data: unknown[] }>(activeSite.name, `api/v1/${activeExt}`);
+      const res = await apiGet<{ data: unknown[] }>(`/${activeExt}`);
       setRecords(Array.isArray(res.data) ? res.data : []);
     } catch (e: any) {
       alert("Delete failed: " + e.message);

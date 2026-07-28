@@ -19,7 +19,7 @@ export function TokensPage() {
     if (!activeSite) return;
     setLoading(true);
     try {
-      const res = await listTokens(activeSite.name);
+      const res = await listTokens();
       setTokens(res.data);
     } catch (e: any) {
       setError(e.message);
@@ -36,7 +36,7 @@ export function TokensPage() {
     if (!activeSite || !newLabel.trim()) return;
     setError(null);
     try {
-      const res = await createToken(activeSite.name, newLabel.trim(), "admin");
+      const res = await createToken(newLabel.trim(), "admin");
       setNewToken(res.data.token);
       setNewLabel("");
       setShowCreate(false);
@@ -49,7 +49,7 @@ export function TokensPage() {
   const handleRevoke = async (id: number) => {
     if (!activeSite || !confirm("토큰을 폐기하시겠습니까? 되돌릴 수 없습니다.")) return;
     try {
-      await revokeToken(activeSite.name, id);
+      await revokeToken(id);
       fetchTokens();
     } catch (e: any) {
       alert(e.message);

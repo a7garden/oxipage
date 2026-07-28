@@ -1,7 +1,7 @@
 // Dashboard — overview of the selected site
 
 import { useEffect, useState } from "react";
-import { useSite, siteGet } from "../shared/api";
+import { useSite, apiGet } from "../shared/api";
 import { Card } from "../shared/ui/card";
 import { Badge } from "../shared/ui/badge";
 
@@ -38,10 +38,10 @@ export function DashboardPage() {
     setError(null);
 
     Promise.all([
-      siteGet<HealthResponse>(activeSite.name, "healthz")
+      apiGet<HealthResponse>("/healthz")
         .then((r) => setHealth(r.data?.status ?? r.status))
         .catch(() => setHealth(null)),
-      siteGet<{ data: Manifest }>(activeSite.name, "api/v1/lobby/manifest")
+      apiGet<{ data: Manifest }>("/lobby/manifest")
         .then((r) => setManifest(r.data))
     ])
       .catch((e) => setError(e.message))

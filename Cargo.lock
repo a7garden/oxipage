@@ -1709,7 +1709,6 @@ dependencies = [
  "oxipage-ext-projects",
  "oxipage-ext-scraps",
  "oxipage-wasm",
- "reqwest",
  "rust-embed",
  "serde",
  "serde_json",

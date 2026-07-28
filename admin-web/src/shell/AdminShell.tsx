@@ -12,13 +12,16 @@ export function AdminShell() {
   const refreshSites = async () => {
     try {
       const { data } = await listSites();
-      setSites(data);
-      const active = data.find((s) => s.active) || data[0] || null;
+      // v2 SSG: always have a default local site so UI gating works
+      const localDefault: SiteProfile = { name: 'local', endpoint: 'http://127.0.0.1:8787' };
+      const all = data.length > 0 ? data : [localDefault];
+      setSites(all);
+      const active = all.find((s) => s.name === 'local') || all[0] || null;
       setActiveSiteState(active);
     } catch {
-      // No sites.toml yet — show empty state
-      setSites([]);
-      setActiveSiteState(null);
+      // No sites.toml yet — show local default
+      setSites([{ name: 'local', endpoint: 'http://127.0.0.1:8787' }]);
+      setActiveSiteState({ name: 'local', endpoint: 'http://127.0.0.1:8787' });
     }
   };
 

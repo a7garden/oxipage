@@ -1,13 +1,13 @@
-//! Admin sub-API (sites/themes/proxy) — 이전 oxipage-admin crate 통합 (v2).
+//! Admin sub-API (sites/themes) — 이전 oxipage-admin crate 통합 (v2).
 //!
-//! Sites 관리, 테마 카탈로그, 사이트 프록시 등 admin SPA의 백엔드 API.
+//! Sites 관리, 테마 카탈로그 등 admin SPA의 백엔드 API.
+//! v2 SSG: 사이트 프록시 제거. CLI는 로컬 DB/파일을 직접 다룬다 (oxipage query/schema/build/deploy).
 
-pub mod proxy;
 pub mod sites_api;
 pub mod themes;
 
 use axum::response::{IntoResponse, Response};
-use axum::routing::{any, delete, get, post, put};
+use axum::routing::get;
 use axum::{Json, Router};
 use directories::ProjectDirs;
 use rust_embed::RustEmbed;
@@ -21,8 +21,6 @@ use tokio::sync::RwLock;
 pub struct AdminContext {
     /// 사이트 목록 (`~/.config/oxipage/sites.toml`)
     pub sites_path: PathBuf,
-    /// 사이트 프록시용 HTTP 클라이언트 (인증 토큰 주입)
-    pub client: reqwest::Client,
     /// 멀티사이트 활성 사이트
     pub active_site: Arc<RwLock<Option<String>>>,
 }
@@ -36,8 +34,6 @@ pub enum AdminError {
     BadRequest(String),
     #[error("internal error: {0}")]
     Internal(anyhow::Error),
-    #[error("upstream error: {0}")]
-    Upstream(String),
 }
 
 impl IntoResponse for AdminError {
@@ -45,7 +41,7 @@ impl IntoResponse for AdminError {
         let (status, code) = match &self {
             AdminError::NotFound(_) => (axum::http::StatusCode::NOT_FOUND, "not_found"),
             AdminError::BadRequest(_) => (axum::http::StatusCode::BAD_REQUEST, "bad_request"),
-            AdminError::Internal(_) | AdminError::Upstream(_) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "internal_error"),
+            AdminError::Internal(_) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "internal_error"),
         };
         let msg = self.to_string();
         (
@@ -67,12 +63,8 @@ struct AdminAssets;
 /// (v1 호환: `oxipage_console::run_admin` 별칭)
 pub async fn run_admin(port: u16) -> anyhow::Result<()> {
     let sites_path = sites_path()?;
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()?;
     let ctx = AdminContext {
         sites_path,
-        client,
         active_site: Arc::new(RwLock::new(None)),
     };
 
@@ -88,12 +80,16 @@ fn build_admin_router(ctx: AdminContext) -> Router {
     Router::new()
         // sites CRUD
         .route("/api/admin/sites", get(sites_api::list).post(sites_api::add))
-        .route("/api/admin/sites/active", get(sites_api::get_active).put(sites_api::set_active))
-        .route("/api/admin/sites/{name}", put(sites_api::update).delete(sites_api::delete))
+        .route(
+            "/api/admin/sites/active",
+            get(sites_api::get_active).put(sites_api::set_active),
+        )
+        .route(
+            "/api/admin/sites/{name}",
+            get(sites_api::update).delete(sites_api::delete),
+        )
         // themes
         .route("/api/admin/themes", get(themes::catalog_handler))
-        // proxy: ANY /api/admin/proxy/{site}/{*path}
-        .route("/api/admin/proxy/{site}/{*path}", any(proxy::proxy_handler))
         // SPA static (vite build)
         .fallback(static_handler)
         .with_state(ctx)
@@ -105,7 +101,6 @@ async fn static_handler(uri: axum::http::Uri) -> Response {
     if let Some(asset) = serve_asset(path) {
         return asset;
     }
-    // fallback to index.html for SPA routing
     if let Some(index) = AdminAssets::get("index.html") {
         return Response::builder()
             .header("content-type", "text/html; charset=utf-8")
@@ -131,22 +126,4 @@ fn sites_path() -> anyhow::Result<PathBuf> {
     let dir = dirs.config_dir();
     std::fs::create_dir_all(dir)?;
     Ok(dir.join("sites.toml"))
-}
-
-async fn shutdown_signal() {
-    let ctrl_c = tokio::signal::ctrl_c();
-    #[cfg(unix)]
-    let terminate = async {
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("install SIGTERM handler")
-            .recv()
-            .await;
-    };
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
-    tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
-    }
-    tracing::info!("admin console shutdown signal received");
 }

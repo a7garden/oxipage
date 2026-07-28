@@ -18,7 +18,7 @@ export function BlogListPage() {
     if (!activeSite) return;
     setLoading(true);
     try {
-      const res = await listBlogPosts(activeSite.name, draftFilter);
+      const res = await listBlogPosts(draftFilter);
       setPosts(res.data);
     } catch {
       setPosts([]);
@@ -34,7 +34,7 @@ export function BlogListPage() {
   const handleDelete = async (slug: string) => {
     if (!activeSite || !confirm(`"${slug}"를 삭제하시겠습니까?`)) return;
     try {
-      await deleteBlogPost(activeSite.name, slug);
+      await deleteBlogPost(slug);
       fetchPosts();
     } catch (e: any) {
       alert("Delete failed: " + e.message);
@@ -44,7 +44,7 @@ export function BlogListPage() {
   const handlePublish = async (slug: string) => {
     if (!activeSite) return;
     try {
-      await publishBlogPost(activeSite.name, slug);
+      await publishBlogPost(slug);
       fetchPosts();
     } catch (e: any) {
       alert("Publish failed: " + e.message);

@@ -34,7 +34,6 @@ tracing-subscriber.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-reqwest.workspace = true
 toml.workspace = true
 directories.workspace = true
 rust-embed.workspace = true

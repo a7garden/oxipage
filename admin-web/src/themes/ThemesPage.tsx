@@ -1,7 +1,7 @@
 // 테마 선택 페이지 — 카드 그리드 + 미리보기 + 원클릭 적용
 
 import { useEffect, useState } from "react";
-import { useSite, getThemeCatalog, sitePut, type ThemeInfo } from "../shared/api";
+import { useSite, getThemeCatalog, apiPut, type ThemeInfo } from "../shared/api";
 import { Card } from "../shared/ui/card";
 import { Button } from "../shared/ui/button";
 
@@ -42,7 +42,7 @@ export function ThemesPage() {
     if (!activeSite) return;
     setApplying(true);
     try {
-      await sitePut(activeSite.name, "api/v1/theme", { theme_id: id });
+      await apiPut("/theme", { theme_id: id });
       setCurrentTheme(id);
     } catch (e: any) {
       alert("Failed to apply theme: " + e.message);
