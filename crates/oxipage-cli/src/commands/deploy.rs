@@ -1,7 +1,6 @@
-use crate::client::Client;
 use crate::output::Output;
 use clap::Args;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Args, Debug)]
 pub struct DeployArgs {
@@ -19,12 +18,10 @@ pub struct DeployArgs {
 pub(crate) async fn deploy(
     c: DeployArgs,
     out: &Output,
-    client: &Client,
 ) -> anyhow::Result<()> {
-    // Resolve out directory via server status
-    let status = client.get("/api/v1/status").await?;
-    let data_dir = status["data_dir"].as_str().unwrap_or("data");
-    let out_dir = Path::new(data_dir).join("out");
+    // Resolve out directory from local config
+    let data_dir = resolve_data_dir()?;
+    let out_dir = data_dir.join("out");
 
     match c.target.as_str() {
         "github-pages" => deploy_github_pages(&out_dir, c.dry_run, out).await,
@@ -142,10 +139,34 @@ async fn deploy_github_pages(
 }
 
 fn chrono_now() -> String {
-    // Fallback: use std time if chrono not available
     use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| format!("{}", d.as_secs()))
         .unwrap_or_else(|_| "unknown".into())
+}
+
+fn resolve_data_dir() -> anyhow::Result<PathBuf> {
+    let config_path = std::env::var("OXIPAGE_CONFIG")
+        .map(PathBuf::from)
+        .ok()
+        .filter(|p| p.exists());
+
+    if let Some(ref path) = config_path {
+        let toml_str = std::fs::read_to_string(path)?;
+        let value: toml::Value = toml::from_str(&toml_str)?;
+        if let Some(data_dir) = value
+            .get("server")
+            .and_then(|s| s.get("data_dir"))
+            .and_then(|d| d.as_str())
+        {
+            return Ok(PathBuf::from(data_dir));
+        }
+    }
+
+    if let Ok(dir) = std::env::var("OXIPAGE_DATA_DIR") {
+        return Ok(PathBuf::from(dir));
+    }
+
+    Ok(PathBuf::from("data"))
 }
