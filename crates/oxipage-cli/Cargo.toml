@@ -13,6 +13,7 @@ clap.workspace = true
 directories.workspace = true
 oxipage-core = { path = "../oxipage-core" }
 oxipage-server = { path = "../oxipage-server" }
+oxipage-admin = { path = "../oxipage-admin" }
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true

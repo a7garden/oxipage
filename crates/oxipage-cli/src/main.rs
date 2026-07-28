@@ -74,6 +74,11 @@ pub enum Command {
     /// 사이트 프로필 관리 (doc/09) — 접속 대상 서버 등록/전환
     #[command(subcommand)]
     Site(commands::SiteCommand),
+    /// 관리 GUI 콘솔 기동 (doc/12)
+    Admin {
+        #[arg(long)]
+        port: Option<u16>,
+    },
 
     /// 확장이 등록한 동적 명령 (doc/11 §11.2.2).
     /// clap derive가 매칭하지 못한 서브커맨드를 raw args 배열로 잡는다.

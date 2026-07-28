@@ -52,6 +52,11 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
     let token = resolve_token(cli.token.clone(), site_name, &sites_file)?;
     let client = Client::new(endpoint, token, cli.insecure)?;
 
+    // Admin is like Serve — local process, not an HTTP command. No auth needed.
+    if let Command::Admin { port } = &cli.command {
+        return init_status_serve::admin(*port).await;
+    }
+
     match cli.command {
         Command::Init => init_status_serve::init(&out, cli.config.as_deref()),
         Command::Status => init_status_serve::status(&out, &client).await,
@@ -64,6 +69,7 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
         Command::Extension(c) => extension::extension(c, &out, &client).await,
         Command::Backup(c) => backup::backup(c, &out, &client).await,
         Command::Site(_) => unreachable!(), // handled above
+        Command::Admin { .. } => unreachable!(), // handled above
         Command::Dynamic(ref args) => {
             dispatch_dynamic(args, &client, &out).await
         }

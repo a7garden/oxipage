@@ -86,3 +86,10 @@ pub(crate) async fn serve(port: Option<u16>, _config_path: Option<&std::path::Pa
     oxipage_server::run_server().await
 }
 
+pub(crate) async fn admin(port: Option<u16>) -> anyhow::Result<()> {
+    let p = port.unwrap_or(8788);
+    println!("oxipage admin console starting on http://127.0.0.1:{p}");
+    oxipage_admin::run_admin(p).await?;
+    Ok(())
+}
+
