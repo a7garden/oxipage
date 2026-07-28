@@ -182,7 +182,191 @@ pub trait Extension: Send + Sync {
     fn cli_commands(&self) -> Vec<CliCommand> {
         Vec::new()
     }
+
+    /// setup 마법사가 이 확장의 활성화 후 사용자에게 보여줄 step.
+    /// `None`이면 이 확장은 자기 step이 없다(대부분의 확장).
+    ///
+    /// 코어의 setup 마법사가 이 메서드를 호출해 동적으로 step을 조립한다 —
+    /// 확장이 활성화돼 있을 때만 노출되며, 코어는 확장의 도메인 필드를 모른다.
+    fn setup_wizard_step(&self) -> Option<SetupStep> {
+        None
+    }
+
+    /// 이 확장이 사용할 외부 API 키 메타. setup_status 응답에 노출되어
+    /// 마법사가 동적으로 키 입력란을 만든다. 실제 키 값은 `save_external_key`로 수신.
+    /// 기본 구현: 빈 vec (외부 키가 없는 확장).
+    fn external_api_keys(&self) -> Vec<ExternalApiKey> {
+        Vec::new()
+    }
+
+    /// 외부 API 키 값을 저장. 코어가 `external_api_keys()`에서 모은 id로 디스패치한다.
+    ///
+    /// **기본 구현:** `external_api_keys()`를 순회해 `key_id`와 일치하는 키를 찾고
+    /// `env_var`가 등록돼 있으면 `std::env::set_var`로 process env에 보존한다.
+    /// `scope == ExtensionConfig`이면 `extension_state.config` JSON에도 기록한다.
+    /// 자기 도메인별 추가 검증/저장이 필요하면 확장이 override할 수 있다.
+    async fn save_external_key(
+        &self,
+        ctx: &AppState,
+        key_id: &str,
+        value: &str,
+    ) -> anyhow::Result<()> {
+        for k in self.external_api_keys() {
+            if k.id == key_id {
+                // SAFETY: process env 오염이지만 setup wizard는 단일 사용자 환경에서만
+                // 동작하며, 이 시그니처는 v1 SSG 모델에서 "한 사용자가 한 사이트를
+                // 로컬에서 설정"하는 경로에 한정된다. 다른 env 변경 경로는 env_override
+                // 함수로 분리할 것.
+                unsafe {
+                    std::env::set_var(k.env_var, value);
+                }
+                if matches!(k.scope, ExternalKeyScope::ExtensionConfig) {
+                    persist_extension_config(ctx, self.id(), k.env_var, value).await?;
+                }
+                return Ok(());
+            }
+        }
+        Ok(())
+    }
+
+    /// setup 완료 시점에 시드할 샘플 데이터 (예: 환영 글).
+    /// 활성 확장에만 호출되며, 실패해도 setup 완료 진행(best-effort).
+    async fn seed_sample_data(&self, _ctx: &AppState) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
+
+// ───────────────────────── Setup 위저드 훅 타입 ─────────────────────────
+//
+// setup 마법사가 확장의 자기-도메인 데이터(프로필 필드, 환영 글, API 키 등)를
+// 동적으로 조립/저장하기 위한 트레이트 경계. 코어는 이 타입들의 외형만 알고
+// 실제 SQL/데이터는 각 확장이 자기 `SetupStep::save_handler`와
+// `save_external_key`/`seed_sample_data` 안에서 다룬다.
+
+/// setup wizard 한 step의 선언적 정의.
+/// 코어가 step 라우팅 + 폼 디스패치를 담당하고, 이 구조체가 UI 필드와 저장 콜백을 표현.
+/// 클라이언트로 보낼 때는 `save_handler`만 빼고 직렬화된다(`ExtensionStepInfo` 참고).
+#[derive(Clone)]
+pub struct SetupStep {
+    /// step 식별자. URL `/api/console/setup/extension-step/{id}`의 `{id}`로 사용된다.
+    /// 확장에서 유일해야 한다(코어는 첫 번째로 매칭되는 step만 사용).
+    pub id: &'static str,
+    pub title_ko: &'static str,
+    pub title_en: &'static str,
+    pub description_ko: &'static str,
+    pub description_en: &'static str,
+    pub fields: Vec<SetupField>,
+    /// form JSON을 받아 자기 DB에 저장하는 핸들러.
+    pub save_handler: Arc<dyn SetupSaveHandler>,
+}
+
+/// 클라이언트에 직렬화되는 step 정보 (save_handler 제외).
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ExtensionStepInfo {
+    pub id: String,
+    pub title_ko: String,
+    pub title_en: String,
+    pub description_ko: String,
+    pub description_en: String,
+    pub fields: Vec<SetupField>,
+}
+
+impl ExtensionStepInfo {
+    pub fn from_step(step: &SetupStep) -> Self {
+        Self {
+            id: step.id.to_string(),
+            title_ko: step.title_ko.to_string(),
+            title_en: step.title_en.to_string(),
+            description_ko: step.description_ko.to_string(),
+            description_en: step.description_en.to_string(),
+            fields: step.fields.clone(),
+        }
+    }
+}
+
+/// form 한 필드.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SetupField {
+    pub name: &'static str,
+    pub label_ko: &'static str,
+    pub label_en: &'static str,
+    pub kind: SetupFieldKind,
+    pub required: bool,
+    pub placeholder_ko: Option<&'static str>,
+    pub placeholder_en: Option<&'static str>,
+}
+
+#[derive(Debug, Clone, Copy, serde::Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum SetupFieldKind {
+    Text,
+    Textarea,
+    Url,
+}
+
+/// 코어가 form JSON을 받아 위임. 확장이 자기 DB에 쓴다.
+/// form의 모든 값은 문자열이다 — `serde_json::Value::String`으로 들어온다.
+#[async_trait]
+pub trait SetupSaveHandler: Send + Sync {
+    async fn save(
+        &self,
+        ctx: &AppState,
+        form: &serde_json::Map<String, serde_json::Value>,
+    ) -> anyhow::Result<()>;
+}
+
+/// 외부 API 키 한 줄. setup_status 응답에 노출되어 마법사가 동적으로
+/// 입력란을 만들고, save 시 확장이 자기 도메인 위치에 저장한다.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ExternalApiKey {
+    pub id: &'static str,
+    pub label_ko: &'static str,
+    pub label_en: &'static str,
+    pub env_var: &'static str,
+    pub required: bool,
+    pub scope: ExternalKeyScope,
+}
+
+#[derive(Debug, Clone, Copy, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExternalKeyScope {
+    /// process env에만 set (현재 IntegrationsConfig가 env를 직접 읽는 패턴).
+    EnvOnly,
+    /// env + `extension_state.config` JSON 둘 다.
+    ExtensionConfig,
+}
+
+/// `extension_state.config` JSON에 한 키를 upsert. save_external_key 기본 impl이 사용.
+/// 기존에 같은 키가 있으면 덮어쓰고, JSON이 깨져 있으면 빈 dict로 시작한다.
+pub(crate) async fn persist_extension_config(
+    ctx: &AppState,
+    ext_id: &str,
+    key: &str,
+    value: &str,
+) -> anyhow::Result<()> {
+    let row: Option<(Option<String>,)> =
+        sqlx::query_as("SELECT config FROM extension_state WHERE extension_id = ?1")
+            .bind(ext_id)
+            .fetch_optional(&ctx.db)
+            .await?;
+    let mut config: serde_json::Map<String, serde_json::Value> = match row {
+        Some((Some(s),)) => serde_json::from_str(&s).unwrap_or_default(),
+        _ => serde_json::Map::new(),
+    };
+    config.insert(key.to_string(), serde_json::Value::String(value.to_string()));
+    let serialized = serde_json::to_string(&config)?;
+    sqlx::query(
+        "INSERT INTO extension_state (extension_id, enabled, purged, config)
+         VALUES (?1, 0, 0, ?2)
+         ON CONFLICT(extension_id) DO UPDATE SET config = ?2",
+    )
+    .bind(ext_id)
+    .bind(&serialized)
+    .execute(&ctx.db)
+    .await?;
+    Ok(())
+}
+
 
 // ───────────────────────── 동적 라우트 디스패치 (WASM) ─────────────────────────
 

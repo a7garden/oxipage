@@ -5,9 +5,11 @@
 //! - setup 완료 후 410 Gone
 
 use crate::error::ApiError;
-use crate::extension::DataEnvelope;
+use crate::extension::{
+    DataEnvelope, ExternalApiKey, ExtensionStepInfo,
+};
 use crate::state::{AppState, SiteOverride};
-use axum::extract::{ConnectInfo, Request, State};
+use axum::extract::{ConnectInfo, Path, Request, State};
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
@@ -16,25 +18,8 @@ use axum::routing::{get, post};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 
-// ─── Constants ───
-
-const SAMPLE_POST_TITLE: &str = "환영합니다";
-const SAMPLE_POST_SLUG: &str = "환영합니다";
-const SAMPLE_POST_BODY: &str = r#"# 환영합니다!
-
-Oxipage 설치가 완료되었습니다.
-
-이 글은 설정 마법사가 생성한 샘플 글입니다.
-삭제하거나 수정해도 됩니다.
-
-## 다음 단계
-
-- **CLI**로 글 쓰기: `oxipage blog new "제목" --file draft.md`
-- **관리 콘솔**에서 콘텐츠 관리: 헤더의 설정 버튼
-- **프로젝트** 추가: `oxipage project add --title-ko "..." --title-en "..."`
-
-즐거운 블로그 생활 되세요!
-"#;
+// 환영 글 (샘플 post) 데이터는 `oxipage-ext-blog`가 자기 `seed_sample_data()`에서
+// 정의/관리한다. 코어는 블로그 도메인 데이터를 더 이상 모른다.
 
 const THEMES: &[ThemeEntry] = &[
     ThemeEntry { id: "paper", name_ko: "종이", name_en: "Paper", mode: "light",
@@ -66,30 +51,10 @@ pub struct ExtensionsInput {
 }
 
 #[derive(Deserialize)]
-pub struct ProfileInput {
-    pub display_name: Option<String>,
-    pub tagline_ko: Option<String>,
-    pub tagline_en: Option<String>,
-    pub github_username: Option<String>,
-    pub bio_ko: Option<String>,
-    pub bio_en: Option<String>,
-}
-
-#[derive(Deserialize)]
 pub struct ThemeInput {
     pub theme_id: String,
     pub lobby_mode: Option<String>,
 }
-
-#[derive(Deserialize)]
-pub struct ContentInput {
-    #[serde(default = "default_true")]
-    pub sample_post: bool,
-    pub tmdb_key: Option<String>,
-    pub aladin_key: Option<String>,
-}
-
-fn default_true() -> bool { true }
 
 #[derive(Serialize)]
 pub struct CompleteResult {
@@ -97,12 +62,17 @@ pub struct CompleteResult {
     pub message: String,
 }
 
+/// `GET /api/console/setup/status` 응답.
 #[derive(Serialize)]
 pub struct StatusResult {
     pub setup_mode: bool,
     pub completed_steps: Vec<String>,
     pub available_extensions: Vec<ExtInfo>,
     pub available_themes: Vec<ThemeEntry>,
+    /// 활성 확장이 노출한 setup step (extension-step 동적 조립용).
+    pub extension_steps: Vec<ExtensionStepInfo>,
+    /// 활성 확장이 노출한 외부 API 키 목록(중복 id는 마지막 우선).
+    pub external_api_keys: Vec<ExternalApiKey>,
 }
 
 #[derive(Serialize)]
@@ -136,6 +106,10 @@ pub struct SimpleOk {
 // ─── Helpers ───
 
 /// 완료된 step 목록 조회.
+///
+/// **확장 step은 동적이므로 core가 추적하지 않는다** — wizard UI가
+/// `extension_steps`/`external_api_keys`로 자체 조립한다. 이 함수는 코어
+/// 자체 step(site/extensions/theme)과 `admin` 호환 마커만 반환.
 async fn get_completed_steps(state: &AppState) -> Result<Vec<String>, ApiError> {
     let mut steps = Vec::new();
 
@@ -149,7 +123,7 @@ async fn get_completed_steps(state: &AppState) -> Result<Vec<String>, ApiError> 
         steps.push("site".into());
     }
 
-    // admin: auth 폐지 — 비밀번호 단계 제거, 항상 완료로 처리
+    // admin: auth 폐지 — 비밀번호 단계 제거, 항상 완료로 처리 (하위 호환)
     steps.push("admin".into());
 
     // extensions: enabled가 1개 이상인가
@@ -163,32 +137,7 @@ async fn get_completed_steps(state: &AppState) -> Result<Vec<String>, ApiError> 
         _ => {}
     }
 
-    // profile: tagline이나 github가 설정되었는가
-    match sqlx::query_as::<_, (i64,)>(
-        "SELECT COUNT(*) FROM profile WHERE id = 1 AND (tagline_ko IS NOT NULL OR github_username IS NOT NULL)",
-    )
-    .fetch_one(&state.db)
-    .await
-    {
-        Ok((count,)) if count > 0 => steps.push("profile".into()),
-        _ => {}
-    }
-
-    // content: 샘플 글이 생성되었거나, API 키가 설정되었는가
-    match sqlx::query_as::<_, (i64,)>(
-        "SELECT COUNT(*) FROM blog_post WHERE slug = ?1",
-    )
-    .bind(SAMPLE_POST_SLUG)
-    .fetch_one(&state.db)
-    .await
-    {
-        Ok((count,)) if count > 0 => {
-            steps.push("content".into());
-        }
-        _ => {}
-    }
-
-    // theme은 항상 통과 (step 5는 필수)
+    // theme은 항상 통과 (step은 필수)
     steps.push("theme".into());
 
     Ok(steps)
@@ -218,37 +167,29 @@ fn update_toml_site(name: &str, base_url: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// extension_state.config JSON 업데이트
-async fn set_extension_config(state: &AppState, ext_id: &str, key: &str, value: &str) -> Result<(), ApiError> {
-    if value.is_empty() {
-        return Ok(());
-    }
-    let config_json = serde_json::json!({ key: value }).to_string();
-    sqlx::query("UPDATE extension_state SET config = ?1 WHERE extension_id = ?2")
-        .bind(&config_json)
-        .bind(ext_id)
-        .execute(&state.db)
-        .await
-        .map_err(|e| ApiError::internal(anyhow::anyhow!(e)))?;
-    Ok(())
-}
-
+// `set_extension_config`은 `crate::extension::persist_extension_config`로 이전.
+// 트레이트 기본 impl이 직접 사용한다.
 
 // ─── Route builder ───
 
 /// Setup 라우트를 api Router에 추가한다.
 /// setup_gate 미들웨어는 http.rs에서 별도 적용.
+///
+/// **확장 step과 외부 API 키 라우트는 registry 디스패치** — 코어는
+/// 도메인 필드/키 이름을 모른다. 확장이 자기 `SetupStep`/`ExternalApiKey`를
+/// 통해 동적으로 제공한다.
 pub fn setup_routes(api: Router<AppState>) -> Router<AppState> {
     api.route("/setup/status", get(setup_status_handler))
         .route("/setup/site", post(setup_site_handler))
-        .route("/setup/admin", post(setup_admin_handler))
         .route("/setup/extensions", post(setup_extensions_handler))
-        .route("/setup/profile", post(setup_profile_handler))
+        .route(
+            "/setup/extension-step/{id}",
+            post(setup_extension_step_handler),
+        )
+        .route("/setup/external-keys", post(setup_external_keys_handler))
         .route("/setup/theme", post(setup_theme_handler))
-        .route("/setup/content", post(setup_content_handler))
         .route("/setup/complete", post(setup_complete_handler))
 }
-
 // ─── Middleware ───
 
 /// Check if setup wizard should run (no setup_completed_at in setup_state).
@@ -321,30 +262,58 @@ pub async fn setup_gate(
 // ─── Handlers ───
 
 /// GET /api/console/setup/status
+///
+/// **동적 step 조립:** 활성 확장만 `extension_steps`에 포함, 외부 API 키는
+/// 활성 확장이 노출한 모든 키를 평탄화해 id 중복은 마지막 우선으로 반환.
 pub async fn setup_status_handler(
     State(state): State<AppState>,
 ) -> Result<Json<DataEnvelope<StatusResult>>, ApiError> {
     let completed_steps = get_completed_steps(&state).await?;
 
-    let extensions: Vec<ExtInfo> = state
-        .registry
-        .iter()
-        .into_iter()
-        .map(|ext| ExtInfo {
+    let snapshot = state.registry.iter();
+    let mut available_extensions: Vec<ExtInfo> = Vec::with_capacity(snapshot.len());
+    let mut extension_steps: Vec<ExtensionStepInfo> = Vec::new();
+    let mut external_api_keys: Vec<ExternalApiKey> = Vec::new();
+    let mut seen_key_ids: std::collections::HashSet<&'static str> =
+        std::collections::HashSet::new();
+
+    for ext in snapshot {
+        available_extensions.push(ExtInfo {
             id: ext.id().to_string(),
             display_name: ExtDisplayName {
                 ko: ext.display_name(crate::extension::Lang::Ko),
                 en: ext.display_name(crate::extension::Lang::En),
             },
-        })
-        .collect();
+        });
+
+        if !state.registry.is_active(ext.id()).await {
+            continue;
+        }
+
+        if let Some(step) = ext.setup_wizard_step() {
+            extension_steps.push(ExtensionStepInfo::from_step(&step));
+        }
+
+        for k in ext.external_api_keys() {
+            // 같은 id를 두 확장이 노출하면 마지막 확장이 우선.
+            if seen_key_ids.insert(k.id) {
+                external_api_keys.push(k);
+            } else if let Some(existing) =
+                external_api_keys.iter_mut().find(|x| x.id == k.id)
+            {
+                *existing = k;
+            }
+        }
+    }
 
     Ok(Json(DataEnvelope {
         data: StatusResult {
             setup_mode: true,
             completed_steps,
-            available_extensions: extensions,
+            available_extensions,
             available_themes: THEMES.to_vec(),
+            extension_steps,
+            external_api_keys,
         },
     }))
 }
@@ -392,10 +361,8 @@ pub async fn setup_site_handler(
     }))
 }
 
-/// POST /api/console/setup/admin — auth 폐지로 no-op (항상 ok).
-pub async fn setup_admin_handler() -> Json<DataEnvelope<SimpleOk>> {
-    Json(DataEnvelope { data: SimpleOk { ok: true } })
-}
+// setup_admin 핸들러는 auth 폐지로 no-op이라 제거됨 (setup_routes에서도 제외).
+
 
 /// POST /api/console/setup/extensions
 pub async fn setup_extensions_handler(
@@ -451,33 +418,33 @@ pub async fn setup_extensions_handler(
     }))
 }
 
-/// POST /api/console/setup/profile
-pub async fn setup_profile_handler(
+/// POST /api/console/setup/extension-step/{id}
+///
+/// **registry 디스패치:** `{id}`에 해당하는 `SetupStep`을 찾아 `save_handler.save`로 위임.
+/// 코어는 form의 필드 키/타입을 모른다 — 확장이 자기 트레이트 안에서 처리.
+pub async fn setup_extension_step_handler(
     State(state): State<AppState>,
-    Json(input): Json<ProfileInput>,
+    Path(step_id): Path<String>,
+    Json(form): Json<serde_json::Map<String, serde_json::Value>>,
 ) -> Result<Json<DataEnvelope<SimpleOk>>, ApiError> {
-    let dn = input.display_name.as_deref().unwrap_or("");
-    sqlx::query(
-        "UPDATE profile SET
-            display_name = COALESCE(NULLIF(?1, ''), display_name),
-            tagline_ko = ?2, tagline_en = ?3,
-            github_username = ?4, bio_ko = ?5, bio_en = ?6,
-            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
-         WHERE id = 1",
-    )
-    .bind(dn)
-    .bind(&input.tagline_ko)
-    .bind(&input.tagline_en)
-    .bind(&input.github_username)
-    .bind(&input.bio_ko)
-    .bind(&input.bio_en)
-    .execute(&state.db)
-    .await
-    .map_err(|e| ApiError::internal(anyhow::anyhow!(e)))?;
-
-    Ok(Json(DataEnvelope {
-        data: SimpleOk { ok: true },
-    }))
+    for ext in state.registry.iter() {
+        if let Some(step) = ext.setup_wizard_step()
+            && step.id == step_id
+        {
+            step.save_handler
+                .save(&state, &form)
+                .await
+                .map_err(ApiError::internal)?;
+            return Ok(Json(DataEnvelope {
+                data: SimpleOk { ok: true },
+            }));
+        }
+    }
+    Err(ApiError::new(
+        StatusCode::NOT_FOUND,
+        "unknown_step",
+        &format!("no such extension setup step: {step_id}"),
+    ))
 }
 
 /// POST /api/console/setup/theme
@@ -519,49 +486,46 @@ pub async fn setup_theme_handler(
     }))
 }
 
-/// POST /api/console/setup/content
-pub async fn setup_content_handler(
+/// POST /api/console/setup/external-keys
+///
+/// **registry 디스패치:** 활성 확장의 `external_api_keys()`를 순회하며
+/// body의 `values`에 들어있는 id와 매칭되는 키 값을 `save_external_key`로 위임.
+/// 코어는 키 id/이름/env_var를 모른다 — 확장이 자기 트레이트 안에서 처리.
+pub async fn setup_external_keys_handler(
     State(state): State<AppState>,
-    Json(input): Json<ContentInput>,
+    Json(body): Json<ExternalKeysInput>,
 ) -> Result<Json<DataEnvelope<SimpleOk>>, ApiError> {
-    if input.sample_post {
-        let exists: Result<(i64,), _> = sqlx::query_as(
-            "SELECT COUNT(*) FROM blog_post WHERE slug = ?1",
-        )
-        .bind(SAMPLE_POST_SLUG)
-        .fetch_one(&state.db)
-        .await;
-
-        if let Ok((0,)) = exists {
-            sqlx::query(
-                "INSERT INTO blog_post (slug, title, body, lang, tags, published_at, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, 'ko', '[]',
-                         strftime('%Y-%m-%dT%H:%M:%fZ','now'),
-                         strftime('%Y-%m-%dT%H:%M:%fZ','now'),
-                         strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
-            )
-            .bind(SAMPLE_POST_SLUG)
-            .bind(SAMPLE_POST_TITLE)
-            .bind(SAMPLE_POST_BODY)
-            .execute(&state.db)
-            .await
-            .map_err(|e| ApiError::internal(anyhow::anyhow!(e)))?;
+    for ext in state.registry.iter() {
+        if !state.registry.is_active(ext.id()).await {
+            continue;
+        }
+        for k in ext.external_api_keys() {
+            if let Some(v) = body.values.get(k.id)
+                && let Some(s) = v.as_str()
+                && !s.is_empty()
+            {
+                ext.save_external_key(&state, k.id, s)
+                    .await
+                    .map_err(ApiError::internal)?;
+            }
         }
     }
-
-    if let Some(key) = input.tmdb_key.as_ref().filter(|k| !k.is_empty()) {
-        set_extension_config(&state, "movies", "tmdb_key", key).await?;
-    }
-    if let Some(key) = input.aladin_key.as_ref().filter(|k| !k.is_empty()) {
-        set_extension_config(&state, "books", "aladin_key", key).await?;
-    }
-
     Ok(Json(DataEnvelope {
         data: SimpleOk { ok: true },
     }))
 }
 
+#[derive(Deserialize)]
+pub struct ExternalKeysInput {
+    #[serde(default)]
+    pub values: serde_json::Map<String, serde_json::Value>,
+}
+
 /// POST /api/console/setup/complete
+///
+/// **활성 확장의 `seed_sample_data()`를 호출**해 자기 도메인의 초기 데이터를 시드한다
+/// (예: blog 확장이 환영 글 INSERT). 코어는 더 이상 어떤 도메인 데이터도 직접 쓰지 않는다.
+/// 실패는 best-effort — 한 확장의 실패가 setup 완료를 막지 않는다.
 pub async fn setup_complete_handler(
     State(state): State<AppState>,
 ) -> Result<Json<DataEnvelope<CompleteResult>>, ApiError> {
@@ -571,6 +535,17 @@ pub async fn setup_complete_handler(
     .execute(&state.db)
     .await
     .map_err(|e| ApiError::internal(anyhow::anyhow!(e)))?;
+
+    // 시드는 setup_completed_at 마킹 후에도 진행 — 마킹은 admin 권한을 영구 적용하는 행위이고
+    // 시드는 데이터 생성 행위라 의미가 다르다. 실패해도 200 반환.
+    for ext in state.registry.iter() {
+        if !state.registry.is_active(ext.id()).await {
+            continue;
+        }
+        if let Err(e) = ext.seed_sample_data(&state).await {
+            tracing::warn!(extension = ext.id(), error = %e, "seed_sample_data failed");
+        }
+    }
 
     Ok(Json(DataEnvelope {
         data: CompleteResult {
