@@ -15,6 +15,7 @@ members = [
     "crates/oxipage-ext-profile",
     "crates/oxipage-ext-projects",
     "crates/oxipage-ext-scraps",
+    "crates/oxipage-admin",
 ]
 
 [workspace.dependencies]
