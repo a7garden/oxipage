@@ -6,10 +6,40 @@ pub mod routes;
 use async_trait::async_trait;
 use axum::Router;
 use axum::routing::{get, post};
-use oxipage_core::extension::{Extension, Lang, LobbyCard, LobbyCardItem, Migration};
+use oxipage_core::client::Client;
+use oxipage_core::extension::{CliArg, CliHandler, CliCommand, CliSubcommand, Extension, Lang, LobbyCard, LobbyCardItem, Migration};
 use oxipage_core::state::AppState;
+use std::collections::BTreeMap;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
 
 pub struct BooksExtension;
+
+// ── CLI handlers ──
+
+struct BookAddHandler;
+impl CliHandler for BookAddHandler {
+    fn run(&self, args: BTreeMap<String, String>, client: &Client)
+        -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>>
+    {
+        let title = args.get("title").cloned().unwrap_or_default();
+        let mut body = serde_json::json!({ "title": title });
+        if let Some(author) = args.get("author") {
+            body["author"] = serde_json::json!(author);
+        }
+        if let Some(rating) = args.get("rating") {
+            body["rating"] = serde_json::json!(rating);
+        }
+        let client = client.clone();
+        Box::pin(async move {
+            let resp = client.post("/api/v1/books/", &body).await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            println!("{}", serde_json::to_string_pretty(&resp)?);
+            Ok(())
+        })
+    }
+}
 
 #[async_trait]
 impl Extension for BooksExtension {
@@ -36,16 +66,8 @@ impl Extension for BooksExtension {
     }
 
     fn routes(&self) -> Router<AppState> {
-        // 라우트 등록 순서:
-        //   - `/{id}` (정수) 파라미터는 `Path<i64>`로 추출되므로 `/search` 같은
-        //     정수가 아닌 경로는 자동으로 미스매치된다. 단, axum 0.8의 매처는
-        //     리터럴을 우선 매칭하므로 `/search` 등록 순서는 안전하다.
-        //   - 메서드 라우팅(POST/PATCH/DELETE) 충돌은 `/{id}` 라인에 묶어서
-        //     단일 핸들러당 단일 HTTP 메서드만 매핑한다.
         Router::new()
             .route("/", get(routes::list).post(routes::create))
-            // 외부 도서 검색: 알라딘 → Google Books → manual 안내.
-            // 503 (book_search_disabled)은 양쪽 키가 모두 없을 때만.
             .route("/search", get(routes::external_search))
             .route(
                 "/{id}",
@@ -72,5 +94,24 @@ impl Extension for BooksExtension {
             id: self.id().to_string(),
             items,
         })
+    }
+
+    fn cli_commands(&self) -> Vec<CliCommand> {
+        vec![CliCommand {
+            name: "books",
+            about: "Manage book reviews",
+            subcommands: vec![
+                CliSubcommand {
+                    name: "add",
+                    about: "Add a book review",
+                    args: vec![
+                        CliArg { long: "title", short: Some('t'), help: "Book title", required: true },
+                        CliArg { long: "author", short: Some('a'), help: "Book author", required: false },
+                        CliArg { long: "rating", short: Some('r'), help: "Rating (1-10)", required: false },
+                    ],
+                    handler: Some(Arc::new(BookAddHandler)),
+                },
+            ],
+        }]
     }
 }

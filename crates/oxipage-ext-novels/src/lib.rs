@@ -5,10 +5,81 @@ pub mod routes;
 use async_trait::async_trait;
 use axum::Router;
 use axum::routing::{get, post};
-use oxipage_core::extension::{Extension, Lang, LobbyCard, LobbyCardItem, Migration};
+use oxipage_core::client::Client;
+use oxipage_core::extension::{CliArg, CliHandler, CliCommand, CliSubcommand, Extension, Lang, LobbyCard, LobbyCardItem, Migration};
 use oxipage_core::state::AppState;
+use std::collections::BTreeMap;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
 
 pub struct NovelsExtension;
+
+// ── CLI handlers ──
+
+struct NovelAddHandler;
+impl CliHandler for NovelAddHandler {
+    fn run(&self, args: BTreeMap<String, String>, client: &Client)
+        -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>>
+    {
+        let title = args.get("title").cloned().unwrap_or_default();
+        let slug = args.get("slug").cloned().unwrap_or_default();
+        let mut body = serde_json::json!({ "title": title, "slug": slug });
+        if let Some(genre) = args.get("genre") {
+            body["genre"] = serde_json::json!(genre);
+        }
+        if let Some(synopsis) = args.get("synopsis") {
+            body["synopsis"] = serde_json::json!(synopsis);
+        }
+        let client = client.clone();
+        Box::pin(async move {
+            let resp = client.post("/api/v1/novels/", &body).await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            println!("{}", serde_json::to_string_pretty(&resp)?);
+            Ok(())
+        })
+    }
+}
+
+struct NovelListHandler;
+impl CliHandler for NovelListHandler {
+    fn run(&self, _args: BTreeMap<String, String>, client: &Client)
+        -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>>
+    {
+        let client = client.clone();
+        Box::pin(async move {
+            let resp = client.get("/api/v1/novels/").await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            println!("{}", serde_json::to_string_pretty(&resp)?);
+            Ok(())
+        })
+    }
+}
+
+struct NovelChapterAddHandler;
+impl CliHandler for NovelChapterAddHandler {
+    fn run(&self, args: BTreeMap<String, String>, client: &Client)
+        -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>>
+    {
+        let slug = args.get("slug").cloned().unwrap_or_default();
+        let title = args.get("title").cloned().unwrap_or_default();
+        let mut body = serde_json::json!({ "title": title });
+        if let Some(order) = args.get("order") {
+            body["order"] = serde_json::json!(order);
+        }
+        if let Some(content) = args.get("content") {
+            body["content"] = serde_json::json!(content);
+        }
+        let client = client.clone();
+        Box::pin(async move {
+            let path = format!("/api/v1/novels/{slug}/chapters");
+            let resp = client.post(&path, &body).await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            println!("{}", serde_json::to_string_pretty(&resp)?);
+            Ok(())
+        })
+    }
+}
 
 #[async_trait]
 impl Extension for NovelsExtension {
@@ -36,11 +107,9 @@ impl Extension for NovelsExtension {
 
     fn routes(&self) -> Router<AppState> {
         Router::new()
-            // Novel
             .route("/", get(routes::list_novels).post(routes::create_novel))
             .route("/{slug}", get(routes::show_novel).delete(routes::delete_novel))
             .route("/{slug}/publish", post(routes::publish_novel))
-            // Chapter
             .route("/{slug}/chapters", get(routes::list_chapters).post(routes::create_chapter))
             .route("/{slug}/chapters/draft", get(routes::list_chapters_draft))
             .route(
@@ -65,5 +134,42 @@ impl Extension for NovelsExtension {
             id: self.id().to_string(),
             items,
         })
+    }
+
+    fn cli_commands(&self) -> Vec<CliCommand> {
+        vec![CliCommand {
+            name: "novels",
+            about: "Manage novels and chapters",
+            subcommands: vec![
+                CliSubcommand {
+                    name: "add",
+                    about: "Create a new novel",
+                    args: vec![
+                        CliArg { long: "title", short: Some('t'), help: "Novel title", required: true },
+                        CliArg { long: "slug", short: Some('s'), help: "URL slug", required: true },
+                        CliArg { long: "genre", short: Some('g'), help: "Genre tag", required: false },
+                        CliArg { long: "synopsis", short: None, help: "Short description", required: false },
+                    ],
+                    handler: Some(Arc::new(NovelAddHandler)),
+                },
+                CliSubcommand {
+                    name: "list",
+                    about: "List novels",
+                    args: vec![],
+                    handler: Some(Arc::new(NovelListHandler)),
+                },
+                CliSubcommand {
+                    name: "chapter",
+                    about: "Add a chapter to a novel",
+                    args: vec![
+                        CliArg { long: "slug", short: Some('s'), help: "Novel slug", required: true },
+                        CliArg { long: "title", short: Some('t'), help: "Chapter title", required: true },
+                        CliArg { long: "order", short: Some('o'), help: "Chapter order number", required: false },
+                        CliArg { long: "content", short: Some('c'), help: "Chapter content (plain text)", required: false },
+                    ],
+                    handler: Some(Arc::new(NovelChapterAddHandler)),
+                },
+            ],
+        }]
     }
 }
