@@ -4,6 +4,8 @@
 # Node / web frontend
 /web/node_modules
 /web/dist
+/admin-web/node_modules
+/admin-web/dist
 
 # Environment & secrets
 .env
