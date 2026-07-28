@@ -6,6 +6,7 @@ mod client;
 mod commands;
 mod credentials;
 mod output;
+mod sites;
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -20,7 +21,8 @@ use std::path::PathBuf;
 pub struct Cli {
     #[arg(long, global = true, env = "OXIPAGE_ENDPOINT")]
     pub endpoint: Option<String>,
-
+    #[arg(long, global = true, env = "OXIPAGE_SITE")]
+    pub site: Option<String>,
     #[arg(long, global = true, env = "OXIPAGE_TOKEN")]
     pub token: Option<String>,
 
@@ -29,6 +31,9 @@ pub struct Cli {
 
     #[arg(long, global = true, env = "OXIPAGE_CONFIG")]
     pub config: Option<PathBuf>,
+
+    #[arg(long, global = true, env = "OXIPAGE_TLS_INSECURE")]
+    pub insecure: bool,
 
     #[command(subcommand)]
     pub command: Command,
@@ -66,6 +71,9 @@ pub enum Command {
     /// 백업 (doc/05 §5.4) — SQLite VACUUM INTO 스냅샷
     #[command(subcommand)]
     Backup(commands::BackupCommand),
+    /// 사이트 프로필 관리 (doc/09) — 접속 대상 서버 등록/전환
+    #[command(subcommand)]
+    Site(commands::SiteCommand),
 }
 
 #[tokio::main]

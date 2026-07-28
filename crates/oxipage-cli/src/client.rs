@@ -7,6 +7,7 @@
 use anyhow::{Context, bail};
 use serde::Serialize;
 use serde_json::Value;
+use std::time::Duration;
 
 #[derive(Debug, thiserror::Error)]
 #[error("API error ({status} {code}): {message}{}",
@@ -25,12 +26,18 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(endpoint: String, token: Option<String>) -> anyhow::Result<Self> {
+
+    pub fn new(endpoint: String, token: Option<String>, insecure: bool) -> anyhow::Result<Self> {
         // endpoint trailing slash 정규화
         let endpoint = endpoint.trim_end_matches('/').to_string();
-        let http = reqwest::Client::builder()
+        let mut builder = reqwest::Client::builder()
             .user_agent(concat!("oxipage-cli/", env!("CARGO_PKG_VERSION")))
-            .build()
+            .connect_timeout(Duration::from_secs(10))
+            .pool_idle_timeout(Duration::from_secs(30));
+        if insecure {
+            builder = builder.danger_accept_invalid_certs(true);
+        }
+        let http = builder.build()
             .context("failed to build HTTP client")?;
         Ok(Client {
             endpoint,
