@@ -7,8 +7,8 @@ use axum::Router;
 use axum::routing::get;
 use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
 use oxipage_core::extension::{
-    Extension, Lang, LobbyCard, Migration, SetupField, SetupFieldKind, SetupSaveHandler,
-    SetupStep,
+    Extension, Lang, LobbyCard, Migration, PrefillSource, SetupField, SetupFieldKind,
+    SetupSaveHandler, SetupStep,
 };
 use oxipage_core::state::AppState;
 use sqlx::SqlitePool;
@@ -125,6 +125,12 @@ impl Extension for ProfileExtension {
                 },
             ],
             save_handler: Arc::new(ProfileSetupSaveHandler),
+            prefill: {
+                let mut m = std::collections::BTreeMap::new();
+                // site_name으로 display_name을 pre-fill (UX: 사이트 이름을 본인 이름으로 시작).
+                m.insert("display_name", PrefillSource::SiteName);
+                m
+            },
         })
     }
 

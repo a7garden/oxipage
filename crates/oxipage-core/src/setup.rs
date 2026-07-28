@@ -412,9 +412,8 @@ pub async fn setup_extensions_handler(
     }))
 }
 
-/// POST /api/console/setup/extension-step/{id}
-///
-/// **registry 디스패치:** `{id}`에 해당하는 `SetupStep`을 찾아 `save_handler.save`로 위임.
+/// **registry 디스패치:** `{id}`에 해당하는 `SetupStep`을 **활성 확장**에서 찾는다.
+/// 비활성 확장의 step은 status에서 노출되지 않으므로 직접 POST도 거부한다 — 일관성.
 /// 코어는 form의 필드 키/타입을 모른다 — 확장이 자기 트레이트 안에서 처리.
 pub async fn setup_extension_step_handler(
     State(state): State<AppState>,
@@ -422,6 +421,9 @@ pub async fn setup_extension_step_handler(
     Json(form): Json<serde_json::Map<String, serde_json::Value>>,
 ) -> Result<Json<DataEnvelope<SimpleOk>>, ApiError> {
     for ext in state.registry.iter() {
+        if !state.registry.is_active(ext.id()).await {
+            continue;
+        }
         if let Some(step) = ext.setup_wizard_step()
             && step.id == step_id
         {

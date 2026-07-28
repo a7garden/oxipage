@@ -27,6 +27,7 @@ export interface ThemeInfo {
 }
 
 /// 동적 step 정보. web에서 setup wizard가 step을 그리는데 사용.
+/// 확장이 자기 SetupStep으로 자기 도메인 데이터 + prefill hint를 선언.
 export interface ExtensionStepInfo {
   id: string;
   title_ko: string;
@@ -34,6 +35,10 @@ export interface ExtensionStepInfo {
   description_ko: string;
   description_en: string;
   fields: SetupField[];
+  /// 필드 pre-fill 매핑. wizard가 사이트 컨텍스트에서 값을 가져와 채운다.
+  /// 예: `{"display_name": "site_name"}` → site_name을 display_name에 주입.
+  /// 코어는 키 이름도, 가능한 source 값도 모른다 — 확장이 자기 SetupStep으로 선언.
+  prefill?: Record<string, string>;
 }
 
 export interface SetupField {
@@ -45,7 +50,6 @@ export interface SetupField {
   placeholder_ko?: string | null;
   placeholder_en?: string | null;
 }
-
 /// 외부 API 키. 마법사가 동적으로 키 입력란을 만들고, save 시 id로 dispatch.
 export interface ExternalApiKey {
   id: string;

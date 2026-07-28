@@ -169,7 +169,15 @@ INSERT OR IGNORE INTO setup_state (id) VALUES (1);
 - `setup_completed_at IS NULL` → setup 모드
 - `setup_completed_at IS NOT NULL` → 정상 모드 (setup API 410)
 
-### 13.5.2 Setup API 엔드포인트
+> **⚠️ 2026-07-29:** §13.5.2 본문의 API 시그니처·§13.7.2 step UI·§13.8 시퀀스 다이어그램은
+> **v1(v0.1) edit-and-serve 모델 기준**으로 작성됐다. v2 SSG 모델로의 피벗 이후
+> `/setup/profile`, `/setup/content`, `/setup/admin` 엔드포인트와 Step 3/4/6 하드코딩이
+> **모두 제거**됐고, `Extension::setup_wizard_step` / `external_api_keys` /
+> `seed_sample_data` 트레이트 훅으로 대체됐다. 본문은 즉시 동기화하지 않았으므로
+> **현재 동작 코드는 `docs/extension-sdk.md` §3.5 + `crates/oxipage-core/src/setup.rs`를 참고하라.**
+> §13.3 §13.4 §13.5.1 §13.5의 동적 조립 모델 / setup_completed_at 의미 / loopback 게이트는 그대로 유효.
+
+### 13.5.2 Setup API 엔드포인트 (v1 — 미사용)
 
 모든 setup 엔드포인트는 **무인증 + loopback-only**:
 | Method | Path | 설명 |

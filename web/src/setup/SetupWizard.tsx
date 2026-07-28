@@ -47,6 +47,21 @@ function buildSteps(status: SetupStatus | null): Step[] {
   return out;
 }
 
+/// Step의 prefill 필드를 사이트 컨텍스트 값으로 해석.
+/// 확장이 자기 도메인에서 어떤 컨텍스트 출처가 의미 있는지 선언한 것만 지원.
+function resolvePrefill(
+  step: ExtensionStepInfo,
+  siteName: string,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [field, source] of Object.entries(step.prefill ?? {})) {
+    if (source === "site_name" && siteName) {
+      out[field] = siteName;
+    }
+  }
+  return out;
+}
+
 function StepIndicator({ current, total }: { current: number; total: number }) {
   return (
     <div className="flex gap-2 justify-center mb-8">
@@ -73,7 +88,7 @@ export function SetupWizard() {
   const [completeResult, setCompleteResult] = useState<CompleteResult | null>(
     null,
   );
-  // site step에서 입력한 이름을 보존. profile step이 있을 때 display_name을 pre-fill한다.
+  // site 1단계에서 입력한 이름. 확장의 prefill hint가 site_name을 요구하면 주입.
   const [siteName, setSiteName] = useState<string>("");
 
   const steps = useMemo(() => buildSteps(status), [status]);
@@ -134,18 +149,19 @@ export function SetupWizard() {
             loading={loading}
             onBack={() => setStepIdx((i) => Math.max(0, i - 1))}
             onNext={(data) =>
-              handleNext(() =>
-                submitExtensions(data as { enabled: string[] }),
-              )
+              handleNext(async () => {
+                await submitExtensions(data as { enabled: string[] });
+                // 활성 세트 변경 반영: extension_steps/external_api_keys는 is_active에
+                // 의존하므로 status를 다시 받아 steps를 재조립해야 한다.
+                const fresh = await fetchSetupStatus();
+                setStatus(fresh);
+              })
             }
           />
         );
       case "extension-step": {
-        // profile step("profile")인 경우 display_name을 site 1단계에서 입력한 값으로 pre-fill.
-        const initial =
-          current.step.id === "profile" && siteName
-            ? { display_name: siteName }
-            : undefined;
+        // 확장이 자기 SetupStep.prefill로 선언한 hint만 적용. 코드는 어떤 값이 가능한지도 모른다.
+        const initial = resolvePrefill(current.step, siteName);
         return (
           <GenericStep
             step={current.step}

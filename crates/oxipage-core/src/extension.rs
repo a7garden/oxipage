@@ -248,8 +248,6 @@ pub trait Extension: Send + Sync {
 /// 클라이언트로 보낼 때는 `save_handler`만 빼고 직렬화된다(`ExtensionStepInfo` 참고).
 #[derive(Clone)]
 pub struct SetupStep {
-    /// step 식별자. URL `/api/console/setup/extension-step/{id}`의 `{id}`로 사용된다.
-    /// 확장에서 유일해야 한다(코어는 첫 번째로 매칭되는 step만 사용).
     pub id: &'static str,
     pub title_ko: &'static str,
     pub title_en: &'static str,
@@ -258,6 +256,17 @@ pub struct SetupStep {
     pub fields: Vec<SetupField>,
     /// form JSON을 받아 자기 DB에 저장하는 핸들러.
     pub save_handler: Arc<dyn SetupSaveHandler>,
+    /// 클라이언트에 공개되는 pre-fill 힌트. 예: `{"display_name": "site_name"}`
+    /// — wizard가 사이트 컨텍스트에서 값을 가져와 채운다.
+    /// 키는 field.name, 값은 PrefillSource. 직렬화는 `ExtensionStepInfo`를 통해.
+    pub prefill: BTreeMap<&'static str, PrefillSource>,
+}
+
+/// prefill 값의 출처. 확장이 자기 의미에 맞는 출처를 선언한다.
+#[derive(Debug, Clone, Copy)]
+pub enum PrefillSource {
+    /// 사이트 1단계에서 사용자가 입력한 사이트 이름.
+    SiteName,
 }
 
 /// 클라이언트에 직렬화되는 step 정보 (save_handler 제외).
@@ -269,10 +278,25 @@ pub struct ExtensionStepInfo {
     pub description_ko: String,
     pub description_en: String,
     pub fields: Vec<SetupField>,
+    /// 필드 pre-fill 매핑. wizard가 사이트 컨텍스트에서 값을 가져와 채운다.
+    /// 예: `{"display_name": "site_name"}` → site_name을 display_name에 주입.
+    /// 키는 field.name, 값은 출처 식별자.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
+    pub prefill: BTreeMap<String, String>,
 }
 
 impl ExtensionStepInfo {
     pub fn from_step(step: &SetupStep) -> Self {
+        let prefill = step
+            .prefill
+            .iter()
+            .map(|(field, source)| {
+                let source = match source {
+                    PrefillSource::SiteName => "site_name",
+                };
+                ((*field).to_string(), source.to_string())
+            })
+            .collect();
         Self {
             id: step.id.to_string(),
             title_ko: step.title_ko.to_string(),
@@ -280,16 +304,22 @@ impl ExtensionStepInfo {
             description_ko: step.description_ko.to_string(),
             description_en: step.description_en.to_string(),
             fields: step.fields.clone(),
+            prefill,
         }
     }
 }
 
 /// form 한 필드.
+///
+/// **직렬화 형태:** `kind` 필드를 flatten해서 클라이언트가 `field.type`로 직접 읽는다.
+/// 예: `{"name":"bio_ko","label_ko":"…","type":"textarea","required":false}`.
+/// flatten이 없으면 `kind:{"type":"textarea"}`가 되어 클라이언트 `field.type`이 항상 undefined.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct SetupField {
     pub name: &'static str,
     pub label_ko: &'static str,
     pub label_en: &'static str,
+    #[serde(flatten)]
     pub kind: SetupFieldKind,
     pub required: bool,
     pub placeholder_ko: Option<&'static str>,

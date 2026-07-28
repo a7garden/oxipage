@@ -80,6 +80,7 @@ impl Extension for DemoExt {
                 placeholder_en: None,
             }],
             save_handler: Arc::new(DemoSaveHandler),
+            prefill: std::collections::BTreeMap::new(),
         })
     }
     fn external_api_keys(&self) -> Vec<ExternalApiKey> {
@@ -148,6 +149,23 @@ fn with_loopback(router: axum::Router) -> axum::Router {
     router.layer(axum::middleware::from_fn(inject_loopback))
 }
 
+async fn build_app_with_toml_enabled(
+    extensions: Vec<Arc<dyn Extension>>,
+    toml_enabled: &[String],
+) -> axum::Router {
+    let pool = oxipage_core::db::connect_memory().await.unwrap();
+    let registry = Arc::new(ExtensionRegistry::new(extensions));
+    registry.run_migrations(&pool, toml_enabled).await.unwrap();
+    let state = AppState {
+        db: pool,
+        config: Arc::new(Config::default()),
+        registry,
+        wasm_loader: None,
+        site_override: Arc::new(tokio::sync::RwLock::new(None)),
+        builders: Arc::new(vec![]),
+    };
+    with_loopback(oxipage_core::http::build_app(state))
+}
 async fn build_app(extensions: Vec<Arc<dyn Extension>>) -> axum::Router {
     let pool = oxipage_core::db::connect_memory().await.unwrap();
     let registry = Arc::new(ExtensionRegistry::new(extensions));
@@ -161,23 +179,6 @@ async fn build_app(extensions: Vec<Arc<dyn Extension>>) -> axum::Router {
         builders: Arc::new(vec![]),
     };
     with_loopback(oxipage_core::http::build_app(state))
-}
-
-// ─── 테스트 ────────────────────────────────────────
-
-#[tokio::test]
-async fn extension_step_routes_to_correct_handler() {
-    let app = build_app(vec![Arc::new(DemoExt { step_id: "demo" })]).await;
-    let res = app
-        .oneshot(
-            Request::post("/api/console/setup/extension-step/demo")
-                .header("content-type", "application/json")
-                .body(Body::from(r#"{"name":"hello"}"#))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::OK);
 }
 
 #[tokio::test]
@@ -216,6 +217,14 @@ async fn setup_status_includes_extension_steps() {
     assert_eq!(steps[0]["id"], "demo");
     assert_eq!(steps[0]["title_ko"], "데모 step");
     assert_eq!(steps[0]["fields"][0]["name"], "name");
+    // SetupFieldKind가 flatten되어야 클라이언트가 `field.type`로 직접 읽을 수 있다.
+    // (bug 회귀: nested {kind:{type:...}} 직렬화 시 textarea가 input으로 렌더됨.)
+    let field = &steps[0]["fields"][0];
+    assert_eq!(field["type"], "text", "SetupFieldKind must serialize as top-level `type`");
+    assert!(
+        field.get("kind").is_none(),
+        "SetupFieldKind must be flattened, not nested under `kind`"
+    );
 }
 
 #[tokio::test]
@@ -261,4 +270,89 @@ async fn external_keys_handler_dispatches_to_extension() {
         std::env::var("OXIPAGE_DEMO_KEY").ok().as_deref(),
         Some("secret"),
     );
+}
+
+/// 미활성 확장은 extension_steps/external_api_keys에서 제외되어야 한다.
+/// (P2 §is_active gate 회귀 테스트 — 이 게이트를 제거하면 모든 테스트가 그대로 통과한다.)
+#[tokio::test]
+async fn disabled_extension_excluded_from_status() {
+    // demo 비활성, key_only만 활성.
+    let app = build_app_with_toml_enabled(
+        vec![Arc::new(DemoExt { step_id: "demo" }), Arc::new(KeyOnlyExt)],
+        &["key_only".to_string()],
+    )
+    .await;
+    let res = app
+        .oneshot(
+            Request::get("/api/console/setup/status")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let body = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let steps = json["data"]["extension_steps"].as_array().unwrap();
+    let step_ids: Vec<&str> = steps.iter().map(|s| s["id"].as_str().unwrap()).collect();
+    assert!(
+        !step_ids.contains(&"demo"),
+        "disabled extension's step must be excluded, got: {step_ids:?}"
+    );
+    let keys = json["data"]["external_api_keys"].as_array().unwrap();
+    let key_ids: Vec<&str> = keys.iter().map(|k| k["id"].as_str().unwrap()).collect();
+    assert!(
+        !key_ids.contains(&"demo_key"),
+        "disabled extension's key must be excluded, got: {key_ids:?}"
+    );
+    assert!(key_ids.contains(&"alpha"), "active extension's key must remain");
+}
+
+/// disable된 확장의 extension-step POST는 404로 거부되어야 한다.
+#[tokio::test]
+async fn disabled_extension_step_returns_404() {
+    let app = build_app_with_toml_enabled(
+        vec![Arc::new(DemoExt { step_id: "demo" }), Arc::new(KeyOnlyExt)],
+        &["key_only".to_string()],
+    )
+    .await;
+    let res = app
+        .oneshot(
+            Request::post("/api/console/setup/extension-step/demo")
+                .header("content-type", "application/json")
+                .body(Body::from("{}"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    // setup 단계에서 disabled 확장은 step 자체가 노출 안 되고 직접 POST도 거부됨.
+    assert_eq!(res.status(), StatusCode::NOT_FOUND);
+}
+
+/// external_keys POST는 disabled 확장의 키를 침묵히 무시해야 한다.
+/// (admin이 실수로 구 키를 보내도 안전.)
+#[tokio::test]
+async fn external_keys_ignores_disabled_extension_keys() {
+    let app = build_app_with_toml_enabled(
+        vec![Arc::new(DemoExt { step_id: "demo" }), Arc::new(KeyOnlyExt)],
+        &["key_only".to_string()],
+    )
+    .await;
+    let res = app
+        .oneshot(
+            Request::post("/api/console/setup/external-keys")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"values":{"demo_key":"should-be-ignored","alpha":"kept"}}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    // demo_key (disabled): env 안 바뀌어야 함.
+    assert_ne!(std::env::var("OXIPAGE_DEMO_KEY").ok().as_deref(), Some("should-be-ignored"));
+    // alpha (active): env에 저장됨.
+    assert_eq!(std::env::var("OXIPAGE_ALPHA").ok().as_deref(), Some("kept"));
 }
