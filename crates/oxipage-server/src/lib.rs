@@ -89,11 +89,22 @@ pub async fn run_server_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow:
         );
     }
 
+    let wasm_loader: Option<Arc<dyn oxipage_core::extension::WasmLoader>> = {
+        #[cfg(feature = "wasm")]
+        {
+            Some(Arc::new(oxipage_wasm::WasmLoaderImpl))
+        }
+        #[cfg(not(feature = "wasm"))]
+        {
+            None
+        }
+    };
     let state = AppState {
         db,
         config: config.clone(),
         admin_token: admin_token.clone(),
         registry: registry.clone(),
+        wasm_loader,
     };
     for ext in registry.iter() {
         let status = registry.status_of(ext.id()).await;
@@ -108,6 +119,19 @@ pub async fn run_server_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow:
         }
     }
 
+    // 백그라운드 잡 스케줄러 (doc/01 §1.9). 활성 확장의 background_jobs()를
+    // 수집해 cron 드라이버로 spawn한다. run(&self, &AppState) 시그니처로
+    // job body가 DB pool/config에 접근한다.
+    let mut scheduler = oxipage_core::scheduler::Scheduler::new();
+    for ext in registry.iter() {
+        if registry.is_active(ext.id()).await {
+            for job in ext.background_jobs() {
+                scheduler.register(job);
+            }
+        }
+    }
+    scheduler.spawn_all(state.clone());
+
     let app = oxipage_core::http::build_app(state);
     let addr = SocketAddr::new(config.server.host.parse()?, config.server.port);
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -119,6 +143,28 @@ pub async fn run_server_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow:
 }
 
 async fn shutdown_signal() {
-    let _ = tokio::signal::ctrl_c().await;
+    let ctrl_c = tokio::signal::ctrl_c();
+    // systemd/launchd는 SIGTERM을 보낸다 (doc/05 §5.2). ctrl_c(SIGINT)만 잡으면
+    // `systemctl stop` 시 드레인 없이 즉시 종료되므로 SIGTERM도 함께 대기한다.
+    #[cfg(unix)]
+    let terminate = async {
+        use tokio::signal::unix::{SignalKind, signal};
+        match signal(SignalKind::terminate()) {
+            Ok(mut s) => {
+                let _ = s.recv().await;
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "failed to install SIGTERM handler");
+                std::future::pending::<()>().await;
+            }
+        }
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
     tracing::info!("shutdown signal received");
 }
