@@ -15,7 +15,7 @@ port = 8787
 data_dir = "data"
 
 [extensions]
-enabled = ["profile"]
+enabled = ["profile", "blog", "projects", "links"]
 
 [lobby]
 default_mode = "grid"
