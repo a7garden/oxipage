@@ -61,6 +61,12 @@ oxipage link list
 oxipage link rm <id>
 oxipage lobby layout <extension> --mode canvas|grid|list
 oxipage lobby config [--json]
+oxipage build [--site <name>] [--json]              # static site generation
+oxipage deploy [--target github-pages|cloudflare|netlify] [--site <name>] [--json]  # deploy static site
+oxipage query "<SQL>" [--json]                      # direct SQL query (read-only)
+oxipage schema [--extension <name>] [--json]        # DB schema discovery
+oxipage cache refresh [--extension <name>] [--json] # refresh external API cache
+oxipage serve --preview [--port 8787]               # preview built static site
 ```
 
 > CLI subcommands for the Phase 2 extensions (`novel`, `review movie`, `review book`, `scrap`,
@@ -81,6 +87,19 @@ oxipage lobby config [--json]
 ### Scrape / add a link
 1. Given only a URL: `oxipage link add --title "..." --url "..." --json`
 2. If the user adds a comment, pass it via `--desc-ko` / `--desc-en`.
+
+### Build and deploy the static site
+1. After content changes, run `oxipage build --json` to regenerate the static site.
+2. Run `oxipage deploy --target github-pages --json` to publish to GitHub Pages.
+3. For local preview first: `oxipage serve --preview` then open http://127.0.0.1:8787.
+
+### Query content (AI agent SQL access)
+1. Check schema: `oxipage schema --json`
+2. Query: `oxipage query "SELECT slug, title FROM blog_posts WHERE tags LIKE '%rust%'" --json`
+
+### Refresh external caches
+1. `oxipage cache refresh --extension activity --json` (GitHub activity)
+2. `oxipage cache refresh --extension movies --json` (TMDB poster cache)
 
 ## Do not
 - Do not generate and publish content the user did not ask for.
