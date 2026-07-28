@@ -159,3 +159,56 @@ impl Client {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_client_endpoint_trimmed() {
+        let client = Client::new("http://localhost:8787/".into(), Some("tok".into()), false).unwrap();
+        assert_eq!(client.endpoint(), "http://localhost:8787");
+    }
+
+    #[test]
+    fn test_client_has_token() {
+        let client = Client::new("http://localhost:8787".into(), Some("tok".into()), false).unwrap();
+        assert!(client.has_token());
+    }
+
+    #[test]
+    fn test_client_no_token() {
+        let client = Client::new("http://localhost:8787".into(), None, false).unwrap();
+        assert!(!client.has_token());
+    }
+
+    #[test]
+    fn test_api_error_display() {
+        let err = ApiError {
+            status: 404,
+            code: "not_found".into(),
+            message: "post not found".into(),
+            field: Some("slug".into()),
+        };
+        let s = err.to_string();
+        assert!(s.contains("404"));
+        assert!(s.contains("not_found"));
+        assert!(s.contains("post not found"));
+        assert!(s.contains("field=slug"));
+    }
+
+    #[test]
+    fn test_api_error_no_field() {
+        let err = ApiError {
+            status: 401,
+            code: "unauthorized".into(),
+            message: "bad token".into(),
+            field: None,
+        };
+        let s = err.to_string();
+        assert!(s.contains("401"));
+        assert!(s.contains("unauthorized"));
+        assert!(s.contains("bad token"));
+        assert!(!s.contains("field="));
+    }
+}
