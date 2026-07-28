@@ -1,23 +1,24 @@
 # 8장 — 남은 구현 (Remaining Implementation)
 
-> 2026-07-27 한 세션에서 Phase 1–5의 29/34 작업을 완료했습니다. 본 문서는
-> **다음 세션에서 이어서 할 구체적 구현**을 남깁니다. workspace는 34 test suites
-> 전부 통과, 빌드 OK 상태로 커밋됩니다.
-
-## 8.1 현재 상태 요약
+> 2026-07-28 세션에서 Phase 전 영역 구현 완료 + 빌드 클린. 본 문서는
+> **이력 보존** 및 **외부 자격증명/수동 실측이 필요한 잔여 항목**을 기록합니다.
+> workspace 160+ tests 전부 통과, clippy -D warnings 클린 상태.
 
 | Phase | 완료 | 비고 |
 |---|---|---|
-| Foundation | 4/4 | FTS5·Rating·scheduler·Extension trait·IntegrationsConfig·CLI 스캐폴드 |
-| Phase 1 | 5/5 | blog·projects·links + CLI + 프론트 lazy route |
-| Phase 2 | 7/7 | novels·movies·books·scraps·activity + 별점 + background_jobs (2026-07-28 수정: 스케줄러 연결 + job body 구현, §8.10) |
-| Phase 3 | 5/5 | 로비 3모드·LobbyConfig API·/search UI·**SSR 확장 연결(7개 publish+7 delete)**·**WCAG AA 실측+토큰 조정** |
-| Phase 4 | 4/4 | PAT 스코프 분리·레이트리밋(build_app 연결)·OpenAPI/Swagger·SKILL.md |
-| Phase 5 | 6/6 | deploy·LICENSE·SDK 문서·레지스트리·starter·개인화·**WASM 스파이크(§8.4)** |
-| Verification | 2/3 | cargo test/clippy -D warnings 통과·SSR 엔드투엔드 스모크 완료. **배포 스모크·브라우저 접근성 실측 남음** |
-
-**검증 상태:** `cargo test --workspace` 128 tests ok · `cargo clippy --workspace --all-targets -- -D warnings` ok ·
-`cd web && bun run build` ok · SSR end-to-end: blog post create→publish→`data/snapshots/blog_*.html` 생성(og:title/og:url/canonical/main data-snapshot 확인)→DELETE→파일 제거.
+| Foundation | ✅ 완료 | FTS5·Rating·scheduler·Extension trait·IntegrationsConfig·CLI 스캐폴드 |
+| Phase 1 | ✅ 완료 | blog·projects·links + CLI + 프론트 lazy route |
+| Phase 2 | ✅ 완료 | novels·movies·books·scraps·activity + 별점 + background_jobs |
+| Phase 3 | ✅ 완료 | 로비 3모드·LobbyConfig API·/search UI·SSR 스냅샷·WCAG AA |
+| Phase 4 | ✅ 완료 | PAT 스코프·레이트리밋·OpenAPI/Swagger·SKILL.md |
+| Phase 5 | ✅ 완료 | deploy·LICENSE·SDK·레지스트리·starter·WASM v2 |
+| 다중 사이트 (doc/09) | ✅ 완료 | sites.toml CRUD, CLI site 명령, endpoint/token 해상도 |
+| CLI 확장성 (doc/11) | ✅ 완료 | CliCommand trait, Dynamic subcommand, 5개 확장 CLI, 서버 위임 |
+| 관리 콘솔 (doc/12) | ✅ 완료 | oxipage-admin crate, admin-web SPA, proxy/themes/sites API |
+| 빌드 | ✅ 클린 | `cargo test --workspace` 163 tests pass, clippy -D warnings, web build |
+| **배포 & 접근성** | ⏳ 수동/외부 | 배포 스모크(자격증명), 브라우저 접근성 실측(VoiceOver/키보드) |
+**검증 상태:** `cargo test --workspace` 163 tests ok · `cargo clippy --workspace --all-targets -- -D warnings` clean ·
+`cd web && bun run build` ok · `cd admin-web && bun run build` ok · SSR end-to-end verified.
 
 ## 8.2 SSR 스냅샷 확장 연결 (Phase 3, ✅ 완료 — 2026-07-27)
 
@@ -254,3 +255,46 @@
 - **브라우저 접근성 실측 (§8.6):** VoiceOver/NVDA, prefers-reduced-motion.
 - **litestream 운영 설정:** doc/05 §5.4의 WAL 스트리밍은 운영 레벨(설정 파일)
   영역. 코드 레벨 폴백(`VACUUM INTO`)은 위 5번에서 구현됨.
+
+## 8.11 2026-07-28 완료 배치
+
+**상태:** ✅ 일괄 완료. 모든 빌드 게이트 통과 (163 tests, clippy -D warnings clean).
+
+### 구현 완료 항목
+
+1. **빌드 정리 (§8.7 확장):** Rust 1.96 clippy 신규 린트 대응 (`needless_borrow` 8건,
+   `collapsible_if` 7건, `derivable_impls` 2건). `test_site_add_default_flag` 테스트 격리
+   버그 수정 (고정 temp dir 재사용으로 인한 중복 add 실패 — cleanup 추가).
+
+2. **멀티사이트 (doc/09):** 이미 구현 완료된 상태였음.
+   - `crates/oxipage-cli/src/sites.rs` — `SitesFile` load/save/resolve
+   - `crates/oxipage-cli/src/commands/site.rs` — `SiteCommand` (add/list/show/use/edit/rm)
+   - `crates/oxipage-admin/src/sites_api.rs` — admin console CRUD API
+   - `crates/oxipage-cli/src/commands/mod.rs` — `resolve_site_name`/`resolve_endpoint`/`resolve_token`
+   - `Client::new()` endpoint/token resolution via site profile fallthrough
+   - OXIPAGE_SITE env + --site flag + default_site 3단계 우선순위
+   - sites.toml 0600 권한, corrupt file graceful fallback
+
+3. **CLI 확장성 (doc/11):** 이미 구현 완료된 상태였음.
+   - `Extension::cli_commands()` trait + `CliCommand`/`CliSubcommand`/`CliArg`/`CliHandler` 타입
+   - `Command::Dynamic(Vec<String>)` + `#[clap(external_subcommand)]`
+   - `dispatch_dynamic()` / `resolve_command_registry()` / `parse_dynamic_args()`
+   - `GET /api/v1/cli/commands` + `POST /api/v1/cli/exec/{ext_id}/{sub_command}` 서버 엔드포인트
+   - 5개 확장 CLI 구현: `novels`(new/list/chapter add), `movies`(review add/series create),
+     `books`(review add), `scraps`(add/queue/delete), `activity`(sync)
+   - 컴파일 + 서버 디스커버리 이중 경로, 미발견 시 컴파일 목록 폴백
+
+4. **관리 콘솔 (doc/12):** `oxipage admin` CLI 명령 + `admin-web` React SPA + proxy layer.
+
+### 검증
+
+- `cargo test --workspace`: **163 tests, 0 failed**
+- `cargo clippy --workspace --all-targets -- -D warnings`: clean
+- `cd web && bun run build`: clean
+- `cd admin-web && bun run build`: clean
+
+### 여전히 남은 항목 (외부 자격증명/수동 필요)
+
+- **배포 스모크 (§8.5):** Caddy + Cloudflare Tunnel + 실제 도메인 기동 검증.
+- **브라우저 접근성 실측 (§8.6):** VoiceOver/NVDA, prefers-reduced-motion, 키보드 내비게이션.
+- **litestream 운영 설정:** doc/05 §5.4 — 운영 레벨 설정 파일 영역.

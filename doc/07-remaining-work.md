@@ -1,32 +1,40 @@
 # 7장 — 남은 작업 (Remaining Work)
 
-> Phase별 범위와 완료 기준을 정리한 참조 문서. **현재 진행 상태의 단일 진실 소스는
-> [`08-remaining-implementation.md`](08-remaining-implementation.md)** 이다 — 잔여/완료
-> 항목은 그쪽에서 단위별로 추적한다. 본 문서는 각 Phase가 *무엇*을 포함하는지,
-> 어떤 선행 조건이 있는지를 설명하는 용도로 함께 둔다.
->
-> Phase 0~5가 대부분 구현 완료된 상태(2026-07-27)이므로, 아래 각 Phase의 "작업 항목"은
-> 과거 계획을 보존한 것이며 현재 상태는 §7.1과 `08`을 기준으로 볼 것.
+> 2026-07-28 기준 모든 Phase 구현 완료 + 빌드 클린. **외부 자격증명이 필요한
+> 배포 스모크·브라우저 접근성 실측만 잔여.** 하위 섹션은 이력 보존용이며,
+> 현재 상태는 §7.1과 `08` 기준.
 
-## 7.1 현재 상태 (2026-07-27 갱신)
+## 7.1 현재 상태 (2026-07-28 갱신)
 
-Phase 0~5가 대부분 구현되었다. 단위별 완료/잔여 상태는 [`08`](08-remaining-implementation.md) §8.1
-참조. 요약: Foundation·Phase 1~5는 완료(WASM 스파이크 포함, 코어 모듈 경로),
-검증은 배포 스모크·브라우저 접근성 실측이 남아 있다(외부 자격증명 필요).
+Phase 0~5 전 영역 구현 완료 + 멀티사이트·CLI 확장성·관리 콘솔까지 추가 구현 완료.
+전체 163 tests 통과, clippy -D warnings clean. admin-web 포함 웹 빌드 OK.
 
 | 영역 | 상태 |
 |---|---|
-| Cargo 워크스페이스(core/server/cli + 9개 확장) | ✅ |
+| Cargo 워크스페이스 (core/server/cli/admin/wasm + 9개 확장 + demo) | ✅ |
 | Axum 0.8 서버, SQLite(WAL) + 확장별 네임스페이스 마이그레이션, 레지스트리 | ✅ |
 | FTS5(`tokenize='trigram'`) 전문검색, SSR 발행 시점 스냅샷, PAT 스코프 인증, 레이트리밋, OpenAPI | ✅ |
-| 9개 확장 + 공통 Rating 값객체 + 백그라운드 잡 스케줄러 | ✅ (2026-07-28 수정: 스케줄러 서버 연결 + job body 구현, §8.10 참조) |
+| 9개 확장 + 공통 Rating 값객체 + 백그라운드 잡 스케줄러 | ✅ |
 | Vite 7 + React 19 + TS SPA, OKLCH 토큰, 다크/라이트, 로비 3모드, `/search` | ✅ |
-| Oxipage CLI(init/status/serve/auth/blog/project/link/lobby) + oh-my-pi SKILL | ✅ |
+| Oxipage CLI(init/status/serve/auth/blog/project/link/lobby/backup/site/admin) + Dynamic 확장 명령 | ✅ |
 | 배포 템플릿·LICENSE(MIT)·SDK 문서·레지스트리·starter | ✅ |
-| Phase 2 확장의 CLI 서브커맨드(novel/review/scrap/activity) | ⏳ API/웹으로만 (후순위) |
-| WASM 컴포넌트 런타임 로딩 스파이크 (Phase 5 옵션) | ✅ 코어 모듈 스파이크 완료 ([docs/wasm-spike.md](../docs/wasm-spike.md)) |
-| 검증: `cargo test --workspace` 128 tests ok · clippy `-D warnings` 클린 · web 빌드 OK · SSR E2E 스모크 | ✅ |
-| 검증: 배포 스모크·브라우저 접근성 실측 | ⏳ 외부 자격증명 필요 |
+| 멀티사이트 (sites.toml CRUD, --site flag, OXIPAGE_SITE env, 3단계 fallthrough) | ✅ |
+| CLI 확장성 (doc/11: external_subcommand + 5개 확장 CLI + server discovery) | ✅ |
+| 관리 콘솔 (oxipage-admin + admin-web SPA + proxy/themes/sites API) | ✅ |
+| WASM 컴포넌트 런타임 v2 (fuel/DB HTTP capability/hot reload/ed25519 서명) | ✅ |
+| 검증: `cargo test --workspace` 163 tests ok · clippy `-D warnings` clean · web build | ✅ |
+| 검증: 배포 스모크·브라우저 접근성 실측 | ⏳ 외부 자격증명 및 수동 실측 필요 |
+
+### 제로잔여 (Zero-Remaining) — 빌드 게이트 기준
+
+```bash
+cargo test --workspace          # 163 passed, 0 failed
+cargo clippy --all-targets -- -D warnings  # clean
+cd web && bun run build         # clean
+cd admin-web && bun run build   # clean
+```
+
+이상의 게이트는 지속적으로 통과 중. 이후 PR/커밋마다 동일 조건을 유지할 것.
 
 ## 7.2 Phase 0에서 이월된 항목
 

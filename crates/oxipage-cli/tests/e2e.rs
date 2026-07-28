@@ -114,11 +114,13 @@ fn test_json_output() {
     // Add a site then check json
     let _ = oxipage(&["site", "add", "json-test", "--endpoint", "http://localhost:7777"], &sb);
     let out = oxipage(&["--json", "site", "list"], &sb);
-    assert!(out.status.success());
+    assert!(out.status.success(), "list failed: {}", String::from_utf8_lossy(&out.stderr));
     let stdout = String::from_utf8_lossy(&out.stdout);
     // Should be JSON array
     assert!(stdout.starts_with('[') || stdout.starts_with("[\n"));
     assert!(stdout.contains("json-test"));
+    // Cleanup
+    let _ = oxipage(&["site", "rm", "json-test"], &sb);
 }
 
 #[test]
@@ -126,10 +128,12 @@ fn test_site_add_default_flag() {
     let sb = std::env::temp_dir().join("oxipage_e2e_test_default");
 
     let out = oxipage(&["site", "add", "primary", "--endpoint", "http://pri:1", "--default"], &sb);
-    assert!(out.status.success());
+    assert!(out.status.success(), "add failed: {}", String::from_utf8_lossy(&out.stderr));
 
     let out = oxipage(&["site", "list"], &sb);
     let stdout = String::from_utf8_lossy(&out.stdout);
     // Primary should be marked with *
     assert!(stdout.contains("* primary"));
+    // Cleanup
+    let _ = oxipage(&["site", "rm", "primary"], &sb);
 }

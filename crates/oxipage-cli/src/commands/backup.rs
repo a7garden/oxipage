@@ -20,7 +20,7 @@ pub(crate) async fn backup(
 ) -> anyhow::Result<()> {
     match c {
         BackupCommand::Snapshot => {
-            require_token(&client)?;
+            require_token(client)?;
             let res = client
                 .post_raw("/api/v1/backup/snapshot", json!({}))
                 .await?;

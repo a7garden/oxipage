@@ -1,0 +1,30 @@
+# litestream.yml — SQLite WAL 연속 스트리밍 설정
+# https://litestream.io/reference/config/
+#
+# 용도: oxipage SQLite DB(oxipage.db)의 WAL을 S3 호환 스토리지에 실시간 복제.
+#
+# 주의: litestream은 SQLite DB만 커버한다. /data/media(업로드 이미지)와
+# /data/snapshots(SSR 정적 파일)는 별도로 restic/rclone 동기화해야 함.
+#
+# litestream 설치: brew install litestream (macOS)
+#                    또는 https://litestream.io/install/ 참조
+#
+# 사용: litestream replicate -config deploy/litestream.yml
+# 복구: litestream restore -config deploy/litestream.yml -o /data/oxipage.db
+#       (또는 oxipage backup snapshot 으로 VACUUM INTO 스냅샷 복원)
+
+dbs:
+  - path: /data/oxipage.db
+    replicas:
+      # Cloudflare R2 (S3 호환)
+      - url: s3://bucket-name/oxipage/db
+        access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
+        secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
+        # endpoint: https://<account>.r2.cloudflarestorage.com
+        # region: auto
+        # sync-interval: 1m    # WAL 체크 간격 (기본 1m)
+        # retention:           # 세대 관리 (선택)
+        #   - path: "daily"    #   일별 스냅샷 (7일)
+        #     retention: 168h
+        #   - path: "weekly"   #   주별 스냅샷 (4주)
+        #     retention: 672h

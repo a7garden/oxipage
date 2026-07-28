@@ -21,6 +21,11 @@
 # 예: crates/oxipage-ext-*/data/snapshots/
 snapshots/
 
+# build.rs가 생성하는 crate-내장 SPA/리소스
+embedded-spa/
+_registry.json
+_wasm-demo.wasm
+
 # Logs
 *.log
 

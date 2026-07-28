@@ -40,14 +40,13 @@ pub(crate) async fn proxy_handler(
     // 3. 요청 빌드
     let mut req_builder = ctx.client.request(method.clone(), &target);
 
-    // 본문이 있는 메서드만 body 전달
+    // 본문이 있는 메서드만 body 전달 (비어있으면 skip)
     if matches!(
         method,
         Method::POST | Method::PUT | Method::PATCH | Method::DELETE
-    ) {
-        if !body.is_empty() {
-            req_builder = req_builder.body(body.to_vec());
-        }
+    ) && !body.is_empty()
+    {
+        req_builder = req_builder.body(body.to_vec());
     }
 
     // 4. 헤더 전달 (호스트/커넥션/Authority 등 제외)
@@ -64,10 +63,8 @@ pub(crate) async fn proxy_handler(
     ];
     for (key, value) in headers.iter() {
         let key_str = key.as_str().to_lowercase();
-        if !hop_by_hop.contains(&key_str.as_str()) {
-            if let Ok(v) = value.to_str() {
-                req_builder = req_builder.header(key.as_str(), v);
-            }
+        if !hop_by_hop.contains(&key_str.as_str()) && let Ok(v) = value.to_str() {
+            req_builder = req_builder.header(key.as_str(), v);
         }
     }
 

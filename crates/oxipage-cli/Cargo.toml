@@ -2,6 +2,8 @@
 name = "oxipage-cli"
 version = "0.1.0"
 edition = "2024"
+license.workspace = true
+description = "Oxipage CLI — 블로그/프로젝트/링크/사이트 관리 커맨드라인 도구 (doc/04)"
 
 [[bin]]
 name = "oxipage"
@@ -11,9 +13,9 @@ path = "src/main.rs"
 anyhow.workspace = true
 clap.workspace = true
 directories.workspace = true
-oxipage-core = { path = "../oxipage-core" }
-oxipage-server = { path = "../oxipage-server" }
-oxipage-admin = { path = "../oxipage-admin" }
+oxipage-core = { version = "0.1.0", path = "../oxipage-core" }
+oxipage-server = { version = "0.1.0", path = "../oxipage-server" }
+oxipage-admin = { version = "0.1.0", path = "../oxipage-admin" }
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true

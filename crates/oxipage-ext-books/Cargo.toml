@@ -2,6 +2,8 @@
 name = "oxipage-ext-books"
 version = "0.1.0"
 edition = "2024"
+license.workspace = true
+description = "도서 리뷰 확장 — 알라딘/Google Books API 연동, 평점 (doc/02 §2.10)"
 
 [lib]
 name = "oxipage_ext_books"
@@ -11,7 +13,7 @@ path = "src/lib.rs"
 anyhow.workspace = true
 async-trait.workspace = true
 axum.workspace = true
-oxipage-core = { path = "../oxipage-core" }
+oxipage-core = { version = "0.1.0", path = "../oxipage-core" }
 reqwest = { workspace = true }
 serde.workspace = true
 serde_json.workspace = true

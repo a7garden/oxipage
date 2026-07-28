@@ -2,6 +2,8 @@
 name = "oxipage-admin"
 version = "0.1.0"
 edition = "2024"
+license.workspace = true
+description = "Oxipage 관리 콘솔 — 로컬 관리 GUI를 위한 sites/themes/proxy CRUD API"
 
 [dependencies]
 anyhow.workspace = true

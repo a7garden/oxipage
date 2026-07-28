@@ -2,6 +2,8 @@
 name = "oxipage-ext-blog"
 version = "0.1.0"
 edition = "2024"
+license.workspace = true
+description = "블로그 확장 — 초안/발행, 태그, 언어, FTS5 검색 인덱싱 (doc/02 §2.6)"
 
 [lib]
 name = "oxipage_ext_blog"
@@ -11,7 +13,7 @@ path = "src/lib.rs"
 anyhow.workspace = true
 async-trait.workspace = true
 axum.workspace = true
-oxipage-core = { path = "../oxipage-core" }
+oxipage-core = { version = "0.1.0", path = "../oxipage-core" }
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true

@@ -15,7 +15,7 @@ use rust_embed::RustEmbed;
 use tower_http::trace::TraceLayer;
 
 #[derive(RustEmbed)]
-#[folder = "../../web/dist"]
+#[folder = "embedded-spa"]
 struct Assets;
 
 #[derive(serde::Serialize)]
@@ -607,10 +607,10 @@ async fn extension_purge(
 // 않는다 — 코어 어디서나 동작.
 
 /// 임베드된 레지스트리 카탈로그 (빌드 시점 snapshot of registry/index.json).
-const REGISTRY_INDEX_JSON: &str = include_str!("../../../registry/index.json");
+const REGISTRY_INDEX_JSON: &str = include_str!("../_registry.json");
 /// 임베드된 데모 wasm 아티팩트 — install 오프라인 검증용 (remote 다운로드 경로와 별개).
 const DEMO_WASM_BYTES: &[u8] =
-    include_bytes!("../../../crates/oxipage-ext-wasm-demo/artifacts/wasm-demo.wasm");
+    include_bytes!("../_wasm-demo.wasm");
 
 /// 신뢰하는 ed25519 공개키 (base64). .wasm 아티팩트 서명 검증에 사용.
 /// 프로덕션에서는 config 로 주입 가능. 데모용 고정 키.

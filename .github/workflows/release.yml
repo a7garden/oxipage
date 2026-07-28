@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build web SPAs
+        run: |
+          cd web && bun install && bun run build
+          cd ../admin-web && bun install && bun run build
+
+      - name: Check
+        run: cargo check --workspace --all-targets
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace
+
+      - name: Publish — oxipage-core (Tier 0)
+        run: cargo publish -p oxipage-core --no-verify
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Publish — oxipage-wasm (Tier 0)
+        run: cargo publish -p oxipage-wasm --no-verify
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Publish — oxipage-admin (Tier 0)
+        run: cargo publish -p oxipage-admin --no-verify
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Publish — extensions (Tier 1)
+        run: |
+          cargo publish -p oxipage-ext-activity --no-verify
+          cargo publish -p oxipage-ext-blog --no-verify
+          cargo publish -p oxipage-ext-books --no-verify
+          cargo publish -p oxipage-ext-links --no-verify
+          cargo publish -p oxipage-ext-movies --no-verify
+          cargo publish -p oxipage-ext-novels --no-verify
+          cargo publish -p oxipage-ext-profile --no-verify
+          cargo publish -p oxipage-ext-projects --no-verify
+          cargo publish -p oxipage-ext-scraps --no-verify
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Publish — oxipage-server (Tier 2)
+        run: cargo publish -p oxipage-server --no-verify
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Publish — oxipage-cli (Tier 3)
+        run: cargo publish -p oxipage-cli --no-verify
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

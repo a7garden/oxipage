@@ -9,7 +9,7 @@ use std::path::PathBuf;
 // ──────────────────────────── data model ────────────────────────────
 
 /// Top-level `~/.config/oxipage/sites.toml` file.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SitesFile {
     #[serde(default)]
     pub default_site: Option<String>,
@@ -76,16 +76,12 @@ impl SitesFile {
     /// assumes the input has been validated.
     pub fn resolve_name<'a>(&'a self, cli_site: Option<&'a str>) -> Option<&'a str> {
         // 1. --site flag (already validated by caller)
-        if let Some(name) = cli_site {
-            if !name.is_empty() && self.sites.contains_key(name) {
-                return Some(name);
-            }
+        if let Some(name) = cli_site && !name.is_empty() && self.sites.contains_key(name) {
+            return Some(name);
         }
         // 2. OXIPAGE_SITE env
-        if let Ok(env) = std::env::var("OXIPAGE_SITE") {
-            if !env.is_empty() && self.sites.contains_key(&env) {
-                return self.sites.get_key_value(&env).map(|(k, _)| k.as_str());
-            }
+        if let Ok(env) = std::env::var("OXIPAGE_SITE") && !env.is_empty() && self.sites.contains_key(&env) {
+            return self.sites.get_key_value(&env).map(|(k, _)| k.as_str());
         }
         // 3. default_site from file
         self.default_site.as_deref()
@@ -129,14 +125,7 @@ impl SitesFile {
     }
 }
 
-impl Default for SitesFile {
-    fn default() -> Self {
-        SitesFile {
-            default_site: None,
-            sites: BTreeMap::new(),
-        }
-    }
-}
+
 
 // ──────────────────────────── path resolution ────────────────────────────
 

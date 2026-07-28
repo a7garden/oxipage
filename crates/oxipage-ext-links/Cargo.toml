@@ -2,6 +2,8 @@
 name = "oxipage-ext-links"
 version = "0.1.0"
 edition = "2024"
+license.workspace = true
+description = "생태계 링크 확장 — LinkCard 전시, display_order, featured (doc/02 §2.11)"
 
 [lib]
 name = "oxipage_ext_links"
@@ -11,7 +13,7 @@ path = "src/lib.rs"
 anyhow.workspace = true
 async-trait.workspace = true
 axum.workspace = true
-oxipage-core = { path = "../oxipage-core" }
+oxipage-core = { version = "0.1.0", path = "../oxipage-core" }
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true

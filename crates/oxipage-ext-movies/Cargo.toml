@@ -2,6 +2,8 @@
 name = "oxipage-ext-movies"
 version = "0.1.0"
 edition = "2024"
+license.workspace = true
+description = "영화/시리즈 리뷰 확장 — TMDB 연동, SeriesGroup 묶음 평가 (doc/02 §2.9)"
 
 [lib]
 name = "oxipage_ext_movies"
@@ -11,7 +13,7 @@ path = "src/lib.rs"
 anyhow.workspace = true
 async-trait.workspace = true
 axum.workspace = true
-oxipage-core = { path = "../oxipage-core" }
+oxipage-core = { version = "0.1.0", path = "../oxipage-core" }
 reqwest = { workspace = true }
 serde.workspace = true
 serde_json.workspace = true

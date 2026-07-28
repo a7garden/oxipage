@@ -85,22 +85,18 @@ fn resolve_site_name<'a>(
     sites_file: &'a sites::SitesFile,
 ) -> anyhow::Result<Option<&'a str>> {
     // 1. --site flag (explicit, highest priority)
-    if let Some(name) = cli_site {
-        if !name.is_empty() {
-            if sites_file.exists(name) {
-                return Ok(Some(name));
-            }
-            anyhow::bail!("site '{name}' not found — use `oxipage site add` to create it");
+    if let Some(name) = cli_site && !name.is_empty() {
+        if sites_file.exists(name) {
+            return Ok(Some(name));
         }
+        anyhow::bail!("site '{name}' not found — use `oxipage site add` to create it");
     }
     // 2. OXIPAGE_SITE env — 명시적이므로 flag와 동일하게 존재 여부 검증
-    if let Ok(env) = std::env::var("OXIPAGE_SITE") {
-        if !env.is_empty() {
-            if sites_file.exists(&env) {
-                return Ok(sites_file.resolve_name(None));
-            }
-            anyhow::bail!("site '{env}' (from OXIPAGE_SITE env) not found — use `oxipage site add` to create it");
+    if let Ok(env) = std::env::var("OXIPAGE_SITE") && !env.is_empty() {
+        if sites_file.exists(&env) {
+            return Ok(sites_file.resolve_name(None));
         }
+        anyhow::bail!("site '{env}' (from OXIPAGE_SITE env) not found — use `oxipage site add` to create it");
     }
     // 3. default_site (from sites.toml)
     Ok(sites_file.resolve_name(None))
@@ -201,7 +197,7 @@ async fn dispatch_dynamic(
     let result = registry.lookup(ext_name, sub_name)?;
 
     match result {
-        LookupResult::Native(handler) => handler.run(parsed, &client).await,
+        LookupResult::Native(handler) => handler.run(parsed, client).await,
         LookupResult::Proxy => {
             // 핸들러 없음 → 서버 위임 (WASM 확장)
             let resp = client
@@ -295,24 +291,21 @@ impl DynamicRegistry {
         sub_name: &str,
     ) -> anyhow::Result<LookupResult> {
         // 1. 컴파일 목록에서 검색
-        if let Some(cmd) = self.compiled.iter().find(|c| c.name == ext_name) {
-            if let Some(sub) = cmd.subcommands.iter().find(|s| s.name == sub_name) {
-                if let Some(h) = &sub.handler {
-                    return Ok(LookupResult::Native(Arc::clone(h)));
-                }
-            }
+        if let Some(cmd) = self.compiled.iter().find(|c| c.name == ext_name)
+            && let Some(sub) = cmd.subcommands.iter().find(|s| s.name == sub_name)
+            && let Some(h) = &sub.handler
+        {
+            return Ok(LookupResult::Native(Arc::clone(h)));
         }
-
         // 2. 서버 디스커버리 목록에서 검색 (WASM 확장)
         if let Some(spec) = self
             .discovered
             .extensions
             .iter()
             .find(|e| e.name == ext_name || e.extension_id == ext_name)
+            && spec.subcommands.iter().any(|s| s.name == sub_name)
         {
-            if spec.subcommands.iter().any(|s| s.name == sub_name) {
-                return Ok(LookupResult::Proxy);
-            }
+            return Ok(LookupResult::Proxy);
         }
 
         anyhow::bail!(

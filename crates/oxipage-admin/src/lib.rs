@@ -15,9 +15,9 @@ use rust_embed::RustEmbed;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
-/// 임베드된 Admin SPA 빌드 아티팩트 (`admin-web/dist`).
+/// 임베드된 Admin SPA 빌드 아티팩트 (`admin-web/dist` → build.rs에서 복사).
 #[derive(RustEmbed)]
-#[folder = "../../admin-web/dist"]
+#[folder = "embedded-spa"]
 struct AdminAssets;
 
 /// Admin 콘솔 전역 상태.

@@ -1,8 +1,22 @@
 # 6장 — 로드맵
 
-그린필드 착수를 위해 "1인 개발 + AI 코딩 에이전트(oh-my-pi 등)" 속도를 전제로 단계를 쪼갰습니다. 각 단계는 그 자체로 배포 가능한 상태를 목표로 합니다 — 완성될 때까지 아무것도 안 켜져 있는 상태로 두지 않습니다.
+> 2026-07-28 기준 **Phase 0~5 전 영역 구현 완료.** 하위 섹션은 전체 구현 이력
+> 보존용으로 유지하며, 현재 상태는 §7.1/§8.11 기준.
 
-## Phase 0 — 뼈대
+## 달성 현황 요약
+
+| Phase | 목표 | 상태 |
+|---|---|---|
+| Phase 0 — 뼈대 | Cargo 워크스페이스, Axum/SQLite 서버, Vite+React SPA, Profile 확장 | ✅ 완료 |
+| Phase 1 — 핵심 콘텐츠 | blog/projects/links 확장 + CLI + 초안/발행 | ✅ 완료 |
+| Phase 2 — 풍부한 확장 | novels/movies/books/scraps/activity + TMDB/알라딘 연동 + 별점 | ✅ 완료 |
+| Phase 3 — 로비 완성 + SEO | 로비 3모드 + SSR 스냅샷 + /search + WCAG AA | ✅ 완료 |
+| Phase 4 — 에이전트 통합 | PAT 스코프 + OpenAPI + 레이트리밋 + SKILL.md | ✅ 완료 |
+| Phase 5 — OSS 제품화 | deploy + LICENSE + SDK + 레지스트리 + WASM v2 | ✅ 완료 |
+| 파생 — 멀티사이트 | sites.toml, CLI site 명령, 3단계 endpoint 해상도 | ✅ 완료 |
+| 파생 — CLI 확장성 | CliCommand trait, Dynamic subcommand, 5개 확장 CLI | ✅ 완료 |
+| 파생 — 관리 콘솔 | oxipage-admin crate, admin-web SPA, proxy/themes | ✅ 완료 |
+| **잔여** | 배포 스모크(자격증명), 브라우저 접근성 실측(수동) | ⏳
 
 **목표:** 빈 사이트라도 실제로 켜져서 접속되는 상태.
 

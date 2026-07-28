@@ -14,7 +14,7 @@ use std::path::PathBuf;
 // ──────────────────────────── data model ────────────────────────────
 
 /// `sites.toml` 최상위 구조.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SitesFile {
     #[serde(default)]
     pub default_site: Option<String>,
@@ -73,14 +73,6 @@ impl SitesFile {
     }
 }
 
-impl Default for SitesFile {
-    fn default() -> Self {
-        Self {
-            default_site: None,
-            sites: BTreeMap::new(),
-        }
-    }
-}
 
 // ──────────────────────────── response types ────────────────────────────
 

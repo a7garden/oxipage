@@ -57,11 +57,14 @@ export function Lobby() {
 
   if (!manifest) {
     return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-28 animate-pulse rounded-lg bg-surface" />
-        ))}
-      </div>
+      <>
+        <h1 className="sr-only">{lang === "ko" ? "로딩 중" : "Loading"}</h1>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-28 animate-pulse rounded-lg bg-surface" />
+          ))}
+        </div>
+      </>
     );
   }
 
@@ -75,27 +78,33 @@ export function Lobby() {
 
   if (mode === "list") {
     return (
-      <div className="overflow-hidden rounded-lg border border-line bg-surface divide-y divide-line">
-        {exts.map((ext) => (
-          <LobbyRow key={ext.id} ext={ext} lang={lang} />
-        ))}
-      </div>
+      <>
+        <h1 className="sr-only">{manifest.site.name}</h1>
+        <div className="overflow-hidden rounded-lg border border-line bg-surface divide-y divide-line">
+          {exts.map((ext) => (
+            <LobbyRow key={ext.id} ext={ext} lang={lang} />
+          ))}
+        </div>
+      </>
     );
   }
 
   const floating = mode === "canvas";
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {exts.map((ext, i) => (
-        <LobbyCard
-          key={ext.id}
-          ext={ext}
-          lang={lang}
-          floating={floating}
-          delay={i % 3}
-        />
-      ))}
-    </div>
+    <>
+      <h1 className="sr-only">{manifest.site.name}</h1>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {exts.map((ext, i) => (
+          <LobbyCard
+            key={ext.id}
+            ext={ext}
+            lang={lang}
+            floating={floating}
+            delay={i % 3}
+          />
+        ))}
+      </div>
+    </>
   );
 }
 
