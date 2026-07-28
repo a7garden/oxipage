@@ -156,7 +156,9 @@ pub async fn run_server_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow:
             }
         }
     }
-    scheduler.spawn_all(state.clone());
+    // v2 SSG: 백그라운드 잡은 `oxipage cache refresh`로만 실행됨.
+    // 상시 cron 폴링은 더 이상 사용하지 않는다.
+    // scheduler.spawn_all(state.clone());
 
     let app = oxipage_core::http::build_app(state);
     let addr = SocketAddr::new(config.server.host.parse()?, config.server.port);
