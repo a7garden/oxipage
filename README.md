@@ -1,7 +1,7 @@
 # Oxipage
 
-> A self-hosted personal studio — a single place for the developer, writer, critic,
-> and curator sides of "you".
+> A personal site generator for humans and AI agents — blog, portfolio, reviews, novels,
+> and more, all from one CLI.
 
 Oxipage turns the friction of static-site blogging (open the repo → create a file →
 write a commit message → push → wait for a build) into one CLI command, or one sentence
@@ -9,27 +9,28 @@ to an AI agent. It's not just a blog engine: each side of you — blog, novels, 
 movie/book reviews, link curation, activity feed — lives in its own **extension**, and
 they're all gathered into one **lobby**.
 
-The deployable artifact is a **single Rust binary** with the frontend embedded, backed by
-a single SQLite file. No separate database server, no orchestrator — run it on one Mac mini
-(or any single Linux host) under launchd/systemd. Apple `container`/Docker is *optional*
-packaging.
+**Oxipage is a Static Site Generator.** Content is managed through a CLI (or AI agent)
+against a local SQLite database. `oxipage build` generates static HTML + JSON + JS files,
+and `oxipage deploy` pushes them to GitHub Pages, Cloudflare Pages, or Netlify. No runtime
+server needed for the public site — zero operating cost, zero security surface.
 
 ## Status
 
 Foundation (Phase 0) through agent integration / API hardening (Phase 4) and most of OSS
-productization (Phase 5) are implemented. The detailed, living tracker is
-[`doc/08-remaining-implementation.md`](doc/08-remaining-implementation.md).
+productization (Phase 5) are implemented. The **v2 SSG pivot** (Phase 6) is designed and
+tracked in the [design spec](docs/superpowers/specs/2026-07-28-static-site-generator-design.md).
+The detailed, living tracker is [`doc/08-remaining-implementation.md`](doc/08-remaining-implementation.md).
 
-- **Core:** Axum HTTP server, SQLite (WAL) + per-extension namespaced migrations, FTS5 search
+- **v1 (current):** Axum HTTP server, SQLite (WAL) + per-extension namespaced migrations, FTS5 search
   (`tokenize='trigram'`), publish-time SSR snapshots, PAT scope auth, rate limiting,
-  OpenAPI/Swagger UI, background-job scheduler (cron-driven, wired into server boot —
-  activity GitHub polling every 15 min, scraps HN/GeekNews collection every 30 min).
+  OpenAPI/Swagger UI, background-job scheduler (cron-driven).
 - **9 extensions:** `profile` · `blog` · `projects` · `links` · `novels` · `movies` (TMDB) ·
   `books` (Aladin/Google Books) · `scraps` (HN/GeekNews) · `activity` (GitHub).
-- **CLI:** `init` · `status` · `serve` · `auth` · `blog` · `project` · `link` · `lobby` · `backup`.
-  (CLI subcommands for the Phase 2 extensions — novel/review/scrap/activity — are deferred;
-  those are reachable via API/web today.)
-- **Verified:** `cargo test --workspace` **128 tests, 0 failed** · `cargo clippy --workspace
+- **CLI:** `init` · `status` · `serve` · `auth` · `blog` · `project` · `link` · `lobby` ·
+  `backup` · `build` · `deploy` · `query` · `schema` · `cache refresh`.
+- **v2 SSG (in design):** `BuildExt` trait, rayon parallel build pipeline, `oxipage deploy`
+  GitHub Pages target, `oxipage query/schema` for AI agents, React SPA → static JSON data.
+- **Verified:** `cargo test --workspace` **163 tests, 0 failed** · `cargo clippy --workspace
   --all-targets -- -D warnings` clean · `cd web && bun run build` OK.
 
 ## Requirements
@@ -81,14 +82,15 @@ Key fields:
 Secrets (API keys) are **never** stored in the config file — only the *names* of the environment
 variables that hold them. See [`oxipage.toml.example`](oxipage.toml.example).
 
-### 2. Start the server
+### 2. Start the management server
 
 ```bash
 ./target/release/oxipage-server
 # → listening on http://127.0.0.1:8787
+#   (admin-web + API — content management only)
 ```
 
-Open **http://127.0.0.1:8787** — you'll see the lobby (read-only for visitors).
+Open **http://127.0.0.1:8787** — you'll see the admin console.
 
 The server runs **with or without** an admin token. Without one it's fully read-only: every
 write API returns `503 admin_not_configured`. To create content, generate a bootstrap admin
@@ -99,7 +101,7 @@ export OXIPAGE_ADMIN_TOKEN=$(openssl rand -hex 32)   # a random secret; keep it 
 ./target/release/oxipage-server
 ```
 
-### 3. Issue yourself a token (recommended over using the admin token directly)
+### 3. Issue yourself a token
 
 The `OXIPAGE_ADMIN_TOKEN` is a bootstrap superuser (scope `admin`) meant for setup/recovery.
 For everyday use, mint a scoped PAT and store it so you don't pass `--token` every time:
@@ -119,7 +121,7 @@ OXIPAGE_TOKEN=$OXIPAGE_ADMIN_TOKEN \
 Now any CLI command reads the token from `~/.config/oxipage/credentials` (or `OXIPAGE_TOKEN`)
 automatically. Token resolution order: `--token` flag → `OXIPAGE_TOKEN` env → credentials file.
 
-### 4. Create and publish content
+### 4. Create content and build
 
 Everything starts as a **draft** (`published_at = NULL`). Publishing is always a separate,
 explicit step — a safety guarantee that extends to AI agents.
@@ -127,12 +129,19 @@ explicit step — a safety guarantee that extends to AI agents.
 ```bash
 oxipage blog new "Hello world" --lang en --file post.md --json    # → { "data": { "slug": "…" } }
 oxipage blog list --draft                                          # see your drafts
-oxipage blog publish <slug>                                        # live on the site
+oxipage blog publish <slug>                                        # mark as published
 
 oxipage project add --title-ko "…" --title-en "My project" --tech rust --tech react --publish
 oxipage link add --title "Cool site" --url https://example.com --featured
 oxipage lobby layout projects --mode canvas                       # canvas | grid | list
-oxipage status                                                     # server + content summary
+```
+
+### 5. Build and deploy the static site
+
+```bash
+oxipage build                         # generates out/ (HTML + JSON + JS + images)
+oxipage deploy --target github-pages  # pushes out/ to gh-pages branch
+# → site is live at your GitHub Pages URL
 ```
 
 Pass `--json` to any command for machine-parseable output (this is how AI agents consume it).
@@ -208,29 +217,55 @@ the secret you configured in your GitHub webhook settings; if unset, the endpoin
 
 ## Deployment
 
-The default path is running the binary directly under launchd (macOS) or systemd (Linux).
-Templates live in [`deploy/`](deploy/) (`oxipage.plist.example`, `oxipage.service.example`,
-`Caddyfile.example`, `Dockerfile`) with full guidance in
-[`doc/05-deployment-self-hosting.md`](doc/05-deployment-self-hosting.md). Expose it to the
-internet with Cloudflare Tunnel (`cloudflared`) + a host-native Caddy reverse proxy — no
-inbound ports opened on your home network. The Dockerfile runs as a non-root `oxipage` user.
+Oxipage is a **Static Site Generator**. The public site needs no runtime server.
 
-**Backups:** `oxipage backup snapshot` (or `POST /api/v1/backup/snapshot`) creates a consistent
-SQLite snapshot via `VACUUM INTO` at `data_dir/backups/oxipage-<epoch>.db`. For continuous
-backup, run [litestream](https://litestream.io) against the WAL (see doc/05 §5.4); media under
-`data_dir/media` needs a separate restic/rclone sync.
+### Deploy via the CLI (recommended)
+
+```bash
+oxipage build
+oxipage deploy --target github-pages
+```
+
+This pushes `out/` to the `gh-pages` branch of your repo. Your GitHub Pages URL will serve
+the site immediately. Cloudflare Pages (`--target cloudflare`) and Netlify (`--target netlify`)
+are also supported.
+
+### Local preview
+
+Before deploying, preview the static site locally:
+
+```bash
+oxipage serve --preview
+# → http://127.0.0.1:8787 serves out/
+```
+
+### Management server (localhost only)
+
+The content management server (`oxipage serve`) still runs locally for the admin-web UI and
+API. This server is never exposed to the internet.
+
+### Data backups
+
+Your content lives in the SQLite database. Back it up at any time:
+
+```bash
+oxipage backup snapshot
+# → data/backups/oxipage-<epoch>.db
+```
+
+Media files under `data/media/` need a separate backup (rsync, restic, etc.).
 
 ## Project structure
 
 ```
 oxipage/
 ├── crates/
-│   ├── oxipage-core/          # runtime: HTTP, auth, search, scheduler, registry, snapshot, config
+│   ├── oxipage-core/          # management + build: HTTP, auth, search, scheduler, registry, BuildExt, build pipeline
 │   ├── oxipage-server/        # binary (oxipage-server) — statically links all extensions
-│   ├── oxipage-cli/           # binary (oxipage) — the API's reference client
-│   └── oxipage-ext-*/         # 9 extensions, each owning its DB, routes, CLI, background jobs
-├── web/                       # React 19 + TS + Vite SPA, embedded via rust-embed
-├── deploy/                    # Caddyfile / launchd plist / systemd unit / Dockerfile / deploy.yaml
+│   ├── oxipage-cli/           # binary (oxipage) — content management + build + deploy + query
+│   └── oxipage-ext-*/         # 9 extensions, each owning its DB, routes, CLI, BuildExt
+├── web/                       # React 19 + TS + Vite SPA, static JSON data layer
+├── deploy/                    # deploy config templates
 ├── registry/                  # curated extension index (JSON)
 ├── doc/                       # design spec (Korean, internal) — 00 … 08
 ├── docs/                      # implementation/ops notes (English)

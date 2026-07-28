@@ -16,6 +16,7 @@
 | 파생 — 멀티사이트 | sites.toml, CLI site 명령, 3단계 endpoint 해상도 | ✅ 완료 |
 | 파생 — CLI 확장성 | CliCommand trait, Dynamic subcommand, 5개 확장 CLI | ✅ 완료 |
 | 파생 — 관리 콘솔 | oxipage-admin crate, admin-web SPA, proxy/themes | ✅ 완료 |
+| **Phase 6 — SSG 전환** | **BuildExt / build/deploy/query/schema / 정적 사이트** | **⏳ 계획 완료** |
 | **잔여** | 배포 스모크(자격증명), 브라우저 접근성 실측(수동) | ⏳
 
 **목표:** 빈 사이트라도 실제로 켜져서 접속되는 상태.
@@ -92,3 +93,21 @@
 - Phase 1을 `projects`/`blog`/`links`로 시작한 이유: 포트폴리오·블로그·생태계 링크가 "개발자 개인 홈페이지"의 본질에 가장 가깝고, `movies`/`books`/`scraps`는 외부 API 연동이 있어 상대적으로 후순위로 미뤄도 손해가 적습니다.
 - 화려한 `canvas` 로비는 의도적으로 Phase 3까지 미룹니다 — 시그니처 요소이긴 하지만(3장 §3.1), 콘텐츠가 하나도 없는 상태에서 로비 모션부터 완성해봐야 보여줄 게 없습니다.
 - OSS 제품화(Phase 5)는 전체가 "선택 사항"이라는 원 요청의 톤을 그대로 반영해 맨 뒤에 두되, 그 방향을 처음부터 설계에 반영해 뒀기 때문에(1장의 트레이트 경계, 5장의 설정 기반 구조) 나중에 급하게 갈아엎을 일은 없도록 했습니다.
+
+## Phase 6 — SSG 전환 (Static Site Generator)
+
+**목표:** 상시 서버 의존형(v1)에서 정적 사이트 생성기(v2)로 전환.
+
+- `BuildExt` 트레이트 추가: `build_pages()`, `build_data()`, `build_search_docs()`
+- 9개 확장에 `BuildExt` 구현체 추가 (각 확장의 DB → 정적 HTML + JSON 생성 로직)
+- `oxipage build` 명령: rayon 병렬 빌드 파이프라인
+- `oxipage deploy` 명령: GitHub Pages 1순위 배포 (git worktree 기반)
+- `oxipage query` / `oxipage schema` 명령: AI 에이전트용 직접 DB 조회
+- `oxipage cache refresh` 명령: 외부 API 수집 (빌드와 분리)
+- React SPA 데이터 레이어: `VITE_DATA_MODE` 분기 (개발: API → 프로덕션: 정적 JSON)
+- 배포 모델 변경: launchd/systemd 상시 서버 → `oxipage build && oxipage deploy`
+- `oxipage serve --preview`: 정적 사이트 로컬 미리보기
+
+**완료 기준:** `oxipage build && oxipage deploy`로 정적 사이트가 GitHub Pages에서 라이브. CLI로 콘텐츠 관리, 빌드, 배포 전부 한 방에 가능.
+
+**설계 문서:** `docs/superpowers/specs/2026-07-28-static-site-generator-design.md`

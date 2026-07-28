@@ -1,13 +1,12 @@
 # 7장 — 남은 작업 (Remaining Work)
 
-> 2026-07-28 기준 모든 Phase 구현 완료 + 빌드 클린. **외부 자격증명이 필요한
-> 배포 스모크·브라우저 접근성 실측만 잔여.** 하위 섹션은 이력 보존용이며,
+> 2026-07-28 기준 **Phase 0~5 전 영역 구현 완료 + v2 SSG 설계 완료.** 하위 섹션은 이력 보존용이며,
 > 현재 상태는 §7.1과 `08` 기준.
 
-## 7.1 현재 상태 (2026-07-28 갱신)
+## 7.1 현재 상태 (2026-07-28 갱신, v2 SSG 설계 추가)
 
 Phase 0~5 전 영역 구현 완료 + 멀티사이트·CLI 확장성·관리 콘솔까지 추가 구현 완료.
-전체 163 tests 통과, clippy -D warnings clean. admin-web 포함 웹 빌드 OK.
+**2026-07-28: v2 SSG 전환 설계 완료. 미구현.**
 
 | 영역 | 상태 |
 |---|---|
@@ -22,6 +21,7 @@ Phase 0~5 전 영역 구현 완료 + 멀티사이트·CLI 확장성·관리 콘�
 | CLI 확장성 (doc/11: external_subcommand + 5개 확장 CLI + server discovery) | ✅ |
 | 관리 콘솔 (oxipage-admin + admin-web SPA + proxy/themes/sites API) | ✅ |
 | WASM 컴포넌트 런타임 v2 (fuel/DB HTTP capability/hot reload/ed25519 서명) | ✅ |
+| **SSG 전환 설계 (BuildExt/build/deploy/query/schema)** | **✅ 설계 완료 (미구현)** |
 | 검증: `cargo test --workspace` 163 tests ok · clippy `-D warnings` clean · web build | ✅ |
 | 검증: 배포 스모크·브라우저 접근성 실측 | ⏳ 외부 자격증명 및 수동 실측 필요 |
 
@@ -148,3 +148,25 @@ cd admin-web && bun run build   # clean
 | C | Phase 2 외부 API 연동 확장 | ✅ (TMDB/알라딘 키는 미설정 시 `manual` 폴백으로 진행 가능) |
 
 Phase 1 진행 시 A→C 순이 무난하며, B는 자격증명이 확보되는 시점에 끼워 넣는다.
+
+## 7.11 v2 SSG 전환 작업 (2026-07-28~)
+
+**설계 문서:** `docs/superpowers/specs/2026-07-28-static-site-generator-design.md`
+
+**목표:** 상시 서버 의존형(v1)에서 정적 사이트 생성기(v2)로 전환. `oxipage build && oxipage deploy`로 GitHub Pages에 배포 가능.
+
+### 작업 항목
+
+| # | 작업 | 영역 | 의존성 |
+|---|---|---|---|
+| 1 | `BuildExt` 트레이트 정의 (build_pages/build_data/build_search_docs) | Core | 없음 |
+| 2 | 9개 확장 `BuildExt` 구현체 (각 확장의 DB → HTML + JSON 검증 로직) | Extensions | 1 |
+| 3 | 빌드 파이프라인 (rayon 병렬, out/ 디렉토리 출력) | Core | 1, 2 |
+| 4 | `oxipage build` CLI 명령 | CLI | 3 |
+| 5 | `oxipage deploy` CLI 명령 (GitHub Pages 1순위, git worktree 기반) | CLI | 4 |
+| 6 | `oxipage query` / `oxipage schema` CLI 명령 (AI 에이전트용) | CLI | 없음 |
+| 7 | `oxipage cache refresh` CLI 명령 (외부 API 수집, 빌드와 분리) | CLI | 없음 |
+| 8 | `oxipage serve --preview` (out/ 디렉토리 HTTP 서빙) | Server | 4 |
+| 9 | React SPA `VITE_DATA_MODE` 전환 (개발: API, 프로덕션: 정적 JSON) | Web | 4 |
+| 10 | Admin-web은 불변 (확인) | Admin | 없음 |
+| 11 | README / 설계 문서 업데이트 | Docs | 전체 |
