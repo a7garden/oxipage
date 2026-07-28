@@ -22,4 +22,10 @@ rustflags = [
   "-C", "link-arg=--export=display_name_len",
   "-C", "link-arg=--export=lobby_card_ptr",
   "-C", "link-arg=--export=lobby_card_len",
+  "-C", "link-arg=--export=alloc",
+  "-C", "link-arg=--export=reset_alloc",
+  "-C", "link-arg=--export=route_manifest_ptr",
+  "-C", "link-arg=--export=route_manifest_len",
+  "-C", "link-arg=--export=handle_request",
+  "-C", "link-arg=--export=handle_request_len",
 ]
