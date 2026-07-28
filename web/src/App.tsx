@@ -4,6 +4,8 @@ import { lazy, Suspense, useEffect } from "react";
 import { Languages, Search } from "lucide-react";
 
 import { fetchManifest } from "./shared/api";
+import { SetupGuard } from "./setup/SetupGuard";
+import { SetupWizard } from "./setup/SetupWizard";
 import { Lobby } from "./lobby/Lobby";
 import { ProfilePage } from "./extensions/profile/ProfilePage";
 import { LanguageProvider, useLanguage } from "./shared/language";
@@ -170,7 +172,18 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <Shell />
+        <Routes>
+          <Route path="/setup/*" element={
+            <SetupGuard>
+              <SetupWizard />
+            </SetupGuard>
+          } />
+          <Route path="/*" element={
+            <SetupGuard>
+              <Shell />
+            </SetupGuard>
+          } />
+        </Routes>
       </BrowserRouter>
     </QueryClientProvider>
   );

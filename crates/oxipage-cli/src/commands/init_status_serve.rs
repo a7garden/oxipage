@@ -1,6 +1,7 @@
 use crate::client::Client;
 use crate::output::Output;
 use serde_json::json;
+use std::path::Path;
 
 const DEFAULT_TOML: &str = r#"[site]
 name = "내 Oxipage"
@@ -20,7 +21,7 @@ enabled = ["profile"]
 default_mode = "grid"
 "#;
 
-pub(crate) fn init(out: &Output, config_path: Option<&std::path::Path>) -> anyhow::Result<()> {
+pub(crate) fn init(out: &Output, config_path: Option<&Path>) -> anyhow::Result<()> {
     let path = config_path
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| std::path::PathBuf::from("oxipage.toml"));

@@ -1,4 +1,5 @@
 use crate::auth::{self, AdminAuth, PatRow};
+use crate::setup;
 use crate::error::ApiError;
 use crate::extension::{CliArgSpec, CliCommandManifest, CliCommandSpec, CliSubcommandSpec, Extension, Lang};
 use crate::search::SearchHit;
@@ -78,6 +79,15 @@ pub fn build_app(state: AppState) -> Router {
         .route("/cli/exec/{ext_id}/{sub_command}", axum::routing::post(cli_exec_handler))
         .route("/theme", get(theme_get).put(theme_put))
         .route("/themes", get(theme_catalog));
+    // Setup API (loopback-only, unauthenticated, doc/13)
+    api = setup::setup_routes(api);
+    // setup_gate: /setup/* 경로만 loopback-only + 완료 후 410
+    // 다른 경로는 통과 (확장 라우트 등에 영향 없음)
+    api = api.layer(axum::middleware::from_fn_with_state(
+        state.clone(),
+        setup::setup_gate,
+    ));
+
     for ext in state.registry.iter() {
         // WASM(런타임 적재) 확장은 route_dispatcher()가 Some → 네스팅하지 않고
         // 폴백 핸들러가 요청 시점에 동적 디스패치한다. 핫 리로드 지원.
@@ -192,8 +202,8 @@ async fn lobby_manifest(State(state): State<AppState>) -> Json<DataEnvelope<Mani
     Json(DataEnvelope {
         data: Manifest {
             site: ManifestSite {
-                name: state.config.site.name.clone(),
-                base_url: state.config.site.base_url.clone(),
+                name: state.effective_site_name().await,
+                base_url: state.effective_base_url().await,
                 default_lang: state.config.site.default_lang.clone(),
                 languages: state.config.site.languages.clone(),
             },

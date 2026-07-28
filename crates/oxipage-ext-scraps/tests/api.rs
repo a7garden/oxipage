@@ -17,7 +17,8 @@ async fn test_app(admin_token: Option<&str>) -> Router {
         config: Arc::new(Config::default()),
         admin_token: admin_token.map(Arc::<str>::from),
         registry: registry.clone(),
-        wasm_loader: None,
+                wasm_loader: None,
+        site_override: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
     };
     for e in registry.iter() {
         e.on_startup(&state).await.unwrap();
@@ -251,7 +252,8 @@ async fn queue_publish_and_source_filter_flow() {
         config: Arc::new(Config::default()),
         admin_token: Some(Arc::<str>::from("tok")),
         registry: registry.clone(),
-        wasm_loader: None,
+                wasm_loader: None,
+        site_override: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
     };
     for e in registry.iter() {
         e.on_startup(&state_app).await.unwrap();

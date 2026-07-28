@@ -12,6 +12,7 @@ use oxipage_core::state::AppState;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 use tracing_subscriber::EnvFilter;
 
 /// 컴파일된 모든 확장을 정적 링크에서 조립. registry는 항상 전부를 들고 가며,
@@ -89,6 +90,13 @@ pub async fn run_server_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow:
         );
     }
 
+    // 첫 부팅 감지 — setup 마법사로 브라우저 오픈 (doc/13)
+    if oxipage_core::setup::is_setup_needed(&db).await {
+        let url = format!("http://{}:{}/setup", config.server.host, config.server.port);
+        tracing::info!("first boot detected — opening setup wizard at {url}");
+        open_browser(&url);
+    }
+
     let wasm_loader: Option<Arc<dyn oxipage_core::extension::WasmLoader>> = {
         #[cfg(feature = "wasm")]
         {
@@ -105,6 +113,7 @@ pub async fn run_server_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow:
         admin_token: admin_token.clone(),
         registry: registry.clone(),
         wasm_loader,
+        site_override: Arc::new(RwLock::new(None)),
     };
     for ext in registry.iter() {
         let status = registry.status_of(ext.id()).await;
@@ -136,10 +145,27 @@ pub async fn run_server_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow:
     let addr = SocketAddr::new(config.server.host.parse()?, config.server.port);
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!("oxipage listening on http://{addr}");
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await?;
     Ok(())
+}
+
+/// 플랫폼별 기본 브라우저로 URL 오픈 (실패 시 경고만, 서버는 계속)
+fn open_browser(url: &str) {
+    let cmd = if cfg!(target_os = "macos") {
+        "open"
+    } else if cfg!(target_os = "windows") {
+        "start"
+    } else {
+        "xdg-open"
+    };
+    if let Err(e) = std::process::Command::new(cmd).arg(url).spawn() {
+        tracing::warn!("could not open browser: {e}");
+    }
 }
 
 async fn shutdown_signal() {

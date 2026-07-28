@@ -42,11 +42,22 @@ pub struct Cli {
 #[derive(Subcommand, Debug)]
 pub enum Command {
     /// oxipage.toml 스캐폴딩
-    Init,
+    Init {
+        #[arg(long)]
+        /// init 후 serve + 브라우저 오픈 (한 줄 시작)
+        wizard: bool,
+    },
     /// 초안/최근 게시물/서버 상태 요약
     Status,
     /// 로컬 개발 서버 기동 (유일하게 HTTP를 거치지 않는 예외)
     Serve {
+        #[arg(long)]
+        port: Option<u16>,
+    },
+    /// 브라우저로 사이트 오픈 (doc/13 §13.4.2)
+    Open {
+        #[arg(long)]
+        admin: bool,
         #[arg(long)]
         port: Option<u16>,
     },

@@ -11,11 +11,13 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow.workspace = true
+argon2.workspace = true
 async-trait.workspace = true
 futures-core.workspace = true
 axum.workspace = true
 base64.workspace = true
 ed25519-dalek.workspace = true
+directories.workspace = true
 mime_guess.workspace = true
 reqwest.workspace = true
 rust-embed.workspace = true

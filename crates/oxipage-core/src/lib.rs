@@ -12,6 +12,7 @@ pub mod rating;
 pub mod registry;
 pub mod scheduler;
 pub mod search;
+pub mod setup;
 pub mod snapshot;
 pub mod state;
 pub mod client;

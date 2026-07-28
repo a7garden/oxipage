@@ -7,6 +7,7 @@ mod extension;
 mod init_status_serve;
 mod link;
 mod lobby;
+mod open;
 mod project;
 mod site;
 
@@ -16,6 +17,7 @@ pub use blog::BlogCommand;
 pub use extension::ExtensionCommand;
 pub use link::LinkCommand;
 pub use lobby::LobbyCommand;
+pub use open::OpenArgs;
 pub use project::ProjectCommand;
 pub use site::SiteCommand;
 
@@ -57,12 +59,21 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
         return init_status_serve::admin(*port).await;
     }
 
+    // Open doesn't need HTTP — just open browser
     match cli.command {
-        Command::Init => init_status_serve::init(&out, cli.config.as_deref()),
+        Command::Init { wizard } => {
+            init_status_serve::init(&out, cli.config.as_deref())?;
+            if wizard {
+                init_status_serve::serve(None, cli.config.as_deref()).await
+            } else {
+                Ok(())
+            }
+        }
         Command::Status => init_status_serve::status(&out, &client).await,
         Command::Serve { port } => init_status_serve::serve(port, cli.config.as_deref()).await,
         Command::Auth(c) => auth::auth(c, &out, &client).await,
         Command::Blog(c) => blog::blog(c, &out, &client).await,
+        Command::Open { admin, port } => open::open(OpenArgs { admin, port }, &out),
         Command::Project(c) => project::project(c, &out, &client).await,
         Command::Link(c) => link::link(c, &out, &client).await,
         Command::Lobby(c) => lobby::lobby(c, &out, &client).await,
