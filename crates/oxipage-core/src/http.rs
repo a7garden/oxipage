@@ -81,7 +81,8 @@ pub fn build_app(state: AppState) -> Router {
         .route("/cli/exec/{ext_id}/{sub_command}", axum::routing::post(cli_exec_handler))
         .route("/theme", get(theme_get).put(theme_put))
         .route("/themes", get(theme_catalog))
-        .route("/build", axum::routing::post(build_handler));
+        .route("/build", axum::routing::post(build_handler))
+        .route("/cache/refresh", axum::routing::post(cache_refresh_handler));
     // Setup API (loopback-only, unauthenticated, doc/13)
     api = setup::setup_routes(api);
     // setup_gate: /setup/* 경로만 loopback-only + 완료 후 410
@@ -147,6 +148,25 @@ async fn build_handler(
         "pages": output.pages.len(),
         "extensions": output.extensions_data.len(),
         "out_dir": out_dir.to_string_lossy(),
+    })))
+}
+
+async fn cache_refresh_handler(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let mut scheduler = crate::scheduler::Scheduler::new();
+    for ext in state.registry.iter() {
+        for job in ext.background_jobs() {
+            scheduler.register(job);
+        }
+    }
+
+    let job_count = scheduler.jobs().len();
+    scheduler.run_all_once(&state).await;
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "jobs_run": job_count,
     })))
 }
 

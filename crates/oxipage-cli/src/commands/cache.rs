@@ -20,6 +20,15 @@ pub(crate) async fn cache(
         "/api/v1/cache/refresh".to_string()
     };
 
-    let res = client.post(&path, &serde_json::json!({})).await?;
-    out.data(res, "cache refresh")
+    match client.post(&path, &serde_json::json!({})).await {
+        Ok(res) => out.data(res, "cache refresh"),
+        Err(e) => {
+            // Graceful fallback if server isn't running
+            anyhow::bail!(
+                "Cache refresh failed: {}. Make sure `oxipage serve` is running.\n\
+                 Alternatively, run `oxipage build` to generate the site with existing data.",
+                e
+            )
+        }
+    }
 }
