@@ -59,7 +59,7 @@ pub(crate) async fn build(c: BuildCommand) -> anyhow::Result<()> {
             println!("  search:    {} docs", output.search_docs.len());
             println!("  output:    {}", out_path.display());
             println!();
-            println!("  Preview:  oxipage serve --preview");
+            println!("  Preview:  oxipage console --preview");
             println!("  Deploy:   oxipage deploy --target github-pages");
 
             Ok(())

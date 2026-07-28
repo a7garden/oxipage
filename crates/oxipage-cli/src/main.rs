@@ -1,6 +1,6 @@
 //! Oxipage CLI — 모든 명령은 인증된 HTTP 호출 (doc/04 §4.1).
 //!
-//! 유일한 예외: `oxipage serve`가 서버 프로세스를 직접 기동한다.
+//! 유일한 예외: `oxipage console`이 관리 콘솔을 띄운다.
 
 mod client;
 mod commands;

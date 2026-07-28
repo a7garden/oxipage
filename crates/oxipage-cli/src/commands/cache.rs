@@ -25,7 +25,7 @@ pub(crate) async fn cache(
         Err(e) => {
             // Graceful fallback if server isn't running
             anyhow::bail!(
-                "Cache refresh failed: {}. Make sure `oxipage serve` is running.\n\
+                "Cache refresh failed: {}. Make sure `oxipage console` is running.\n\
                  Alternatively, run `oxipage build` to generate the site with existing data.",
                 e
             )
