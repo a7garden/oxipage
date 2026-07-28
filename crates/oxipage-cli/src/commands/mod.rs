@@ -89,7 +89,7 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
         Command::Lobby(c) => lobby::lobby(c, &out, &client).await,
         Command::Extension(c) => extension::extension(c, &out, &client).await,
         Command::Backup(c) => backup::backup(c, &out, &client).await,
-        Command::Build(c) => build::build(c, &out, &client).await,
+        Command::Build(c) => build::build(c).await,
         Command::Cache(c) => cache::cache(c, &out, &client).await,
         Command::Deploy(c) => deploy::deploy(c, &out, &client).await,
         Command::Query(c) => query::query(c).await,
