@@ -1,5 +1,5 @@
-//! Oxipage 서버 진입점 라이브러리. CLI의 `serve` 서브커맨드가 동일한 진입점을
-//! 호출한다 (doc/04 §4.1 — `serve`는 "CLI가 서버 프로세스를 기동하는 예외").
+//! Oxipage 관리 콘솔 진입점 라이브러리 — admin web UI + API 서버를 띄운다.
+//! 호출한다 (doc/04 §4.1 — `console`는 v2 SSG 모델에서 로컬 관리 도구 진입점).
 //!
 //! 이 크레이트는 모든 확장을 정적 링크하며, 여기서 확장 레지스트리를 조립한다.
 //! 런타임 탑재/제거는 DB `extension_state` 기반 (doc/02 §2.13). 새 확장 추가 시
@@ -48,12 +48,12 @@ pub fn all_builders() -> Vec<Box<dyn BuildExt>> {
     ]
 }
 
-pub async fn run_server() -> anyhow::Result<()> {
-    run_server_with_extensions(all_extensions()).await
+pub async fn run_console() -> anyhow::Result<()> {
+    run_console_with_extensions(all_extensions()).await
 }
 
 /// 테스트/커스텀 빌드용 진입점 — 확장 목록을 주입받는다.
-pub async fn run_server_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow::Result<()> {
+pub async fn run_console_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
         .init();
@@ -212,4 +212,15 @@ async fn shutdown_signal() {
         _ = terminate => {},
     }
     tracing::info!("shutdown signal received");
+}
+
+// ───────────────────── v1 호환: deprecation aliases ─────────────────────
+#[deprecated(note = "Use run_console() — v2 renames server to console")]
+pub async fn run_server() -> anyhow::Result<()> {
+    run_console().await
+}
+
+#[deprecated(note = "Use run_console_with_extensions()")]
+pub async fn run_server_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow::Result<()> {
+    run_console_with_extensions(all).await
 }
