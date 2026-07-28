@@ -3,6 +3,8 @@
 //! Uses rayon to process all extension builders concurrently.
 //! Each extension independently produces pages, data, and search docs.
 
+use std::error::Error;
+
 use crate::builder::{BuildExt, BuildOutput, ExtBuildOutput};
 use sqlx::SqlitePool;
 
@@ -13,7 +15,7 @@ use sqlx::SqlitePool;
 pub fn build_site(
     db: &SqlitePool,
     builders: &[Box<dyn BuildExt>],
-) -> Result<BuildOutput, Box<dyn std::error::Error>> {
+) -> Result<BuildOutput, Box<dyn Error + Send + Sync>> {
     use rayon::prelude::*;
 
     let results: Vec<Result<ExtBuildOutput, String>> = builders

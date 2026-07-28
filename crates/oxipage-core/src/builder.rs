@@ -60,7 +60,7 @@ pub trait BuildExt: Send + Sync {
     /// Generate static HTML pages for published content.
     ///
     /// URL path convention: `{ext_id}/{slug}/index.html`.
-    fn build_pages(&self, db: &SqlitePool) -> Result<Vec<StaticPage>, Box<dyn Error + Send>>;
+    fn build_pages(&self, db: &SqlitePool) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>>;
 
     /// Generate client-side data as a serializable object.
     ///
@@ -68,10 +68,10 @@ pub trait BuildExt: Send + Sync {
     fn build_data(
         &self,
         db: &SqlitePool,
-    ) -> Result<Box<dyn Serialize + Send>, Box<dyn Error + Send>>;
+    ) -> Result<Box<dyn Serialize + Send>, Box<dyn Error + Send + Sync>>;
 
     /// Generate search index documents for this extension's published content.
-    fn build_search_docs(&self, db: &SqlitePool) -> Result<Vec<SearchDoc>, Box<dyn Error + Send>>;
+    fn build_search_docs(&self, db: &SqlitePool) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>>;
 }
 
 impl BuildOutput {

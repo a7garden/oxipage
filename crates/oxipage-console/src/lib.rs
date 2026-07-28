@@ -224,3 +224,4 @@ pub async fn run_server() -> anyhow::Result<()> {
 pub async fn run_server_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow::Result<()> {
     run_console_with_extensions(all).await
 }
+pub mod admin;
