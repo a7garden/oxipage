@@ -1,12 +1,8 @@
-//! SSR 스냅샷 (doc/01 §1.6).
+//! SSR 스냅샷 (v1) — **deprecated in v2.**
 //!
-//! 발행 시점에 prerendered HTML을 `/data/snapshots/`에 저장. OG 메타 + canonical +
-//! 본문 텍스트 + 동일 SPA 스크립트 태그. 봇(Slack/카카오톡/Twitter)과 대부분의
-//! 크롤러는 이 스냅샷을 받고, 브라우저는 같은 HTML을 하이드레이트.
-//!
-//! **편차 (doc/01 §1.6 대비):** Askama 대신 수동 `format!` 템플릿. 의존성 절약.
-//! 마크다운 → HTML은 프론트가 담당; 스냅샷 본문은 마크다운 원문을 `<main>`에 직접
-//! (봇이 텍스트로 읽음), SPA가 하이드레이트 시 교체.
+//! v1에서는 publish 시점에 Askama로 prerendered HTML을 생성했습니다.
+//! v2 SSG에서는 `BuildExt::build_pages()`가 빌드 시점에 전 페이지를 일괄 생성합니다.
+//! 이 모듈은 v1 호환성을 위해 유지되며, v2 빌드 파이프라인에서는 사용되지 않습니다.
 
 use crate::state::AppState;
 

@@ -1,3 +1,8 @@
+# [DEPRECATED] Oxipage v2 is a Static Site Generator — this file is retained for reference only.
+# The public site no longer needs a runtime server. Use 'oxipage build && oxipage deploy'
+# to deploy to GitHub Pages, Cloudflare Pages, or Netlify.
+# See docs/superpowers/specs/2026-07-28-static-site-generator-design.md for details.
+
 # Oxipage 배포 매니페스트 (doc/05 §5.7, doc/06 Phase 5).
 # compose-spec 유사 키. 단일 진실 소스 — (a) 바이너리 직접 기동(launchd/systemd)
 # 또는 (b) container run 중 택일.

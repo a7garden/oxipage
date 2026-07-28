@@ -1,3 +1,8 @@
+# [DEPRECATED] Oxipage v2 is a Static Site Generator — this file is retained for reference only.
+# The public site no longer needs a runtime server. Use 'oxipage build && oxipage deploy'
+# to deploy to GitHub Pages, Cloudflare Pages, or Netlify.
+# See docs/superpowers/specs/2026-07-28-static-site-generator-design.md for details.
+
 # Oxipage 컨테이너 이미지 (doc/05 §5.1).
 # OCI 표준 → Apple container build / docker build 모두 사용 가능.
 # 다단계: 1) web 빌드(bun) 2) Rust 빌드(web/dist 내장) 3) 런타임.

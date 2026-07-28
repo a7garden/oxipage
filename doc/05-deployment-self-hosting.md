@@ -1,5 +1,11 @@
 # 5장 — 셀프호스팅 배포
 
+> **v2 변경 (2026-07-28):** Oxipage는 정적 사이트 생성기(SSG)로 전환되었습니다.
+> 공개 사이트를 위해 서버를 실행할 필요가 없습니다. `oxipage build && oxipage deploy`로
+> GitHub Pages, Cloudflare Pages, Netlify 등에 정적 파일을 배포하세요.
+> 이 장은 v1 상시 서버 모델의 배포 가이드로, 기록용으로 보존됩니다.
+> SSG 배포 가이드는 `README.md`와 설계 문서를 참고하세요.
+
 ## 5.1 전제: Apple `container`의 현재 상태 (2026년 7월 기준)
 
 설계 전에 Apple의 `container` 툴 현황을 확인했습니다. 배포 아키텍처는 이 제약을 그대로 반영합니다.
