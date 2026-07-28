@@ -17,7 +17,7 @@ pub(crate) async fn build(c: BuildCommand) -> anyhow::Result<()> {
     match c {
         BuildCommand::Run { out_dir: custom_out } => {
             // 1. Resolve data directory from config
-            let data_dir = resolve_data_dir()?;
+            let data_dir = super::resolve_data_dir()?;
             let db_path = data_dir.join("oxipage.db");
             let media_dir = data_dir.join("media");
             let web_dist = PathBuf::from("web/dist");
@@ -66,31 +66,4 @@ pub(crate) async fn build(c: BuildCommand) -> anyhow::Result<()> {
     }
 }
 
-/// Resolve the data directory from config file or environment.
-fn resolve_data_dir() -> anyhow::Result<PathBuf> {
-    // Try OXIPAGE_CONFIG env → config file → default "data"
-    let config_path = std::env::var("OXIPAGE_CONFIG")
-        .map(PathBuf::from)
-        .ok()
-        .filter(|p| p.exists());
 
-    if let Some(ref path) = config_path {
-        let toml_str = std::fs::read_to_string(path)?;
-        let value: toml::Value = toml::from_str(&toml_str)?;
-        if let Some(data_dir) = value
-            .get("server")
-            .and_then(|s| s.get("data_dir"))
-            .and_then(|d| d.as_str())
-        {
-            return Ok(PathBuf::from(data_dir));
-        }
-    }
-
-    // Try OXIPAGE_DATA_DIR env
-    if let Ok(dir) = std::env::var("OXIPAGE_DATA_DIR") {
-        return Ok(PathBuf::from(dir));
-    }
-
-    // Default
-    Ok(PathBuf::from("data"))
-}

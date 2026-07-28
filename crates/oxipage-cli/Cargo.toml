@@ -16,6 +16,9 @@ clap.workspace = true
 directories.workspace = true
 oxipage-core = { version = "0.2.0", path = "../oxipage-core" }
 oxipage-console = { version = "0.2.0", path = "../oxipage-console" }
+oxipage-ext-blog = { version = "0.2.0", path = "../oxipage-ext-blog" }
+oxipage-ext-projects = { version = "0.2.0", path = "../oxipage-ext-projects" }
+oxipage-ext-links = { version = "0.2.0", path = "../oxipage-ext-links" }
 rusqlite = { version = "0.32", features = ["serde_json"] }
 reqwest.workspace = true
 serde.workspace = true

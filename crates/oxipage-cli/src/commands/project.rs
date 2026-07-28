@@ -1,11 +1,11 @@
-use crate::client::Client;
-use crate::output::Output;
 use clap::Subcommand;
-use serde_json::json;
-use super::require_token;
+use oxipage_ext_projects::model::ProjectInput;
+use oxipage_ext_projects::repo;
+use crate::output::Output;
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum ProjectCommand {
+    /// 새 프로젝트 추가 (초안).
     Add {
         #[arg(long)]
         title_ko: Option<String>,
@@ -26,34 +26,36 @@ pub enum ProjectCommand {
         #[arg(long, help = "즉시 발행")]
         publish: bool,
     },
+    /// 초안 발행.
     Publish { slug: String },
+    /// 목록.
     List {
-        #[arg(long)]
+        #[arg(long, help = "상태 필터 (wip/active/archived)")]
         status: Option<String>,
+        #[arg(long, help = "JSON 출력")]
+        json: bool,
     },
+    /// 단건 조회.
     Show { slug: String },
 }
-
 
 pub(crate) fn parse_link_pairs(
     pairs: &[String],
 ) -> anyhow::Result<serde_json::Map<String, serde_json::Value>> {
     let mut map = serde_json::Map::new();
     for p in pairs {
-        let (k, v) = p
-            .split_once('=')
-            .ok_or_else(|| anyhow::anyhow!("link must be key=URL form: {p}"))?;
-        map.insert(k.to_string(), json!(v));
+        let mut parts = p.splitn(2, '=');
+        let key = parts.next().unwrap_or("").to_string();
+        let val = parts.next().unwrap_or("").to_string();
+        map.insert(key, serde_json::Value::String(val));
     }
     Ok(map)
 }
 
-pub(crate) async fn project(
-    c: ProjectCommand,
-    out: &Output,
-    client: &Client,
-) -> anyhow::Result<()> {
-    require_token(client)?;
+pub(crate) async fn project(c: ProjectCommand, out: &Output) -> anyhow::Result<()> {
+    let data_dir = super::resolve_data_dir()?;
+    let pool = oxipage_core::db::connect(&data_dir.join("oxipage.db")).await?;
+
     match c {
         ProjectCommand::Add {
             title_ko,
@@ -66,54 +68,51 @@ pub(crate) async fn project(
             featured,
             publish,
         } => {
-            let description_ko = desc_ko.map(|p| std::fs::read_to_string(&p)).transpose()?;
-            let description_en = desc_en.map(|p| std::fs::read_to_string(&p)).transpose()?;
-            let links = if link.is_empty() {
-                serde_json::Map::new()
-            } else {
-                parse_link_pairs(&link)?
+            let description_ko = match desc_ko {
+                Some(p) => Some(std::fs::read_to_string(p)?),
+                None => None,
             };
-            let payload = json!({
-                "title_ko": title_ko,
-                "title_en": title_en,
-                "description_ko": description_ko,
-                "description_en": description_en,
-                "tech_stack": tech_stack,
-                "status": status,
-                "links": serde_json::Value::Object(links),
-                "featured": featured,
-            });
-            let res = client.post_raw("/api/v1/projects", payload).await?;
-            let data = Client::unwrap_data(res)?;
-            let slug = data.get("slug").and_then(|s| s.as_str()).unwrap_or("");
-            if publish && !slug.is_empty() {
-                let pub_res = client
-                    .post_raw(&format!("/api/v1/projects/{slug}/publish"), json!({}))
-                    .await?;
-                out.data(pub_res, "published")
+            let description_en = match desc_en {
+                Some(p) => Some(std::fs::read_to_string(p)?),
+                None => None,
+            };
+            let links = serde_json::Value::Object(parse_link_pairs(&link)?);
+            let input = ProjectInput {
+                title_ko,
+                title_en,
+                description_ko,
+                description_en,
+                tech_stack,
+                status,
+                started_at: None,
+                ended_at: None,
+                links,
+                featured,
+                slug: None,
+            };
+            let slug_base = repo::slugify(input.title_en.as_deref(), input.title_ko.as_deref());
+            let resolved_slug = repo::ensure_unique_slug(&pool, &slug_base).await?;
+            let project = repo::create(&pool, &input, &resolved_slug).await?;
+            if publish {
+                let published = repo::publish(&pool, &project.slug).await?;
+                out.data(serde_json::to_value(&published)?, "published")
             } else {
-                out.data(json!({ "data": data }), "project created")
+                out.data(serde_json::to_value(&project)?, "draft created")
             }
         }
         ProjectCommand::Publish { slug } => {
-            let res = client
-                .post_raw(&format!("/api/v1/projects/{slug}/publish"), json!({}))
-                .await?;
-            out.data(res, "published")
+            let project = repo::publish(&pool, &slug).await?;
+            out.data(serde_json::to_value(&project)?, "published")
         }
-        ProjectCommand::List { status } => {
-            let path = match status {
-                Some(s) => format!("/api/v1/projects?status={s}"),
-                None => "/api/v1/projects".to_string(),
-            };
-            let res = client.get(&path).await?;
-            out.data(res, "projects")
+        ProjectCommand::List { status, json: _ } => {
+            let projects = repo::list(&pool, status.as_deref(), 200).await?;
+            out.data(serde_json::to_value(&projects)?, "projects")
         }
         ProjectCommand::Show { slug } => {
-            let res = client.get(&format!("/api/v1/projects/{slug}")).await?;
-            out.data(res, "project")
+            let project = repo::find_by_slug(&pool, &slug)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("project not found: {slug}"))?;
+            out.data(serde_json::to_value(&project)?, "project")
         }
     }
 }
-
-// ───────────────────────── link ─────────────────────────

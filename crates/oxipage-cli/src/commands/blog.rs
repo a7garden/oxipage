@@ -1,8 +1,7 @@
-use crate::client::Client;
-use crate::output::Output;
 use clap::Subcommand;
-use serde_json::json;
-use super::require_token;
+use oxipage_ext_blog::model::{BlogPatch, BlogPostInput};
+use oxipage_ext_blog::repo;
+use crate::output::Output;
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum BlogCommand {
@@ -43,94 +42,67 @@ pub enum BlogCommand {
     Rm { slug: String },
 }
 
+pub(crate) async fn blog(c: BlogCommand, out: &Output) -> anyhow::Result<()> {
+    let data_dir = super::resolve_data_dir()?;
+    let pool = oxipage_core::db::connect(&data_dir.join("oxipage.db")).await?;
 
-pub(crate) async fn blog(
-    c: BlogCommand,
-    out: &Output,
-    client: &Client,
-) -> anyhow::Result<()> {
-    require_token(client)?;
     match c {
-        BlogCommand::New {
-            title,
-            lang,
-            file,
-            tags,
-            publish,
-        } => {
+        BlogCommand::New { title, lang, file, tags, publish } => {
             let body = match file {
-                Some(p) => std::fs::read_to_string(&p)?,
+                Some(p) => std::fs::read_to_string(p)?,
                 None => String::new(),
             };
-            let payload = json!({
-                "title": title,
-                "body": body,
-                "lang": lang,
-                "tags": tags,
-            });
-            let res = client.post_raw("/api/v1/blog", payload).await?;
-            let data = Client::unwrap_data(res)?;
-            let slug = data.get("slug").and_then(|s| s.as_str()).unwrap_or("");
-            if publish && !slug.is_empty() {
-                let pub_res = client
-                    .post_raw(&format!("/api/v1/blog/{slug}/publish"), json!({}))
-                    .await?;
-                out.data(pub_res, "published")
+            let input = BlogPostInput {
+                title,
+                body,
+                lang,
+                tags,
+                translation_group_id: None,
+                slug: None,
+            };
+            let slug_base = repo::slugify(&input.title);
+            let resolved_slug = repo::ensure_unique_slug(&pool, &slug_base).await?;
+            let post = repo::create(&pool, &input, &resolved_slug).await?;
+            if publish {
+                let published = repo::publish(&pool, &post.slug).await?;
+                out.data(serde_json::to_value(&published)?, "published")
             } else {
-                out.data(json!({ "data": data }), "draft created")
+                out.data(serde_json::to_value(&post)?, "draft created")
             }
         }
         BlogCommand::Publish { slug } => {
-            let res = client
-                .post_raw(&format!("/api/v1/blog/{slug}/publish"), json!({}))
-                .await?;
-            out.data(res, "published")
+            let post = repo::publish(&pool, &slug).await?;
+            out.data(serde_json::to_value(&post)?, "published")
         }
         BlogCommand::List { draft, lang } => {
-            let mut path = "/api/v1/blog?".to_string();
-            if draft {
-                path.push_str("draft=true&");
-            }
-            if let Some(l) = lang {
-                path.push_str(&format!("lang={l}&"));
-            }
-            let res = client.get(path.trim_end_matches('&')).await?;
-            out.data(res, "posts")
+            let posts = repo::list(&pool, draft, lang.as_deref(), 200).await?;
+            out.data(serde_json::to_value(&posts)?, "posts")
         }
         BlogCommand::Show { slug } => {
-            let res = client.get(&format!("/api/v1/blog/{slug}")).await?;
-            out.data(res, "post")
+            let post = repo::find_by_slug(&pool, &slug)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("post not found: {slug}"))?;
+            out.data(serde_json::to_value(&post)?, "post")
         }
-        BlogCommand::Edit {
-            slug,
-            title,
-            file,
-            tags,
-        } => {
-            let mut payload = serde_json::Map::new();
-            if let Some(t) = title {
-                payload.insert("title".into(), json!(t));
-            }
-            if let Some(p) = file {
-                let body = std::fs::read_to_string(&p)?;
-                payload.insert("body".into(), json!(body));
-            }
-            if !tags.is_empty() {
-                payload.insert("tags".into(), json!(tags));
-            }
-            let res = client
-                .patch(
-                    &format!("/api/v1/blog/{slug}"),
-                    &serde_json::Value::Object(payload),
-                )
-                .await?;
-            out.data(res, "updated")
+        BlogCommand::Edit { slug, title, file, tags } => {
+            let body = match file {
+                Some(p) => Some(std::fs::read_to_string(p)?),
+                None => None,
+            };
+            let tags_opt = if tags.is_empty() { None } else { Some(tags) };
+            let patch = BlogPatch { title, body, lang: None, tags: tags_opt };
+            let post = repo::update(&pool, &slug, &patch)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("post not found: {slug}"))?;
+            out.data(serde_json::to_value(&post)?, "updated")
         }
         BlogCommand::Rm { slug } => {
-            let res = client.delete(&format!("/api/v1/blog/{slug}")).await?;
-            out.data(res, "deleted")
+            let removed = repo::delete(&pool, &slug).await?;
+            if removed {
+                out.ok(format!("deleted: {slug}"))
+            } else {
+                anyhow::bail!("post not found: {slug}")
+            }
         }
     }
 }
-
-// ───────────────────────── project ─────────────────────────

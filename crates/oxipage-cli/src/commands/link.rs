@@ -1,8 +1,7 @@
-use crate::client::Client;
-use crate::output::Output;
 use clap::Subcommand;
-use serde_json::json;
-use super::require_token;
+use oxipage_ext_links::model::LinkCardInput;
+use oxipage_ext_links::repo;
+use crate::output::Output;
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum LinkCommand {
@@ -24,13 +23,10 @@ pub enum LinkCommand {
     Rm { id: i64 },
 }
 
+pub(crate) async fn link(c: LinkCommand, out: &Output) -> anyhow::Result<()> {
+    let data_dir = super::resolve_data_dir()?;
+    let pool = oxipage_core::db::connect(&data_dir.join("oxipage.db")).await?;
 
-pub(crate) async fn link(
-    c: LinkCommand,
-    out: &Output,
-    client: &Client,
-) -> anyhow::Result<()> {
-    require_token(client)?;
     match c {
         LinkCommand::Add {
             title,
@@ -40,26 +36,30 @@ pub(crate) async fn link(
             tags,
             featured,
         } => {
-            let payload = json!({
-                "title": title,
-                "url": url,
-                "description_ko": desc_ko,
-                "description_en": desc_en,
-                "tags": tags,
-                "featured": featured,
-            });
-            let res = client.post_raw("/api/v1/links", payload).await?;
-            out.data(res, "link added")
+            let input = LinkCardInput {
+                title,
+                url,
+                description_ko: desc_ko,
+                description_en: desc_en,
+                thumbnail_url: None,
+                tags,
+                display_order: 0,
+                featured,
+            };
+            let card = repo::create(&pool, &input).await?;
+            out.data(serde_json::to_value(&card)?, "link added")
         }
         LinkCommand::List => {
-            let res = client.get("/api/v1/links").await?;
-            out.data(res, "links")
+            let cards = repo::list(&pool, None, 500).await?;
+            out.data(serde_json::to_value(&cards)?, "links")
         }
         LinkCommand::Rm { id } => {
-            let res = client.delete(&format!("/api/v1/links/{id}")).await?;
-            out.data(res, "deleted")
+            let removed = repo::delete(&pool, id).await?;
+            if removed {
+                out.ok(format!("deleted link {id}"))
+            } else {
+                anyhow::bail!("link not found: {id}")
+            }
         }
     }
 }
-
-// ───────────────────────── lobby ─────────────────────────
