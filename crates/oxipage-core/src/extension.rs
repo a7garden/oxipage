@@ -341,7 +341,23 @@ pub trait SetupSaveHandler: Send + Sync {
         &self,
         ctx: &AppState,
         form: &serde_json::Map<String, serde_json::Value>,
-    ) -> anyhow::Result<()>;
+    ) -> anyhow::Result<StepOutcome>;
+}
+
+/// step 저장 결과. 후속 step 의 visible_when/prefill 평가에 쓰이는 값을 클라이언트에 노출.
+/// 코어는 이 값을 그냥 전달만 한다 — 평가는 클라이언트가 한다.
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct StepOutcome {
+    pub values: serde_json::Map<String, serde_json::Value>,
+}
+
+impl StepOutcome {
+    /// 폼 step 기본 동작: 입력받은 form 값을 그대로 outcome 으로 노출.
+    pub fn from_form(form: &serde_json::Map<String, serde_json::Value>) -> Self {
+        StepOutcome {
+            values: form.clone(),
+        }
+    }
 }
 
 /// `extension_state.config` JSON에 한 키를 upsert. 확장의 setup_wizard 키-step save 핸들러가 사용.

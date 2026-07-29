@@ -10,9 +10,9 @@ use oxipage_core::client::Client;
 
 use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
 use oxipage_core::extension::{
-    CliArg, CliCommand, CliHandler, CliSubcommand, Extension, ExtensionWizard, Lang,
-    LobbyCard, LobbyCardItem, Migration, SetupField, SetupFieldKind, SetupSaveHandler,
-    SetupStep, persist_extension_config,
+    CliArg, CliCommand, CliHandler, CliSubcommand, Extension, ExtensionWizard, Lang, LobbyCard,
+    LobbyCardItem, Migration, SetupField, SetupFieldKind, SetupSaveHandler, SetupStep, StepOutcome,
+    persist_extension_config,
 };
 use oxipage_core::state::AppState;
 use sqlx::SqlitePool;
@@ -171,7 +171,7 @@ impl SetupSaveHandler for BooksKeySave {
         &self,
         ctx: &AppState,
         form: &serde_json::Map<String, serde_json::Value>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<StepOutcome> {
         if let Some(v) = form.get("aladin_key").and_then(|x| x.as_str())
             && !v.is_empty()
         {
@@ -181,7 +181,7 @@ impl SetupSaveHandler for BooksKeySave {
             }
             persist_extension_config(ctx, "books", "OXIPAGE_ALADIN_TTBKEY", v).await?;
         }
-        Ok(())
+        Ok(StepOutcome::from_form(form))
     }
 }
 

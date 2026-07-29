@@ -11,7 +11,7 @@ use oxipage_core::client::Client;
 use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
 use oxipage_core::extension::{
     CliCommand, CliHandler, CliSubcommand, Extension, ExtensionWizard, Lang, LobbyCard,
-    LobbyCardItem, Migration, SetupField, SetupFieldKind, SetupSaveHandler, SetupStep,
+    LobbyCardItem, Migration, SetupField, SetupFieldKind, SetupSaveHandler, SetupStep, StepOutcome,
 };
 use oxipage_core::scheduler::ScheduledJob;
 use oxipage_core::state::AppState;
@@ -184,7 +184,7 @@ impl SetupSaveHandler for ActivityGithubSave {
         &self,
         _ctx: &AppState,
         form: &serde_json::Map<String, serde_json::Value>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<StepOutcome> {
         if let Some(v) = form.get("github_username").and_then(|x| x.as_str())
             && !v.is_empty()
         {
@@ -194,7 +194,7 @@ impl SetupSaveHandler for ActivityGithubSave {
                 std::env::set_var("OXIPAGE_GITHUB_USERNAME", v);
             }
         }
-        Ok(())
+        Ok(StepOutcome::from_form(form))
     }
 }
 

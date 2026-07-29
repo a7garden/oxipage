@@ -5,7 +5,7 @@
 //! - setup 완료 후 410 Gone
 
 use crate::error::ApiError;
-use crate::extension::{DataEnvelope, ExtensionStepInfo};
+use crate::extension::{DataEnvelope, ExtensionStepInfo, StepOutcome};
 use crate::state::{AppState, SiteOverride};
 use axum::extract::{ConnectInfo, Path, Request, State};
 use axum::http::StatusCode;
@@ -435,7 +435,7 @@ pub async fn setup_extension_step_handler(
     State(state): State<AppState>,
     Path((ext_id, step_id)): Path<(String, String)>,
     Json(form): Json<serde_json::Map<String, serde_json::Value>>,
-) -> Result<Json<DataEnvelope<SimpleOk>>, ApiError> {
+) -> Result<Json<DataEnvelope<StepOutcome>>, ApiError> {
     for ext in state.registry.iter() {
         if ext.id() != ext_id {
             continue;
@@ -446,13 +446,12 @@ pub async fn setup_extension_step_handler(
         if let Some(wizard) = ext.setup_wizard()
             && let Some(step) = wizard.steps.iter().find(|s| s.id == step_id)
         {
-            step.save_handler
+            let outcome = step
+                .save_handler
                 .save(&state, &form)
                 .await
                 .map_err(ApiError::internal)?;
-            return Ok(Json(DataEnvelope {
-                data: SimpleOk { ok: true },
-            }));
+            return Ok(Json(DataEnvelope { data: outcome }));
         }
     }
     Err(ApiError::new(

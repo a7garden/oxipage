@@ -8,7 +8,7 @@ use axum::routing::get;
 use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
 use oxipage_core::extension::{
     Extension, ExtensionWizard, Lang, LobbyCard, Migration, PrefillSource, SetupField,
-    SetupFieldKind, SetupSaveHandler, SetupStep,
+    SetupFieldKind, SetupSaveHandler, SetupStep, StepOutcome,
 };
 use oxipage_core::state::AppState;
 use sqlx::SqlitePool;
@@ -25,8 +25,10 @@ impl SetupSaveHandler for ProfileSetupSaveHandler {
         &self,
         ctx: &AppState,
         form: &serde_json::Map<String, serde_json::Value>,
-    ) -> anyhow::Result<()> {
-        repo::update_from_setup_form(&ctx.db, form).await
+    ) -> anyhow::Result<StepOutcome> {
+        repo::update_from_setup_form(&ctx.db, form)
+            .await
+            .map(|_| StepOutcome::from_form(form))
     }
 }
 

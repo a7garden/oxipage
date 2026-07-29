@@ -8,8 +8,8 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use oxipage_core::config::Config;
 use oxipage_core::extension::{
-    Extension, ExtensionWizard, Lang, LobbyCard, Migration,
-    SetupField, SetupFieldKind, SetupSaveHandler, SetupStep,
+    Extension, ExtensionWizard, Lang, LobbyCard, Migration, SetupField, SetupFieldKind,
+    SetupSaveHandler, SetupStep, StepOutcome, VisibilityRule,
 };
 use oxipage_core::registry::ExtensionRegistry;
 use oxipage_core::state::AppState;
@@ -30,8 +30,8 @@ impl SetupSaveHandler for DemoSaveHandler {
         &self,
         _ctx: &AppState,
         _form: &serde_json::Map<String, serde_json::Value>,
-    ) -> anyhow::Result<()> {
-        Ok(())
+    ) -> anyhow::Result<StepOutcome> {
+        Ok(StepOutcome::default())
     }
 }
 
@@ -97,8 +97,8 @@ impl SetupSaveHandler for NoopSave {
         &self,
         _ctx: &AppState,
         _form: &serde_json::Map<String, serde_json::Value>,
-    ) -> anyhow::Result<()> {
-        Ok(())
+    ) -> anyhow::Result<StepOutcome> {
+        Ok(StepOutcome::default())
     }
 }
 
@@ -378,3 +378,142 @@ async fn disabled_extension_step_returns_404() {
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
 }
 
+struct OutcomeSave;
+#[async_trait]
+impl SetupSaveHandler for OutcomeSave {
+    async fn save(
+        &self,
+        _ctx: &AppState,
+        form: &serde_json::Map<String, serde_json::Value>,
+    ) -> anyhow::Result<StepOutcome> {
+        Ok(StepOutcome {
+            values: form.clone(),
+        })
+    }
+}
+
+struct OutcomeExt;
+#[async_trait]
+impl Extension for OutcomeExt {
+    fn id(&self) -> &'static str {
+        "outcome"
+    }
+    fn display_name(&self, _: Lang) -> String {
+        "Outcome".into()
+    }
+    fn migrations(&self) -> Vec<Migration> {
+        vec![]
+    }
+    fn routes(&self) -> axum::Router<AppState> {
+        axum::Router::new()
+    }
+    async fn lobby_summary(&self, _ctx: &AppState) -> Option<LobbyCard> {
+        None
+    }
+    fn setup_wizard(&self) -> Option<ExtensionWizard> {
+        Some(ExtensionWizard {
+            steps: vec![SetupStep {
+                id: "step_one",
+                title_ko: "1",
+                title_en: "1",
+                description_ko: "",
+                description_en: "",
+                fields: vec![],
+                save_handler: Arc::new(OutcomeSave),
+                prefill: std::collections::BTreeMap::new(),
+                visible_when: None,
+            }],
+        })
+    }
+}
+
+struct ConditionalExt;
+#[async_trait]
+impl Extension for ConditionalExt {
+    fn id(&self) -> &'static str {
+        "cond"
+    }
+    fn display_name(&self, _: Lang) -> String {
+        "Cond".into()
+    }
+    fn migrations(&self) -> Vec<Migration> {
+        vec![]
+    }
+    fn routes(&self) -> axum::Router<AppState> {
+        axum::Router::new()
+    }
+    async fn lobby_summary(&self, _ctx: &AppState) -> Option<LobbyCard> {
+        None
+    }
+    fn setup_wizard(&self) -> Option<ExtensionWizard> {
+        Some(ExtensionWizard {
+            steps: vec![
+                SetupStep {
+                    id: "cond_a",
+                    title_ko: "A",
+                    title_en: "A",
+                    description_ko: "",
+                    description_en: "",
+                    fields: vec![],
+                    save_handler: Arc::new(NoopSave),
+                    prefill: std::collections::BTreeMap::new(),
+                    visible_when: None,
+                },
+                SetupStep {
+                    id: "cond_b",
+                    title_ko: "B",
+                    title_en: "B",
+                    description_ko: "",
+                    description_en: "",
+                    fields: vec![],
+                    save_handler: Arc::new(NoopSave),
+                    prefill: std::collections::BTreeMap::new(),
+                    visible_when: Some(VisibilityRule::FieldNotEmpty {
+                        step_id: "cond_a",
+                        field: "x",
+                    }),
+                },
+            ],
+        })
+    }
+}
+
+#[tokio::test]
+async fn extension_step_returns_outcome() {
+    let app = build_app(vec![Arc::new(OutcomeExt)]).await;
+    let res = app
+        .oneshot(
+            Request::post("/api/console/setup/extension-step/outcome/step_one")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"name":"hi"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let body = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["data"]["values"]["name"], "hi");
+}
+
+#[tokio::test]
+async fn status_serializes_visible_when() {
+    let app = build_app(vec![Arc::new(ConditionalExt)]).await;
+    let res = app
+        .oneshot(
+            Request::get("/api/console/setup/status")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let body = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let rule = &json["data"]["extension_wizards"][0]["steps"][1]["visible_when"];
+    assert_eq!(rule["kind"], "field_not_empty");
+    assert_eq!(rule["step_id"], "cond_a");
+    assert_eq!(rule["field"], "x");
+}
