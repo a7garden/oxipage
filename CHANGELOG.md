@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-29
+
+### Added
+- **Per-extension setup sub-wizards.** Extensions that own external API keys (`movies`/TMDB, `books`/Aladin + Google Books, `activity`/GitHub) now declare their own multi-step `setup_wizard` instead of relying on a shared keys step.
+  - `SetupFieldKind::Secret` for API keys (rendered as password, never prefilled).
+  - Declarative `visible_when` rules (`VisibilityRule`) evaluated client-side via `visibility.ts` (`evalRule` / `mergeOutcome` / `resolvePrefill`).
+  - **Action steps** run live checks after key entry: `movies_test` / `books_test` call the real external API and report `connection_ok`; `activity_sync` immediately syncs public GitHub activity (`repo::upsert`) and reports `synced`. Each action step shows conditionally on its key-step result.
+- `ExtensionSubWizard` (admin-web): owns one extension's sub-wizard with internal step nav, outcome accumulation, and `visible_when` filtering. `GenericStep` now renders action steps (empty field sets) and `Secret`/password fields.
+- `SetupSaveHandler::save` returns `StepOutcome` (values used to evaluate downstream `visible_when` / prefill); `setup_extension_step_handler` returns `DataEnvelope<StepOutcome>`.
+- `persist_extension_config` is now `pub`, so each extension's key-step save handler persists its own config directly.
+
+### Changed
+- **`external_api_keys` mechanism removed.** The centralized `Extension::external_api_keys()` / `save_external_key()` trait methods, `ExternalApiKey` / `ExternalKeyScope` types, the `/setup/external-keys` route + handler, `StatusResult.external_api_keys`, the matching OpenAPI entries, and the front-end `ExternalKeysStep.tsx` + `submitExternalKeys` were all deleted. API keys now live in each extension's own `setup_wizard` key-step and persist via `persist_extension_config`. First-party-only extension ecosystem — no third-party consumers affected.
+- **Setup wizard API renamed.** `Extension::setup_wizard_step(Option<SetupStep>)` → `setup_wizard(Option<ExtensionWizard { steps }>)`; `StatusResult.extension_steps` → `extension_wizards`; route `/setup/extension-step/{id}` → `/setup/extension-step/{ext_id}/{step_id}` (namespaced per extension).
+
+### Fixed
+- Clippy `-D warnings` lints in extension setup save handlers: `oxipage-ext-activity` (`collapsible_if` → let-chain), `oxipage-ext-books` / `oxipage-ext-movies` (redundant `matches!(.., Ok(_))` → `.is_ok()`).
+
 ## [0.5.0] - 2026-07-29
 
 ### Added
@@ -47,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Effective crates.io floor is `0.3.0` (`oxipage-wasm@0.3.0` already published under tag v0.3.0); 0.4.0 advances past that burn.
 - Continuation of the v0.3.0 line; the v0.3.0 Git tag was applied to a partial-publish state (4 crates were never released: `oxipage-ext-scraps`, `oxipage-ext-projects`, `oxipage-console`, `oxipage`). Those crates are not in 0.4.0 — they remain unpublished at 0.2.0 / absent from the registry; future cleanup is a separate concern.
 
-[Unreleased]: https://github.com/a7garden/oxipage/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/a7garden/oxipage/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/a7garden/oxipage/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/a7garden/oxipage/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/a7garden/oxipage/compare/v0.3.0...v0.4.0
