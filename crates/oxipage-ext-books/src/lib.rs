@@ -12,7 +12,7 @@ use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
 use oxipage_core::extension::{
     CliArg, CliCommand, CliHandler, CliSubcommand, Extension, ExtensionWizard, Lang, LobbyCard,
     LobbyCardItem, Migration, SetupField, SetupFieldKind, SetupSaveHandler, SetupStep, StepOutcome,
-    persist_extension_config,
+    VisibilityRule, persist_extension_config,
 };
 use oxipage_core::state::AppState;
 use sqlx::SqlitePool;
@@ -141,26 +141,61 @@ impl Extension for BooksExtension {
 
     fn setup_wizard(&self) -> Option<ExtensionWizard> {
         Some(ExtensionWizard {
-            steps: vec![SetupStep {
-                id: "books_key",
-                title_ko: "알라딘 API 키",
-                title_en: "Aladin API key",
-                description_ko: "도서 정보 연동을 위한 알라딘 TTBKey (선택)",
-                description_en: "Aladin TTBKey for book data (optional)",
-                fields: vec![SetupField {
-                    name: "aladin_key",
-                    label_ko: "알라딘 TTBKey",
-                    label_en: "Aladin TTBKey",
-                    kind: SetupFieldKind::Secret,
-                    required: false,
-                    placeholder_ko: None,
-                    placeholder_en: None,
-                }],
-                save_handler: Arc::new(BooksKeySave),
-                prefill: BTreeMap::new(),
-                visible_when: None,
-            }],
+            steps: vec![
+                SetupStep {
+                    id: "books_key",
+                    title_ko: "알라딘 API 키",
+                    title_en: "Aladin API key",
+                    description_ko: "도서 정보 연동을 위한 알라딘 TTBKey (선택)",
+                    description_en: "Aladin TTBKey for book data (optional)",
+                    fields: vec![SetupField {
+                        name: "aladin_key",
+                        label_ko: "알라딘 TTBKey",
+                        label_en: "Aladin TTBKey",
+                        kind: SetupFieldKind::Secret,
+                        required: false,
+                        placeholder_ko: None,
+                        placeholder_en: None,
+                    }],
+                    save_handler: Arc::new(BooksKeySave),
+                    prefill: BTreeMap::new(),
+                    visible_when: None,
+                },
+                SetupStep {
+                    id: "books_test",
+                    title_ko: "도서 API 연결 테스트",
+                    title_en: "Book API connection test",
+                    description_ko: "입력한 키로 도서 검색이 되는지 확인합니다",
+                    description_en: "Verify book search works with the key",
+                    fields: vec![],
+                    save_handler: Arc::new(BooksTestSave),
+                    prefill: BTreeMap::new(),
+                    visible_when: Some(VisibilityRule::FieldNotEmpty {
+                        step_id: "books_key",
+                        field: "aladin_key",
+                    }),
+                },
+            ],
         })
+    }
+}
+
+struct BooksTestSave;
+#[async_trait]
+impl SetupSaveHandler for BooksTestSave {
+    async fn save(
+        &self,
+        _ctx: &AppState,
+        _form: &serde_json::Map<String, serde_json::Value>,
+    ) -> anyhow::Result<StepOutcome> {
+        let client = client::BooksClient::from_env();
+        let ok = matches!(client.search("test", 1).await, Ok(_));
+        let mut m = serde_json::Map::new();
+        m.insert(
+            "connection_ok".into(),
+            if ok { "true" } else { "false" }.into(),
+        );
+        Ok(StepOutcome { values: m })
     }
 }
 

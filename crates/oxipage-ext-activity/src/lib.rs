@@ -12,6 +12,7 @@ use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
 use oxipage_core::extension::{
     CliCommand, CliHandler, CliSubcommand, Extension, ExtensionWizard, Lang, LobbyCard,
     LobbyCardItem, Migration, SetupField, SetupFieldKind, SetupSaveHandler, SetupStep, StepOutcome,
+    VisibilityRule,
 };
 use oxipage_core::scheduler::ScheduledJob;
 use oxipage_core::state::AppState;
@@ -154,25 +155,41 @@ impl Extension for ActivityExtension {
 
     fn setup_wizard(&self) -> Option<ExtensionWizard> {
         Some(ExtensionWizard {
-            steps: vec![SetupStep {
-                id: "activity_github",
-                title_ko: "GitHub 사용자명",
-                title_en: "GitHub username",
-                description_ko: "활동 동기화에 사용할 GitHub 사용자명 (선택)",
-                description_en: "GitHub username for activity sync (optional)",
-                fields: vec![SetupField {
-                    name: "github_username",
-                    label_ko: "GitHub 사용자명",
-                    label_en: "GitHub username",
-                    kind: SetupFieldKind::Text,
-                    required: false,
-                    placeholder_ko: None,
-                    placeholder_en: None,
-                }],
-                save_handler: Arc::new(ActivityGithubSave),
-                prefill: BTreeMap::new(),
-                visible_when: None,
-            }],
+            steps: vec![
+                SetupStep {
+                    id: "activity_github",
+                    title_ko: "GitHub 사용자명",
+                    title_en: "GitHub username",
+                    description_ko: "활동 동기화에 사용할 GitHub 사용자명 (선택)",
+                    description_en: "GitHub username for activity sync (optional)",
+                    fields: vec![SetupField {
+                        name: "github_username",
+                        label_ko: "GitHub 사용자명",
+                        label_en: "GitHub username",
+                        kind: SetupFieldKind::Text,
+                        required: false,
+                        placeholder_ko: None,
+                        placeholder_en: None,
+                    }],
+                    save_handler: Arc::new(ActivityGithubSave),
+                    prefill: BTreeMap::new(),
+                    visible_when: None,
+                },
+                SetupStep {
+                    id: "activity_sync",
+                    title_ko: "활동 동기화",
+                    title_en: "Sync activity",
+                    description_ko: "GitHub 공개 활동을 지금 가져옵니다",
+                    description_en: "Fetch public GitHub activity now",
+                    fields: vec![],
+                    save_handler: Arc::new(ActivitySyncSave),
+                    prefill: BTreeMap::new(),
+                    visible_when: Some(VisibilityRule::FieldNotEmpty {
+                        step_id: "activity_github",
+                        field: "github_username",
+                    }),
+                },
+            ],
         })
     }
 }
@@ -198,6 +215,36 @@ impl SetupSaveHandler for ActivityGithubSave {
     }
 }
 
+struct ActivitySyncSave;
+#[async_trait]
+impl SetupSaveHandler for ActivitySyncSave {
+    async fn save(
+        &self,
+        ctx: &AppState,
+        _form: &serde_json::Map<String, serde_json::Value>,
+    ) -> anyhow::Result<StepOutcome> {
+        let client = client::GithubClient::from_env()?;
+        let mut synced = 0u32;
+        if client.enabled() {
+            if let Ok(events) = client.fetch_public_events().await {
+                for event in events {
+                    if event.kind.trim().is_empty()
+                        || event.repo.name.trim().is_empty()
+                        || event.created_at.trim().is_empty()
+                    {
+                        continue;
+                    }
+                    if repo::upsert(&ctx.db, &event.into_input()).await.is_ok() {
+                        synced += 1;
+                    }
+                }
+            }
+        }
+        let mut m = serde_json::Map::new();
+        m.insert("synced".into(), synced.to_string().into());
+        Ok(StepOutcome { values: m })
+    }
+}
 impl BuildExt for ActivityExtension {
     fn ext_id(&self) -> &'static str {
         "activity"

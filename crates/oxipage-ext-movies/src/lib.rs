@@ -12,7 +12,7 @@ use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
 use oxipage_core::extension::{
     CliArg, CliCommand, CliHandler, CliSubcommand, Extension, ExtensionWizard, Lang, LobbyCard,
     LobbyCardItem, Migration, SetupField, SetupFieldKind, SetupSaveHandler, SetupStep, StepOutcome,
-    persist_extension_config,
+    VisibilityRule, persist_extension_config,
 };
 use oxipage_core::state::AppState;
 use sqlx::SqlitePool;
@@ -207,26 +207,65 @@ impl Extension for MoviesExtension {
 
     fn setup_wizard(&self) -> Option<ExtensionWizard> {
         Some(ExtensionWizard {
-            steps: vec![SetupStep {
-                id: "movies_key",
-                title_ko: "TMDB API 키",
-                title_en: "TMDB API key",
-                description_ko: "영화 정보 연동을 위한 TMDB 키 (선택)",
-                description_en: "TMDB key for movie data (optional)",
-                fields: vec![SetupField {
-                    name: "tmdb_key",
-                    label_ko: "TMDB API 키",
-                    label_en: "TMDB API key",
-                    kind: SetupFieldKind::Secret,
-                    required: false,
-                    placeholder_ko: None,
-                    placeholder_en: None,
-                }],
-                save_handler: Arc::new(MoviesKeySave),
-                prefill: BTreeMap::new(),
-                visible_when: None,
-            }],
+            steps: vec![
+                SetupStep {
+                    id: "movies_key",
+                    title_ko: "TMDB API 키",
+                    title_en: "TMDB API key",
+                    description_ko: "영화 정보 연동을 위한 TMDB 키 (선택)",
+                    description_en: "TMDB key for movie data (optional)",
+                    fields: vec![SetupField {
+                        name: "tmdb_key",
+                        label_ko: "TMDB API 키",
+                        label_en: "TMDB API key",
+                        kind: SetupFieldKind::Secret,
+                        required: false,
+                        placeholder_ko: None,
+                        placeholder_en: None,
+                    }],
+                    save_handler: Arc::new(MoviesKeySave),
+                    prefill: BTreeMap::new(),
+                    visible_when: None,
+                },
+                SetupStep {
+                    id: "movies_test",
+                    title_ko: "TMDB 연결 테스트",
+                    title_en: "TMDB connection test",
+                    description_ko: "입력한 키로 TMDB 에 접근되는지 확인합니다",
+                    description_en: "Verify the key can reach TMDB",
+                    fields: vec![],
+                    save_handler: Arc::new(MoviesTestSave),
+                    prefill: BTreeMap::new(),
+                    visible_when: Some(VisibilityRule::FieldNotEmpty {
+                        step_id: "movies_key",
+                        field: "tmdb_key",
+                    }),
+                },
+            ],
         })
+    }
+}
+
+struct MoviesTestSave;
+#[async_trait]
+impl SetupSaveHandler for MoviesTestSave {
+    async fn save(
+        &self,
+        _ctx: &AppState,
+        _form: &serde_json::Map<String, serde_json::Value>,
+    ) -> anyhow::Result<StepOutcome> {
+        let tmdb = integration::TmdbClient::from_env();
+        let ok = if tmdb.enabled() {
+            matches!(tmdb.search("test").await, Ok(_))
+        } else {
+            false
+        };
+        let mut m = serde_json::Map::new();
+        m.insert(
+            "connection_ok".into(),
+            if ok { "true" } else { "false" }.into(),
+        );
+        Ok(StepOutcome { values: m })
     }
 }
 impl BuildExt for MoviesExtension {
