@@ -118,7 +118,7 @@ export async function submitExtensionStep(
   stepId: string,
   form: Record<string, string>,
 ) {
-  return post<{ ok: boolean }>(
+  return post<{ values: Record<string, string> }>(
     `/extension-step/${encodeURIComponent(extId)}/${encodeURIComponent(stepId)}`,
     form,
   );

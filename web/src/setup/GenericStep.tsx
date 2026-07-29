@@ -1,5 +1,6 @@
 // GenericStep — ExtensionStepInfo의 fields[]를 받아 동적으로 input을 렌더.
 // 코어가 확장의 도메인 필드를 모른다 — 확장이 SetupField 목록으로 정의한다.
+// fields 가 비어있으면 action step (단일 실행 버튼).
 
 import { useState } from "react";
 import { Button } from "../shared/ui/button";
@@ -16,10 +17,13 @@ interface Props {
 }
 
 export function GenericStep({ step, initialValues, onNext, onBack, loading }: Props) {
-  // 필드별 로컬 상태. 시작은 initialValues 또는 빈 문자열.
+  // 필드별 로컬 상태. Secret 은 절대 프리필하지 않는다.
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(
-      step.fields.map((f) => [f.name, f.type === "secret" ? "" : (initialValues?.[f.name] ?? "")]),
+      step.fields.map((f) => [
+        f.name,
+        f.type === "secret" ? "" : (initialValues?.[f.name] ?? ""),
+      ]),
     ),
   );
   const set = (name: string, v: string) =>
@@ -28,6 +32,8 @@ export function GenericStep({ step, initialValues, onNext, onBack, loading }: Pr
   const requiredOk = step.fields
     .filter((f) => f.required)
     .every((f) => values[f.name]?.trim());
+  const allOptional = step.fields.every((f) => !f.required);
+  const isAction = step.fields.length === 0;
 
   const renderField = (f: ExtensionStepInfo["fields"][number]) => {
     const value = values[f.name] ?? "";
@@ -79,8 +85,6 @@ export function GenericStep({ step, initialValues, onNext, onBack, loading }: Pr
     );
   };
 
-  const allOptional = step.fields.every((f) => !f.required);
-
   return (
     <div>
       <h2 className="text-xl font-semibold mb-2 text-center">{step.title_ko}</h2>
@@ -92,16 +96,22 @@ export function GenericStep({ step, initialValues, onNext, onBack, loading }: Pr
         <Button variant="secondary" onClick={onBack}>
           ← 이전
         </Button>
-        <div className="flex gap-2">
-          {allOptional && (
-            <Button variant="ghost" onClick={() => onNext({})} disabled={loading}>
-              건너뛰기
-            </Button>
-          )}
-          <Button onClick={() => onNext(values)} disabled={!requiredOk || loading}>
-            {loading ? "저장 중..." : "다음 →"}
+        {isAction ? (
+          <Button onClick={() => onNext({})} disabled={loading}>
+            {loading ? "실행 중..." : "실행 →"}
           </Button>
-        </div>
+        ) : (
+          <div className="flex gap-2">
+            {allOptional && (
+              <Button variant="ghost" onClick={() => onNext({})} disabled={loading}>
+                건너뛰기
+              </Button>
+            )}
+            <Button onClick={() => onNext(values)} disabled={!requiredOk || loading}>
+              {loading ? "저장 중..." : "다음 →"}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

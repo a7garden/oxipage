@@ -1,60 +1,39 @@
 // SetupWizard — status 응답의 extension_wizards로 step을 동적 조립.
-// 코어가 profile/movies/books를 모른다 — 확장이 자기 SetupStep으로 선언한다.
+// 각 활성 확장은 자기 서브-위자드(ExtensionSubWizard)를 전역 시퀀스의 한 칸으로 소유한다.
 
 import { useEffect, useMemo, useState } from "react";
 import {
   fetchSetupStatus,
   submitSite,
   submitExtensions,
-  submitExtensionStep,
   submitTheme,
   submitComplete,
   type CompleteResult,
-  type ExtensionStepInfo,
+  type ExtensionWizardInfo,
   type SetupStatus,
 } from "./api";
 import { SetupGuard } from "./SetupGuard";
 import { StepSite } from "./StepSite";
 import { StepExtensions } from "./StepExtensions";
-import { GenericStep } from "./GenericStep";
 import { StepTheme } from "./StepTheme";
 import { StepDone } from "./StepDone";
+import { ExtensionSubWizard } from "./ExtensionSubWizard";
 
 type Step =
-  | { type: "site"; id: string }
-  | { type: "extensions"; id: string }
-  | { type: "extension-step"; id: string; extensionId: string; step: ExtensionStepInfo }
-  | { type: "theme"; id: string }
-  | { type: "done"; id: string };
+  | { type: "site" }
+  | { type: "extensions" }
+  | { type: "extension-wizard"; wizard: ExtensionWizardInfo }
+  | { type: "theme" }
+  | { type: "done" };
 
 function buildSteps(status: SetupStatus | null): Step[] {
   if (!status) return [];
-  const out: Step[] = [
-    { type: "site", id: "site" },
-    { type: "extensions", id: "extensions" },
-  ];
+  const out: Step[] = [{ type: "site" }, { type: "extensions" }];
   for (const wizard of status.extension_wizards ?? []) {
-    for (const step of wizard.steps ?? []) {
-      out.push({ type: "extension-step", id: step.id, extensionId: wizard.extension_id, step });
-    }
+    out.push({ type: "extension-wizard", wizard });
   }
-  out.push({ type: "theme", id: "theme" });
-  out.push({ type: "done", id: "done" });
-  return out;
-}
-
-/// Step의 prefill 필드를 사이트 컨텍스트 값으로 해석.
-/// 확장이 자기 도메인에서 어떤 컨텍스트 출처가 의미 있는지 선언한 것만 지원.
-function resolvePrefill(
-  step: ExtensionStepInfo,
-  siteName: string,
-): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const [field, source] of Object.entries(step.prefill ?? {})) {
-    if (source === "site_name" && siteName) {
-      out[field] = siteName;
-    }
-  }
+  out.push({ type: "theme" });
+  out.push({ type: "done" });
   return out;
 }
 
@@ -94,7 +73,7 @@ export function SetupWizard() {
     fetchSetupStatus()
       .then((s) => setStatus(s))
       .catch(() => {
-        // If 410, setup is already done — redirect
+        // 410 이면 setup 이미 완료 — 홈으로.
         window.location.href = "/";
       });
   }, []);
@@ -147,29 +126,22 @@ export function SetupWizard() {
             onNext={(data) =>
               handleNext(async () => {
                 await submitExtensions(data as { enabled: string[] });
-                // 활성 세트 변경 반영: extension_wizards는 is_active에
-                // 의존하므로 status를 다시 받아 steps를 재조립해야 한다.
+                // 활성 세트 변경 반영: extension_wizards는 is_active에 의존.
                 const fresh = await fetchSetupStatus();
                 setStatus(fresh);
               })
             }
           />
         );
-      case "extension-step": {
-        // 확장이 자기 SetupStep.prefill로 선언한 hint만 적용. 코드는 어떤 값이 가능한지도 모른다.
-        const initial = resolvePrefill(current.step, siteName);
+      case "extension-wizard":
         return (
-          <GenericStep
-            step={current.step}
-            initialValues={initial}
-            loading={loading}
-            onBack={() => setStepIdx((i) => Math.max(0, i - 1))}
-            onNext={(form) =>
-              handleNext(() => submitExtensionStep(current.extensionId, current.step.id, form))
-            }
+          <ExtensionSubWizard
+            wizard={current.wizard}
+            siteName={siteName}
+            onComplete={() => setStepIdx((i) => i + 1)}
+            onExitBack={() => setStepIdx((i) => Math.max(0, i - 1))}
           />
         );
-      }
       case "theme":
         return (
           <StepTheme
@@ -181,7 +153,7 @@ export function SetupWizard() {
                 await submitTheme(
                   data as { theme_id: string; lobby_mode?: string },
                 );
-                // theme 저장 성공 후 곧바로 setup 완료 (서버가 seed_sample_data를 호출).
+                // theme 저장 성공 후 곧바로 setup 완료 (서버가 seed_sample_data 호출).
                 const r = await submitComplete();
                 setCompleteResult(r);
               })
