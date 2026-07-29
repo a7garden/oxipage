@@ -112,56 +112,53 @@ impl BuildExt for BlogExtension {
         "blog"
     }
 
-    fn build_pages(
-        &self,
-        db: &SqlitePool,
-    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
-        let handle = tokio::runtime::Handle::current();
-        let posts: Vec<model::BlogPost> = handle.block_on(repo::list(db, false, None, i64::MAX))?;
-
+    fn build_pages(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
+        
+        let posts: Vec<model::BlogPost> = rt.block_on(repo::list(db, false, None, i64::MAX))?;
+    
         let mut pages = Vec::with_capacity(posts.len() * 3);
-
+    
         for post in &posts {
             // HTML page with OG metas
             let excerpt = body_excerpt(&post.body, 160);
-
+    
             let html = format!(
                 r#"<!DOCTYPE html>
-<html lang="{lang}">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{title}</title>
-  <meta property="og:title" content="{title}">
-  <meta property="og:description" content="{excerpt}">
-  <meta property="og:type" content="article">
-  <meta property="og:url" content="/blog/{slug}/">
-  <meta name="twitter:card" content="summary">
-  <link rel="canonical" href="/blog/{slug}/">
-</head>
-<body>
-  <div id="root"></div>
-  <script src="/assets/index.js"></script>
-</body>
-</html>
-"#,
+    <html lang="{lang}">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>{title}</title>
+      <meta property="og:title" content="{title}">
+      <meta property="og:description" content="{excerpt}">
+      <meta property="og:type" content="article">
+      <meta property="og:url" content="/blog/{slug}/">
+      <meta name="twitter:card" content="summary">
+      <link rel="canonical" href="/blog/{slug}/">
+    </head>
+    <body>
+      <div id="root"></div>
+      <script src="/assets/index.js"></script>
+    </body>
+    </html>
+    "#,
                 lang = post.lang,
                 title = post.title,
                 slug = post.slug,
                 excerpt = excerpt
             );
-
+    
             pages.push(StaticPage {
                 path: format!("blog/{}/index.html", post.slug),
                 content: html,
             });
-
+    
             // Markdown source file
             pages.push(StaticPage {
                 path: format!("blog/{}/index.md", post.slug),
                 content: post.body.clone(),
             });
-
+    
             // JSON metadata
             let meta = serde_json::json!({
                 "title": post.title,
@@ -175,26 +172,20 @@ impl BuildExt for BlogExtension {
                 content: serde_json::to_string_pretty(&meta).unwrap_or_default(),
             });
         }
-
+    
         Ok(pages)
     }
 
-    fn build_data(
-        &self,
-        db: &SqlitePool,
-    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
-        let handle = tokio::runtime::Handle::current();
-        let posts: Vec<model::BlogPost> = handle.block_on(repo::list(db, false, None, i64::MAX))?;
+    fn build_data(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
+        
+        let posts: Vec<model::BlogPost> = rt.block_on(repo::list(db, false, None, i64::MAX))?;
         Ok(Box::new(posts))
     }
 
-    fn build_search_docs(
-        &self,
-        db: &SqlitePool,
-    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
-        let handle = tokio::runtime::Handle::current();
-        let posts: Vec<model::BlogPost> = handle.block_on(repo::list(db, false, None, i64::MAX))?;
-
+    fn build_search_docs(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+        
+        let posts: Vec<model::BlogPost> = rt.block_on(repo::list(db, false, None, i64::MAX))?;
+    
         let docs: Vec<SearchDoc> = posts
             .into_iter()
             .map(|p| {
@@ -209,7 +200,7 @@ impl BuildExt for BlogExtension {
                 }
             })
             .collect();
-
+    
         Ok(docs)
     }
 }

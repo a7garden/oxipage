@@ -19,7 +19,7 @@ use std::error::Error;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use tokio::runtime::Handle;
+
 
 pub struct NovelsExtension;
 
@@ -248,14 +248,11 @@ impl BuildExt for NovelsExtension {
         "novels"
     }
 
-    fn build_pages(
-        &self,
-        db: &SqlitePool,
-    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
-        let handle = Handle::current();
-        let novels: Vec<model::Novel> = handle.block_on(repo::list_novels(db, false, 200))?;
+    fn build_pages(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
+        
+        let novels: Vec<model::Novel> = rt.block_on(repo::list_novels(db, false, 200))?;
         let mut pages = Vec::new();
-
+    
         for novel in &novels {
             let excerpt: String = novel
                 .synopsis
@@ -268,24 +265,23 @@ impl BuildExt for NovelsExtension {
                 path: format!("novels/{}/index.html", novel.slug),
                 content: format!(
                     r#"<!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>{title}</title><meta property="og:title" content="{title}">
-<meta property="og:description" content="{excerpt}"><meta property="og:type" content="website">
-<meta property="og:url" content="/novels/{slug}/"><link rel="canonical" href="/novels/{slug}/">
-</head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#,
+    <html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <title>{title}</title><meta property="og:title" content="{title}">
+    <meta property="og:description" content="{excerpt}"><meta property="og:type" content="website">
+    <meta property="og:url" content="/novels/{slug}/"><link rel="canonical" href="/novels/{slug}/">
+    </head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#,
                     title=novel.title, excerpt=excerpt, slug=novel.slug),
             });
-
-            let chapters: Vec<model::NovelChapter> = handle
-                .block_on(repo::list_chapters(db, &novel.slug, false))
+    
+            let chapters: Vec<model::NovelChapter> = rt.block_on(repo::list_chapters(db, &novel.slug, false))
                 .unwrap_or_default();
             for ch in &chapters {
                 pages.push(StaticPage {
                     path: format!("novels/{}/chapter-{}/index.html", novel.slug, ch.chapter_order),
                     content: format!(
                         r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>{novel} - {chapter}</title><link rel="canonical" href="/novels/{slug}/chapter-{order}/">
-</head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#,
+    <title>{novel} - {chapter}</title><link rel="canonical" href="/novels/{slug}/chapter-{order}/">
+    </head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#,
                         novel=novel.title, chapter=ch.title, slug=novel.slug, order=ch.chapter_order),
                 });
                 pages.push(StaticPage {
@@ -300,21 +296,15 @@ impl BuildExt for NovelsExtension {
         Ok(pages)
     }
 
-    fn build_data(
-        &self,
-        db: &SqlitePool,
-    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
-        let handle = Handle::current();
-        let novels: Vec<model::Novel> = handle.block_on(repo::list_novels(db, false, 200))?;
+    fn build_data(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
+        
+        let novels: Vec<model::Novel> = rt.block_on(repo::list_novels(db, false, 200))?;
         Ok(Box::new(novels))
     }
 
-    fn build_search_docs(
-        &self,
-        db: &SqlitePool,
-    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
-        let handle = Handle::current();
-        let novels: Vec<model::Novel> = handle.block_on(repo::list_novels(db, false, 200))?;
+    fn build_search_docs(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+        
+        let novels: Vec<model::Novel> = rt.block_on(repo::list_novels(db, false, 200))?;
         Ok(novels
             .into_iter()
             .map(|n| {

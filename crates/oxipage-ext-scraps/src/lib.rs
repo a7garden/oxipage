@@ -20,7 +20,7 @@ use std::error::Error;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use tokio::runtime::Handle;
+
 
 // ── CLI handlers ──
 
@@ -317,12 +317,9 @@ impl BuildExt for ScrapsExtension {
         "scraps"
     }
 
-    fn build_pages(
-        &self,
-        db: &SqlitePool,
-    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
-        let handle = Handle::current();
-        let items: Vec<model::ScrapItem> = handle.block_on(repo::list(db, true, None, 200))?;
+    fn build_pages(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
+        
+        let items: Vec<model::ScrapItem> = rt.block_on(repo::list(db, true, None, 200))?;
         let mut pages = Vec::with_capacity(items.len());
         for item in &items {
             let excerpt: String = item
@@ -337,30 +334,24 @@ impl BuildExt for ScrapsExtension {
                 path: format!("scraps/{}/index.html", item.id),
                 content: format!(
                     r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>{title}</title><meta property="og:title" content="{title}"><meta property="og:description" content="{excerpt}">
-<meta property="og:type" content="website"><meta property="og:url" content="/scraps/{id}/">
-<link rel="canonical" href="/scraps/{id}/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#,
+    <title>{title}</title><meta property="og:title" content="{title}"><meta property="og:description" content="{excerpt}">
+    <meta property="og:type" content="website"><meta property="og:url" content="/scraps/{id}/">
+    <link rel="canonical" href="/scraps/{id}/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#,
                     title=item.title, excerpt=excerpt, id=item.id),
             });
         }
         Ok(pages)
     }
 
-    fn build_data(
-        &self,
-        db: &SqlitePool,
-    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
-        let handle = Handle::current();
-        let items: Vec<model::ScrapItem> = handle.block_on(repo::list(db, true, None, 200))?;
+    fn build_data(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
+        
+        let items: Vec<model::ScrapItem> = rt.block_on(repo::list(db, true, None, 200))?;
         Ok(Box::new(items))
     }
 
-    fn build_search_docs(
-        &self,
-        db: &SqlitePool,
-    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
-        let handle = Handle::current();
-        let items: Vec<model::ScrapItem> = handle.block_on(repo::list(db, true, None, 200))?;
+    fn build_search_docs(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+        
+        let items: Vec<model::ScrapItem> = rt.block_on(repo::list(db, true, None, 200))?;
         Ok(items
             .into_iter()
             .map(|s| {

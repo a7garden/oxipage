@@ -149,12 +149,11 @@ async fn build_handler(State(state): State<AppState>) -> Result<Json<serde_json:
     let config = &state.config;
     let out_dir = config.server.data_dir.join("out");
     let media_dir = config.server.data_dir.join("media");
-    let web_dist = std::path::PathBuf::from("web/dist");
 
     let output = build_site(&state.db, &state.builders)
         .map_err(|e| ApiError::internal(anyhow::anyhow!("{}", e)))?;
 
-    write_build_output(&output, &out_dir, &media_dir, &web_dist)
+    write_build_output(&output, &out_dir, &media_dir)
         .map_err(|e| ApiError::internal(anyhow::anyhow!("{}", e)))?;
 
     Ok(Json(serde_json::json!({
@@ -434,6 +433,18 @@ fn serve_asset(path: &str) -> Option<Response> {
 pub fn spa_index_html() -> Option<String> {
     Assets::get("index.html")
         .and_then(|f| std::str::from_utf8(f.data.as_ref()).ok().map(str::to_owned))
+}
+
+/// Iterate every embedded SPA file as `(relative_path, bytes)`. Used by `oxipage build`
+/// to write `out/` from the embedded bundle (not the CWD `web/dist`), so a release
+/// binary produces a correct site regardless of the working directory.
+pub fn embedded_spa_files() -> Vec<(String, Vec<u8>)> {
+    Assets::iter()
+        .filter_map(|path| {
+            let path = path.into_owned();
+            Assets::get(&path).map(|f| (path, f.data.into_owned()))
+        })
+        .collect()
 }
 
 // ─── extension lifecycle (doc/02 §2.13, doc/04 §4.3) ───

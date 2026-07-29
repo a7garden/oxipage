@@ -52,7 +52,11 @@ pub struct BuildOutput {
 /// Each extension implements this to participate in static site generation.
 ///
 /// Implementors must be `Send + Sync` so rayon can process them in parallel.
-/// All methods are synchronous — build is CPU-bound.
+///
+/// Methods are synchronous but perform async DB I/O via `rt.block_on(...)`. The
+/// `Handle` is captured once on the Tokio runtime thread (before rayon) and passed
+/// in, because `tokio::runtime::Handle::current()` panics on a rayon worker thread
+/// (no runtime is bound there). `Handle::block_on` is safe to call from any thread.
 pub trait BuildExt: Send + Sync {
     /// Extension identifier, e.g. `"blog"`, `"projects"`.
     fn ext_id(&self) -> &'static str;
@@ -60,8 +64,11 @@ pub trait BuildExt: Send + Sync {
     /// Generate static HTML pages for published content.
     ///
     /// URL path convention: `{ext_id}/{slug}/index.html`.
-    fn build_pages(&self, db: &SqlitePool)
-    -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>>;
+    fn build_pages(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>>;
 
     /// Generate client-side data as a serializable object.
     ///
@@ -69,12 +76,14 @@ pub trait BuildExt: Send + Sync {
     fn build_data(
         &self,
         db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
     ) -> Result<Box<dyn Serialize + Send>, Box<dyn Error + Send + Sync>>;
 
     /// Generate search index documents for this extension's published content.
     fn build_search_docs(
         &self,
         db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
     ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>>;
 }
 

@@ -75,15 +75,12 @@ impl BuildExt for ProjectsExtension {
         "projects"
     }
 
-    fn build_pages(
-        &self,
-        db: &SqlitePool,
-    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
-        let handle = tokio::runtime::Handle::current();
-        let projects: Vec<model::Project> = handle.block_on(repo::list(db, None, 200))?;
-
+    fn build_pages(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
+        
+        let projects: Vec<model::Project> = rt.block_on(repo::list(db, None, 200))?;
+    
         let mut pages = Vec::with_capacity(projects.len());
-
+    
         for p in &projects {
             let title = p
                 .title_en
@@ -96,54 +93,48 @@ impl BuildExt for ProjectsExtension {
                 .or(p.description_ko.as_deref())
                 .unwrap_or("");
             let excerpt: String = desc.chars().take(160).collect();
-
+    
             pages.push(StaticPage {
                 path: format!("projects/{}/index.html", p.slug),
                 content: format!(
                     r#"<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{title}</title>
-  <meta property="og:title" content="{title}">
-  <meta property="og:description" content="{excerpt}">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="/projects/{slug}/">
-  <link rel="canonical" href="/projects/{slug}/">
-</head>
-<body>
-  <div id="root"></div>
-  <script src="/assets/index.js"></script>
-</body>
-</html>
-"#,
+    <html lang="ko">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>{title}</title>
+      <meta property="og:title" content="{title}">
+      <meta property="og:description" content="{excerpt}">
+      <meta property="og:type" content="website">
+      <meta property="og:url" content="/projects/{slug}/">
+      <link rel="canonical" href="/projects/{slug}/">
+    </head>
+    <body>
+      <div id="root"></div>
+      <script src="/assets/index.js"></script>
+    </body>
+    </html>
+    "#,
                     title = title,
                     slug = p.slug,
                     excerpt = excerpt
                 ),
             });
         }
-
+    
         Ok(pages)
     }
 
-    fn build_data(
-        &self,
-        db: &SqlitePool,
-    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
-        let handle = tokio::runtime::Handle::current();
-        let projects: Vec<model::Project> = handle.block_on(repo::list(db, None, 200))?;
+    fn build_data(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
+        
+        let projects: Vec<model::Project> = rt.block_on(repo::list(db, None, 200))?;
         Ok(Box::new(projects))
     }
 
-    fn build_search_docs(
-        &self,
-        db: &SqlitePool,
-    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
-        let handle = tokio::runtime::Handle::current();
-        let projects: Vec<model::Project> = handle.block_on(repo::list(db, None, 200))?;
-
+    fn build_search_docs(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+        
+        let projects: Vec<model::Project> = rt.block_on(repo::list(db, None, 200))?;
+    
         let docs: Vec<SearchDoc> = projects
             .into_iter()
             .map(|p| {
@@ -160,7 +151,7 @@ impl BuildExt for ProjectsExtension {
                 }
             })
             .collect();
-
+    
         Ok(docs)
     }
 }

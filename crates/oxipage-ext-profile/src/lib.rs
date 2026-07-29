@@ -144,57 +144,48 @@ impl BuildExt for ProfileExtension {
         "profile"
     }
 
-    fn build_pages(
-        &self,
-        db: &SqlitePool,
-    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
-        let handle = tokio::runtime::Handle::current();
-        let profile: Option<model::Profile> = handle.block_on(repo::get(db))?;
-
+    fn build_pages(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
+        
+        let profile: Option<model::Profile> = rt.block_on(repo::get(db))?;
+    
         let Some(profile) = profile else {
             return Ok(vec![]);
         };
-
+    
         let html = format!(
             r#"<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{name}</title>
-  <meta property="og:title" content="{name}">
-  <meta property="og:type" content="profile">
-  <meta property="og:url" content="/profile/">
-  <link rel="canonical" href="/profile/">
-</head>
-<body>
-  <div id="root"></div>
-  <script src="/assets/index.js"></script>
-</body>
-</html>
-"#,
+    <html lang="ko">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>{name}</title>
+      <meta property="og:title" content="{name}">
+      <meta property="og:type" content="profile">
+      <meta property="og:url" content="/profile/">
+      <link rel="canonical" href="/profile/">
+    </head>
+    <body>
+      <div id="root"></div>
+      <script src="/assets/index.js"></script>
+    </body>
+    </html>
+    "#,
             name = profile.display_name
         );
-
+    
         Ok(vec![StaticPage {
             path: "profile/index.html".to_string(),
             content: html,
         }])
     }
 
-    fn build_data(
-        &self,
-        db: &SqlitePool,
-    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
-        let handle = tokio::runtime::Handle::current();
-        let profile: Option<model::Profile> = handle.block_on(repo::get(db))?;
+    fn build_data(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
+        
+        let profile: Option<model::Profile> = rt.block_on(repo::get(db))?;
         Ok(Box::new(profile))
     }
 
-    fn build_search_docs(
-        &self,
-        _db: &SqlitePool,
-    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+    fn build_search_docs(&self, _db: &SqlitePool, _rt: &tokio::runtime::Handle) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
         Ok(vec![])
     }
 }

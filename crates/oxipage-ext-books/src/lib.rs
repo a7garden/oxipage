@@ -155,12 +155,9 @@ impl BuildExt for BooksExtension {
         "books"
     }
 
-    fn build_pages(
-        &self,
-        db: &SqlitePool,
-    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
-        let handle = tokio::runtime::Handle::current();
-        let books: Vec<model::Book> = handle.block_on(repo::list(db, None, 200))?;
+    fn build_pages(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
+        
+        let books: Vec<model::Book> = rt.block_on(repo::list(db, None, 200))?;
         let mut pages = Vec::with_capacity(books.len());
         for b in &books {
             let excerpt: String = b
@@ -175,30 +172,24 @@ impl BuildExt for BooksExtension {
                 path: format!("books/{}/index.html", b.id),
                 content: format!(
                     r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>{title}</title><meta property="og:title" content="{title}"><meta property="og:description" content="{excerpt}">
-<meta property="og:type" content="website"><meta property="og:url" content="/books/{id}/">
-<link rel="canonical" href="/books/{id}/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#,
+    <title>{title}</title><meta property="og:title" content="{title}"><meta property="og:description" content="{excerpt}">
+    <meta property="og:type" content="website"><meta property="og:url" content="/books/{id}/">
+    <link rel="canonical" href="/books/{id}/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#,
                     title=b.title, excerpt=excerpt, id=b.id),
             });
         }
         Ok(pages)
     }
 
-    fn build_data(
-        &self,
-        db: &SqlitePool,
-    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
-        let handle = tokio::runtime::Handle::current();
-        let books: Vec<model::Book> = handle.block_on(repo::list(db, None, 200))?;
+    fn build_data(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
+        
+        let books: Vec<model::Book> = rt.block_on(repo::list(db, None, 200))?;
         Ok(Box::new(books))
     }
 
-    fn build_search_docs(
-        &self,
-        db: &SqlitePool,
-    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
-        let handle = tokio::runtime::Handle::current();
-        let books: Vec<model::Book> = handle.block_on(repo::list(db, None, 200))?;
+    fn build_search_docs(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+        
+        let books: Vec<model::Book> = rt.block_on(repo::list(db, None, 200))?;
         Ok(books
             .into_iter()
             .map(|b| {

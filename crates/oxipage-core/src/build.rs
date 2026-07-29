@@ -18,18 +18,24 @@ pub fn build_site(
 ) -> Result<BuildOutput, Box<dyn Error + Send + Sync>> {
     use rayon::prelude::*;
 
+    // Capture the Tokio runtime handle ONCE here, on the runtime thread (this fn is
+    // called from the async `build` command). Rayon worker threads have no runtime
+    // bound, so `Handle::current()` inside the closure would panic. Passing the
+    // captured handle lets each builder `block_on` its async DB work from any thread.
+    let rt = tokio::runtime::Handle::current();
+
     let results: Vec<Result<ExtBuildOutput, String>> = builders
         .par_iter()
         .map(|ext| {
             let ext_id = ext.ext_id();
             let pages = ext
-                .build_pages(db)
+                .build_pages(db, &rt)
                 .map_err(|e| format!("[{}] build_pages: {}", ext_id, e))?;
             let data = ext
-                .build_data(db)
+                .build_data(db, &rt)
                 .map_err(|e| format!("[{}] build_data: {}", ext_id, e))?;
             let search_docs = ext
-                .build_search_docs(db)
+                .build_search_docs(db, &rt)
                 .map_err(|e| format!("[{}] build_search_docs: {}", ext_id, e))?;
             Ok(ExtBuildOutput {
                 ext_id: ext_id.to_string(),

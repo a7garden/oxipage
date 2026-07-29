@@ -21,7 +21,7 @@ use std::error::Error;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use tokio::runtime::Handle;
+
 
 // ── CLI handlers ──
 
@@ -171,32 +171,23 @@ impl BuildExt for ActivityExtension {
         "activity"
     }
 
-    fn build_pages(
-        &self,
-        db: &SqlitePool,
-    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
-        let handle = Handle::current();
-        let _events: Vec<model::ActivityEvent> = handle.block_on(repo::list(db, None, 200))?;
+    fn build_pages(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
+        
+        let _events: Vec<model::ActivityEvent> = rt.block_on(repo::list(db, None, 200))?;
         Ok(vec![StaticPage {
             path: "activity/index.html".into(),
             content: r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Activity</title><link rel="canonical" href="/activity/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#.to_string(),
+    <title>Activity</title><link rel="canonical" href="/activity/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#.to_string(),
         }])
     }
 
-    fn build_data(
-        &self,
-        db: &SqlitePool,
-    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
-        let handle = Handle::current();
-        let events: Vec<model::ActivityEvent> = handle.block_on(repo::list(db, None, 200))?;
+    fn build_data(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
+        
+        let events: Vec<model::ActivityEvent> = rt.block_on(repo::list(db, None, 200))?;
         Ok(Box::new(events))
     }
 
-    fn build_search_docs(
-        &self,
-        _db: &SqlitePool,
-    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+    fn build_search_docs(&self, _db: &SqlitePool, _rt: &tokio::runtime::Handle) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
         Ok(vec![])
     }
 }

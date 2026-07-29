@@ -200,13 +200,10 @@ impl BuildExt for MoviesExtension {
         "movies"
     }
 
-    fn build_pages(
-        &self,
-        db: &SqlitePool,
-    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
-        let handle = tokio::runtime::Handle::current();
+    fn build_pages(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
+        
         let entries: Vec<model::MovieEntry> =
-            handle.block_on(repo::list_entries_published(db, None, 200))?;
+            rt.block_on(repo::list_entries_published(db, None, 200))?;
         let mut pages = Vec::with_capacity(entries.len());
         for e in &entries {
             let title = &e.title;
@@ -222,32 +219,26 @@ impl BuildExt for MoviesExtension {
                 path: format!("movies/{}/index.html", e.slug),
                 content: format!(
                     r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>{title}</title><meta property="og:title" content="{title}"><meta property="og:description" content="{excerpt}">
-<meta property="og:type" content="website"><meta property="og:url" content="/movies/{slug}/">
-<link rel="canonical" href="/movies/{slug}/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#,
+    <title>{title}</title><meta property="og:title" content="{title}"><meta property="og:description" content="{excerpt}">
+    <meta property="og:type" content="website"><meta property="og:url" content="/movies/{slug}/">
+    <link rel="canonical" href="/movies/{slug}/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#,
                     title=title, excerpt=excerpt, slug=e.slug),
             });
         }
         Ok(pages)
     }
 
-    fn build_data(
-        &self,
-        db: &SqlitePool,
-    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
-        let handle = tokio::runtime::Handle::current();
+    fn build_data(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
+        
         let entries: Vec<model::MovieEntry> =
-            handle.block_on(repo::list_entries_published(db, None, 200))?;
+            rt.block_on(repo::list_entries_published(db, None, 200))?;
         Ok(Box::new(entries))
     }
 
-    fn build_search_docs(
-        &self,
-        db: &SqlitePool,
-    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
-        let handle = tokio::runtime::Handle::current();
+    fn build_search_docs(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+        
         let entries: Vec<model::MovieEntry> =
-            handle.block_on(repo::list_entries_published(db, None, 200))?;
+            rt.block_on(repo::list_entries_published(db, None, 200))?;
         Ok(entries
             .into_iter()
             .map(|e| {

@@ -81,8 +81,7 @@ pub enum Command {
     /// 백업 (doc/05 §5.4) — SQLite VACUUM INTO 스냅샷
     #[command(subcommand)]
     Backup(commands::BackupCommand),
-    /// 정적 사이트 빌드 (v2 SSG)
-    #[command(subcommand)]
+    /// Build the static site (v2 SSG) — sources the SPA from the embedded binary.
     Build(commands::BuildCommand),
     /// 외부 캐시 갱신 (GitHub, TMDB, 알라딘 등)
     Cache(commands::CacheArgs),
