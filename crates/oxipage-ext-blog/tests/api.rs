@@ -25,7 +25,7 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
     }
     let ext_router = registry.find("blog").unwrap().routes();
     Router::new()
-        .nest("/api/v1/blog", ext_router)
+        .nest("/api/console/blog", ext_router)
         .with_state(state)
 }
 
@@ -43,7 +43,7 @@ async fn create_with_empty_title_is_422() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::post("/api/v1/blog")
+            Request::post("/api/console/blog")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(r#"{"title":"  "}"#))
@@ -59,7 +59,7 @@ async fn create_invalid_lang_is_422() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::post("/api/v1/blog")
+            Request::post("/api/console/blog")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(r#"{"title":"x","lang":"ja"}"#))
@@ -76,7 +76,7 @@ async fn draft_create_then_publish_flow() {
     let res = app
         .clone()
         .oneshot(
-            Request::post("/api/v1/blog")
+            Request::post("/api/console/blog")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(
@@ -95,7 +95,7 @@ async fn draft_create_then_publish_flow() {
     let res = app
         .clone()
         .oneshot(
-            Request::get(format!("/api/v1/blog/{slug}"))
+            Request::get(format!("/api/console/blog/{slug}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -106,7 +106,7 @@ async fn draft_create_then_publish_flow() {
     // 발행본 목록은 비어 있음
     let res = app
         .clone()
-        .oneshot(Request::get("/api/v1/blog").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/console/blog").body(Body::empty()).unwrap())
         .await
         .unwrap();
     let json = body_json(res).await;
@@ -116,7 +116,7 @@ async fn draft_create_then_publish_flow() {
     let res = app
         .clone()
         .oneshot(
-            Request::get("/api/v1/blog?draft=true")
+            Request::get("/api/console/blog?draft=true")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -129,7 +129,7 @@ async fn draft_create_then_publish_flow() {
     let res = app
         .clone()
         .oneshot(
-            Request::post(format!("/api/v1/blog/{slug}/publish"))
+            Request::post(format!("/api/console/blog/{slug}/publish"))
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::empty())
                 .unwrap(),
@@ -144,7 +144,7 @@ async fn draft_create_then_publish_flow() {
     let res = app
         .clone()
         .oneshot(
-            Request::get(format!("/api/v1/blog/{slug}"))
+            Request::get(format!("/api/console/blog/{slug}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -154,7 +154,7 @@ async fn draft_create_then_publish_flow() {
 
     // 발행본 목록에 1개
     let res = app
-        .oneshot(Request::get("/api/v1/blog").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/console/blog").body(Body::empty()).unwrap())
         .await
         .unwrap();
     let json = body_json(res).await;
@@ -218,7 +218,7 @@ async fn publish_does_not_block_on_ssr_failure() {
     let res = app
         .clone()
         .oneshot(
-            Request::post("/api/v1/blog")
+            Request::post("/api/console/blog")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(
@@ -235,7 +235,7 @@ async fn publish_does_not_block_on_ssr_failure() {
     // SSR 보조 호출이 실패(예: index.html 미임베드)해도 publish API는 200을 반환해야 한다.
     let res = app
         .oneshot(
-            Request::post(format!("/api/v1/blog/{slug}/publish"))
+            Request::post(format!("/api/console/blog/{slug}/publish"))
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::empty())
                 .unwrap(),

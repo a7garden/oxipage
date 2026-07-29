@@ -1,4 +1,8 @@
 fn main() {
+    // Re-copy the SPA whenever web/dist changes. web/dist lives outside this crate, so without
+    // this cargo would silently serve a stale embedded bundle after a frontend rebuild.
+    println!("cargo:rerun-if-changed=../../web/dist");
+    println!("cargo:rerun-if-changed=../../web/dist-static");
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let root = std::path::Path::new(&manifest_dir);
 
@@ -19,6 +23,21 @@ fn main() {
              </div></body></html>",
         )
         .unwrap();
+    }
+
+    // 1b. Static-mode SPA — the bundle `oxipage build` writes to out/ for deploy/preview.
+    //     The live bundle above is served by the console (hits /api/console); the static one
+    //     reads /data/*.json so the deployed site works with no runtime server.
+    let static_embed_dir = root.join("embedded-spa-static");
+    let web_dist_static = root.join("../../web/dist-static");
+    if web_dist_static.exists() {
+        let _ = std::fs::remove_dir_all(&static_embed_dir);
+        copy_dir(&web_dist_static, &static_embed_dir)
+            .unwrap_or_else(|e| panic!("failed to copy web/dist-static to embedded-spa-static: {e}"));
+    } else if !static_embed_dir.exists() {
+        // Fall back to the live bundle so the build still produces a site (less efficient —
+        // the SPA will attempt /api/console fetches, but at least the assets are present).
+        copy_dir(&embed_dir, &static_embed_dir).ok();
     }
 
     // 2. Registry index — copy or create empty

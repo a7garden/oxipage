@@ -25,7 +25,7 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
     }
     let ext_router = registry.find("projects").unwrap().routes();
     Router::new()
-        .nest("/api/v1/projects", ext_router)
+        .nest("/api/console/projects", ext_router)
         .with_state(state)
 }
 
@@ -43,7 +43,7 @@ async fn create_both_titles_null_is_422() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::post("/api/v1/projects")
+            Request::post("/api/console/projects")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(r#"{"status":"wip"}"#))
@@ -59,7 +59,7 @@ async fn create_invalid_status_is_422() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::post("/api/v1/projects")
+            Request::post("/api/console/projects")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(r#"{"title_en":"x","status":"live"}"#))
@@ -77,7 +77,7 @@ async fn draft_create_publish_with_screenshots() {
     let res = app
         .clone()
         .oneshot(
-            Request::post("/api/v1/projects")
+            Request::post("/api/console/projects")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(
@@ -96,7 +96,7 @@ async fn draft_create_publish_with_screenshots() {
     let res = app
         .clone()
         .oneshot(
-            Request::get(format!("/api/v1/projects/{slug}"))
+            Request::get(format!("/api/console/projects/{slug}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -110,7 +110,7 @@ async fn draft_create_publish_with_screenshots() {
         let res = app
             .clone()
             .oneshot(
-                Request::post(format!("/api/v1/projects/{slug}/screenshots"))
+                Request::post(format!("/api/console/projects/{slug}/screenshots"))
                     .header("content-type", "application/json")
                     .header(AUTHORIZATION, bearer("tok"))
                     .body(Body::from(body))
@@ -125,7 +125,7 @@ async fn draft_create_publish_with_screenshots() {
     let res = app
         .clone()
         .oneshot(
-            Request::post(format!("/api/v1/projects/{slug}/publish"))
+            Request::post(format!("/api/console/projects/{slug}/publish"))
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::empty())
                 .unwrap(),
@@ -138,7 +138,7 @@ async fn draft_create_publish_with_screenshots() {
     let res = app
         .clone()
         .oneshot(
-            Request::get(format!("/api/v1/projects/{slug}"))
+            Request::get(format!("/api/console/projects/{slug}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -153,7 +153,7 @@ async fn draft_create_publish_with_screenshots() {
     let res = app
         .clone()
         .oneshot(
-            Request::delete(format!("/api/v1/projects/{slug}/screenshots/{sid}"))
+            Request::delete(format!("/api/console/projects/{slug}/screenshots/{sid}"))
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::empty())
                 .unwrap(),
@@ -165,7 +165,7 @@ async fn draft_create_publish_with_screenshots() {
     // 이제 1개
     let res = app
         .oneshot(
-            Request::get(format!("/api/v1/projects/{slug}"))
+            Request::get(format!("/api/console/projects/{slug}"))
                 .body(Body::empty())
                 .unwrap(),
         )

@@ -25,9 +25,9 @@
 - `oxipage-core`: Axum 서버 부트스트랩, SQLite 연결, `oxipage.toml` 로딩, 확장 레지스트리 골격
 - `web/`: Vite+React+TS 스캐폴드, 3장 OKLCH 토큰 세트 적용, 다크/라이트 토글
 - `profile` 확장(가장 단순한 싱글턴)만 우선 구현해 "명함 페이지 하나"가 실제로 뜨는지 확인
-- `oxipage-server` 바이너리 로컬 빌드·실행 성공 (container 패키징은 선택, 5장 §5.2-5.3)
+- `oxipage-console` 바이너리 로컬 빌드·실행 성공 (container 패키징은 선택, 5장 §5.2-5.3)
 
-**완료 기준:** `oxipage-server` 바이너리를 로컬에서 빌드·실행해 브라우저로 접속, 명함 페이지가 라이트/다크 둘 다 정상 렌더. (container 패키징은 선택 — `container build && container run`으로도 동일 결과가 나오는지 1회 확인만.)
+**완료 기준:** `oxipage-console` 바이너리를 로컬에서 빌드·실행해 브라우저로 접속, 명함 페이지가 라이트/다크 둘 다 정상 렌더. (container 패키징은 선택 — `container build && container run`으로도 동일 결과가 나오는지 1회 확인만.)
 
 ## Phase 1 — 핵심 콘텐츠 확장 + CLI
 
@@ -71,7 +71,7 @@
 
 - `.agent/skills/oxipage-cli/SKILL.md` 작성 및 oh-my-pi로 실사용 테스트 (4장 §4.6)
 - API 토큰 스코프(`post:write` / `post:publish`) 분리 적용
-- OpenAPI 문서 자동 생성(`utoipa`) + `/api/v1/docs`
+- OpenAPI 문서 자동 생성(`utoipa`) + `/api/console/docs`
 - 레이트리밋, 요청 로깅
 
 **완료 기준:** oh-my-pi(GLM/MiniMax/DeepSeek 등 어떤 모델을 백엔드로 쓰든)에게 "이 글 블로그에 올려줘"라고 시켰을 때, 초안까지는 자동으로 만들지만 명시적 승인 없이는 절대 발행되지 않음을 반복 테스트로 확인.

@@ -15,8 +15,8 @@ What `install.sh` does:
 1. Check the Rust toolchain (`rustup`) + `cargo`.
 2. `git clone oxipage-starter` into a working directory.
 3. `cp oxipage.toml.example oxipage.toml` and interactively fill in `[site]` / `[integrations]`.
-4. `cargo build --release -p oxipage-server` (or download a release binary).
-5. Guide you to start it: `OXIPAGE_ADMIN_TOKEN=$(openssl rand -hex 32) ./oxipage-server`.
+4. `cargo build --release -p oxipage-console` (or download a release binary).
+5. Guide you to start it: `OXIPAGE_ADMIN_TOKEN=$(openssl rand -hex 32) ./oxipage-console`.
 6. Mint the first PAT: `OXIPAGE_TOKEN=<admin> oxipage auth token create --label owner --scopes admin`.
 
 ## Template contents (when split into its own repo)

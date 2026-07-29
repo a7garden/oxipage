@@ -158,13 +158,13 @@ sequenceDiagram
     participant TMDB as TMDB API
 
     U->>CLI: oxipage review movie add --tmdb "해리포터와 마법사의 돌"
-    CLI->>API: POST /api/v1/movies/search {query}
+    CLI->>API: POST /api/console/movies/search {query}
     API->>TMDB: GET /search/movie
     TMDB-->>API: 후보 목록
     API-->>CLI: 후보 목록 (제목/연도/포스터)
     CLI-->>U: 후보 중 선택 요청
     U->>CLI: 후보 선택 + 평점 + 리뷰
-    CLI->>API: POST /api/v1/movies {tmdb_id, rating, review, series?}
+    CLI->>API: POST /api/console/movies {tmdb_id, rating, review, series?}
     API->>TMDB: GET /movie/{id} (메타데이터 캐시용, 1회)
     API-->>CLI: 생성된 MovieEntry
 ```

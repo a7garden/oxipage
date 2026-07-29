@@ -11,8 +11,8 @@ they're all gathered into one **lobby**.
 
 **Oxipage is a Static Site Generator.** Content is managed through a CLI (or AI agent)
 against a local SQLite database. `oxipage build` generates static HTML + JSON + JS files,
-and `oxipage deploy` pushes them to GitHub Pages, Cloudflare Pages, or Netlify. No runtime
-server needed for the public site — zero operating cost, zero security surface.
+and `oxipage deploy` pushes them to GitHub Pages (Cloudflare Pages and Netlify are planned).
+No runtime server needed for the public site — zero operating cost, zero security surface.
 
 ## Status
 
@@ -178,16 +178,16 @@ auth layer (mTLS, basic auth, OAuth proxy) in front of it.
 
 The CLI accepts `--token` / `OXIPAGE_TOKEN` for symmetry with future remote servers, but the
 local server does not enforce it. The GitHub activity webhook
-(`POST /api/v1/activity/webhook`) **is** public and verifies requests with an HMAC-SHA256
+(`POST /api/console/activity/webhook`) **is** public and verifies requests with an HMAC-SHA256
 signature (`X-Hub-Signature-256`). Set `OXIPAGE_GITHUB_WEBHOOK_SECRET` to the secret you
 configured in your GitHub webhook settings; if unset, the endpoint returns 503.
 
 ## HTTP API
 
-- Versioned prefix `/api/v1/**`; each extension mounts at `/api/v1/{extension}/**`.
-- `GET /healthz` · `GET /api/v1/lobby/manifest` · `GET /api/v1/search?q=` ·
-  `GET /api/v1/docs` (Swagger UI) · `GET /api/v1/docs/openapi.json` ·
-  `POST /api/v1/backup/snapshot`.
+- Console prefix `/api/console/**`; each extension mounts at `/api/console/{extension}/**`.
+- `GET /healthz` · `GET /api/console/lobby/manifest` · `GET /api/console/search?q=` ·
+  `GET /api/console/docs` (Swagger UI) · `GET /api/console/docs/openapi.json` ·
+  `POST /api/console/backup/snapshot`.
 
 ## Deployment
 
@@ -198,6 +198,7 @@ Oxipage is a **Static Site Generator**. The public site needs no runtime server.
 ```bash
 oxipage build
 oxipage deploy --target github-pages
+```
 This pushes `out/` to the `gh-pages` branch of your repo. Your GitHub Pages URL will serve
 the site immediately. Cloudflare Pages (`--target cloudflare`) and Netlify (`--target netlify`)
 are tracked but not yet implemented (`deploy.rs` will refuse with `"<target> not yet

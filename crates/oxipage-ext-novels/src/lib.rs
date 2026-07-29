@@ -43,7 +43,7 @@ impl CliHandler for NovelAddHandler {
         let client = client.clone();
         Box::pin(async move {
             let resp = client
-                .post("/api/v1/novels/", &body)
+                .post("/api/console/novels/", &body)
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("{}", serde_json::to_string_pretty(&resp)?);
@@ -62,7 +62,7 @@ impl CliHandler for NovelListHandler {
         let client = client.clone();
         Box::pin(async move {
             let resp = client
-                .get("/api/v1/novels/")
+                .get("/api/console/novels/")
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("{}", serde_json::to_string_pretty(&resp)?);
@@ -89,7 +89,7 @@ impl CliHandler for NovelChapterAddHandler {
         }
         let client = client.clone();
         Box::pin(async move {
-            let path = format!("/api/v1/novels/{slug}/chapters");
+            let path = format!("/api/console/novels/{slug}/chapters");
             let resp = client
                 .post(&path, &body)
                 .await

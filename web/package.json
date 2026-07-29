@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:static": "VITE_DATA_MODE=static vite build --emptyOutDir --outDir dist-static",
     "preview": "vite preview"
   },
   "dependencies": {

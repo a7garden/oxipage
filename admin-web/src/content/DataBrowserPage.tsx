@@ -65,10 +65,7 @@ export function DataBrowserPage() {
   useEffect(() => {
     if (!activeSite || !activeExt) return;
     setLoading(true);
-    const path = DATA_EXTENSIONS.includes(activeExt)
-      ? `api/v1/${activeExt}`
-      : `api/v1/${activeExt}`;
-    apiGet<{ data: unknown[] }>(path)
+    apiGet<{ data: unknown[] }>(`/${activeExt}`)
       .then((res) => setRecords(Array.isArray(res.data) ? res.data : []))
       .catch(() => setRecords([]))
       .finally(() => setLoading(false));

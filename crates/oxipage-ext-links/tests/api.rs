@@ -25,7 +25,7 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
     }
     let ext_router = registry.find("links").unwrap().routes();
     Router::new()
-        .nest("/api/v1/links", ext_router)
+        .nest("/api/console/links", ext_router)
         .with_state(state)
 }
 
@@ -43,7 +43,7 @@ async fn create_with_empty_title_is_422() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::post("/api/v1/links")
+            Request::post("/api/console/links")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(r##"{"title":"  ","url":"https://y"}"##))
@@ -59,7 +59,7 @@ async fn create_invalid_url_is_422() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::post("/api/v1/links")
+            Request::post("/api/console/links")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(r##"{"title":"x","url":"ftp://y"}"##))
@@ -77,7 +77,7 @@ async fn create_show_patch_delete_and_featured_filter() {
     let res = app
         .clone()
         .oneshot(
-            Request::post("/api/v1/links")
+            Request::post("/api/console/links")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(
@@ -94,7 +94,7 @@ async fn create_show_patch_delete_and_featured_filter() {
     let res = app
         .clone()
         .oneshot(
-            Request::post("/api/v1/links")
+            Request::post("/api/console/links")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(
@@ -111,7 +111,7 @@ async fn create_show_patch_delete_and_featured_filter() {
     // 전체 목록 2개, order 순
     let res = app
         .clone()
-        .oneshot(Request::get("/api/v1/links").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/console/links").body(Body::empty()).unwrap())
         .await
         .unwrap();
     let json = body_json(res).await;
@@ -123,7 +123,7 @@ async fn create_show_patch_delete_and_featured_filter() {
     let res = app
         .clone()
         .oneshot(
-            Request::get("/api/v1/links?featured=true")
+            Request::get("/api/console/links?featured=true")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -136,7 +136,7 @@ async fn create_show_patch_delete_and_featured_filter() {
     let res = app
         .clone()
         .oneshot(
-            Request::get(format!("/api/v1/links/{id1}"))
+            Request::get(format!("/api/console/links/{id1}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -148,7 +148,7 @@ async fn create_show_patch_delete_and_featured_filter() {
     let res = app
         .clone()
         .oneshot(
-            Request::patch(format!("/api/v1/links/{id2}"))
+            Request::patch(format!("/api/console/links/{id2}"))
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(r##"{"title":"Second Updated"}"##))
@@ -164,7 +164,7 @@ async fn create_show_patch_delete_and_featured_filter() {
     let res = app
         .clone()
         .oneshot(
-            Request::delete(format!("/api/v1/links/{id1}"))
+            Request::delete(format!("/api/console/links/{id1}"))
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::empty())
                 .unwrap(),
@@ -175,7 +175,7 @@ async fn create_show_patch_delete_and_featured_filter() {
 
     // 삭제 후 총 1개
     let res = app
-        .oneshot(Request::get("/api/v1/links").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/console/links").body(Body::empty()).unwrap())
         .await
         .unwrap();
     let json = body_json(res).await;

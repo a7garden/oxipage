@@ -56,7 +56,7 @@ oxipage console                      # ← 서버 기동
 
 서버 부팅 시 DB에 `setup_completed_at` 마커 없으면 → **setup 모드** 진입:
 
-- `/api/v1/setup/*` 엔드포인트를 **무인증**으로 노출
+- `/api/console/setup/*` 엔드포인트를 **무인증**으로 노출
 - **loopback 게이트**: setup API는 `127.0.0.1` / `::1` 소스만 허용 (원격 바인드 첫 부팅의 무인증 윈도우 차단)
 - 마법사 완료 = admin 비밀번호 해시 + 첫 PAT + `setup_completed_at` 기록 → setup API **영구 410 Gone**
 
@@ -182,13 +182,13 @@ INSERT OR IGNORE INTO setup_state (id) VALUES (1);
 모든 setup 엔드포인트는 **무인증 + loopback-only**:
 | Method | Path | 설명 |
 |---|---|---|
-| GET | `/api/v1/setup/status` | setup 모드 여부 + 완료된 step + **활성 확장의 step 목록 + 외부 API 키 목록** (registry 디스패치) |
-| POST | `/api/v1/setup/site` | 사이트명 + base_url 설정 |
-| POST | `/api/v1/setup/extensions` | 활성화할 확장 목록 |
-| POST | `/api/v1/setup/extension-step/{id}` | **확장이 자기 `SetupStep::save_handler`로 form 저장** (registry 디스패치) |
-| POST | `/api/v1/setup/external-keys` | **활성 확장이 노출한 외부 API 키 일괄 저장** (registry 디스패치) |
-| POST | `/api/v1/setup/theme` | 테마 + 로비 레이아웃 |
-| POST | `/api/v1/setup/complete` | 최종 커밋 — setup_completed_at 기록 + **활성 확장의 seed_sample_data() 호출** |
+| GET | `/api/console/setup/status` | setup 모드 여부 + 완료된 step + **활성 확장의 step 목록 + 외부 API 키 목록** (registry 디스패치) |
+| POST | `/api/console/setup/site` | 사이트명 + base_url 설정 |
+| POST | `/api/console/setup/extensions` | 활성화할 확장 목록 |
+| POST | `/api/console/setup/extension-step/{id}` | **확장이 자기 `SetupStep::save_handler`로 form 저장** (registry 디스패치) |
+| POST | `/api/console/setup/external-keys` | **활성 확장이 노출한 외부 API 키 일괄 저장** (registry 디스패치) |
+| POST | `/api/console/setup/theme` | 테마 + 로비 레이아웃 |
+| POST | `/api/console/setup/complete` | 최종 커밋 — setup_completed_at 기록 + **활성 확장의 seed_sample_data() 호출** |
 
 > **2026-07-29 변경:** `/setup/profile`, `/setup/content`, `/setup/admin` 엔드포인트 제거.
 > 코어가 profile/blog/movies/books/activity의 도메인 필드를 더 이상 모른다 — 각 확장이
@@ -216,16 +216,16 @@ async fn setup_gate(request: Request, next: Next) -> Response {
 
 #### Setup 완료 후 동작
 
-- `POST /api/v1/setup/complete` 호출 시:
+- `POST /api/console/setup/complete` 호출 시:
   1. `setup_state.setup_completed_at = now()` 기록
   2. `setup_state.admin_password_hash` 확인 (이미 step 2에서 저장)
   3. 첫 PAT 생성 (`admin` scope, label = "setup-wizard")
   4. 응답에 PAT 평문 포함 (한 번만)
-  5. 이후 모든 `/api/v1/setup/*` → **410 Gone**
+  5. 이후 모든 `/api/console/setup/*` → **410 Gone**
 
 ### 13.5.3 Setup API 상세 스펙
 
-#### GET /api/v1/setup/status
+#### GET /api/console/setup/status
 
 ```json
 {
@@ -245,7 +245,7 @@ async fn setup_gate(request: Request, next: Next) -> Response {
 }
 ```
 
-#### POST /api/v1/setup/site
+#### POST /api/console/setup/site
 
 ```json
 // Request
@@ -261,7 +261,7 @@ async fn setup_gate(request: Request, next: Next) -> Response {
   구현 세부(RwLock<Config> 전체 vs 오버라이드 필드)은 구현 단계에서 결정.
 - DB `profile.display_name`도 동기 업데이트
 
-#### POST /api/v1/setup/admin
+#### POST /api/console/setup/admin
 
 ```json
 // Request
@@ -274,7 +274,7 @@ async fn setup_gate(request: Request, next: Next) -> Response {
 - argon2id 해시 → `setup_state.admin_password_hash` 저장
 - `OXIPAGE_ADMIN_TOKEN` env 하위 호환: env가 설정되어 있으면 비밀번호 검증 대신 env 토큰 사용
 
-#### POST /api/v1/setup/extensions
+#### POST /api/console/setup/extensions
 
 ```json
 // Request
@@ -286,7 +286,7 @@ async fn setup_gate(request: Request, next: Next) -> Response {
 - `extension_state` 테이블의 `enabled` 컬럼 업데이트
 - 비활성 확장은 `enabled = 0` (라우트 404)
 
-#### POST /api/v1/setup/profile
+#### POST /api/console/setup/profile
 
 ```json
 // Request
@@ -304,7 +304,7 @@ async fn setup_gate(request: Request, next: Next) -> Response {
 
 - `profile` 테이블 UPDATE (singleton id=1)
 
-#### POST /api/v1/setup/theme
+#### POST /api/console/setup/theme
 
 ```json
 // Request
@@ -319,7 +319,7 @@ async fn setup_gate(request: Request, next: Next) -> Response {
 - `theme_config.theme_id` 업데이트
 - 모든 활성 확장의 `lobby_config.display_mode`를 `lobby_mode`로 일괄 설정
 
-#### POST /api/v1/setup/content
+#### POST /api/console/setup/content
 
 ```json
 // Request
@@ -336,7 +336,7 @@ async fn setup_gate(request: Request, next: Next) -> Response {
 - API 키는 `extension_state.config` JSON에 저장 (해당 확장이 읽음)
 - 전부 skip 가능 (빈 body `{}` 도 유효)
 
-#### POST /api/v1/setup/complete
+#### POST /api/console/setup/complete
 
 ```json
 // Request (body 불필요)
@@ -428,7 +428,7 @@ set_permissions(&creds_path, 0o600)?;
 /setup/done     → 완료 화면 (토큰 표시 + "시작하기" 버튼)
 ```
 
-- `/setup` 진입 시 `GET /api/v1/setup/status` 호출
+- `/setup` 진입 시 `GET /api/console/setup/status` 호출
 - `setup_mode = false` → `/` (로비)로 리다이렉트
 - `setup_mode = true` → 마지막 미완료 step으로 이동
 
@@ -458,7 +458,7 @@ set_permissions(&creds_path, 0o600)?;
 
 - `display_name` 입력 (필수, 1~50자)
 - 기본 언어 선택 (ko/en, 기본 ko)
-- "다음" → `POST /api/v1/setup/site`
+- "다음" → `POST /api/console/setup/site`
 
 #### Step 2: Admin 비밀번호
 
@@ -483,7 +483,7 @@ set_permissions(&creds_path, 0o600)?;
 ```
 
 - 비밀번호 ≥ 4자, 확인 일치 검증 (클라이언트)
-- "다음" → `POST /api/v1/setup/admin`
+- "다음" → `POST /api/console/setup/admin`
 
 #### Step 3: 확장 선택
 
@@ -506,7 +506,7 @@ set_permissions(&creds_path, 0o600)?;
 - 체크박스 목록 (registry에서 동적 로드)
 - 프리셋 버튼: "전체 선택" / "콘텐츠만"(blog+projects+links+profile) / "최소"(profile만)
 - 기본 선택: "콘텐츠만" 프리셋
-- "다음" → `POST /api/v1/setup/extensions`
+- "다음" → `POST /api/console/setup/extensions`
 
 #### Step 4: 프로필
 
@@ -531,7 +531,7 @@ set_permissions(&creds_path, 0o600)?;
 
 - 전부 optional (건너뛰기 가능)
 - `display_name`은 step 1에서 입력한 값으로 pre-fill
-- "다음" → `POST /api/v1/setup/profile`
+- "다음" → `POST /api/console/setup/profile`
 
 #### Step 5: 테마 & 레이아웃
 
@@ -558,7 +558,7 @@ set_permissions(&creds_path, 0o600)?;
 - 테마 4종 카드 (preview_colors로 미니 미리보기)
 - 레이아웃 3종 카드 (아이콘 + 설명)
 - 기본: 현재 시스템 다크/라이트에 맞는 테마 + grid
-- "다음" → `POST /api/v1/setup/theme`
+- "다음" → `POST /api/console/setup/theme`
 
 #### Step 6: 샘플 콘텐츠 & API 키
 
@@ -584,7 +584,7 @@ set_permissions(&creds_path, 0o600)?;
 
 - 샘플 글 체크박스 (기본 ON)
 - API 키 입력 (선택, 빈 값 허용)
-- "완료" → `POST /api/v1/setup/content` → `POST /api/v1/setup/complete`
+- "완료" → `POST /api/console/setup/content` → `POST /api/console/setup/complete`
 
 #### 완료 화면
 
@@ -803,13 +803,13 @@ sequenceDiagram
 
     Note over B,S: Step 1~6 순차 진행
 
-    B->>S: POST /api/v1/setup/site
-    B->>S: POST /api/v1/setup/admin
-    B->>S: POST /api/v1/setup/extensions
-    B->>S: POST /api/v1/setup/profile
-    B->>S: POST /api/v1/setup/theme
-    B->>S: POST /api/v1/setup/content
-    B->>S: POST /api/v1/setup/complete
+    B->>S: POST /api/console/setup/site
+    B->>S: POST /api/console/setup/admin
+    B->>S: POST /api/console/setup/extensions
+    B->>S: POST /api/console/setup/profile
+    B->>S: POST /api/console/setup/theme
+    B->>S: POST /api/console/setup/content
+    B->>S: POST /api/console/setup/complete
     S->>S: setup_completed_at 기록 + PAT 생성
     S->>S: credentials 파일 자동 저장
     S->>B: {token: "oxp_..."}

@@ -246,7 +246,7 @@ oxipage site edit alibaba --token <발급받은 토큰>
 
 ### 미변경
 
-- `oxipage-core`, `oxipage-server` — CLI 기능이므로 서버·코어 영향 없음
+- `oxipage-core`, `oxipage-console` — CLI 기능이므로 서버·코어 영향 없음
 - `oxipage.toml` 스키마 — 사이트는 서버 설정과 독립
 - 기존 `credentials.rs` — legacy 경로로 유지
 
@@ -257,7 +257,7 @@ oxipage site edit alibaba --token <발급받은 토큰>
 1. **`--site`를 `serve`에 연결**: `oxipage site use alibaba && oxipage console`가 `alibaba` 사이트에 해당하는 원격 `oxipage.toml`을 다운로드해 로컬에서 복제 서버를 띄우는 흐름. 현재는 범위 밖.
 2. **OS 키체인 통합**: Phase 4 PAT 체계 도입 시, 토큰을 `sites.toml` 대신 macOS Keychain / freedesktop Secret Service에 저장
 3. **`site clone`**: 원격 서버의 `oxipage.toml` + 데이터를 로컬로 복제
-4. **`site health`**: `GET /api/v1/health`로 사이트 접속 가능 여부 확인
+4. **`site health`**: `GET /api/console/health`로 사이트 접속 가능 여부 확인
 5. **사이트별 `--config` 경로**: `[sites.selfhost]`에 `config = "/path/to/oxipage.toml"` → `serve`가 자동 선택
 
 ## 9.9 레퍼런스

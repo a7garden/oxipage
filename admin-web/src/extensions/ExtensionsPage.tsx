@@ -23,8 +23,7 @@ export function ExtensionsPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiGet<{ data: ExtensionInfo[] }>("api/v1/extensions",
-      );
+      const res = await apiGet<{ data: ExtensionInfo[] }>("/extensions");
       setExtensions(res.data);
     } catch (e: any) {
       setError(e.message);
@@ -40,8 +39,8 @@ export function ExtensionsPage() {
   const toggleExtension = async (id: string, enable: boolean) => {
     if (!activeSite) return;
     const path = enable
-      ? `api/v1/extensions/${id}/enable`
-      : `api/v1/extensions/${id}/disable`;
+      ? `/extensions/${id}/enable`
+      : `/extensions/${id}/disable`;
     await apiPost(path);
     await fetchExtensions();
   };

@@ -25,7 +25,7 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
     }
     let ext_router = registry.find("movies").unwrap().routes();
     Router::new()
-        .nest("/api/v1/movies", ext_router)
+        .nest("/api/console/movies", ext_router)
         .with_state(state)
 }
 
@@ -48,7 +48,7 @@ async fn rating_11_is_422() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::post("/api/v1/movies")
+            Request::post("/api/console/movies")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(json_body(
@@ -69,7 +69,7 @@ async fn rating_negative_is_422() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::post("/api/v1/movies")
+            Request::post("/api/console/movies")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(json_body(
@@ -87,7 +87,7 @@ async fn invalid_media_type_is_422() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::post("/api/v1/movies")
+            Request::post("/api/console/movies")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(json_body(
@@ -105,7 +105,7 @@ async fn no_title_no_tmdb_id_is_422() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::post("/api/v1/movies")
+            Request::post("/api/console/movies")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(json_body(r#"{"media_type":"movie","rating":5}"#))
@@ -126,7 +126,7 @@ async fn manual_create_publish_show_flow() {
     let res = app
         .clone()
         .oneshot(
-            Request::post("/api/v1/movies")
+            Request::post("/api/console/movies")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(json_body(
@@ -154,7 +154,7 @@ async fn manual_create_publish_show_flow() {
     let res = app
         .clone()
         .oneshot(
-            Request::get(format!("/api/v1/movies/{slug}"))
+            Request::get(format!("/api/console/movies/{slug}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -165,7 +165,7 @@ async fn manual_create_publish_show_flow() {
     // 3) 발행본 목록은 비어있음
     let res = app
         .clone()
-        .oneshot(Request::get("/api/v1/movies").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/console/movies").body(Body::empty()).unwrap())
         .await
         .unwrap();
     let json = body_json(res).await;
@@ -175,7 +175,7 @@ async fn manual_create_publish_show_flow() {
     let res = app
         .clone()
         .oneshot(
-            Request::post(format!("/api/v1/movies/{slug}/publish"))
+            Request::post(format!("/api/console/movies/{slug}/publish"))
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::empty())
                 .unwrap(),
@@ -190,7 +190,7 @@ async fn manual_create_publish_show_flow() {
     let res = app
         .clone()
         .oneshot(
-            Request::get(format!("/api/v1/movies/{slug}"))
+            Request::get(format!("/api/console/movies/{slug}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -203,7 +203,7 @@ async fn manual_create_publish_show_flow() {
 
     // 6) 발행본 목록에 1개
     let res = app
-        .oneshot(Request::get("/api/v1/movies").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/console/movies").body(Body::empty()).unwrap())
         .await
         .unwrap();
     let json = body_json(res).await;
@@ -216,7 +216,7 @@ async fn patch_updates_rating() {
     let res = app
         .clone()
         .oneshot(
-            Request::post("/api/v1/movies")
+            Request::post("/api/console/movies")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(json_body(
@@ -231,7 +231,7 @@ async fn patch_updates_rating() {
 
     let res = app
         .oneshot(
-            Request::patch(format!("/api/v1/movies/{slug}"))
+            Request::patch(format!("/api/console/movies/{slug}"))
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(json_body(r#"{"rating":9}"#))
@@ -250,7 +250,7 @@ async fn delete_removes_entry() {
     let res = app
         .clone()
         .oneshot(
-            Request::post("/api/v1/movies")
+            Request::post("/api/console/movies")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(json_body(
@@ -266,7 +266,7 @@ async fn delete_removes_entry() {
     let res = app
         .clone()
         .oneshot(
-            Request::delete(format!("/api/v1/movies/{slug}"))
+            Request::delete(format!("/api/console/movies/{slug}"))
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::empty())
                 .unwrap(),
@@ -277,7 +277,7 @@ async fn delete_removes_entry() {
 
     let res = app
         .oneshot(
-            Request::delete(format!("/api/v1/movies/{slug}"))
+            Request::delete(format!("/api/console/movies/{slug}"))
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::empty())
                 .unwrap(),
@@ -297,7 +297,7 @@ async fn create_group_and_attach_movie() {
     let res = app
         .clone()
         .oneshot(
-            Request::post("/api/v1/movies/series")
+            Request::post("/api/console/movies/series")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(json_body(
@@ -321,7 +321,7 @@ async fn create_group_and_attach_movie() {
     let res = app
         .clone()
         .oneshot(
-            Request::post("/api/v1/movies")
+            Request::post("/api/console/movies")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(json_body(&format!(
@@ -348,7 +348,7 @@ async fn create_group_and_attach_movie() {
     let res = app
         .clone()
         .oneshot(
-            Request::post(format!("/api/v1/movies/{movie_slug}/publish"))
+            Request::post(format!("/api/console/movies/{movie_slug}/publish"))
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::empty())
                 .unwrap(),
@@ -361,7 +361,7 @@ async fn create_group_and_attach_movie() {
     let res = app
         .clone()
         .oneshot(
-            Request::get(format!("/api/v1/movies/series/{group_slug}"))
+            Request::get(format!("/api/console/movies/series/{group_slug}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -379,7 +379,7 @@ async fn create_group_and_attach_movie() {
     // 5) list?series_group= 필터
     let res = app
         .oneshot(
-            Request::get(format!("/api/v1/movies?series_group={group_slug}"))
+            Request::get(format!("/api/console/movies?series_group={group_slug}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -395,7 +395,7 @@ async fn group_with_no_titles_is_422() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::post("/api/v1/movies/series")
+            Request::post("/api/console/movies/series")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(json_body(r#"{"cover_image": "x.png"}"#))
@@ -411,7 +411,7 @@ async fn group_rating_out_of_range_is_422() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::post("/api/v1/movies/series")
+            Request::post("/api/console/movies/series")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(json_body(r#"{"title_ko":"X","group_rating":15}"#))
@@ -434,7 +434,7 @@ async fn tmdb_search_disabled_when_no_key() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::get("/api/v1/movies/search?q=inception")
+            Request::get("/api/console/movies/search?q=inception")
                 .body(Body::empty())
                 .unwrap(),
         )

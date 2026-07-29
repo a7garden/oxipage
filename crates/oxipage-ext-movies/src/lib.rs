@@ -44,7 +44,7 @@ impl CliHandler for MovieAddHandler {
         let client = client.clone();
         Box::pin(async move {
             let resp = client
-                .post("/api/v1/movies/", &body)
+                .post("/api/console/movies/", &body)
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("{}", serde_json::to_string_pretty(&resp)?);
@@ -66,7 +66,7 @@ impl CliHandler for MovieSeriesCreateHandler {
         let client = client.clone();
         Box::pin(async move {
             let resp = client
-                .post("/api/v1/movies/series", &body)
+                .post("/api/console/movies/series", &body)
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("{}", serde_json::to_string_pretty(&resp)?);

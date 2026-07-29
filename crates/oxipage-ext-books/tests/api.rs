@@ -24,7 +24,7 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
         e.on_startup(&state).await.unwrap();
     }
     let r = registry.find("books").unwrap().routes();
-    Router::new().nest("/api/v1/books", r).with_state(state)
+    Router::new().nest("/api/console/books", r).with_state(state)
 }
 
 async fn body_json(res: axum::response::Response) -> serde_json::Value {
@@ -45,7 +45,7 @@ async fn manual_book_create_publish_show() {
     let res = app
         .clone()
         .oneshot(
-            Request::post("/api/v1/books")
+            Request::post("/api/console/books")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(
@@ -66,7 +66,7 @@ async fn manual_book_create_publish_show() {
     let res = app
         .clone()
         .oneshot(
-            Request::get(format!("/api/v1/books/{id}"))
+            Request::get(format!("/api/console/books/{id}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -78,7 +78,7 @@ async fn manual_book_create_publish_show() {
     let res = app
         .clone()
         .oneshot(
-            Request::post(format!("/api/v1/books/{id}/publish"))
+            Request::post(format!("/api/console/books/{id}/publish"))
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::empty())
                 .unwrap(),
@@ -91,7 +91,7 @@ async fn manual_book_create_publish_show() {
     let res = app
         .clone()
         .oneshot(
-            Request::get(format!("/api/v1/books/{id}"))
+            Request::get(format!("/api/console/books/{id}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -106,7 +106,7 @@ async fn manual_book_create_publish_show() {
 
     // list 에 포함
     let res = app
-        .oneshot(Request::get("/api/v1/books").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/console/books").body(Body::empty()).unwrap())
         .await
         .unwrap();
     let json = body_json(res).await;
@@ -120,7 +120,7 @@ async fn rating_out_of_range_is_422() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::post("/api/v1/books")
+            Request::post("/api/console/books")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(r##"{"title":"x","rating":11}"##))
@@ -136,7 +136,7 @@ async fn invalid_status_is_422() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::post("/api/v1/books")
+            Request::post("/api/console/books")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(r##"{"title":"x","rating":5,"status":"weird"}"##))
@@ -163,7 +163,7 @@ async fn external_search_no_aladin_key_is_503() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::get("/api/v1/books/search?q=rust")
+            Request::get("/api/console/books/search?q=rust")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -188,7 +188,7 @@ async fn status_filter_and_patch_and_delete() {
     let res = app
         .clone()
         .oneshot(
-            Request::post("/api/v1/books")
+            Request::post("/api/console/books")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(
@@ -204,7 +204,7 @@ async fn status_filter_and_patch_and_delete() {
     let res = app
         .clone()
         .oneshot(
-            Request::post("/api/v1/books")
+            Request::post("/api/console/books")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(
@@ -222,7 +222,7 @@ async fn status_filter_and_patch_and_delete() {
         let res = app
             .clone()
             .oneshot(
-                Request::post(format!("/api/v1/books/{id}/publish"))
+                Request::post(format!("/api/console/books/{id}/publish"))
                     .header(AUTHORIZATION, bearer("tok"))
                     .body(Body::empty())
                     .unwrap(),
@@ -236,7 +236,7 @@ async fn status_filter_and_patch_and_delete() {
     let res = app
         .clone()
         .oneshot(
-            Request::get("/api/v1/books?status=reading")
+            Request::get("/api/console/books?status=reading")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -251,7 +251,7 @@ async fn status_filter_and_patch_and_delete() {
     let res = app
         .clone()
         .oneshot(
-            Request::get("/api/v1/books?status=nope")
+            Request::get("/api/console/books?status=nope")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -263,7 +263,7 @@ async fn status_filter_and_patch_and_delete() {
     let res = app
         .clone()
         .oneshot(
-            Request::patch(format!("/api/v1/books/{id_b}"))
+            Request::patch(format!("/api/console/books/{id_b}"))
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(r##"{"rating":8,"review_en":"Solid sci-fi."}"##))
@@ -280,7 +280,7 @@ async fn status_filter_and_patch_and_delete() {
     let res = app
         .clone()
         .oneshot(
-            Request::delete(format!("/api/v1/books/{id_a}"))
+            Request::delete(format!("/api/console/books/{id_a}"))
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::empty())
                 .unwrap(),
@@ -291,7 +291,7 @@ async fn status_filter_and_patch_and_delete() {
 
     // 다시 list — 1개
     let res = app
-        .oneshot(Request::get("/api/v1/books").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/console/books").body(Body::empty()).unwrap())
         .await
         .unwrap();
     let json = body_json(res).await;
@@ -303,7 +303,7 @@ async fn show_unknown_id_is_404() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::get("/api/v1/books/9999")
+            Request::get("/api/console/books/9999")
                 .body(Body::empty())
                 .unwrap(),
         )

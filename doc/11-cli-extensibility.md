@@ -152,13 +152,13 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
 resolve_command_registry():
   1. 컴파일 확장: oxipage_server::all_extensions().iter().flat_map(cli_commands)
      → local cache, online/offline 둘 다 작동
-  2. 런타임 디스커버리: GET /api/v1/cli/commands
+  2. 런타임 디스커버리: GET /api/console/cli/commands
      → 서버가 WASM 확장을 포함한 전체 CLI 명령 정의 반환
   3. merge: 컴파일 목록 + 디스커버리 목록 (중복 제거, 뒤가 우선)
 ```
 
 ````rust
-/// 서버가 /api/v1/cli/commands 에서 반환하는 형식.
+/// 서버가 /api/console/cli/commands 에서 반환하는 형식.
 /// 각 Extension의 routes()에서 이 엔드포인트를 자동으로 내보낸다.
 #[derive(Serialize, Deserialize)]
 pub struct CliCommandManifest {
@@ -189,12 +189,12 @@ pub struct CliArgSpec {
 }
 ````
 
-서버 측: core `build_app()`가 `/api/v1/cli/commands` 엔드포인트를 자동 마운트. 모든 활성 확장의 `cli_commands()`를 수집해 `CliCommandManifest`로 응답.
+서버 측: core `build_app()`가 `/api/console/cli/commands` 엔드포인트를 자동 마운트. 모든 활성 확장의 `cli_commands()`를 수집해 `CliCommandManifest`로 응답.
 
 ```rust
 // oxipage-core/src/http.rs — build_app() 내부
 Router::new()
-    .route("/api/v1/cli/commands", get(cli_commands_handler))
+    .route("/api/console/cli/commands", get(cli_commands_handler))
     // ...기존 라우트...
 
 async fn cli_commands_handler(State(state): State<Arc<AppState>>) -> Json<CliCommandManifest> {
@@ -212,7 +212,7 @@ CLI 측 해상(resolution) 순서:
 ```
 1. --endpoint flag / OXIPAGE_ENDPOINT / site / default → endpoint
 2. 컴파일 확장 목록 (all_extensions) → offline 가능
-3. GET {endpoint}/api/v1/cli/commands → WASM 확장 포함
+3. GET {endpoint}/api/console/cli/commands → WASM 확장 포함
    실패 시 컴파일 목록만으로 진행 (server offline tolerant)
 4. merge 후 lookup
 ```
@@ -237,7 +237,7 @@ derive와 builder를 섞지 않음. 정적 명령은 derive 유지, 동적 명�
 | **확장 시스템 일관성** | `routes()`, `migrations()`과 동일한 등록 패턴. "설치하면 CLI 명령도 자동" |
 | **기존 확장과의 역호환성** | 기본 구현이 빈 vec이므로 기존 확장에 영향 없음 |
 | **정적 명령 공존** | `#[clap(external_subcommand)]` 하나만 추가. blog/project/link 등 derive 기반 명령은 그대로 |
-| **WASM 확장 CLI 명령** | 서버 `/api/v1/cli/commands` 엔드포인트로 런타임 확장의 명령도 자동 노출 |
+| **WASM 확장 CLI 명령** | 서버 `/api/console/cli/commands` 엔드포인트로 런타임 확장의 명령도 자동 노출 |
 | **오프라인 대응** | 서버 미기동 시 컴파일 확장 목록으로 폴백. `oxipage --help`는 서버 없이도 동적 명령 나열 가능 |
 | **테스트 용이성** | 각 확장의 CLI 핸들러를 확장 자체의 crate에서 단위 테스트 (`Client` mock 주입) |
 
@@ -246,9 +246,9 @@ derive와 builder를 섞지 않음. 정적 명령은 derive 유지, 동적 명�
 | 문제 | 대응 |
 |------|------|
 | **인자 타입 안전성 손실** | 모든 인자가 `&str`. 핸들러에서 파싱 필요하지만 보통 2-5개 인자로 체감 부담 적음 |
-| **WASM 확장의 핸들러** | WASM 확장은 CLI 프로세스에서 Rust 코드를 실행할 수 없음. `CliHandler`가 `None`인 명령은 서버에 `/api/v1/cli/exec/{ext_id}/{subcommand}`로 위임 (dispatch에서 분기) |
+| **WASM 확장의 핸들러** | WASM 확장은 CLI 프로세스에서 Rust 코드를 실행할 수 없음. `CliHandler`가 `None`인 명령은 서버에 `/api/console/cli/exec/{ext_id}/{subcommand}`로 위임 (dispatch에서 분기) |
 | **중첩 서브커맨드** | 1-depth로 시작. `novel chapter add` → chapter를 별도 `CliCommand`로 분리. 필요 시 `CliSubcommand`에 `sub_subcommands: Vec<CliSubcommand>` 추가 |
-| **디스커버리 지연** | 첫 동적 명령 실행 시 `GET /api/v1/cli/commands` 1회. 이후 세션 내 캐시 |
+| **디스커버리 지연** | 첫 동적 명령 실행 시 `GET /api/console/cli/commands` 1회. 이후 세션 내 캐시 |
 | **BoxFuture** | async 핸들러를 `Arc<dyn Fn>` 안에 넣으려면 `BoxFuture` 필요. `async_trait`와 동일한 패턴 |
 
 ## 11.5 구현 계획
@@ -259,15 +259,15 @@ derive와 builder를 섞지 않음. 정적 명령은 derive 유지, 동적 명�
 
 - `CliCommand`, `CliSubcommand`, `CliArg`, `CliHandler` 타입 정의
 - `Extension::cli_commands()` 메서드 추가 (기본 구현: 빈 vec)
-- 서버 `build_app()`에 `GET /api/v1/cli/commands` 엔드포인트 추가 — 모든 활성 확장의 `cli_commands()` 수집
-- 핸들러가 `None`인 명령 감지: WASM 확장은 `POST /api/v1/cli/exec/{ext_id}/{subcommand}` 서버 위임
+- 서버 `build_app()`에 `GET /api/console/cli/commands` 엔드포인트 추가 — 모든 활성 확장의 `cli_commands()` 수집
+- 핸들러가 `None`인 명령 감지: WASM 확장은 `POST /api/console/cli/exec/{ext_id}/{subcommand}` 서버 위임
 
 ### Phase 2: CLI 측 `external_subcommand` + 디스커버리
 
 **파일:** `crates/oxipage-cli/src/main.rs`, `crates/oxipage-cli/src/commands/mod.rs`
 
 - `Command::Dynamic(Vec<String>)` variant + `#[clap(external_subcommand)]` 추가
-- `resolve_command_registry()`: 컴파일 목록 + `GET /api/v1/cli/commands` merge (오프라인 폴백)
+- `resolve_command_registry()`: 컴파일 목록 + `GET /api/console/cli/commands` merge (오프라인 폴백)
 - dispatch()에서 raw args 파싱 → registry lookup → handler (또는 server proxy)
 - `parse_dynamic_args(&[String]) -> BTreeMap<String, String>` 헬퍼
 

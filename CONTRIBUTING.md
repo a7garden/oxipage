@@ -6,12 +6,11 @@ How to contribute to Oxipage. For basics, read the [`README`](README.md) first.
 
 ```bash
 # Backend (:8787) + frontend dev server (:5173, /api → :8787 proxy)
-cargo run -p oxipage-server &
+cargo run -p oxipage-console &
 cd web && bun install && bun run dev
 
-# Or start the server via the CLI (`serve` is the one exception that boots the server process
-# directly — doc/04 §4.1)
-cargo run -p oxipage-cli -- serve
+# Or start the server via the CLI (`console` boots the server process directly — doc/04 §4.1)
+cargo run -p oxipage-cli -- console
 ```
 
 A `debug` build reads `web/dist` from disk, so run it alongside the frontend dev server. A
@@ -34,7 +33,7 @@ A PR must pass all four. Don't break dependency or test isolation.
 ```
 crates/
 ├── oxipage-core/      # shared runtime: HTTP, auth, search, scheduler, registry, snapshot, config
-├── oxipage-server/    # binary (oxipage-server): statically links all extensions, assembles registry
+├── oxipage-console/    # binary (oxipage-console): statically links all extensions, assembles registry
 ├── oxipage-cli/       # binary (oxipage): the API's reference client (every command = an HTTP call)
 └── oxipage-ext-*/     # 9 extensions. Each owns its DB tables, routes, CLI, background jobs.
 ```
@@ -54,7 +53,7 @@ maintainer's internal design notes.)*
 1. Create `crates/oxipage-ext-<id>/` and add it to the workspace `members`.
 2. Implement the `Extension` trait (`id`/`display_name`/`migrations`/`routes`/`lobby_summary`/…).
 3. **Register it in the server:** add a line to `all_extensions()` in
-   `crates/oxipage-server/src/lib.rs`.
+   `crates/oxipage-console/src/lib.rs`.
    > ⚠ Rewrite `all_extensions()` **wholesale with `write`** — partial `edit`/`SWAP` keeps
    > dropping or duplicating `vec![` (doc/08 §8.9).
 4. Add metadata to `registry/index.json`.

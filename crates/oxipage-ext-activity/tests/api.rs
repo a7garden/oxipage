@@ -32,7 +32,7 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
     };
     Router::new()
         .nest(
-            "/api/v1/activity",
+            "/api/console/activity",
             registry.find("activity").unwrap().routes(),
         )
         .with_state(state)
@@ -67,7 +67,7 @@ async fn webhook(app: &Router, payload: String) -> axum::response::Response {
     let sig = sign(TEST_SECRET, payload.as_bytes());
     app.clone()
         .oneshot(
-            Request::post("/api/v1/activity/webhook")
+            Request::post("/api/console/activity/webhook")
                 .header("content-type", "application/json")
                 .header("x-hub-signature-256", sig)
                 .body(Body::from(payload))
@@ -89,7 +89,7 @@ async fn webhook_upserts_public_event_and_duplicate_remains_single() {
 
     let res = app
         .oneshot(
-            Request::get("/api/v1/activity")
+            Request::get("/api/console/activity")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -121,7 +121,7 @@ async fn list_honors_limit_order_and_repo_filter() {
     let res = app
         .clone()
         .oneshot(
-            Request::get("/api/v1/activity?limit=2")
+            Request::get("/api/console/activity?limit=2")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -133,7 +133,7 @@ async fn list_honors_limit_order_and_repo_filter() {
 
     let res = app
         .oneshot(
-            Request::get("/api/v1/activity?repo=owner%2Fone&limit=30")
+            Request::get("/api/console/activity?repo=owner%2Fone&limit=30")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -157,7 +157,7 @@ async fn webhook_without_signature_is_401() {
     let payload = push_payload("event-x", "owner/repo", "2026-07-27T12:00:00Z");
     let res = app
         .oneshot(
-            Request::post("/api/v1/activity/webhook")
+            Request::post("/api/console/activity/webhook")
                 .header("content-type", "application/json")
                 .body(Body::from(payload))
                 .unwrap(),
@@ -174,7 +174,7 @@ async fn webhook_with_bad_signature_is_401() {
     let bad_sig = sign("wrong-secret", payload.as_bytes());
     let res = app
         .oneshot(
-            Request::post("/api/v1/activity/webhook")
+            Request::post("/api/console/activity/webhook")
                 .header("content-type", "application/json")
                 .header("x-hub-signature-256", bad_sig)
                 .body(Body::from(payload))

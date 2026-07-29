@@ -240,7 +240,7 @@ async fn dispatch_dynamic(args: &[String], client: &Client, out: &Output) -> any
             // 핸들러 없음 → 서버 위임 (WASM 확장)
             let resp = client
                 .post(
-                    &format!("/api/v1/cli/exec/{ext_name}/{sub_name}"),
+                    &format!("/api/console/cli/exec/{ext_name}/{sub_name}"),
                     &serde_json::json!({ "args": parsed }),
                 )
                 .await
@@ -260,7 +260,7 @@ async fn resolve_command_registry(client: &Client) -> anyhow::Result<DynamicRegi
         .collect();
 
     // 2. 서버 디스커버리 (실패 시 조용히 폴백)
-    let discovered = match client.get("/api/v1/cli/commands").await {
+    let discovered = match client.get("/api/console/cli/commands").await {
         Ok(val) => {
             let manifest: oxipage_core::extension::CliCommandManifest = serde_json::from_value(val)
                 .unwrap_or(oxipage_core::extension::CliCommandManifest { extensions: vec![] });

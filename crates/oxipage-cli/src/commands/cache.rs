@@ -11,9 +11,9 @@ pub struct CacheArgs {
 
 pub(crate) async fn cache(c: CacheArgs, out: &Output, client: &Client) -> anyhow::Result<()> {
     let path = if let Some(ref ext) = c.extension {
-        format!("/api/v1/cache/refresh?extension={}", ext)
+        format!("/api/console/cache/refresh?extension={}", ext)
     } else {
-        "/api/v1/cache/refresh".to_string()
+        "/api/console/cache/refresh".to_string()
     };
 
     match client.post(&path, &serde_json::json!({})).await {

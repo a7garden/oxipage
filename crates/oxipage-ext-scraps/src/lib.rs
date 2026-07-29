@@ -39,7 +39,7 @@ impl CliHandler for ScrapAddHandler {
         let client = client.clone();
         Box::pin(async move {
             let resp = client
-                .post("/api/v1/scraps/", &body)
+                .post("/api/console/scraps/", &body)
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("{}", serde_json::to_string_pretty(&resp)?);
@@ -58,7 +58,7 @@ impl CliHandler for ScrapQueueHandler {
         let client = client.clone();
         Box::pin(async move {
             let resp = client
-                .get("/api/v1/scraps/queue")
+                .get("/api/console/scraps/queue")
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("{}", serde_json::to_string_pretty(&resp)?);
@@ -77,7 +77,7 @@ impl CliHandler for ScrapDeleteHandler {
         let id = args.get("id").cloned().unwrap_or_default();
         let client = client.clone();
         Box::pin(async move {
-            let path = format!("/api/v1/scraps/{id}");
+            let path = format!("/api/console/scraps/{id}");
             let resp = client
                 .delete(&path)
                 .await

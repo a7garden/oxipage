@@ -24,7 +24,7 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
         e.on_startup(&state).await.unwrap();
     }
     let r = registry.find("novels").unwrap().routes();
-    Router::new().nest("/api/v1/novels", r).with_state(state)
+    Router::new().nest("/api/console/novels", r).with_state(state)
 }
 
 async fn body_json(res: axum::response::Response) -> serde_json::Value {
@@ -43,7 +43,7 @@ async fn novel_create_publish_with_chapter_charcount() {
     let res = app
         .clone()
         .oneshot(
-            Request::post("/api/v1/novels")
+            Request::post("/api/console/novels")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(
@@ -64,7 +64,7 @@ async fn novel_create_publish_with_chapter_charcount() {
     let res = app
         .clone()
         .oneshot(
-            Request::post(format!("/api/v1/novels/{slug}/chapters"))
+            Request::post(format!("/api/console/novels/{slug}/chapters"))
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(format!(
@@ -83,7 +83,7 @@ async fn novel_create_publish_with_chapter_charcount() {
     let res = app
         .clone()
         .oneshot(
-            Request::post(format!("/api/v1/novels/{slug}/chapters/1/publish"))
+            Request::post(format!("/api/console/novels/{slug}/chapters/1/publish"))
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::empty())
                 .unwrap(),
@@ -96,7 +96,7 @@ async fn novel_create_publish_with_chapter_charcount() {
     let res = app
         .clone()
         .oneshot(
-            Request::get(format!("/api/v1/novels/{slug}/chapters/1"))
+            Request::get(format!("/api/console/novels/{slug}/chapters/1"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -110,7 +110,7 @@ async fn novel_create_publish_with_chapter_charcount() {
     let res = app
         .clone()
         .oneshot(
-            Request::get(format!("/api/v1/novels/{slug}/chapters"))
+            Request::get(format!("/api/console/novels/{slug}/chapters"))
                 .body(Body::empty())
                 .unwrap(),
         )

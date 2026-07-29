@@ -25,7 +25,7 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
     }
     let ext_router = registry.find("profile").unwrap().routes();
     Router::new()
-        .nest("/api/v1/profile", ext_router)
+        .nest("/api/console/profile", ext_router)
         .with_state(state)
 }
 
@@ -38,7 +38,7 @@ async fn body_json(res: axum::response::Response) -> serde_json::Value {
 async fn get_profile_returns_seeded_singleton() {
     let app = test_app(Some("tok")).await;
     let res = app
-        .oneshot(Request::get("/api/v1/profile").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/console/profile").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
@@ -61,7 +61,7 @@ async fn put_roundtrip_updates_profile() {
     let res = app
         .clone()
         .oneshot(
-            Request::put("/api/v1/profile")
+            Request::put("/api/console/profile")
                 .header("content-type", "application/json")
                 .header("authorization", "Bearer tok")
                 .body(Body::from(payload))
@@ -75,7 +75,7 @@ async fn put_roundtrip_updates_profile() {
     assert_eq!(json["data"]["education"][0]["institution"], "SNU");
 
     let res = app
-        .oneshot(Request::get("/api/v1/profile").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/console/profile").body(Body::empty()).unwrap())
         .await
         .unwrap();
     let json = body_json(res).await;
@@ -92,7 +92,7 @@ async fn put_with_empty_display_name_is_422() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::put("/api/v1/profile")
+            Request::put("/api/console/profile")
                 .header("content-type", "application/json")
                 .header("authorization", "Bearer tok")
                 .body(Body::from(r#"{"display_name":"  "}"#))

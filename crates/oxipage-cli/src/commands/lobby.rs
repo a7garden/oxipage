@@ -24,12 +24,12 @@ pub(crate) async fn lobby(c: LobbyCommand, out: &Output, client: &Client) -> any
 
             let payload = json!({ "display_mode": mode });
             let res = client
-                .put(&format!("/api/v1/lobby/config/{extension}"), &payload)
+                .put(&format!("/api/console/lobby/config/{extension}"), &payload)
                 .await?;
             out.data(res, "lobby config updated")
         }
         LobbyCommand::Config => {
-            let res = client.get("/api/v1/lobby/config").await?;
+            let res = client.get("/api/console/lobby/config").await?;
             out.data(res, "lobby config")
         }
     }

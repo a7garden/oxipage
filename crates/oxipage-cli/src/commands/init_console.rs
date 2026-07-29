@@ -42,7 +42,7 @@ pub(crate) async fn status(out: &Output, client: &Client) -> anyhow::Result<()> 
         .await
         .map_err(|e| anyhow::anyhow!("healthz failed: {e}"))?;
     let manifest = client
-        .get("/api/v1/lobby/manifest")
+        .get("/api/console/lobby/manifest")
         .await
         .map_err(|e| anyhow::anyhow!("manifest failed: {e}"))?;
 

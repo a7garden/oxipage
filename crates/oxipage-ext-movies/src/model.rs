@@ -46,7 +46,7 @@ pub struct SeriesGroupDetail {
     pub entries: Vec<MovieEntry>,
 }
 
-/// POST /api/v1/movies 입력.
+/// POST /api/console/movies 입력.
 /// published_at은 받지 않는다 (초안 우선 원칙).
 #[derive(Debug, Clone, Deserialize)]
 pub struct MovieEntryInput {

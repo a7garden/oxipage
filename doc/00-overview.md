@@ -71,7 +71,7 @@
 | 11 | 자유로운 생태계 링크 전시 | `links` 확장 (LinkCard) | 02, 03 |
 | 12 | 번거롭지 않은 셀프 관리 | CLI 전체 | 04, 05 |
 | 13 | 자체 CLI + oh-my-pi 스킬화 | Oxipage CLI + `.agent/skills/oxipage/SKILL.md` | 04 |
-| 14 | API 지원 | REST API (`/api/v1/**`) | 04 |
+| 14 | API 지원 | REST API (`/api/console/**`) | 04 |
 | 15 | (선택) 남도 쓰는 셀프호스팅 제품화, 로비 확장 설치, 레이아웃 모드 설정 | Extension 레지스트리, `LobbyConfig`, 배포 패키징 | 00, 01, 03, 05 |
 | 16 | OKLCH 디자인 시스템 | 전체 디자인 토큰 | 03 |
 | 17 | Rust / React+TS / Apple container | 전체 스택 결정 | 01, 05 |

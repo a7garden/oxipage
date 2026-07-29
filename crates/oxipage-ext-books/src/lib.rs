@@ -43,7 +43,7 @@ impl CliHandler for BookAddHandler {
         let client = client.clone();
         Box::pin(async move {
             let resp = client
-                .post("/api/v1/books/", &body)
+                .post("/api/console/books/", &body)
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("{}", serde_json::to_string_pretty(&resp)?);

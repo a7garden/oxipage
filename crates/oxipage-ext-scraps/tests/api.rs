@@ -24,7 +24,7 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
         e.on_startup(&state).await.unwrap();
     }
     let r = registry.find("scraps").unwrap().routes();
-    Router::new().nest("/api/v1/scraps", r).with_state(state)
+    Router::new().nest("/api/console/scraps", r).with_state(state)
 }
 
 async fn body_json(res: axum::response::Response) -> serde_json::Value {
@@ -41,7 +41,7 @@ async fn create_invalid_source_is_422() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::post("/api/v1/scraps")
+            Request::post("/api/console/scraps")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(
@@ -59,7 +59,7 @@ async fn create_empty_title_is_422() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::post("/api/v1/scraps")
+            Request::post("/api/console/scraps")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(
@@ -77,7 +77,7 @@ async fn create_invalid_url_is_422() {
     let app = test_app(Some("tok")).await;
     let res = app
         .oneshot(
-            Request::post("/api/v1/scraps")
+            Request::post("/api/console/scraps")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(r##"{"source_url":"ftp://x","title":"x"}"##))
@@ -96,7 +96,7 @@ async fn manual_create_list_show_patch_flow() {
     let res = app
         .clone()
         .oneshot(
-            Request::post("/api/v1/scraps")
+            Request::post("/api/console/scraps")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(
@@ -116,7 +116,7 @@ async fn manual_create_list_show_patch_flow() {
     // list — 1개
     let res = app
         .clone()
-        .oneshot(Request::get("/api/v1/scraps").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/console/scraps").body(Body::empty()).unwrap())
         .await
         .unwrap();
     let json = body_json(res).await;
@@ -126,7 +126,7 @@ async fn manual_create_list_show_patch_flow() {
     let res = app
         .clone()
         .oneshot(
-            Request::get(format!("/api/v1/scraps/{id}"))
+            Request::get(format!("/api/console/scraps/{id}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -141,7 +141,7 @@ async fn manual_create_list_show_patch_flow() {
     let res = app
         .clone()
         .oneshot(
-            Request::patch(format!("/api/v1/scraps/{id}"))
+            Request::patch(format!("/api/console/scraps/{id}"))
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(
@@ -160,7 +160,7 @@ async fn manual_create_list_show_patch_flow() {
     let res = app
         .clone()
         .oneshot(
-            Request::get(format!("/api/v1/scraps/{id}"))
+            Request::get(format!("/api/console/scraps/{id}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -177,7 +177,7 @@ async fn manual_create_list_show_patch_flow() {
     let res = app
         .clone()
         .oneshot(
-            Request::delete(format!("/api/v1/scraps/{id}"))
+            Request::delete(format!("/api/console/scraps/{id}"))
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::empty())
                 .unwrap(),
@@ -188,7 +188,7 @@ async fn manual_create_list_show_patch_flow() {
 
     // 삭제 후 비어 있음
     let res = app
-        .oneshot(Request::get("/api/v1/scraps").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/console/scraps").body(Body::empty()).unwrap())
         .await
         .unwrap();
     let json = body_json(res).await;
@@ -243,13 +243,13 @@ async fn queue_publish_and_source_filter_flow() {
     }
     let r = registry.find("scraps").unwrap().routes();
     let app = Router::new()
-        .nest("/api/v1/scraps", r)
+        .nest("/api/console/scraps", r)
         .with_state(state_app);
 
     let res = app
         .clone()
         .oneshot(
-            Request::get("/api/v1/scraps/queue")
+            Request::get("/api/console/scraps/queue")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::empty())
                 .unwrap(),
@@ -264,7 +264,7 @@ async fn queue_publish_and_source_filter_flow() {
     let res = app
         .clone()
         .oneshot(
-            Request::get("/api/v1/scraps/queue?source=geeknews")
+            Request::get("/api/console/scraps/queue?source=geeknews")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::empty())
                 .unwrap(),
@@ -279,7 +279,7 @@ async fn queue_publish_and_source_filter_flow() {
     // 큐 row는 일반 list에 안 나옴
     let res = app
         .clone()
-        .oneshot(Request::get("/api/v1/scraps").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/console/scraps").body(Body::empty()).unwrap())
         .await
         .unwrap();
     let json = body_json(res).await;
@@ -289,7 +289,7 @@ async fn queue_publish_and_source_filter_flow() {
     let res = app
         .clone()
         .oneshot(
-            Request::get(format!("/api/v1/scraps/{}", hn.id))
+            Request::get(format!("/api/console/scraps/{}", hn.id))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -301,7 +301,7 @@ async fn queue_publish_and_source_filter_flow() {
     let res = app
         .clone()
         .oneshot(
-            Request::post(format!("/api/v1/scraps/{}/publish", hn.id))
+            Request::post(format!("/api/console/scraps/{}/publish", hn.id))
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::empty())
                 .unwrap(),
@@ -315,7 +315,7 @@ async fn queue_publish_and_source_filter_flow() {
     // publish 후 list — 1개
     let res = app
         .clone()
-        .oneshot(Request::get("/api/v1/scraps").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/console/scraps").body(Body::empty()).unwrap())
         .await
         .unwrap();
     let json = body_json(res).await;
@@ -325,7 +325,7 @@ async fn queue_publish_and_source_filter_flow() {
     let res = app
         .clone()
         .oneshot(
-            Request::get(format!("/api/v1/scraps/{}", hn.id))
+            Request::get(format!("/api/console/scraps/{}", hn.id))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -337,7 +337,7 @@ async fn queue_publish_and_source_filter_flow() {
     let res = app
         .clone()
         .oneshot(
-            Request::get("/api/v1/scraps/queue")
+            Request::get("/api/console/scraps/queue")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::empty())
                 .unwrap(),
@@ -351,7 +351,7 @@ async fn queue_publish_and_source_filter_flow() {
     let res = app
         .clone()
         .oneshot(
-            Request::post("/api/v1/scraps/9999/publish")
+            Request::post("/api/console/scraps/9999/publish")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::empty())
                 .unwrap(),
@@ -364,7 +364,7 @@ async fn queue_publish_and_source_filter_flow() {
     let res = app
         .clone()
         .oneshot(
-            Request::post(format!("/api/v1/scraps/{}/publish", hn.id))
+            Request::post(format!("/api/console/scraps/{}/publish", hn.id))
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::empty())
                 .unwrap(),
@@ -385,7 +385,7 @@ async fn list_source_filter() {
         let res = app
             .clone()
             .oneshot(
-                Request::post("/api/v1/scraps")
+                Request::post("/api/console/scraps")
                     .header("content-type", "application/json")
                     .header(AUTHORIZATION, bearer("tok"))
                     .body(Body::from(format!(
@@ -401,7 +401,7 @@ async fn list_source_filter() {
     let res = app
         .clone()
         .oneshot(
-            Request::get("/api/v1/scraps?source=manual")
+            Request::get("/api/console/scraps?source=manual")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -413,7 +413,7 @@ async fn list_source_filter() {
     let res = app
         .clone()
         .oneshot(
-            Request::get("/api/v1/scraps?source=hackernews")
+            Request::get("/api/console/scraps?source=hackernews")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -431,7 +431,7 @@ async fn patch_note_contract_404_and_persistence() {
     let res = app
         .clone()
         .oneshot(
-            Request::post("/api/v1/scraps")
+            Request::post("/api/console/scraps")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(
@@ -449,7 +449,7 @@ async fn patch_note_contract_404_and_persistence() {
     let res = app
         .clone()
         .oneshot(
-            Request::patch("/api/v1/scraps/9999")
+            Request::patch("/api/console/scraps/9999")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(r##"{"note_ko":"x"}"##))
@@ -463,7 +463,7 @@ async fn patch_note_contract_404_and_persistence() {
     let res = app
         .clone()
         .oneshot(
-            Request::patch(format!("/api/v1/scraps/{id}"))
+            Request::patch(format!("/api/console/scraps/{id}"))
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
                 .body(Body::from(
@@ -483,7 +483,7 @@ async fn patch_note_contract_404_and_persistence() {
     // GET /{id} 로 DB 에 영구 반영 확인
     let res = app
         .oneshot(
-            Request::get(format!("/api/v1/scraps/{id}"))
+            Request::get(format!("/api/console/scraps/{id}"))
                 .body(Body::empty())
                 .unwrap(),
         )

@@ -4,6 +4,7 @@
 # Node / web frontend
 /web/node_modules
 /web/dist
+/web/dist-static
 /admin-web/node_modules
 /admin-web/dist
 
@@ -23,6 +24,7 @@ snapshots/
 
 # build.rs가 생성하는 crate-내장 SPA/리소스
 embedded-spa/
+embedded-spa-static/
 _registry.json
 _wasm-demo.wasm
 

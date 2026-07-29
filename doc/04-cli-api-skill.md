@@ -84,7 +84,7 @@ default_lang = "ko"
 languages = ["ko", "en"]
 
 [server]
-api_endpoint = "https://example.dev/api/v1"
+api_endpoint = "https://example.dev/api/console"
 
 [extensions]
 enabled = ["profile", "projects", "blog", "novels", "scraps", "activity", "movies", "books", "links"]
@@ -106,13 +106,13 @@ links = "list"
 
 ## 4.5 REST API 설계
 
-- 버전 프리픽스: `/api/v1/**`
-- 리소스별 CRUD: `GET/POST /api/v1/blog/posts`, `GET/PATCH/DELETE /api/v1/blog/posts/{slug}` 식으로 확장 id가 그대로 경로 세그먼트가 됨(§1.4 `Extension::id()`와 일치)
+- 버전 프리픽스: `/api/console/**`
+- 리소스별 CRUD: `GET/POST /api/console/blog/posts`, `GET/PATCH/DELETE /api/console/blog/posts/{slug}` 식으로 확장 id가 그대로 경로 세그먼트가 됨(§1.4 `Extension::id()`와 일치)
 - 목록 응답은 커서 기반 페이지네이션: `?cursor=...&limit=20`
 - 응답 봉투: 목록은 `{ "data": [...], "meta": { "next_cursor": ... } }`, 단건은 `{ "data": {...} }`
 - 에러 포맷: `{ "error": { "code": "validation_error", "message": "...", "field": "title_ko" } }`
 - 쓰기 요청은 `Authorization: Bearer <token>` 필수, 스코프 검사(§4.2) 실패 시 403
-- **OpenAPI 스펙 자동 생성**: Rust 코드의 라우트/타입 주석에서 `utoipa` 크레이트로 OpenAPI 문서를 생성하고, `/api/v1/docs`에 Swagger UI로 서빙 — 사람이 봐도, 에이전트가 스펙을 긁어서 사용법을 익혀도 유용
+- **OpenAPI 스펙 자동 생성**: Rust 코드의 라우트/타입 주석에서 `utoipa` 크레이트로 OpenAPI 문서를 생성하고, `/api/console/docs`에 Swagger UI로 서빙 — 사람이 봐도, 에이전트가 스펙을 긁어서 사용법을 익혀도 유용
 - 읽기 API는 공개(레이트리밋만 적용), 쓰기 API는 오너 토큰 필요 — 공개 사이트인 만큼 방문자가 리뷰/블로그를 보는 데는 로그인 불필요
 
 ## 4.6 oh-my-pi용 스킬 설계

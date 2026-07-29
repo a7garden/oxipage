@@ -50,7 +50,7 @@ cd admin-web && bun run build   # clean
 **목표:** 매일 쓰는 최소 기능. CLI로 블로그 글을 처음부터 끝까지(작성 → 초안 → 발행) 실제 도메인에 올릴 수 있을 것.
 
 **작업 항목:**
-- `oxipage-ext-blog`: `blog` 테이블(`doc/02` §2.6), `lang`/`translation_group_id` 느슨한 번역 연결, 초안(`published_at` NULL)/발행 상태, 태그(JSON 배열). 라우트 `GET/POST /api/v1/blog/posts`, `GET/PATCH/DELETE /api/v1/blog/posts/{slug}`.
+- `oxipage-ext-blog`: `blog` 테이블(`doc/02` §2.6), `lang`/`translation_group_id` 느슨한 번역 연결, 초안(`published_at` NULL)/발행 상태, 태그(JSON 배열). 라우트 `GET/POST /api/console/blog/posts`, `GET/PATCH/DELETE /api/console/blog/posts/{slug}`.
 - `oxipage-ext-projects`: `doc/02` §2.4 — `title_ko`/`title_en`, `description_ko`/`description_en`(구조적 이중언어 강제), `tech_stack`, `status`, `links`, `featured`, `screenshots` 테이블.
 - `oxipage-ext-links`: `doc/02` §2.11 — `LinkCard` + `display_order` + `featured`.
 - **공통 `search_documents` FTS5 인덱스**: `doc/01` §1.7 — `tokenize='trigram'`(한국어 대응). Phase 3의 `/search` UI 전에 인덱싱 훅을 각 확장 `on_publish`에 붙인다(확장 비활성화 시 즉시 동기 삭제 — `doc/02` §2.13).
@@ -106,7 +106,7 @@ cd admin-web && bun run build   # clean
 **작업 항목:**
 - `.agent/skills/oxipage-cli/SKILL.md` 작성(`doc/04` §4.6 초안 그대로 시작점). oh-my-pi(GLM/MiniMax/DeepSeek 등 어떤 모델이든) 실사용 테스트.
 - PAT 스코프 분리 적용: `post:write`(초안) vs `post:publish`(발행). 에이전트 토큰은 기본 `post:write`만 → 명시적 승인 없이 발행 불가(초안 우선 원칙의 인증층 보장).
-- OpenAPI 자동 생성(`utoipa`) + `/api/v1/docs`(Swagger UI).
+- OpenAPI 자동 생성(`utoipa`) + `/api/console/docs`(Swagger UI).
 - 레이트리밋, 요청 로깝. 공개 읽기 API는 레이트리밋만, 쓰기 API는 오너 토큰 필수.
 
 **완료 기준:** 반복 테스트로 "초안까지는 자동, 명시적 승인 없이는 절대 발행 안 됨" 확인.
@@ -137,7 +137,7 @@ cd admin-web && bun run build   # clean
 
 - **macOS 27 빌드**: release 프로필 `strip = "none"` 고정 필수(`doc/05` §5.1의 Apple Silicon 전제와 무관한 dyld 제약 — `rust-lang/rust#157750`). 신규 크레이트 추가 시에도 동일 프로필 적용.
 - **rust-embed 컴파일타임 요구**: 신규 확장이나 바이너리 크레이트에서 `#[derive(RustEmbed)]` 도입 시, cargo 실행 전에 대상 폴더(`web/dist` 등)가 존재해야 debug/release 모두 컴파일됨.
-- **확장 API 경로**: axum 0.8 `nest` 시맨틱상 루트 라우트는 prefix 무슬래시로 서빙됨(`/api/v1/<ext>`, trailing slash 없음). `oxipage-cli` 및 프론트 fetch 경로도 이 규칙을 따를 것.
+- **확장 API 경로**: axum 0.8 `nest` 시맨틱상 루트 라우트는 prefix 무슬래시로 서빙됨(`/api/console/<ext>`, trailing slash 없음). `oxipage-cli` 및 프론트 fetch 경로도 이 규칙을 따를 것.
 
 ## 7.10 즉시 시작 가능 vs 사용자 결정 필요
 

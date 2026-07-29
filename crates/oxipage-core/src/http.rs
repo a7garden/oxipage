@@ -27,40 +27,9 @@ struct DataEnvelope<T: serde::Serialize> {
     data: T,
 }
 
-#[derive(serde::Serialize)]
-struct ManifestSite {
-    name: String,
-    base_url: String,
-    default_lang: String,
-    languages: Vec<String>,
-}
-
-#[derive(serde::Serialize)]
-struct ManifestLocalized {
-    ko: String,
-    en: String,
-}
-
-#[derive(serde::Serialize)]
-struct ManifestExtension {
-    id: String,
-    display_name: ManifestLocalized,
-    lobby: LobbyConfigInfo,
-}
-
-#[derive(serde::Serialize, Clone, Default)]
-struct LobbyConfigInfo {
-    enabled: bool,
-    display_mode: String,
-    display_order: i64,
-    style_params: serde_json::Value,
-}
-
-#[derive(serde::Serialize)]
-struct Manifest {
-    site: ManifestSite,
-    extensions: Vec<ManifestExtension>,
-}
+// Manifest + lobby-config types live in `crate::manifest` so the SSG build emits the identical
+// shape the live handler serves (single source of truth for `fetchManifest()`).
+use crate::manifest::{Manifest, ManifestLocalized};
 
 pub fn build_app(state: AppState) -> Router {
     let mut api = Router::new()
@@ -238,58 +207,16 @@ async fn search_handler(
 }
 
 async fn lobby_manifest(State(state): State<AppState>) -> Json<DataEnvelope<Manifest>> {
-    let mut extensions = Vec::new();
-    for (idx, e) in state.registry.iter().into_iter().enumerate() {
-        if !state.registry.is_active(e.id()).await {
-            continue;
-        }
-        let lobby = lobby_config_for(&state, e.id(), idx as i64).await;
-        extensions.push(ManifestExtension {
-            id: e.id().to_string(),
-            display_name: ManifestLocalized {
-                ko: e.display_name(Lang::Ko),
-                en: e.display_name(Lang::En),
-            },
-            lobby,
-        });
-    }
-    Json(DataEnvelope {
-        data: Manifest {
-            site: ManifestSite {
-                name: state.effective_site_name().await,
-                base_url: state.effective_base_url().await,
-                default_lang: state.config.site.default_lang.clone(),
-                languages: state.config.site.languages.clone(),
-            },
-            extensions,
-        },
-    })
-}
-
-async fn lobby_config_for(state: &AppState, ext_id: &str, default_order: i64) -> LobbyConfigInfo {
-    let row: Option<(bool, String, i64, String)> = sqlx::query_as(
-        "SELECT enabled, display_mode, display_order, style_params
-         FROM lobby_config WHERE extension_id = ?",
+    let extensions = state.registry.iter();
+    let manifest = crate::manifest::assemble(
+        &state.db,
+        &state.config,
+        &state.effective_site_name().await,
+        &state.effective_base_url().await,
+        &extensions,
     )
-    .bind(ext_id)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten();
-    match row {
-        Some((enabled, mode, order, params)) => LobbyConfigInfo {
-            enabled,
-            display_mode: mode,
-            display_order: order,
-            style_params: serde_json::from_str(&params).unwrap_or_default(),
-        },
-        None => LobbyConfigInfo {
-            enabled: true,
-            display_mode: state.config.lobby.default_mode.clone(),
-            display_order: default_order,
-            style_params: serde_json::json!({}),
-        },
-    }
+    .await;
+    Json(DataEnvelope { data: manifest })
 }
 
 async fn lobby_config_list(
@@ -300,7 +227,7 @@ async fn lobby_config_list(
         if !state.registry.is_active(e.id()).await {
             continue;
         }
-        let info = lobby_config_for(&state, e.id(), idx as i64).await;
+        let info = crate::manifest::lobby_config_for(&state.db, &state.config, e.id(), idx as i64).await;
         entries.push(LobbyConfigEntry {
             extension_id: e.id().to_string(),
             enabled: info.enabled,
@@ -353,7 +280,7 @@ async fn lobby_config_update(
             "display_mode must be canvas|grid|list",
         ));
     }
-    let info = lobby_config_for(&state, &ext_id, 0).await;
+    let info = crate::manifest::lobby_config_for(&state.db, &state.config, &ext_id, 0).await;
     let enabled = input.enabled.unwrap_or(info.enabled);
     let mode = input.display_mode.unwrap_or(info.display_mode);
     let order = input.display_order.unwrap_or(info.display_order);
@@ -443,6 +370,29 @@ pub fn embedded_spa_files() -> Vec<(String, Vec<u8>)> {
         .filter_map(|path| {
             let path = path.into_owned();
             Assets::get(&path).map(|f| (path, f.data.into_owned()))
+        })
+        .collect()
+}
+
+/// The static-mode SPA bundle (`embedded-spa-static`), built with `VITE_DATA_MODE=static`.
+/// `oxipage build` writes THIS to `out/` so the deployed/previewed site reads `/data/*.json`
+/// instead of hitting `/api/console` (which does not exist on a static host).
+#[derive(RustEmbed)]
+#[folder = "embedded-spa-static"]
+struct StaticAssets;
+
+/// Static-mode SPA `index.html` — used by `build_writer` to extract hashed asset tags.
+pub fn static_spa_index_html() -> Option<String> {
+    StaticAssets::get("index.html")
+        .and_then(|f| std::str::from_utf8(f.data.as_ref()).ok().map(str::to_owned))
+}
+
+/// Every file in the static-mode SPA bundle. `oxipage build` writes these to `out/`.
+pub fn static_spa_files() -> Vec<(String, Vec<u8>)> {
+    StaticAssets::iter()
+        .filter_map(|path| {
+            let path = path.into_owned();
+            StaticAssets::get(&path).map(|f| (path, f.data.into_owned()))
         })
         .collect()
 }

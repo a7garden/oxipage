@@ -79,15 +79,19 @@ impl BuildExt for LinksExtension {
         rt: &tokio::runtime::Handle,
     ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
         let cards: Vec<model::LinkCard> = rt.block_on(repo::list(db, None, 500))?;
-        let _html = cards
+        let items = cards
             .iter()
             .map(|c| format!("<li><a href=\"{}\">{}</a></li>", c.url, c.title))
             .collect::<Vec<_>>()
             .join("\n");
         Ok(vec![StaticPage {
             path: "links/index.html".into(),
-            content: r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <title>Links</title><link rel="canonical" href="/links/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#.to_string(),
+            content: format!(
+                r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <title>Links</title><link rel="canonical" href="/links/"></head><body><div id="root"></div><noscript><ul>
+    {items}
+    </ul></noscript><script src="/assets/index.js"></script></body></html>"#
+            ),
         }])
     }
 

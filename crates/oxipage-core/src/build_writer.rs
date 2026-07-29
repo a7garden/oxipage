@@ -62,6 +62,53 @@ pub fn write_build_output(
         fs::write(&path, &json)?;
     }
 
+    // 3b. Ensure every extension with build data also has a collection landing page
+    //     (`{ext}/index.html`). Extensions emitting only per-item detail shells (blog,
+    //     projects, novels, movies, books, scraps) would otherwise 404 on direct load of
+    //     their collection route. The `404.html` SPA fallback masks this on GitHub Pages but
+    //     serves a 404 status (bad for SEO) and breaks `oxipage console --preview`. Fill the
+    //     gap with a SPA shell so the route returns 200 everywhere.
+    let has_collection_shell: std::collections::HashSet<&str> = output
+        .pages
+        .iter()
+        .filter_map(|p| {
+            let mut parts = p.path.split('/');
+            let head = parts.next()?;
+            if parts.next() == Some("index.html") {
+                Some(head)
+            } else {
+                None
+            }
+        })
+        .collect();
+    for (ext_id, _data) in &output.extensions_data {
+        if has_collection_shell.contains(ext_id.as_str()) {
+            continue;
+        }
+        let shell = inject_assets(
+            &format!(
+                r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>{ext_id}</title><link rel="canonical" href="/{ext_id}/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#
+            ),
+            asset_tags.as_deref(),
+        );
+        let path = out_dir.join(format!("{ext_id}/index.html"));
+        fs::create_dir_all(path.parent().unwrap())?;
+        fs::write(&path, &shell)?;
+    }
+
+    // 3c. Core SPA collection routes that aren't extension-owned. `/search` is a core route
+    //     (not in extensions_data) so the loop above skips it; give it the same SPA shell so a
+    //     direct load returns 200 instead of relying on the 404.html fallback.
+    let search_path = out_dir.join("search/index.html");
+    if !search_path.exists() {
+        let shell = inject_assets(
+            r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Search</title><link rel="canonical" href="/search/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#,
+            asset_tags.as_deref(),
+        );
+        fs::create_dir_all(search_path.parent().unwrap())?;
+        fs::write(&search_path, &shell)?;
+    }
+
     // 4. Write search index
     let search_json = serde_json::to_string_pretty(&output.search_docs)?;
     fs::write(data_dir.join("search-index.json"), &search_json)?;
@@ -93,7 +140,7 @@ pub fn write_build_output(
 /// Pull the hashed `<script>` and `<link rel="stylesheet">` tags out of the
 /// embedded SPA `index.html`. Returns `None` if the SPA isn't embedded.
 fn extract_asset_tags() -> Option<String> {
-    let html = crate::http::spa_index_html()?;
+    let html = crate::http::static_spa_index_html()?;
     let mut tags = Vec::new();
     for line in html.lines() {
         let t = line.trim();
@@ -118,7 +165,7 @@ fn inject_assets(shell: &str, asset_tags: Option<&str>) -> String {
 
 /// Write every embedded SPA file to `out_dir`, preserving its relative path.
 fn write_embedded_assets(out_dir: &Path) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    for (path, bytes) in crate::http::embedded_spa_files() {
+    for (path, bytes) in crate::http::static_spa_files() {
         let dest = out_dir.join(&path);
         if let Some(parent) = dest.parent() {
             fs::create_dir_all(parent)?;

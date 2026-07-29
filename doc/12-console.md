@@ -1,6 +1,6 @@
 # 12장 — Admin Console (관리 GUI)
 > **v2 변경 (2026-07-28):** "Admin Console"이 "Management Console"(`oxipage console`)로 통합되었다.
-> 이전 `oxipage admin` 서브커맨드 + `oxipage-server` 바이너리가 단일 `oxipage console` 명령으로 합쳐졌고,
+> 이전 `oxipage admin` 서브커맨드 + `oxipage-console` 바이너리가 단일 `oxipage console` 명령으로 합쳐졌고,
 > `oxipage-admin` crate는 `oxipage-console` crate의 admin 모듈로 흡수되었다.
 > 이 장의 개념은 그대로 유효하다 (관리 GUI + 사이트 프록시 + 테마 카탈로그).
 
@@ -139,8 +139,8 @@ GET  /api/admin/proxy/{site}/*   → 사이트 프록시 (GET/POST/PUT/PATCH/DEL
 ### 요청 변환
 
 ```
-클라이언트:  GET /api/admin/proxy/selfhost/api/v1/extensions
-백엔드:      GET {selfhost.endpoint}/api/v1/extensions
+클라이언트:  GET /api/admin/proxy/selfhost/api/console/extensions
+백엔드:      GET {selfhost.endpoint}/api/console/extensions
              + Authorization: Bearer {selfhost.token}
              + Content-Type: application/json (원본 유지)
 ```
@@ -209,8 +209,8 @@ CREATE TABLE IF NOT EXISTS theme_config (
 ### API (공개 서버 측, `oxipage-core`에 추가)
 
 ```
-GET  /api/v1/theme          → 현재 테마 설정 (인증 불요, 공개 웹이 읽음)
-PUT  /api/v1/theme          → 테마 변경 (admin 스코프)
+GET  /api/console/theme          → 현재 테마 설정 (인증 불요, 공개 웹이 읽음)
+PUT  /api/console/theme          → 테마 변경 (admin 스코프)
 ```
 
 응답 형식:
@@ -234,12 +234,12 @@ PUT  /api/v1/theme          → 테마 변경 (admin 스코프)
 
 ### 공개 웹 적용
 
-`web/src/shared/theme.ts`가 부팅 시 `GET /api/v1/theme`을 호출, 반환된 팔레트를 `document.documentElement.style`에 CSS 변수로 주입. 기존 `data-theme` 토글(light/dark)은 유지 — 테마가 각 variant의 팔레트를 제공하므로.
+`web/src/shared/theme.ts`가 부팅 시 `GET /api/console/theme`을 호출, 반환된 팔레트를 `document.documentElement.style`에 CSS 변수로 주입. 기존 `data-theme` 토글(light/dark)은 유지 — 테마가 각 variant의 팔레트를 제공하므로.
 
 ### Admin GUI에서의 테마 UX
 
 - 테마 카드 4종 그리드, 실시간 미리보기 (미니 공개 페이지 렌더)
-- 클릭 → 즉시 `PUT /api/admin/proxy/{site}/api/v1/theme` 호출
+- 클릭 → 즉시 `PUT /api/admin/proxy/{site}/api/console/theme` 호출
 - "현재 적용됨" 배지
 
 ## 12.8 프론트엔드 — `admin-web/`
@@ -433,8 +433,8 @@ open http://127.0.0.1:8788 in your browser
 
 | Method | Path | 설명 |
 |--------|------|------|
-| GET | `/api/v1/theme` | 현재 테마 (공개) |
-| PUT | `/api/v1/theme` | 테마 변경 (admin) |
+| GET | `/api/console/theme` | 현재 테마 (공개) |
+| PUT | `/api/console/theme` | 테마 변경 (admin) |
 
 ## 12.11 파일 변경 목록
 
@@ -458,13 +458,13 @@ open http://127.0.0.1:8788 in your browser
 | `crates/oxipage-cli/Cargo.toml` | `oxipage-admin` 의존성 추가 |
 | `crates/oxipage-cli/src/main.rs` | `Command::Admin` 추가 |
 | `crates/oxipage-cli/src/commands/mod.rs` | admin dispatch 추가 |
-| `crates/oxipage-core/src/http.rs` | `/api/v1/theme` GET/PUT 라우트 추가 |
+| `crates/oxipage-core/src/http.rs` | `/api/console/theme` GET/PUT 라우트 추가 |
 | `crates/oxipage-core/src/migrate.rs` | `theme_config` 테이블 마이그레이션 |
 | `web/src/shared/theme.ts` | 부팅 시 테마 API 호출 + CSS 변수 주입 |
 
 ### 미변경
 
-- `oxipage-server` — 공개 서버 로직 변경 없음
+- `oxipage-console` — 공개 서버 로직 변경 없음
 - 기존 확장 크레이트 — 라우트/스키마 변경 없음
 - `oxipage.toml` 스키마 — 테마는 DB 저장, toml 불변
 
@@ -479,7 +479,7 @@ Phase 1: 백엔드 기초
 
 Phase 2: 테마 시스템
   ├─ theme_config 마이그레이션 (core)
-  ├─ /api/v1/theme GET/PUT (core)
+  ├─ /api/console/theme GET/PUT (core)
   ├─ 테마 카탈로그 (admin)
   └─ 공개 웹 테마 적용 (web/src/shared/theme.ts)
 

@@ -95,7 +95,7 @@ graph TB
 **확장(`oxipage-ext-*`)이 제공하는 것:**
 
 - 자기 도메인의 DB 스키마 + 마이그레이션
-- 자기 도메인의 REST 라우트 (`/api/v1/blog/**` 등)
+- 자기 도메인의 REST 라우트 (`/api/console/blog/**` 등)
 - 자기 도메인의 CLI 서브커맨드 (`oxipage blog ...`)
 - (선택) 백그라운드 잡 (GitHub 폴링, TMDB 캐시 갱신 등)
 - 로비에 보여줄 요약 카드 데이터 제공자
@@ -153,7 +153,7 @@ pub trait Extension: Send + Sync {
     /// 이 확장이 소유한 SQLite 마이그레이션 (독립 네임스페이스 테이블)
     fn migrations(&self) -> Vec<Migration>;
 
-    /// /api/v1/{id}/** 하위에 마운트될 라우터
+    /// /api/console/{id}/** 하위에 마운트될 라우터
     fn routes(&self) -> Router<AppState>;
 
     /// `oxipage {id} ...` 서브커맨드 정의
@@ -179,7 +179,7 @@ pub trait Extension: Send + Sync {
 ## 1.5 프론트엔드 구조
 
 - **빌드:** Vite + React + TypeScript
-- **라우팅:** React Router. 최상위 경로는 코어가 내려주는 확장 매니페스트(`GET /api/v1/lobby/manifest`)를 읽어 동적으로 구성 — 확장이 꺼져 있으면 해당 라우트 자체가 등록되지 않음
+- **라우팅:** React Router. 최상위 경로는 코어가 내려주는 확장 매니페스트(`GET /api/console/lobby/manifest`)를 읽어 동적으로 구성 — 확장이 꺼져 있으면 해당 라우트 자체가 등록되지 않음
 - **데이터 페칭:** TanStack Query. **개발 모드**는 로컬 API, **프리뷰/프로덕션(v2)**은 빌드 시 생성된 정적 JSON 파일을 fetch. `VITE_DATA_MODE` 환경변수로 분기.
 - **코드 스플리팅:** 확장 하나 = lazy route chunk 하나. 영화 확장을 안 쓰는 사람은 그 번들을 아예 받지 않음
 - **디자인 토큰:** `web/src/shared/tokens.css` — OKLCH 커스텀 프로퍼티 (3장 상세)

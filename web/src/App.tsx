@@ -37,6 +37,21 @@ const LinksPage = lazy(() =>
 const SearchPage = lazy(() =>
   import("./search/SearchPage").then((m) => ({ default: m.SearchPage })),
 );
+const NovelsPage = lazy(() =>
+  import("./extensions/novels/NovelsPage").then((m) => ({ default: m.NovelsPage })),
+);
+const MoviesPage = lazy(() =>
+  import("./extensions/movies/MoviesPage").then((m) => ({ default: m.MoviesPage })),
+);
+const BooksPage = lazy(() =>
+  import("./extensions/books/BooksPage").then((m) => ({ default: m.BooksPage })),
+);
+const ScrapsPage = lazy(() =>
+  import("./extensions/scraps/ScrapsPage").then((m) => ({ default: m.ScrapsPage })),
+);
+const ActivityPage = lazy(() =>
+  import("./extensions/activity/ActivityPage").then((m) => ({ default: m.ActivityPage })),
+);
 
 function LangToggle() {
   const { lang, setLang } = useLanguage();
@@ -147,6 +162,46 @@ function Shell() {
                 element={
                   <Suspense fallback={<PageFallback />}>
                     <LinksPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/novels"
+                element={
+                  <Suspense fallback={<PageFallback />}>
+                    <NovelsPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/movies"
+                element={
+                  <Suspense fallback={<PageFallback />}>
+                    <MoviesPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/books"
+                element={
+                  <Suspense fallback={<PageFallback />}>
+                    <BooksPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/scraps"
+                element={
+                  <Suspense fallback={<PageFallback />}>
+                    <ScrapsPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/activity"
+                element={
+                  <Suspense fallback={<PageFallback />}>
+                    <ActivityPage />
                   </Suspense>
                 }
               />

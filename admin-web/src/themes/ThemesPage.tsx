@@ -1,7 +1,6 @@
 // 테마 선택 페이지 — 카드 그리드 + 미리보기 + 원클릭 적용
-
+import { useSite, getThemeCatalog, getCurrentTheme, apiPut, type ThemeInfo } from "../shared/api";
 import { useEffect, useState } from "react";
-import { useSite, getThemeCatalog, apiPut, type ThemeInfo } from "../shared/api";
 import { Card } from "../shared/ui/card";
 import { Button } from "../shared/ui/button";
 
@@ -17,11 +16,7 @@ export function ThemesPage() {
     try {
       const [catRes, currentRes] = await Promise.all([
         getThemeCatalog(),
-        activeSite
-          ? (fetch(`/api/admin/proxy/${activeSite.name}/api/console/theme`).then((r) =>
-              r.json(),
-            ) as Promise<{ data: { theme_id: string } }>)
-          : Promise.resolve({ data: { theme_id: "paper" } }),
+        activeSite ? getCurrentTheme() : Promise.resolve({ data: { theme_id: "paper" } }),
       ]);
       setThemes(catRes.data);
       setCurrentTheme(currentRes.data.theme_id);

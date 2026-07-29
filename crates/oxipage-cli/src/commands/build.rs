@@ -47,6 +47,31 @@ pub(crate) async fn build(c: BuildCommand) -> anyhow::Result<()> {
     oxipage_core::build_writer::write_build_output(&output, &out_path, &media_dir)
         .map_err(|e| anyhow::anyhow!("{}", e))?;
 
+    // Emit the lobby manifest as static JSON so `fetchManifest()` resolves in static mode
+    // (`pathToStaticFile('/lobby/manifest')` → `/data/lobby.json`). Uses the same assembly as
+    // the live `/api/console/lobby/manifest` handler — one shape, no drift.
+    let config_path = std::env::var("OXIPAGE_CONFIG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("oxipage.toml"));
+    let config = if config_path.exists() {
+        oxipage_core::config::Config::load(&config_path)?
+    } else {
+        oxipage_core::config::Config::default()
+    };
+    let extensions = oxipage_console::all_extensions();
+    let manifest = oxipage_core::manifest::assemble(
+        &pool,
+        &config,
+        &config.site.name,
+        &config.site.base_url,
+        &extensions,
+    )
+    .await;
+    std::fs::write(
+        out_path.join("data").join("lobby.json"),
+        serde_json::to_string_pretty(&manifest)?,
+    )?;
+
     println!("Build complete:");
     println!("  pages:     {}", output.pages.len());
     println!("  search:    {} docs", output.search_docs.len());

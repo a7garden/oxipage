@@ -112,7 +112,7 @@
 
 **검증:** `cargo test -p oxipage-wasm`(6 tests) · install round-trip(서명 검증 포함) ·
 `cargo clippy --workspace --all-targets -- -D warnings` 클린 ·
-`cargo clippy -p oxipage-server --features wasm -- -D warnings` 클린.
+`cargo clippy -p oxipage-console --features wasm -- -D warnings` 클린.
 
 **남은 과제:** 컴포넌트 모델(WIT), 메모리 상한, 다중 서명 키, 원격 레지스트리, 핫 언로드.
 
@@ -124,14 +124,14 @@
 
 **남은 작업 (자격증명 제공 시):**
 
-1. **릴리스 빌드** — `cargo build --release -p oxipage-server` (macOS 27
+1. **릴리스 빌드** — `cargo build --release -p oxipage-console` (macOS 27
    `strip = "none"` 프로필 유지).
 2. **호스트 기동** — Mac mini(launchd plist) 또는 Linux(systemd unit).
 3. **Caddy 설정** — `deploy/Caddyfile.example` 복사 → 도메인 수정 → Caddy 기동.
 4. **Cloudflare Tunnel** — `cloudflared tunnel create` + DNS 라우팅 → Caddy로.
 5. **스모크:**
    - `curl https://<domain>/healthz` → 200
-   - `curl https://<domain>/api/v1/lobby/manifest` → JSON
+   - `curl https://<domain>/api/console/lobby/manifest` → JSON
    - `OXIPAGE_TOKEN=<admin> oxipage blog new "테스트" --json` → slug 반환
    - `oxipage blog publish <slug>` → published_at 설정
    - `curl https://<domain>/blog/<slug>` → 발행본
@@ -167,7 +167,7 @@
 - `crates/oxipage-cli/src/` — `Output::value` 미사용 메서드 제거, `Client::endpoint/post` dead_code allow 명시
 - `crates/oxipage-core/src/auth.rs, rate_limit.rs` — collapsible_if 2건
 - `crates/oxipage-core/tests/http_app.rs` — unused json 변수 → body 검증 assert 추가
-- `crates/oxipage-server/Cargo.toml` — `[[bin]] name=oxipage-core` 오타 → `oxipage-server` 수정
+- `crates/oxipage-console/Cargo.toml` — `[[bin]] name=oxipage-core` 오타 → `oxipage-console` 수정
 
 ## 8.8 다음 세션 권장 순서
 
@@ -187,7 +187,7 @@
 - **PAT 인증:** `OXIPAGE_ADMIN_TOKEN` = 슈퍼유저(scopes `["admin"]`). PAT는
   `post:write`/`post:publish`/`read` 스코프. `AdminAuth` 진입 단계에서 `post:write`
   중앙 강제(23개 쓰기 라우트 자동 보호). `publish` 7개는 `require_scope("post:publish")`,
-  토큰 관리 3개(`/api/v1/auth/tokens*`)는 `require_scope("admin")`.
+  토큰 관리 3개(`/api/console/auth/tokens*`)는 `require_scope("admin")`.
 - **OpenAPI:** `utoipa` 대신 수동 `serde_json` 스펙(의존성 절약).
 - **SSR:** Askama 대신 수동 템플릿(의존성 절약).
 - **server `all_extensions()`:** 확장 추가/수정 시 `edit`/`SWAP` 대신 **반드시
@@ -209,7 +209,7 @@
      pool/config에 접근할 수 없어 구조적으로 no-op이었다.
    - `Scheduler`에 6-field cron 파서 + `spawn_all()` 드라이버 추가
      (`tokio::time::sleep` 기반, `tokio-cron-scheduler` 외부 의존성 없이).
-   - `run_server_with_extensions`(`crates/oxipage-server/src/lib.rs`)에 활성
+   - `run_server_with_extensions`(`crates/oxipage-console/src/lib.rs`)에 활성
      확장의 `background_jobs()` 수집 + `scheduler.spawn_all(state)` 연결.
    - `ActivitySyncJob::run` 실제 구현: `GithubClient::fetch_public_events()` →
      `repo::upsert()` (`crates/oxipage-ext-activity/src/lib.rs`).
@@ -236,7 +236,7 @@
 5. **백업 메커니즘 (코드 레벨)**
    - `crates/oxipage-core/src/backup.rs`: `vacuum_into(pool, dest)` — SQLite
      `VACUUM INTO` 온라인 포인트-인-타임 스냅샷.
-   - `POST /api/v1/backup/snapshot` (admin) — `data_dir/backups/oxipage-<epoch>.db` 생성.
+   - `POST /api/console/backup/snapshot` (admin) — `data_dir/backups/oxipage-<epoch>.db` 생성.
    - `oxipage backup snapshot` CLI 서브커맨드.
 
 6. **Caddyfile container 모드 커버**
@@ -279,7 +279,7 @@
    - `Extension::cli_commands()` trait + `CliCommand`/`CliSubcommand`/`CliArg`/`CliHandler` 타입
    - `Command::Dynamic(Vec<String>)` + `#[clap(external_subcommand)]`
    - `dispatch_dynamic()` / `resolve_command_registry()` / `parse_dynamic_args()`
-   - `GET /api/v1/cli/commands` + `POST /api/v1/cli/exec/{ext_id}/{sub_command}` 서버 엔드포인트
+   - `GET /api/console/cli/commands` + `POST /api/console/cli/exec/{ext_id}/{sub_command}` 서버 엔드포인트
    - 5개 확장 CLI 구현: `novels`(new/list/chapter add), `movies`(review add/series create),
      `books`(review add), `scraps`(add/queue/delete), `activity`(sync)
    - 컴파일 + 서버 디스커버리 이중 경로, 미발견 시 컴파일 목록 폴백

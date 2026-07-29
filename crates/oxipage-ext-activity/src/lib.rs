@@ -254,11 +254,20 @@ impl BuildExt for ActivityExtension {
         db: &SqlitePool,
         rt: &tokio::runtime::Handle,
     ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
-        let _events: Vec<model::ActivityEvent> = rt.block_on(repo::list(db, None, 200))?;
+        let events: Vec<model::ActivityEvent> = rt.block_on(repo::list(db, None, 200))?;
+        let items = events
+            .iter()
+            .map(|e| format!("<li>{summary} — {repo}</li>", summary = e.summary, repo = e.repo_full_name))
+            .collect::<Vec<_>>()
+            .join("\n");
         Ok(vec![StaticPage {
             path: "activity/index.html".into(),
-            content: r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <title>Activity</title><link rel="canonical" href="/activity/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#.to_string(),
+            content: format!(
+                r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <title>Activity</title><link rel="canonical" href="/activity/"></head><body><div id="root"></div><noscript><ul>
+    {items}
+    </ul></noscript><script src="/assets/index.js"></script></body></html>"#
+            ),
         }])
     }
 

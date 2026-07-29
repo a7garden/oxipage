@@ -29,18 +29,18 @@ pub(crate) async fn extension(
 ) -> anyhow::Result<()> {
     match c {
         ExtensionCommand::List => {
-            let res = client.get("/api/v1/extensions").await?;
+            let res = client.get("/api/console/extensions").await?;
             out.data(res, "extensions")
         }
         ExtensionCommand::Enable { name } => {
             let res = client
-                .post_raw(&format!("/api/v1/extensions/{name}/enable"), json!({}))
+                .post_raw(&format!("/api/console/extensions/{name}/enable"), json!({}))
                 .await?;
             out.data(res, "extension enabled")
         }
         ExtensionCommand::Disable { name } => {
             let res = client
-                .post_raw(&format!("/api/v1/extensions/{name}/disable"), json!({}))
+                .post_raw(&format!("/api/console/extensions/{name}/disable"), json!({}))
                 .await?;
             out.data(res, "extension disabled")
         }
@@ -50,12 +50,12 @@ pub(crate) async fn extension(
                     "purge is destructive — pass --yes to confirm (drops tables + removes media for '{name}')"
                 );
             }
-            let res = client.delete(&format!("/api/v1/extensions/{name}")).await?;
+            let res = client.delete(&format!("/api/console/extensions/{name}")).await?;
             out.data(res, "extension purged")
         }
         ExtensionCommand::Install { name } => {
             let res = client
-                .post_raw("/api/v1/extensions/install", json!({ "name": name }))
+                .post_raw("/api/console/extensions/install", json!({ "name": name }))
                 .await?;
             out.data(res, "extension install")
         }
