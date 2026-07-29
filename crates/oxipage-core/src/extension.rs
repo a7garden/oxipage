@@ -186,12 +186,13 @@ pub trait Extension: Send + Sync {
         Vec::new()
     }
 
-    /// setup 마법사가 이 확장의 활성화 후 사용자에게 보여줄 step.
-    /// `None`이면 이 확장은 자기 step이 없다(대부분의 확장).
+    /// setup 마법사에서 이 확장이 소유할 서브-위자드 (0..N step).
+    /// `None`이면 이 확장은 위자드에 등장하지 않는다 (대부분의 확장).
     ///
     /// 코어의 setup 마법사가 이 메서드를 호출해 동적으로 step을 조립한다 —
     /// 확장이 활성화돼 있을 때만 노출되며, 코어는 확장의 도메인 필드를 모른다.
-    fn setup_wizard_step(&self) -> Option<SetupStep> {
+    /// (Phase 1: 단수 setup_wizard_step → 복수 ExtensionWizard 전환.)
+    fn setup_wizard(&self) -> Option<ExtensionWizard> {
         None
     }
 
@@ -263,6 +264,8 @@ pub struct SetupStep {
     /// — wizard가 사이트 컨텍스트에서 값을 가져와 채운다.
     /// 키는 field.name, 값은 PrefillSource. 직렬화는 `ExtensionStepInfo`를 통해.
     pub prefill: BTreeMap<&'static str, PrefillSource>,
+    /// step 표시 조건. None = 항상 표시. 클라이언트가 평가 (Phase 3).
+    pub visible_when: Option<VisibilityRule>,
 }
 
 /// prefill 값의 출처. 확장이 자기 의미에 맞는 출처를 선언한다.
@@ -270,6 +273,28 @@ pub struct SetupStep {
 pub enum PrefillSource {
     /// 사이트 1단계에서 사용자가 입력한 사이트 이름.
     SiteName,
+}
+
+/// step의 표시 조건. None = 항상 표시. 클라이언트가 직렬화된 규칙을 평가한다 (Phase 3).
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum VisibilityRule {
+    FieldNotEmpty {
+        step_id: &'static str,
+        field: &'static str,
+    },
+    FieldEquals {
+        step_id: &'static str,
+        field: &'static str,
+        value: &'static str,
+    },
+    All(Vec<VisibilityRule>),
+    Any(Vec<VisibilityRule>),
+}
+
+/// 한 확장이 소유한 서브-위자드 (0..N step). 빈 steps vec = 참여 안 함.
+pub struct ExtensionWizard {
+    pub steps: Vec<SetupStep>,
 }
 
 /// 클라이언트에 직렬화되는 step 정보 (save_handler 제외).
@@ -286,6 +311,11 @@ pub struct ExtensionStepInfo {
     /// 키는 field.name, 값은 출처 식별자.
     #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
     pub prefill: BTreeMap<String, String>,
+    /// step 표시 조건 (클라이언트 평가). None = 항상 표시.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub visible_when: Option<VisibilityRule>,
+    /// fields 가 비어있으면 action step (버튼만). 클라이언트 렌더 분기용.
+    pub is_action: bool,
 }
 
 impl ExtensionStepInfo {
@@ -308,6 +338,8 @@ impl ExtensionStepInfo {
             description_en: step.description_en.to_string(),
             fields: step.fields.clone(),
             prefill,
+            visible_when: step.visible_when.clone(),
+            is_action: step.fields.is_empty(),
         }
     }
 }

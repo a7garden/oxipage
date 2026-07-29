@@ -7,8 +7,8 @@ use axum::Router;
 use axum::routing::get;
 use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
 use oxipage_core::extension::{
-    Extension, Lang, LobbyCard, Migration, PrefillSource, SetupField, SetupFieldKind,
-    SetupSaveHandler, SetupStep,
+    Extension, ExtensionWizard, Lang, LobbyCard, Migration, PrefillSource, SetupField,
+    SetupFieldKind, SetupSaveHandler, SetupStep,
 };
 use oxipage_core::state::AppState;
 use sqlx::SqlitePool;
@@ -61,76 +61,79 @@ impl Extension for ProfileExtension {
         None
     }
 
-    fn setup_wizard_step(&self) -> Option<SetupStep> {
-        Some(SetupStep {
-            id: "profile",
-            title_ko: "프로필",
-            title_en: "Profile",
-            description_ko: "사이트에 표시할 신상 정보",
-            description_en: "Profile info displayed on your site",
-            fields: vec![
-                SetupField {
-                    name: "display_name",
-                    label_ko: "표시 이름",
-                    label_en: "Display name",
-                    kind: SetupFieldKind::Text,
-                    required: true,
-                    placeholder_ko: None,
-                    placeholder_en: None,
+    fn setup_wizard(&self) -> Option<ExtensionWizard> {
+        Some(ExtensionWizard {
+            steps: vec![SetupStep {
+                id: "profile",
+                title_ko: "프로필",
+                title_en: "Profile",
+                description_ko: "사이트에 표시할 신상 정보",
+                description_en: "Profile info displayed on your site",
+                fields: vec![
+                    SetupField {
+                        name: "display_name",
+                        label_ko: "표시 이름",
+                        label_en: "Display name",
+                        kind: SetupFieldKind::Text,
+                        required: true,
+                        placeholder_ko: None,
+                        placeholder_en: None,
+                    },
+                    SetupField {
+                        name: "tagline_ko",
+                        label_ko: "한 줄 소개 (한국어)",
+                        label_en: "Tagline (Korean)",
+                        kind: SetupFieldKind::Text,
+                        required: false,
+                        placeholder_ko: Some("개발자 & 작가"),
+                        placeholder_en: None,
+                    },
+                    SetupField {
+                        name: "tagline_en",
+                        label_ko: "한 줄 소개 (English)",
+                        label_en: "Tagline (English)",
+                        kind: SetupFieldKind::Text,
+                        required: false,
+                        placeholder_ko: None,
+                        placeholder_en: Some("Developer & Writer"),
+                    },
+                    SetupField {
+                        name: "github_username",
+                        label_ko: "GitHub 사용자명",
+                        label_en: "GitHub username",
+                        kind: SetupFieldKind::Text,
+                        required: false,
+                        placeholder_ko: None,
+                        placeholder_en: None,
+                    },
+                    SetupField {
+                        name: "bio_ko",
+                        label_ko: "자기소개 (한국어, markdown)",
+                        label_en: "Bio (Korean, markdown)",
+                        kind: SetupFieldKind::Textarea,
+                        required: false,
+                        placeholder_ko: None,
+                        placeholder_en: None,
+                    },
+                    SetupField {
+                        name: "bio_en",
+                        label_ko: "자기소개 (English, markdown)",
+                        label_en: "Bio (English, markdown)",
+                        kind: SetupFieldKind::Textarea,
+                        required: false,
+                        placeholder_ko: None,
+                        placeholder_en: None,
+                    },
+                ],
+                save_handler: Arc::new(ProfileSetupSaveHandler),
+                prefill: {
+                    let mut m = std::collections::BTreeMap::new();
+                    // site_name으로 display_name을 pre-fill (UX: 사이트 이름을 본인 이름으로 시작).
+                    m.insert("display_name", PrefillSource::SiteName);
+                    m
                 },
-                SetupField {
-                    name: "tagline_ko",
-                    label_ko: "한 줄 소개 (한국어)",
-                    label_en: "Tagline (Korean)",
-                    kind: SetupFieldKind::Text,
-                    required: false,
-                    placeholder_ko: Some("개발자 & 작가"),
-                    placeholder_en: None,
-                },
-                SetupField {
-                    name: "tagline_en",
-                    label_ko: "한 줄 소개 (English)",
-                    label_en: "Tagline (English)",
-                    kind: SetupFieldKind::Text,
-                    required: false,
-                    placeholder_ko: None,
-                    placeholder_en: Some("Developer & Writer"),
-                },
-                SetupField {
-                    name: "github_username",
-                    label_ko: "GitHub 사용자명",
-                    label_en: "GitHub username",
-                    kind: SetupFieldKind::Text,
-                    required: false,
-                    placeholder_ko: None,
-                    placeholder_en: None,
-                },
-                SetupField {
-                    name: "bio_ko",
-                    label_ko: "자기소개 (한국어, markdown)",
-                    label_en: "Bio (Korean, markdown)",
-                    kind: SetupFieldKind::Textarea,
-                    required: false,
-                    placeholder_ko: None,
-                    placeholder_en: None,
-                },
-                SetupField {
-                    name: "bio_en",
-                    label_ko: "자기소개 (English, markdown)",
-                    label_en: "Bio (English, markdown)",
-                    kind: SetupFieldKind::Textarea,
-                    required: false,
-                    placeholder_ko: None,
-                    placeholder_en: None,
-                },
-            ],
-            save_handler: Arc::new(ProfileSetupSaveHandler),
-            prefill: {
-                let mut m = std::collections::BTreeMap::new();
-                // site_name으로 display_name을 pre-fill (UX: 사이트 이름을 본인 이름으로 시작).
-                m.insert("display_name", PrefillSource::SiteName);
-                m
-            },
+                visible_when: None,
+            }],
         })
     }
 

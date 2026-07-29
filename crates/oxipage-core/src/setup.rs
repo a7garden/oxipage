@@ -90,8 +90,8 @@ pub struct StatusResult {
     pub completed_steps: Vec<String>,
     pub available_extensions: Vec<ExtInfo>,
     pub available_themes: Vec<ThemeEntry>,
-    /// 활성 확장이 노출한 setup step (extension-step 동적 조립용).
-    pub extension_steps: Vec<ExtensionStepInfo>,
+    /// 활성 확장이 소유한 서브-위자드 (각각 0..N step).
+    pub extension_wizards: Vec<ExtensionWizardInfo>,
     /// 활성 확장이 노출한 외부 API 키 목록(중복 id는 마지막 우선).
     pub external_api_keys: Vec<ExternalApiKey>,
 }
@@ -106,6 +106,14 @@ pub struct ExtInfo {
 pub struct ExtDisplayName {
     pub ko: String,
     pub en: String,
+}
+
+/// 활성 확장의 서브-위자드 (status 응답용 직렬화 형태).
+#[derive(Serialize)]
+pub struct ExtensionWizardInfo {
+    pub extension_id: String,
+    pub display_name: ExtDisplayName,
+    pub steps: Vec<ExtensionStepInfo>,
 }
 
 #[derive(Serialize, Clone)]
@@ -200,7 +208,7 @@ pub fn setup_routes(api: Router<AppState>) -> Router<AppState> {
         .route("/setup/site", post(setup_site_handler))
         .route("/setup/extensions", post(setup_extensions_handler))
         .route(
-            "/setup/extension-step/{id}",
+            "/setup/extension-step/{ext_id}/{step_id}",
             post(setup_extension_step_handler),
         )
         .route("/setup/external-keys", post(setup_external_keys_handler))
@@ -285,7 +293,7 @@ pub async fn setup_status_handler(
 
     let snapshot = state.registry.iter();
     let mut available_extensions: Vec<ExtInfo> = Vec::with_capacity(snapshot.len());
-    let mut extension_steps: Vec<ExtensionStepInfo> = Vec::new();
+    let mut extension_wizards: Vec<ExtensionWizardInfo> = Vec::new();
     let mut external_api_keys: Vec<ExternalApiKey> = Vec::new();
     let mut seen_key_ids: std::collections::HashSet<&'static str> =
         std::collections::HashSet::new();
@@ -303,8 +311,20 @@ pub async fn setup_status_handler(
             continue;
         }
 
-        if let Some(step) = ext.setup_wizard_step() {
-            extension_steps.push(ExtensionStepInfo::from_step(&step));
+        if let Some(wizard) = ext.setup_wizard() {
+            let steps: Vec<ExtensionStepInfo> = wizard
+                .steps
+                .iter()
+                .map(ExtensionStepInfo::from_step)
+                .collect();
+            extension_wizards.push(ExtensionWizardInfo {
+                extension_id: ext.id().to_string(),
+                display_name: ExtDisplayName {
+                    ko: ext.display_name(crate::extension::Lang::Ko),
+                    en: ext.display_name(crate::extension::Lang::En),
+                },
+                steps,
+            });
         }
 
         for k in ext.external_api_keys() {
@@ -323,7 +343,7 @@ pub async fn setup_status_handler(
             completed_steps,
             available_extensions,
             available_themes: THEMES.to_vec(),
-            extension_steps,
+            extension_wizards,
             external_api_keys,
         },
     }))
@@ -355,7 +375,7 @@ pub async fn setup_site_handler(
         .execute(&state.db)
         .await
         .map_err(|e| ApiError::internal(anyhow::anyhow!(e)))?;
-    // `name`을 profile 표로 흘리는 것은 profile 확장의 `setup_wizard_step`이 처리한다.
+    // `name`을 profile 표로 흘리는 것은 profile 확장의 `setup_wizard`가 처리한다.
     // 코어는 site_identity (setup_state + site_override)만 다룬다.
 
     *state.site_override.write().await = Some(SiteOverride {
@@ -429,15 +449,18 @@ pub async fn setup_extensions_handler(
 /// 코어는 form의 필드 키/타입을 모른다 — 확장이 자기 트레이트 안에서 처리.
 pub async fn setup_extension_step_handler(
     State(state): State<AppState>,
-    Path(step_id): Path<String>,
+    Path((ext_id, step_id)): Path<(String, String)>,
     Json(form): Json<serde_json::Map<String, serde_json::Value>>,
 ) -> Result<Json<DataEnvelope<SimpleOk>>, ApiError> {
     for ext in state.registry.iter() {
+        if ext.id() != ext_id {
+            continue;
+        }
         if !state.registry.is_active(ext.id()).await {
             continue;
         }
-        if let Some(step) = ext.setup_wizard_step()
-            && step.id == step_id
+        if let Some(wizard) = ext.setup_wizard()
+            && let Some(step) = wizard.steps.iter().find(|s| s.id == step_id)
         {
             step.save_handler
                 .save(&state, &form)
@@ -451,7 +474,7 @@ pub async fn setup_extension_step_handler(
     Err(ApiError::new(
         StatusCode::NOT_FOUND,
         "unknown_step",
-        &format!("no such extension setup step: {step_id}"),
+        &format!("no such extension setup step: {ext_id}/{step_id}"),
     ))
 }
 
