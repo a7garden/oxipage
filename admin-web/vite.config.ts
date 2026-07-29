@@ -18,5 +18,6 @@ export default defineConfig({
     fs: {
       allow: [path.resolve(__dirname, "..")],
     },
+    proxy: { "/api": "http://127.0.0.1:8788" },
   },
 });

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Outlet, Link, useLocation } from "react-router";
 import { LayoutDashboard, Puzzle, FileText, Table2, Palette, Settings, Logs } from "lucide-react";
 import { SiteContext, type SiteProfile, listSites, setActiveSite as apiSetActive } from "../shared/api";
+import { ThemeToggle } from "../shared/ThemeToggle";
 
 export function AdminShell() {
   const [sites, setSites] = useState<SiteProfile[]>([]);
@@ -100,9 +101,10 @@ function TopBar() {
       <div className="flex items-center gap-3">
         <SiteSwitcher />
       </div>
-      <div className="flex items-center gap-2 text-xs text-[#777]">
+      <div className="flex items-center gap-2 text-xs text-muted">
         <Logs size={14} />
-        <span>Local Admin</span>
+        <span className="hidden sm:inline">Local Admin</span>
+        <ThemeToggle />
       </div>
     </header>
   );

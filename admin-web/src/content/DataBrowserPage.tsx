@@ -88,7 +88,7 @@ export function DataBrowserPage() {
   };
 
   if (!activeSite) {
-    return <div><h1 className="text-lg font-semibold mb-2">데이터 브라우저</h1><p className="text-sm text-[#777]">사이트를 선택하세요.</p></div>;
+    return <div><h1 className="text-lg font-semibold mb-2">데이터 브라우저</h1><p className="text-sm text-muted">사이트를 선택하세요.</p></div>;
   }
 
   // Compute columns from first record
@@ -114,37 +114,33 @@ export function DataBrowserPage() {
   return (
     <div>
       <h1 className="text-lg font-semibold mb-1">데이터 브라우저</h1>
-      <p className="text-xs text-[#777] mb-4">{activeSite.name}</p>
+      <p className="text-xs text-muted mb-4">{activeSite.name}</p>
 
       {/* Extension tabs */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
+      <div className="flex flex-wrap gap-1.5 mb-4">
         {extensions.map((ext) => (
           <button
             key={ext.id}
             onClick={() => setSelectedExt(ext.id)}
-            style={{
-              padding: "6px 14px",
-              borderRadius: 6,
-              fontSize: 13,
-              border: "1px solid #e8e4e0",
-              background: activeExt === ext.id ? "oklch(50% 0.14 160)" : "#fff",
-              color: activeExt === ext.id ? "#fff" : "#555",
-              cursor: "pointer",
-            }}
+            className={`px-3.5 py-1.5 rounded-md text-[13px] border border-line cursor-pointer ${
+              activeExt === ext.id
+                ? "bg-primary text-primary-foreground"
+                : "bg-surface text-muted"
+            }`}
           >
             {ext.display_name}
           </button>
         ))}
         {extensions.length === 0 && (
-          <span className="text-sm text-[#777]">활성화된 확장이 없습니다.</span>
+          <span className="text-sm text-muted">활성화된 확장이 없습니다.</span>
         )}
       </div>
 
       {loading ? (
-        <p className="text-sm text-[#777]">로딩 중...</p>
+        <p className="text-sm text-muted">로딩 중...</p>
       ) : records.length === 0 ? (
         <Card>
-          <p className="text-sm text-[#777] py-8 text-center">
+          <p className="text-sm text-muted py-8 text-center">
             데이터가 없습니다.
           </p>
         </Card>
@@ -166,7 +162,7 @@ export function DataBrowserPage() {
                 <tr key={rec.slug as string || rec.id as number || idx}>
                   <td className="font-medium">{getTitle(rec).slice(0, 50)}</td>
                   {columns.slice(0, 4).map((col) => (
-                    <td key={col} className="text-xs text-[#777]">
+                    <td key={col} className="text-xs text-muted">
                       {typeof rec[col] === "string"
                         ? (rec[col] as string).slice(0, 30)
                         : typeof rec[col] === "object"
@@ -180,7 +176,7 @@ export function DataBrowserPage() {
                         {getStatus(rec) === "published" ? "발행" : "초안"}
                       </Badge>
                     )}
-                    {getStatus(rec) === "unknown" && <span className="text-xs text-[#777]">—</span>}
+                    {getStatus(rec) === "unknown" && <span className="text-xs text-muted">—</span>}
                   </td>
                   <td>
                     <Button

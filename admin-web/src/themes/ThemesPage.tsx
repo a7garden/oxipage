@@ -54,20 +54,14 @@ export function ThemesPage() {
   return (
     <div>
       <h1 className="text-lg font-semibold mb-1">블로그 테마</h1>
-      <p className="text-xs text-[#777] mb-6">
+      <p className="text-xs text-muted mb-6">
         {activeSite ? activeSite.name : "No site selected"}
       </p>
 
       {loading ? (
-        <p className="text-sm text-[#777]">로딩 중...</p>
+        <p className="text-sm text-muted">로딩 중...</p>
       ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-            gap: 16,
-          }}
-        >
+        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}>
           {themes.map((theme) => {
             const isActive = currentTheme === theme.id;
             return (
@@ -84,25 +78,25 @@ export function ThemesPage() {
                 </div>
 
                 {/* Info */}
-                <div style={{ padding: "10px 12px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div className="px-3 py-2.5">
+                  <div className="flex items-center justify-between">
                     <strong className="text-sm">{theme.name_ko}</strong>
                     {isActive && (
-                      <span className="text-xs text-[oklch(50%_0.15_145)] font-medium">
+                      <span className="text-xs text-positive font-medium">
                         적용됨
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-[#777] mt-1">
+                  <p className="text-xs text-muted mt-1">
                     {theme.description_ko}
                   </p>
-                  <div style={{ marginTop: 8 }}>
-                    <span className="text-xs text-[#999]">
+                  <div className="mt-2">
+                    <span className="text-xs text-muted">
                       {theme.mode === "light" ? "라이트" : "다크"} &middot; 악센트 {theme.accent_hue}°
                     </span>
                   </div>
                   {!isActive && (
-                    <div style={{ marginTop: 8 }}>
+                    <div>
                       <Button
                         size="sm"
                         variant="outline"

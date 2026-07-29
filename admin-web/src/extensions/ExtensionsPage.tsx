@@ -57,7 +57,7 @@ export function ExtensionsPage() {
     return (
       <div>
         <h1 className="text-lg font-semibold mb-2">확장 관리</h1>
-        <p className="text-sm text-[#777]">연결할 사이트를 선택하세요.</p>
+        <p className="text-sm text-muted">연결할 사이트를 선택하세요.</p>
       </div>
     );
   }
@@ -66,7 +66,7 @@ export function ExtensionsPage() {
     return (
       <div>
         <h1 className="text-lg font-semibold mb-2">확장 관리</h1>
-        <p className="text-sm text-[#777]">로딩 중...</p>
+        <p className="text-sm text-muted">로딩 중...</p>
       </div>
     );
   }
@@ -74,10 +74,10 @@ export function ExtensionsPage() {
   return (
     <div>
       <h1 className="text-lg font-semibold mb-1">확장 관리</h1>
-      <p className="text-xs text-[#777] mb-6">{activeSite.name}</p>
+      <p className="text-xs text-muted mb-6">{activeSite.name}</p>
 
       {error && (
-        <div className="text-sm text-red-600 mb-4 bg-red-50 p-3 rounded border border-red-200">
+        <div className="text-sm text-destructive mb-4 bg-destructive/10 p-3 rounded border border-destructive/20">
           {error}
         </div>
       )}
@@ -96,31 +96,19 @@ export function ExtensionsPage() {
             {extensions.map((ext) => (
               <tr key={ext.id}>
                 <td className="font-medium">{ext.display_name.ko}</td>
-                <td className="text-xs text-[#777] font-mono">{ext.id}</td>
+                <td className="text-xs text-muted font-mono">{ext.id}</td>
                 <td>
                   <span
                     className={`inline-flex items-center gap-1 text-xs font-medium ${
-                      ext.enabled ? "text-[oklch(50%_0.15_145)]" : ext.purged ? "text-red-600" : "text-[#888]"
+                      ext.enabled ? "text-positive" : ext.purged ? "text-destructive" : "text-muted"
                     }`}
                   >
-                    <span
-                      style={{
-                        display: "inline-block",
-                        width: 6,
-                        height: 6,
-                        borderRadius: "50%",
-                        background: ext.enabled
-                          ? "oklch(60% 0.15 145)"
-                          : ext.purged
-                          ? "oklch(55% 0.19 25)"
-                          : "#ccc",
-                      }}
-                    />
+                    <span className="inline-block size-1.5 rounded-full bg-current" />
                     {ext.purged ? "Purged" : ext.enabled ? "활성" : "비활성"}
                   </span>
                 </td>
                 <td>
-                  <div style={{ display: "flex", gap: 6 }}>
+                  <div className="flex gap-1.5">
                     {ext.enabled ? (
                       <Button size="sm" variant="outline"
                         onClick={() => toggleExtension(ext.id, false)}
@@ -146,7 +134,7 @@ export function ExtensionsPage() {
             ))}
             {extensions.length === 0 && (
               <tr>
-                <td colSpan={4} className="text-center text-sm text-[#777] py-8">
+                <td colSpan={4} className="text-center text-sm text-muted py-8">
                   확장이 없습니다.
                 </td>
               </tr>

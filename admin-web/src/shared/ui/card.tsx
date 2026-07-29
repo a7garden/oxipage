@@ -9,17 +9,21 @@ interface CardProps extends React.ComponentProps<"div"> {
 function Card({ className, title, subtitle, children, ...props }: CardProps) {
   return (
     <div
+      data-slot="card"
       className={cn(
-        "rounded-lg border border-[#e8e4e0] bg-white p-4",
+        "rounded-lg border border-line bg-surface text-foreground shadow-sm",
+        "p-4",
         className,
       )}
       {...props}
     >
       {title && (
         <div className="mb-3">
-          <h3 className="text-sm font-semibold text-[#2d2934]">{title}</h3>
+          <h3 className="font-serif text-base font-semibold leading-none tracking-tight text-foreground">
+            {title}
+          </h3>
           {subtitle && (
-            <p className="text-xs text-[#777] mt-0.5">{subtitle}</p>
+            <p className="mt-1 text-xs text-muted">{subtitle}</p>
           )}
         </div>
       )}

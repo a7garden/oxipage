@@ -5,6 +5,7 @@ import { useNavigate } from "react-router";
 import { useSite, listBlogPosts, deleteBlogPost, publishBlogPost, type BlogPost } from "../shared/api";
 import { Card } from "../shared/ui/card";
 import { Button } from "../shared/ui/button";
+import { cn } from "../shared/ui/cn";
 import { Badge } from "../shared/ui/badge";
 
 export function BlogListPage() {
@@ -52,21 +53,21 @@ export function BlogListPage() {
   };
 
   if (!activeSite) {
-    return <div><h1 className="text-lg font-semibold mb-2">블로그</h1><p className="text-sm text-[#777]">사이트를 선택하세요.</p></div>;
+    return <div><h1 className="text-lg font-semibold mb-2">블로그</h1><p className="text-sm text-muted">사이트를 선택하세요.</p></div>;
   }
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-lg font-semibold">블로그</h1>
-          <p className="text-xs text-[#777]">{activeSite.name}</p>
+          <p className="text-xs text-muted">{activeSite.name}</p>
         </div>
         <Button onClick={() => nav("/content/blog/new")}>새 글</Button>
       </div>
 
       {/* Filter tabs */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+      <div className="flex gap-2 mb-4">
         {[
           { label: "전체", value: undefined },
           { label: "초안", value: true },
@@ -75,15 +76,7 @@ export function BlogListPage() {
           <button
             key={String(f.value)}
             onClick={() => setDraftFilter(f.value)}
-            style={{
-              padding: "4px 12px",
-              borderRadius: 6,
-              fontSize: 13,
-              border: "1px solid #e8e4e0",
-              background: draftFilter === f.value ? "oklch(50% 0.14 160)" : "#fff",
-              color: draftFilter === f.value ? "#fff" : "#555",
-              cursor: "pointer",
-            }}
+            className={cn("h-8 rounded-md border border-line px-3 text-xs cursor-pointer transition-colors", draftFilter === f.value ? "bg-primary text-primary-foreground" : "bg-canvas text-muted hover:bg-surface")}
           >
             {f.label}
           </button>
@@ -91,7 +84,7 @@ export function BlogListPage() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-[#777]">로딩 중...</p>
+        <p className="text-sm text-muted">로딩 중...</p>
       ) : (
         <Card>
           <table className="admin-table">
@@ -111,16 +104,16 @@ export function BlogListPage() {
                   <td className="font-medium">
                     <button
                       onClick={() => nav(`/content/blog/${post.slug}`)}
-                      style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", font: "inherit", textAlign: "left" }}
+                      className="text-left cursor-pointer text-foreground hover:text-primary transition-colors"
                     >
                       {post.title}
                     </button>
                   </td>
-                  <td className="text-xs text-[#777]">{post.lang}</td>
+                  <td className="text-xs text-muted">{post.lang}</td>
                   <td>
-                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                    <div className="flex flex-wrap gap-1">
                       {post.tags.map((t) => (
-                        <span key={t} className="text-xs text-[#777] bg-[#f5f2ed] px-2 py-0.5 rounded">{t}</span>
+                        <span key={t} className="text-xs text-muted bg-surface px-2 py-0.5 rounded">{t}</span>
                       ))}
                     </div>
                   </td>
@@ -129,9 +122,9 @@ export function BlogListPage() {
                       {post.published_at ? "발행" : "초안"}
                     </Badge>
                   </td>
-                  <td className="text-xs text-[#777]">{post.updated_at?.slice(0, 10)}</td>
+                  <td className="text-xs text-muted">{post.updated_at?.slice(0, 10)}</td>
                   <td>
-                    <div style={{ display: "flex", gap: 4 }}>
+                    <div className="flex gap-1">
                       <Button size="sm" variant="outline" onClick={() => nav(`/content/blog/${post.slug}`)}>편집</Button>
                       {!post.published_at && (
                         <Button size="sm" variant="primary" onClick={() => handlePublish(post.slug)}>발행</Button>
@@ -143,7 +136,7 @@ export function BlogListPage() {
               ))}
               {posts.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-center text-sm text-[#777] py-8">게시물이 없습니다.</td>
+                  <td colSpan={6} className="text-center text-sm text-muted py-8">게시물이 없습니다.</td>
                 </tr>
               )}
             </tbody>

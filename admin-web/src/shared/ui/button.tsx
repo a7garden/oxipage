@@ -1,18 +1,23 @@
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import * as React from "react";
+
 import { cn } from "./cn";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none disabled:opacity-50 shrink-0 [&_svg]:size-4 [&_svg]:shrink-0 cursor-pointer",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:pointer-events-none disabled:opacity-50 shrink-0 [&_svg]:size-4 [&_svg]:shrink-0 cursor-pointer",
   {
     variants: {
       variant: {
-        primary: "bg-[oklch(50%_0.14_160)] text-white shadow-sm hover:bg-[oklch(44%_0.13_160)]",
-        secondary: "border border-[#e8e4e0] bg-white text-[#3d3529] hover:bg-[#f5f2ed]",
-        outline: "border border-[#e8e4e0] bg-transparent text-[#3d3529] hover:bg-[#f5f2ed]",
-        ghost: "text-[#3d3529] hover:bg-[#f5f2ed]",
-        destructive: "bg-[oklch(55%_0.19_25)] text-white hover:bg-[oklch(48%_0.19_25)]",
+        primary:
+          "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90",
+        secondary:
+          "border border-line bg-surface text-foreground hover:bg-raised",
+        outline:
+          "border border-line bg-transparent text-foreground hover:bg-surface",
+        ghost: "text-foreground hover:bg-surface",
+        destructive:
+          "bg-destructive text-white shadow-sm hover:bg-destructive/90",
       },
       size: {
         sm: "h-8 px-3 text-xs",
