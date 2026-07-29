@@ -1,6 +1,6 @@
 [package]
 name = "oxipage-ext-profile"
-version = "0.2.0"
+version = "0.4.0"
 edition = "2024"
 license.workspace = true
 description = "프로필 확장 — 소개 명함 / 포트폴리오 싱글턴 (doc/02 §2.3)"
@@ -10,7 +10,7 @@ anyhow.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 erased-serde.workspace = true
-oxipage-core = { version = "0.2.0", path = "../oxipage-core" }
+oxipage-core = { version = "0.4.0", path = "../oxipage-core" }
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true

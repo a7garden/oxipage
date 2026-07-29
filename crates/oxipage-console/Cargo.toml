@@ -1,6 +1,6 @@
 [package]
 name = "oxipage-console"
-version = "0.2.0"
+version = "0.4.0"
 edition = "2024"
 license.workspace = true
 description = "Oxipage 관리 콘솔 — 로컬 HTTP 서버 (admin UI + API, v2 SSG 모드)"
@@ -17,17 +17,17 @@ wasm = ["dep:oxipage-wasm"]
 [dependencies]
 anyhow.workspace = true
 axum.workspace = true
-oxipage-core = { version = "0.2.0", path = "../oxipage-core" }
-oxipage-wasm = { version = "0.2.0", path = "../oxipage-wasm", optional = true }
-oxipage-ext-activity = { version = "0.2.0", path = "../oxipage-ext-activity" }
-oxipage-ext-blog = { version = "0.2.0", path = "../oxipage-ext-blog" }
-oxipage-ext-books = { version = "0.2.0", path = "../oxipage-ext-books" }
-oxipage-ext-links = { version = "0.2.0", path = "../oxipage-ext-links" }
-oxipage-ext-movies = { version = "0.2.0", path = "../oxipage-ext-movies" }
-oxipage-ext-novels = { version = "0.2.0", path = "../oxipage-ext-novels" }
-oxipage-ext-profile = { version = "0.2.0", path = "../oxipage-ext-profile" }
-oxipage-ext-projects = { version = "0.2.0", path = "../oxipage-ext-projects" }
-oxipage-ext-scraps = { version = "0.2.0", path = "../oxipage-ext-scraps" }
+oxipage-core = { version = "0.4.0", path = "../oxipage-core" }
+oxipage-wasm = { version = "0.4.0", path = "../oxipage-wasm", optional = true }
+oxipage-ext-activity = { version = "0.4.0", path = "../oxipage-ext-activity" }
+oxipage-ext-blog = { version = "0.4.0", path = "../oxipage-ext-blog" }
+oxipage-ext-books = { version = "0.4.0", path = "../oxipage-ext-books" }
+oxipage-ext-links = { version = "0.4.0", path = "../oxipage-ext-links" }
+oxipage-ext-movies = { version = "0.4.0", path = "../oxipage-ext-movies" }
+oxipage-ext-novels = { version = "0.4.0", path = "../oxipage-ext-novels" }
+oxipage-ext-profile = { version = "0.4.0", path = "../oxipage-ext-profile" }
+oxipage-ext-projects = { version = "0.4.0", path = "../oxipage-ext-projects" }
+oxipage-ext-scraps = { version = "0.4.0", path = "../oxipage-ext-scraps" }
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

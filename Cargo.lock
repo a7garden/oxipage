@@ -1651,7 +1651,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "oxipage"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1674,7 +1674,7 @@ dependencies = [
 
 [[package]]
 name = "oxipage-console"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1703,7 +1703,7 @@ dependencies = [
 
 [[package]]
 name = "oxipage-core"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1729,7 +1729,7 @@ dependencies = [
 
 [[package]]
 name = "oxipage-ext-activity"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1749,7 +1749,7 @@ dependencies = [
 
 [[package]]
 name = "oxipage-ext-blog"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1766,7 +1766,7 @@ dependencies = [
 
 [[package]]
 name = "oxipage-ext-books"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1785,7 +1785,7 @@ dependencies = [
 
 [[package]]
 name = "oxipage-ext-links"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1802,7 +1802,7 @@ dependencies = [
 
 [[package]]
 name = "oxipage-ext-movies"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1821,7 +1821,7 @@ dependencies = [
 
 [[package]]
 name = "oxipage-ext-novels"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1838,7 +1838,7 @@ dependencies = [
 
 [[package]]
 name = "oxipage-ext-profile"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1855,7 +1855,7 @@ dependencies = [
 
 [[package]]
 name = "oxipage-ext-projects"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1872,7 +1872,7 @@ dependencies = [
 
 [[package]]
 name = "oxipage-ext-scraps"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1891,11 +1891,11 @@ dependencies = [
 
 [[package]]
 name = "oxipage-ext-wasm-demo"
-version = "0.2.0"
+version = "0.4.0"
 
 [[package]]
 name = "oxipage-wasm"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
