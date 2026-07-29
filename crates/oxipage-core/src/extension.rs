@@ -367,6 +367,7 @@ pub enum SetupFieldKind {
     Text,
     Textarea,
     Url,
+    Secret,
 }
 
 /// 코어가 form JSON을 받아 위임. 확장이 자기 DB에 쓴다.
@@ -403,7 +404,7 @@ pub enum ExternalKeyScope {
 
 /// `extension_state.config` JSON에 한 키를 upsert. save_external_key 기본 impl이 사용.
 /// 기존에 같은 키가 있으면 덮어쓰고, JSON이 깨져 있으면 빈 dict로 시작한다.
-pub(crate) async fn persist_extension_config(
+pub async fn persist_extension_config(
     ctx: &AppState,
     ext_id: &str,
     key: &str,
