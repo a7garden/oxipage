@@ -75,12 +75,15 @@ impl BuildExt for ProjectsExtension {
         "projects"
     }
 
-    fn build_pages(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
-        
+    fn build_pages(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
         let projects: Vec<model::Project> = rt.block_on(repo::list(db, None, 200))?;
-    
+
         let mut pages = Vec::with_capacity(projects.len());
-    
+
         for p in &projects {
             let title = p
                 .title_en
@@ -93,7 +96,7 @@ impl BuildExt for ProjectsExtension {
                 .or(p.description_ko.as_deref())
                 .unwrap_or("");
             let excerpt: String = desc.chars().take(160).collect();
-    
+
             pages.push(StaticPage {
                 path: format!("projects/{}/index.html", p.slug),
                 content: format!(
@@ -121,20 +124,26 @@ impl BuildExt for ProjectsExtension {
                 ),
             });
         }
-    
+
         Ok(pages)
     }
 
-    fn build_data(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
-        
+    fn build_data(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
         let projects: Vec<model::Project> = rt.block_on(repo::list(db, None, 200))?;
         Ok(Box::new(projects))
     }
 
-    fn build_search_docs(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
-        
+    fn build_search_docs(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
         let projects: Vec<model::Project> = rt.block_on(repo::list(db, None, 200))?;
-    
+
         let docs: Vec<SearchDoc> = projects
             .into_iter()
             .map(|p| {
@@ -151,7 +160,7 @@ impl BuildExt for ProjectsExtension {
                 }
             })
             .collect();
-    
+
         Ok(docs)
     }
 }

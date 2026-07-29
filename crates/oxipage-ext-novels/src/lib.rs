@@ -20,7 +20,6 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-
 pub struct NovelsExtension;
 
 // ── CLI handlers ──
@@ -248,11 +247,14 @@ impl BuildExt for NovelsExtension {
         "novels"
     }
 
-    fn build_pages(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
-        
+    fn build_pages(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
         let novels: Vec<model::Novel> = rt.block_on(repo::list_novels(db, false, 200))?;
         let mut pages = Vec::new();
-    
+
         for novel in &novels {
             let excerpt: String = novel
                 .synopsis
@@ -272,8 +274,9 @@ impl BuildExt for NovelsExtension {
     </head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#,
                     title=novel.title, excerpt=excerpt, slug=novel.slug),
             });
-    
-            let chapters: Vec<model::NovelChapter> = rt.block_on(repo::list_chapters(db, &novel.slug, false))
+
+            let chapters: Vec<model::NovelChapter> = rt
+                .block_on(repo::list_chapters(db, &novel.slug, false))
                 .unwrap_or_default();
             for ch in &chapters {
                 pages.push(StaticPage {
@@ -296,14 +299,20 @@ impl BuildExt for NovelsExtension {
         Ok(pages)
     }
 
-    fn build_data(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
-        
+    fn build_data(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
         let novels: Vec<model::Novel> = rt.block_on(repo::list_novels(db, false, 200))?;
         Ok(Box::new(novels))
     }
 
-    fn build_search_docs(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
-        
+    fn build_search_docs(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
         let novels: Vec<model::Novel> = rt.block_on(repo::list_novels(db, false, 200))?;
         Ok(novels
             .into_iter()

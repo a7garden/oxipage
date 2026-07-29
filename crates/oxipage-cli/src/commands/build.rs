@@ -9,7 +9,9 @@ pub struct BuildCommand {
 }
 
 pub(crate) async fn build(c: BuildCommand) -> anyhow::Result<()> {
-    let BuildCommand { out_dir: custom_out } = c;
+    let BuildCommand {
+        out_dir: custom_out,
+    } = c;
 
     // 1. Resolve data directory from config
     let data_dir = super::resolve_data_dir()?;

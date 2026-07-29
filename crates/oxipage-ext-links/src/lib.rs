@@ -12,7 +12,6 @@ use oxipage_core::state::AppState;
 use sqlx::SqlitePool;
 use std::error::Error;
 
-
 pub struct LinksExtension;
 
 #[async_trait]
@@ -74,8 +73,11 @@ impl BuildExt for LinksExtension {
         "links"
     }
 
-    fn build_pages(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
-        
+    fn build_pages(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
         let cards: Vec<model::LinkCard> = rt.block_on(repo::list(db, None, 500))?;
         let _html = cards
             .iter()
@@ -89,13 +91,20 @@ impl BuildExt for LinksExtension {
         }])
     }
 
-    fn build_data(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
-        
+    fn build_data(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
         let cards: Vec<model::LinkCard> = rt.block_on(repo::list(db, None, 500))?;
         Ok(Box::new(cards))
     }
 
-    fn build_search_docs(&self, _db: &SqlitePool, _rt: &tokio::runtime::Handle) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+    fn build_search_docs(
+        &self,
+        _db: &SqlitePool,
+        _rt: &tokio::runtime::Handle,
+    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
         Ok(vec![])
     }
 }

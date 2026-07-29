@@ -200,8 +200,11 @@ impl BuildExt for MoviesExtension {
         "movies"
     }
 
-    fn build_pages(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
-        
+    fn build_pages(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
         let entries: Vec<model::MovieEntry> =
             rt.block_on(repo::list_entries_published(db, None, 200))?;
         let mut pages = Vec::with_capacity(entries.len());
@@ -228,15 +231,21 @@ impl BuildExt for MoviesExtension {
         Ok(pages)
     }
 
-    fn build_data(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
-        
+    fn build_data(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
         let entries: Vec<model::MovieEntry> =
             rt.block_on(repo::list_entries_published(db, None, 200))?;
         Ok(Box::new(entries))
     }
 
-    fn build_search_docs(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
-        
+    fn build_search_docs(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
         let entries: Vec<model::MovieEntry> =
             rt.block_on(repo::list_entries_published(db, None, 200))?;
         Ok(entries

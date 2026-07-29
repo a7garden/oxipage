@@ -112,16 +112,19 @@ impl BuildExt for BlogExtension {
         "blog"
     }
 
-    fn build_pages(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
-        
+    fn build_pages(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
         let posts: Vec<model::BlogPost> = rt.block_on(repo::list(db, false, None, i64::MAX))?;
-    
+
         let mut pages = Vec::with_capacity(posts.len() * 3);
-    
+
         for post in &posts {
             // HTML page with OG metas
             let excerpt = body_excerpt(&post.body, 160);
-    
+
             let html = format!(
                 r#"<!DOCTYPE html>
     <html lang="{lang}">
@@ -147,18 +150,18 @@ impl BuildExt for BlogExtension {
                 slug = post.slug,
                 excerpt = excerpt
             );
-    
+
             pages.push(StaticPage {
                 path: format!("blog/{}/index.html", post.slug),
                 content: html,
             });
-    
+
             // Markdown source file
             pages.push(StaticPage {
                 path: format!("blog/{}/index.md", post.slug),
                 content: post.body.clone(),
             });
-    
+
             // JSON metadata
             let meta = serde_json::json!({
                 "title": post.title,
@@ -172,20 +175,26 @@ impl BuildExt for BlogExtension {
                 content: serde_json::to_string_pretty(&meta).unwrap_or_default(),
             });
         }
-    
+
         Ok(pages)
     }
 
-    fn build_data(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
-        
+    fn build_data(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
         let posts: Vec<model::BlogPost> = rt.block_on(repo::list(db, false, None, i64::MAX))?;
         Ok(Box::new(posts))
     }
 
-    fn build_search_docs(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
-        
+    fn build_search_docs(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
         let posts: Vec<model::BlogPost> = rt.block_on(repo::list(db, false, None, i64::MAX))?;
-    
+
         let docs: Vec<SearchDoc> = posts
             .into_iter()
             .map(|p| {
@@ -200,7 +209,7 @@ impl BuildExt for BlogExtension {
                 }
             })
             .collect();
-    
+
         Ok(docs)
     }
 }

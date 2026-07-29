@@ -21,7 +21,6 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-
 // ── CLI handlers ──
 
 struct ScrapAddHandler;
@@ -317,8 +316,11 @@ impl BuildExt for ScrapsExtension {
         "scraps"
     }
 
-    fn build_pages(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
-        
+    fn build_pages(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
         let items: Vec<model::ScrapItem> = rt.block_on(repo::list(db, true, None, 200))?;
         let mut pages = Vec::with_capacity(items.len());
         for item in &items {
@@ -343,14 +345,20 @@ impl BuildExt for ScrapsExtension {
         Ok(pages)
     }
 
-    fn build_data(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
-        
+    fn build_data(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
         let items: Vec<model::ScrapItem> = rt.block_on(repo::list(db, true, None, 200))?;
         Ok(Box::new(items))
     }
 
-    fn build_search_docs(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
-        
+    fn build_search_docs(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
         let items: Vec<model::ScrapItem> = rt.block_on(repo::list(db, true, None, 200))?;
         Ok(items
             .into_iter()

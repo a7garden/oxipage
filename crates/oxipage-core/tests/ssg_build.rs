@@ -9,13 +9,12 @@
 //!   - `out/assets/<file>` exists (the SPA bundle; no double-nesting)
 //!   - the root `index.html` references the hashed script from the embedded bundle
 
-use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
 use oxipage_core::build::build_site;
 use oxipage_core::build_writer::write_build_output;
+use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
 use oxipage_core::db;
 use oxipage_core::http::embedded_spa_files;
 use sqlx::SqlitePool;
-
 
 struct StubBuilder;
 impl BuildExt for StubBuilder {
@@ -67,7 +66,10 @@ async fn build_site_runs_without_panic_and_writes_correct_layout() {
     write_build_output(&output, &out_dir, &media_dir).expect("write_build_output");
 
     // Root SPA entry (lobby).
-    assert!(out_dir.join("index.html").exists(), "out/index.html must exist");
+    assert!(
+        out_dir.join("index.html").exists(),
+        "out/index.html must exist"
+    );
 
     // SPA fallback for deep links on hosts without a real SPA fallback
     // (GitHub Pages serves 404.html on 404).
@@ -110,7 +112,9 @@ fn embedded_spa_files_preserve_relative_paths() {
     let names: Vec<&str> = files.iter().map(|(p, _)| p.as_str()).collect();
     assert!(names.contains(&"index.html"), "index.html must be embedded");
     assert!(
-        names.iter().any(|p| p.starts_with("assets/") && p.ends_with(".js")),
+        names
+            .iter()
+            .any(|p| p.starts_with("assets/") && p.ends_with(".js")),
         "at least one hashed JS chunk must be embedded"
     );
 }

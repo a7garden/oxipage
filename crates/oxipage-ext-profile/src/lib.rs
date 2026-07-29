@@ -144,14 +144,17 @@ impl BuildExt for ProfileExtension {
         "profile"
     }
 
-    fn build_pages(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
-        
+    fn build_pages(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
         let profile: Option<model::Profile> = rt.block_on(repo::get(db))?;
-    
+
         let Some(profile) = profile else {
             return Ok(vec![]);
         };
-    
+
         let html = format!(
             r#"<!DOCTYPE html>
     <html lang="ko">
@@ -172,20 +175,27 @@ impl BuildExt for ProfileExtension {
     "#,
             name = profile.display_name
         );
-    
+
         Ok(vec![StaticPage {
             path: "profile/index.html".to_string(),
             content: html,
         }])
     }
 
-    fn build_data(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
-        
+    fn build_data(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
         let profile: Option<model::Profile> = rt.block_on(repo::get(db))?;
         Ok(Box::new(profile))
     }
 
-    fn build_search_docs(&self, _db: &SqlitePool, _rt: &tokio::runtime::Handle) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+    fn build_search_docs(
+        &self,
+        _db: &SqlitePool,
+        _rt: &tokio::runtime::Handle,
+    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
         Ok(vec![])
     }
 }

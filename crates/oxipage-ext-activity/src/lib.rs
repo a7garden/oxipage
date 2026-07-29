@@ -22,7 +22,6 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-
 // ── CLI handlers ──
 
 struct ActivitySyncHandler;
@@ -171,8 +170,11 @@ impl BuildExt for ActivityExtension {
         "activity"
     }
 
-    fn build_pages(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
-        
+    fn build_pages(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
         let _events: Vec<model::ActivityEvent> = rt.block_on(repo::list(db, None, 200))?;
         Ok(vec![StaticPage {
             path: "activity/index.html".into(),
@@ -181,13 +183,20 @@ impl BuildExt for ActivityExtension {
         }])
     }
 
-    fn build_data(&self, db: &SqlitePool, rt: &tokio::runtime::Handle) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
-        
+    fn build_data(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
         let events: Vec<model::ActivityEvent> = rt.block_on(repo::list(db, None, 200))?;
         Ok(Box::new(events))
     }
 
-    fn build_search_docs(&self, _db: &SqlitePool, _rt: &tokio::runtime::Handle) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+    fn build_search_docs(
+        &self,
+        _db: &SqlitePool,
+        _rt: &tokio::runtime::Handle,
+    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
         Ok(vec![])
     }
 }
