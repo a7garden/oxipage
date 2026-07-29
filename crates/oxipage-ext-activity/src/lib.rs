@@ -225,8 +225,8 @@ impl SetupSaveHandler for ActivitySyncSave {
     ) -> anyhow::Result<StepOutcome> {
         let client = client::GithubClient::from_env()?;
         let mut synced = 0u32;
-        if client.enabled() {
-            if let Ok(events) = client.fetch_public_events().await {
+        if client.enabled()
+            && let Ok(events) = client.fetch_public_events().await {
                 for event in events {
                     if event.kind.trim().is_empty()
                         || event.repo.name.trim().is_empty()
@@ -239,7 +239,6 @@ impl SetupSaveHandler for ActivitySyncSave {
                     }
                 }
             }
-        }
         let mut m = serde_json::Map::new();
         m.insert("synced".into(), synced.to_string().into());
         Ok(StepOutcome { values: m })

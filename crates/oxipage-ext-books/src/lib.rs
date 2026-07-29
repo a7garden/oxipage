@@ -189,7 +189,7 @@ impl SetupSaveHandler for BooksTestSave {
         _form: &serde_json::Map<String, serde_json::Value>,
     ) -> anyhow::Result<StepOutcome> {
         let client = client::BooksClient::from_env();
-        let ok = matches!(client.search("test", 1).await, Ok(_));
+        let ok = client.search("test", 1).await.is_ok();
         let mut m = serde_json::Map::new();
         m.insert(
             "connection_ok".into(),

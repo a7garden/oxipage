@@ -256,7 +256,7 @@ impl SetupSaveHandler for MoviesTestSave {
     ) -> anyhow::Result<StepOutcome> {
         let tmdb = integration::TmdbClient::from_env();
         let ok = if tmdb.enabled() {
-            matches!(tmdb.search("test").await, Ok(_))
+            tmdb.search("test").await.is_ok()
         } else {
             false
         };
