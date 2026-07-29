@@ -4,8 +4,8 @@
 //! 선택된 테마는 `PUT /api/console/theme`으로 사이트 서버에 저장한다 (proxy 통해).
 
 use super::AdminContext;
-use axum::extract::State;
 use axum::Json;
+use axum::extract::State;
 use serde::Serialize;
 
 /// 단일 테마 엔트리.
@@ -67,9 +67,7 @@ const THEMES: &[ThemeEntry] = &[
 ];
 
 /// GET /api/admin/themes — 큐레이션 테마 카탈로그 반환
-pub(crate) async fn catalog_handler(
-    State(_ctx): State<AdminContext>,
-) -> Json<serde_json::Value> {
+pub(crate) async fn catalog_handler(State(_ctx): State<AdminContext>) -> Json<serde_json::Value> {
     Json(serde_json::json!({"data": THEMES}))
 }
 

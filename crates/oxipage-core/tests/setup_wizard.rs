@@ -141,7 +141,8 @@ async fn inject_loopback(
     next: axum::middleware::Next,
 ) -> axum::response::Response {
     let addr: std::net::SocketAddr = "127.0.0.1:12345".parse().unwrap();
-    req.extensions_mut().insert(axum::extract::ConnectInfo(addr));
+    req.extensions_mut()
+        .insert(axum::extract::ConnectInfo(addr));
     next.run(req).await
 }
 
@@ -220,7 +221,10 @@ async fn setup_status_includes_extension_steps() {
     // SetupFieldKind가 flatten되어야 클라이언트가 `field.type`로 직접 읽을 수 있다.
     // (bug 회귀: nested {kind:{type:...}} 직렬화 시 textarea가 input으로 렌더됨.)
     let field = &steps[0]["fields"][0];
-    assert_eq!(field["type"], "text", "SetupFieldKind must serialize as top-level `type`");
+    assert_eq!(
+        field["type"], "text",
+        "SetupFieldKind must serialize as top-level `type`"
+    );
     assert!(
         field.get("kind").is_none(),
         "SetupFieldKind must be flattened, not nested under `kind`"
@@ -306,7 +310,10 @@ async fn disabled_extension_excluded_from_status() {
         !key_ids.contains(&"demo_key"),
         "disabled extension's key must be excluded, got: {key_ids:?}"
     );
-    assert!(key_ids.contains(&"alpha"), "active extension's key must remain");
+    assert!(
+        key_ids.contains(&"alpha"),
+        "active extension's key must remain"
+    );
 }
 
 /// disable된 확장의 extension-step POST는 404로 거부되어야 한다.
@@ -352,7 +359,10 @@ async fn external_keys_ignores_disabled_extension_keys() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     // demo_key (disabled): env 안 바뀌어야 함.
-    assert_ne!(std::env::var("OXIPAGE_DEMO_KEY").ok().as_deref(), Some("should-be-ignored"));
+    assert_ne!(
+        std::env::var("OXIPAGE_DEMO_KEY").ok().as_deref(),
+        Some("should-be-ignored")
+    );
     // alpha (active): env에 저장됨.
     assert_eq!(std::env::var("OXIPAGE_ALPHA").ok().as_deref(), Some("kept"));
 }

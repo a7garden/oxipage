@@ -4,8 +4,8 @@
 //! 파일 권한: Unix에서 0600.
 
 use super::{AdminContext, AdminError};
-use axum::extract::{Path, State};
 use axum::Json;
+use axum::extract::{Path, State};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
@@ -35,12 +35,9 @@ impl SitesFile {
         if !path.exists() {
             return Ok(Self::default());
         }
-        let raw = fs::read_to_string(path).map_err(|e| {
-            AdminError::Internal(anyhow::anyhow!("failed to read sites.toml: {e}"))
-        })?;
-        toml::from_str(&raw).map_err(|e| {
-            AdminError::BadRequest(format!("invalid sites.toml: {e}"))
-        })
+        let raw = fs::read_to_string(path)
+            .map_err(|e| AdminError::Internal(anyhow::anyhow!("failed to read sites.toml: {e}")))?;
+        toml::from_str(&raw).map_err(|e| AdminError::BadRequest(format!("invalid sites.toml: {e}")))
     }
 
     fn save(&self, path: &PathBuf) -> Result<(), AdminError> {
@@ -49,9 +46,8 @@ impl SitesFile {
                 AdminError::Internal(anyhow::anyhow!("failed to create config dir: {e}"))
             })?;
         }
-        let raw = toml::to_string_pretty(self).map_err(|e| {
-            AdminError::Internal(anyhow::anyhow!("failed to serialize: {e}"))
-        })?;
+        let raw = toml::to_string_pretty(self)
+            .map_err(|e| AdminError::Internal(anyhow::anyhow!("failed to serialize: {e}")))?;
         // Write to temp file first, then rename for atomicity
         let tmp = path.with_extension("tmp");
         fs::write(&tmp, &raw).map_err(|e| {
@@ -73,7 +69,6 @@ impl SitesFile {
     }
 }
 
-
 // ──────────────────────────── response types ────────────────────────────
 
 /// 목록 응답에서 토큰을 마스킹한 사이트 정보.
@@ -84,8 +79,6 @@ pub struct SiteListItem {
     pub token_masked: Option<String>,
     pub active: bool,
 }
-
-
 
 // ──────────────────────────── request types ────────────────────────────
 
@@ -132,8 +125,7 @@ pub(crate) async fn list(
             name: name.clone(),
             endpoint: entry.endpoint.clone(),
             token_masked: mask_token(&entry.token),
-            active: Some(name.as_str())
-                == sf.default_site.as_deref(),
+            active: Some(name.as_str()) == sf.default_site.as_deref(),
         })
         .collect();
     Ok(Json(serde_json::json!({"data": items})))
@@ -164,7 +156,10 @@ pub(crate) async fn add(
         name.clone(),
         SiteEntry {
             endpoint,
-            token: input.token.map(|t| t.trim().to_string()).filter(|t| !t.is_empty()),
+            token: input
+                .token
+                .map(|t| t.trim().to_string())
+                .filter(|t| !t.is_empty()),
         },
     );
 
@@ -198,11 +193,7 @@ pub(crate) async fn update(
     }
     if input.token.is_some() {
         let t = input.token.unwrap_or_default();
-        entry.token = if t.is_empty() {
-            None
-        } else {
-            Some(t)
-        };
+        entry.token = if t.is_empty() { None } else { Some(t) };
     }
 
     sf.save(&ctx.sites_path)?;
@@ -247,9 +238,14 @@ pub(crate) async fn set_active(
 ) -> Result<Json<serde_json::Value>, AdminError> {
     let mut sf = SitesFile::load(&ctx.sites_path)?;
     if !sf.sites.contains_key(&input.name) {
-        return Err(AdminError::NotFound(format!("site '{}' not found", input.name)));
+        return Err(AdminError::NotFound(format!(
+            "site '{}' not found",
+            input.name
+        )));
     }
     sf.default_site = Some(input.name.clone());
     sf.save(&ctx.sites_path)?;
-    Ok(Json(serde_json::json!({"status": "ok", "name": input.name})))
+    Ok(Json(
+        serde_json::json!({"status": "ok", "name": input.name}),
+    ))
 }

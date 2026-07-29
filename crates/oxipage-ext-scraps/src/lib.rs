@@ -8,24 +8,29 @@ use axum::routing::{get, post};
 use oxipage_core::client::Client;
 
 use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
-use oxipage_core::extension::{CliArg, CliCommand, CliSubcommand, CliHandler, Extension, Lang, LobbyCard, LobbyCardItem, Migration};
+use oxipage_core::extension::{
+    CliArg, CliCommand, CliHandler, CliSubcommand, Extension, Lang, LobbyCard, LobbyCardItem,
+    Migration,
+};
 use oxipage_core::scheduler::ScheduledJob;
 use oxipage_core::state::AppState;
+use sqlx::SqlitePool;
 use std::collections::BTreeMap;
+use std::error::Error;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio::runtime::Handle;
-use std::error::Error;
-use sqlx::SqlitePool;
 
 // ── CLI handlers ──
 
 struct ScrapAddHandler;
 impl CliHandler for ScrapAddHandler {
-    fn run(&self, args: BTreeMap<String, String>, client: &Client)
-        -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>>
-    {
+    fn run(
+        &self,
+        args: BTreeMap<String, String>,
+        client: &Client,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>> {
         let url = args.get("url").cloned().unwrap_or_default();
         let title = args.get("title").cloned().unwrap_or_default();
         let mut body = serde_json::json!({ "url": url, "title": title });
@@ -34,7 +39,9 @@ impl CliHandler for ScrapAddHandler {
         }
         let client = client.clone();
         Box::pin(async move {
-            let resp = client.post("/api/v1/scraps/", &body).await
+            let resp = client
+                .post("/api/v1/scraps/", &body)
+                .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("{}", serde_json::to_string_pretty(&resp)?);
             Ok(())
@@ -44,12 +51,16 @@ impl CliHandler for ScrapAddHandler {
 
 struct ScrapQueueHandler;
 impl CliHandler for ScrapQueueHandler {
-    fn run(&self, _args: BTreeMap<String, String>, client: &Client)
-        -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>>
-    {
+    fn run(
+        &self,
+        _args: BTreeMap<String, String>,
+        client: &Client,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>> {
         let client = client.clone();
         Box::pin(async move {
-            let resp = client.get("/api/v1/scraps/queue").await
+            let resp = client
+                .get("/api/v1/scraps/queue")
+                .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("{}", serde_json::to_string_pretty(&resp)?);
             Ok(())
@@ -59,14 +70,18 @@ impl CliHandler for ScrapQueueHandler {
 
 struct ScrapDeleteHandler;
 impl CliHandler for ScrapDeleteHandler {
-    fn run(&self, args: BTreeMap<String, String>, client: &Client)
-        -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>>
-    {
+    fn run(
+        &self,
+        args: BTreeMap<String, String>,
+        client: &Client,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>> {
         let id = args.get("id").cloned().unwrap_or_default();
         let client = client.clone();
         Box::pin(async move {
             let path = format!("/api/v1/scraps/{id}");
-            let resp = client.delete(&path).await
+            let resp = client
+                .delete(&path)
+                .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("{}", serde_json::to_string_pretty(&resp)?);
             Ok(())
@@ -102,12 +117,14 @@ impl Extension for ScrapsExtension {
 
     fn routes(&self) -> Router<AppState> {
         Router::new()
-            .route(
-                "/",
-                get(routes::list_published).post(routes::create_manual),
-            )
+            .route("/", get(routes::list_published).post(routes::create_manual))
             .route("/queue", get(routes::list_queue))
-            .route("/{id}", get(routes::show).patch(routes::update).delete(routes::delete))
+            .route(
+                "/{id}",
+                get(routes::show)
+                    .patch(routes::update)
+                    .delete(routes::delete),
+            )
             .route("/{id}/publish", post(routes::publish))
     }
 
@@ -139,9 +156,24 @@ impl Extension for ScrapsExtension {
                     name: "add",
                     about: "Add a scrap manually",
                     args: vec![
-                        CliArg { long: "url", short: Some('u'), help: "Source URL", required: true },
-                        CliArg { long: "title", short: Some('t'), help: "Scrap title", required: true },
-                        CliArg { long: "tags", short: Some('g'), help: "Comma-separated tags", required: false },
+                        CliArg {
+                            long: "url",
+                            short: Some('u'),
+                            help: "Source URL",
+                            required: true,
+                        },
+                        CliArg {
+                            long: "title",
+                            short: Some('t'),
+                            help: "Scrap title",
+                            required: true,
+                        },
+                        CliArg {
+                            long: "tags",
+                            short: Some('g'),
+                            help: "Comma-separated tags",
+                            required: false,
+                        },
                     ],
                     handler: Some(Arc::new(ScrapAddHandler)),
                 },
@@ -154,9 +186,12 @@ impl Extension for ScrapsExtension {
                 CliSubcommand {
                     name: "delete",
                     about: "Delete a scrap by ID",
-                    args: vec![
-                        CliArg { long: "id", short: None, help: "Scrap item ID", required: true },
-                    ],
+                    args: vec![CliArg {
+                        long: "id",
+                        short: None,
+                        help: "Scrap item ID",
+                        required: true,
+                    }],
                     handler: Some(Arc::new(ScrapDeleteHandler)),
                 },
             ],
@@ -271,23 +306,33 @@ async fn fetch_hackernews(
 }
 
 /// GeekNews RSS 피드 → 큐 후보.
-async fn fetch_geeknews(
-    http: &reqwest::Client,
-) -> anyhow::Result<Vec<integration::GeekNewsItem>> {
+async fn fetch_geeknews(http: &reqwest::Client) -> anyhow::Result<Vec<integration::GeekNewsItem>> {
     const RSS: &str = "https://news.hada.io/rss";
     let xml = http.get(RSS).send().await?.text().await?;
     Ok(integration::parse_geeknews_rss(&xml))
 }
 
 impl BuildExt for ScrapsExtension {
-    fn ext_id(&self) -> &'static str { "scraps" }
+    fn ext_id(&self) -> &'static str {
+        "scraps"
+    }
 
-    fn build_pages(&self, db: &SqlitePool) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
+    fn build_pages(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
         let handle = Handle::current();
         let items: Vec<model::ScrapItem> = handle.block_on(repo::list(db, true, None, 200))?;
         let mut pages = Vec::with_capacity(items.len());
         for item in &items {
-            let excerpt: String = item.note_ko.as_deref().or(item.note_en.as_deref()).unwrap_or("").chars().take(160).collect();
+            let excerpt: String = item
+                .note_ko
+                .as_deref()
+                .or(item.note_en.as_deref())
+                .unwrap_or("")
+                .chars()
+                .take(160)
+                .collect();
             pages.push(StaticPage {
                 path: format!("scraps/{}/index.html", item.id),
                 content: format!(
@@ -301,22 +346,35 @@ impl BuildExt for ScrapsExtension {
         Ok(pages)
     }
 
-    fn build_data(&self, db: &SqlitePool) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
+    fn build_data(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
         let handle = Handle::current();
         let items: Vec<model::ScrapItem> = handle.block_on(repo::list(db, true, None, 200))?;
         Ok(Box::new(items))
     }
 
-    fn build_search_docs(&self, db: &SqlitePool) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+    fn build_search_docs(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
         let handle = Handle::current();
         let items: Vec<model::ScrapItem> = handle.block_on(repo::list(db, true, None, 200))?;
-        Ok(items.into_iter().map(|s| {
-            let body = s.note_ko.or(s.note_en).unwrap_or_default();
-            let excerpt: String = body.chars().take(200).collect();
-            SearchDoc {
-                id: format!("scraps/{}", s.id), title: s.title, body_preview: excerpt,
-                doc_type: "scraps".into(), url: format!("/scraps/{}", s.id), published_at: s.published_at,
-            }
-        }).collect())
+        Ok(items
+            .into_iter()
+            .map(|s| {
+                let body = s.note_ko.or(s.note_en).unwrap_or_default();
+                let excerpt: String = body.chars().take(200).collect();
+                SearchDoc {
+                    id: format!("scraps/{}", s.id),
+                    title: s.title,
+                    body_preview: excerpt,
+                    doc_type: "scraps".into(),
+                    url: format!("/scraps/{}", s.id),
+                    published_at: s.published_at,
+                }
+            })
+            .collect())
     }
 }

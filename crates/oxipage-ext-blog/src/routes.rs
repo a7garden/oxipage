@@ -24,7 +24,10 @@ pub async fn create(
     Json(input): Json<BlogPostInput>,
 ) -> Result<Json<DataEnvelope<BlogPost>>, ApiError> {
     validate_input(&input)?;
-    let base_slug = input.slug.clone().unwrap_or_else(|| repo::slugify(&input.title));
+    let base_slug = input
+        .slug
+        .clone()
+        .unwrap_or_else(|| repo::slugify(&input.title));
     let slug = repo::ensure_unique_slug(&state.db, &base_slug)
         .await
         .map_err(ApiError::internal)?;
@@ -93,7 +96,6 @@ pub async fn publish(
     State(state): State<AppState>,
     Path(slug): Path<String>,
 ) -> Result<Json<DataEnvelope<BlogPost>>, ApiError> {
-    
     if repo::find_by_slug(&state.db, &slug)
         .await
         .map_err(ApiError::internal)?

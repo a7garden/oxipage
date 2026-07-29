@@ -32,17 +32,17 @@ pub(crate) async fn backup(c: BackupCommand) -> anyhow::Result<()> {
             let snap_name = format!("oxipage-{epoch}.db");
             let snap_path = backup_dir.join(&snap_name);
 
-            println!(
-                "Backup: {} → {}",
-                db_path.display(),
-                snap_path.display()
-            );
+            println!("Backup: {} → {}", db_path.display(), snap_path.display());
 
             // 4. Connect to DB and run VACUUM INTO
             let pool = oxipage_core::db::connect(&db_path).await?;
             oxipage_core::backup::vacuum_into(&pool, &snap_path).await?;
 
-            println!("Backup complete: {} ({} bytes)", snap_name, snap_path.metadata().map(|m| m.len()).unwrap_or(0));
+            println!(
+                "Backup complete: {} ({} bytes)",
+                snap_name,
+                snap_path.metadata().map(|m| m.len()).unwrap_or(0)
+            );
             Ok(())
         }
     }

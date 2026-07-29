@@ -16,7 +16,7 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
         db: pool,
         config: Arc::new(Config::default()),
         registry: registry.clone(),
-                wasm_loader: None,
+        wasm_loader: None,
         site_override: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         builders: std::sync::Arc::new(vec![]),
     };
@@ -65,7 +65,11 @@ async fn manual_book_create_publish_show() {
     // show 전: 미발행은 404
     let res = app
         .clone()
-        .oneshot(Request::get(format!("/api/v1/books/{id}")).body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get(format!("/api/v1/books/{id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
@@ -86,7 +90,11 @@ async fn manual_book_create_publish_show() {
     // show — 발행본
     let res = app
         .clone()
-        .oneshot(Request::get(format!("/api/v1/books/{id}")).body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get(format!("/api/v1/books/{id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
@@ -162,7 +170,9 @@ async fn external_search_no_aladin_key_is_503() {
         .await
         .unwrap();
     if let Some(v) = prior {
-        unsafe { std::env::set_var("OXIPAGE_ALADIN_TTBKEY", v); }
+        unsafe {
+            std::env::set_var("OXIPAGE_ALADIN_TTBKEY", v);
+        }
     }
     assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
     let json = body_json(res).await;
@@ -225,7 +235,11 @@ async fn status_filter_and_patch_and_delete() {
     // status filter
     let res = app
         .clone()
-        .oneshot(Request::get("/api/v1/books?status=reading").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/v1/books?status=reading")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let json = body_json(res).await;
@@ -236,7 +250,11 @@ async fn status_filter_and_patch_and_delete() {
     // 잘못된 status → 422
     let res = app
         .clone()
-        .oneshot(Request::get("/api/v1/books?status=nope").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/v1/books?status=nope")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
@@ -284,7 +302,11 @@ async fn status_filter_and_patch_and_delete() {
 async fn show_unknown_id_is_404() {
     let app = test_app(Some("tok")).await;
     let res = app
-        .oneshot(Request::get("/api/v1/books/9999").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/v1/books/9999")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::NOT_FOUND);

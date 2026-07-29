@@ -15,10 +15,7 @@ pub struct DeployArgs {
     pub dry_run: bool,
 }
 
-pub(crate) async fn deploy(
-    c: DeployArgs,
-    out: &Output,
-) -> anyhow::Result<()> {
+pub(crate) async fn deploy(c: DeployArgs, out: &Output) -> anyhow::Result<()> {
     // Resolve out directory from local config
     let data_dir = resolve_data_dir()?;
     let out_dir = data_dir.join("out");
@@ -32,17 +29,19 @@ pub(crate) async fn deploy(
     }
 }
 
-async fn deploy_github_pages(
-    out_dir: &Path,
-    dry_run: bool,
-    out: &Output,
-) -> anyhow::Result<()> {
+async fn deploy_github_pages(out_dir: &Path, dry_run: bool, out: &Output) -> anyhow::Result<()> {
     if !out_dir.exists() {
-        anyhow::bail!("out directory not found at {}. Run `oxipage build` first.", out_dir.display());
+        anyhow::bail!(
+            "out directory not found at {}. Run `oxipage build` first.",
+            out_dir.display()
+        );
     }
 
     if dry_run {
-        let _ = out.ok(format!("dry-run: would deploy {} to GitHub Pages", out_dir.display()));
+        let _ = out.ok(format!(
+            "dry-run: would deploy {} to GitHub Pages",
+            out_dir.display()
+        ));
         return Ok(());
     }
 
@@ -50,7 +49,9 @@ async fn deploy_github_pages(
     let gh_check = std::process::Command::new("gh")
         .arg("--version")
         .output()
-        .map_err(|_| anyhow::anyhow!("gh CLI not found. Install it from https://cli.github.com/"))?;
+        .map_err(|_| {
+            anyhow::anyhow!("gh CLI not found. Install it from https://cli.github.com/")
+        })?;
     if !gh_check.status.success() {
         anyhow::bail!("gh CLI not available");
     }
@@ -69,7 +70,13 @@ async fn deploy_github_pages(
 
     // Create or checkout gh-pages branch using git worktree
     let has_gh_pages = std::process::Command::new("git")
-        .args(["--git-dir", ".git", "rev-parse", "--verify", "refs/heads/gh-pages"])
+        .args([
+            "--git-dir",
+            ".git",
+            "rev-parse",
+            "--verify",
+            "refs/heads/gh-pages",
+        ])
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false);
@@ -84,7 +91,13 @@ async fn deploy_github_pages(
         }
         // Init empty branch
         std::process::Command::new("git")
-            .args(["--git-dir", &format!("{}/.git", worktree_dir), "symbolic-ref", "HEAD", "refs/heads/gh-pages"])
+            .args([
+                "--git-dir",
+                &format!("{}/.git", worktree_dir),
+                "symbolic-ref",
+                "HEAD",
+                "refs/heads/gh-pages",
+            ])
             .output()?;
         // Remove all files
         std::process::Command::new("rm")

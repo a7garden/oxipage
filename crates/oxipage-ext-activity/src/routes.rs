@@ -49,9 +49,8 @@ pub async fn webhook(
 
     verify_signature(&secret, &headers, &body)?;
 
-    let event: GithubEvent = serde_json::from_slice(&body).map_err(|e| {
-        ApiError::validation("body", &format!("invalid GitHub event JSON: {e}"))
-    })?;
+    let event: GithubEvent = serde_json::from_slice(&body)
+        .map_err(|e| ApiError::validation("body", &format!("invalid GitHub event JSON: {e}")))?;
     validate_event(&event)?;
     repo::upsert(&state.db, &event.into_input())
         .await
@@ -125,9 +124,7 @@ fn hex_decode(s: &str) -> Option<Vec<u8>> {
         .collect()
 }
 
-pub async fn sync(
-    State(state): State<AppState>,
-) -> Result<Json<serde_json::Value>, ApiError> {
+pub async fn sync(State(state): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
     let client = GithubClient::with_username(state.config.integrations.github_username())
         .map_err(ApiError::internal)?;
     if !client.enabled() {

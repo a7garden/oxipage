@@ -5,16 +5,14 @@
 //! - setup 완료 후 410 Gone
 
 use crate::error::ApiError;
-use crate::extension::{
-    DataEnvelope, ExternalApiKey, ExtensionStepInfo,
-};
+use crate::extension::{DataEnvelope, ExtensionStepInfo, ExternalApiKey};
 use crate::state::{AppState, SiteOverride};
 use axum::extract::{ConnectInfo, Path, Request, State};
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
-use axum::{Json, Router};
 use axum::routing::{get, post};
+use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 
@@ -22,18 +20,42 @@ use std::net::SocketAddr;
 // 정의/관리한다. 코어는 블로그 도메인 데이터를 더 이상 모른다.
 
 const THEMES: &[ThemeEntry] = &[
-    ThemeEntry { id: "paper", name_ko: "종이", name_en: "Paper", mode: "light",
-        description_ko: "따뜻한 종이 배경", description_en: "Warm paper background",
-        preview_colors: ["#fafaf5", "#f5f2ed", "#2d2934", "#2d7a5c"] },
-    ThemeEntry { id: "midnight", name_ko: "한밤", name_en: "Midnight", mode: "dark",
-        description_ko: "깊은 밤하늘", description_en: "Deep night sky",
-        preview_colors: ["#1a1a2e", "#16213e", "#e0e0e0", "#4fc3f7"] },
-    ThemeEntry { id: "sepia", name_ko: "세피아", name_en: "Sepia", mode: "light",
-        description_ko: "오래된 책장", description_en: "Old bookshelf",
-        preview_colors: ["#f5f0e8", "#ede0d4", "#3d3529", "#b8860b"] },
-    ThemeEntry { id: "forest", name_ko: "숲", name_en: "Forest", mode: "dark",
-        description_ko: "이끼 낀 숲", description_en: "Mossy forest",
-        preview_colors: ["#1b2b1b", "#243624", "#e0e8e0", "#2ecc71"] },
+    ThemeEntry {
+        id: "paper",
+        name_ko: "종이",
+        name_en: "Paper",
+        mode: "light",
+        description_ko: "따뜻한 종이 배경",
+        description_en: "Warm paper background",
+        preview_colors: ["#fafaf5", "#f5f2ed", "#2d2934", "#2d7a5c"],
+    },
+    ThemeEntry {
+        id: "midnight",
+        name_ko: "한밤",
+        name_en: "Midnight",
+        mode: "dark",
+        description_ko: "깊은 밤하늘",
+        description_en: "Deep night sky",
+        preview_colors: ["#1a1a2e", "#16213e", "#e0e0e0", "#4fc3f7"],
+    },
+    ThemeEntry {
+        id: "sepia",
+        name_ko: "세피아",
+        name_en: "Sepia",
+        mode: "light",
+        description_ko: "오래된 책장",
+        description_en: "Old bookshelf",
+        preview_colors: ["#f5f0e8", "#ede0d4", "#3d3529", "#b8860b"],
+    },
+    ThemeEntry {
+        id: "forest",
+        name_ko: "숲",
+        name_en: "Forest",
+        mode: "dark",
+        description_ko: "이끼 낀 숲",
+        description_en: "Mossy forest",
+        preview_colors: ["#1b2b1b", "#243624", "#e0e8e0", "#2ecc71"],
+    },
 ];
 
 // ─── Input / Output types ───
@@ -43,7 +65,6 @@ pub struct SiteInput {
     pub name: String,
     pub base_url: Option<String>,
 }
-
 
 #[derive(Serialize, Deserialize)]
 pub struct ExtensionsInput {
@@ -114,11 +135,10 @@ async fn get_completed_steps(state: &AppState) -> Result<Vec<String>, ApiError> 
     let mut steps = Vec::new();
 
     // site: site_name이 설정되었는가
-    if let Ok((Some(_),)) = sqlx::query_as::<_, (Option<String>,)>(
-        "SELECT site_name FROM setup_state WHERE id = 1",
-    )
-    .fetch_one(&state.db)
-    .await
+    if let Ok((Some(_),)) =
+        sqlx::query_as::<_, (Option<String>,)>("SELECT site_name FROM setup_state WHERE id = 1")
+            .fetch_one(&state.db)
+            .await
     {
         steps.push("site".into());
     }
@@ -127,11 +147,9 @@ async fn get_completed_steps(state: &AppState) -> Result<Vec<String>, ApiError> 
     steps.push("admin".into());
 
     // extensions: enabled가 1개 이상인가
-    match sqlx::query_as::<_, (i64,)>(
-        "SELECT COUNT(*) FROM extension_state WHERE enabled = 1",
-    )
-    .fetch_one(&state.db)
-    .await
+    match sqlx::query_as::<_, (i64,)>("SELECT COUNT(*) FROM extension_state WHERE enabled = 1")
+        .fetch_one(&state.db)
+        .await
     {
         Ok((count,)) if count > 0 => steps.push("extensions".into()),
         _ => {}
@@ -142,7 +160,6 @@ async fn get_completed_steps(state: &AppState) -> Result<Vec<String>, ApiError> 
 
     Ok(steps)
 }
-
 
 /// TOML 파일 갱신 (site name)
 fn update_toml_site(name: &str, base_url: &str) -> anyhow::Result<()> {
@@ -206,11 +223,7 @@ pub async fn is_setup_needed(db: &sqlx::SqlitePool) -> bool {
 
 /// Setup 게이트 미들웨어.
 /// `/setup/*` 경로에만 적용: loopback 외 403, 완료 후 410.
-pub async fn setup_gate(
-    State(state): State<AppState>,
-    request: Request,
-    next: Next,
-) -> Response {
+pub async fn setup_gate(State(state): State<AppState>, request: Request, next: Next) -> Response {
     let path = request.uri().path();
     let is_setup = path.contains("/setup/");
 
@@ -298,9 +311,7 @@ pub async fn setup_status_handler(
             // 같은 id를 두 확장이 노출하면 마지막 확장이 우선.
             if seen_key_ids.insert(k.id) {
                 external_api_keys.push(k);
-            } else if let Some(existing) =
-                external_api_keys.iter_mut().find(|x| x.id == k.id)
-            {
+            } else if let Some(existing) = external_api_keys.iter_mut().find(|x| x.id == k.id) {
                 *existing = k;
             }
         }
@@ -331,7 +342,9 @@ pub async fn setup_site_handler(
             "site name must be 1-50 characters",
         ));
     }
-    let base_url = input.base_url.unwrap_or_else(|| "http://127.0.0.1:8787".into());
+    let base_url = input
+        .base_url
+        .unwrap_or_else(|| "http://127.0.0.1:8787".into());
 
     // Persist
     let _ = update_toml_site(&name, &base_url);
@@ -356,7 +369,6 @@ pub async fn setup_site_handler(
 }
 
 // setup_admin 핸들러는 auth 폐지로 no-op이라 제거됨 (setup_routes에서도 제외).
-
 
 /// POST /api/console/setup/extensions
 pub async fn setup_extensions_handler(

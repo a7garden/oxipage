@@ -28,7 +28,9 @@ impl TmdbClient {
             .user_agent(concat!("oxipage-ext-movies/", env!("CARGO_PKG_VERSION")))
             .build()
             .expect("reqwest client builder");
-        let api_key = std::env::var("OXIPAGE_TMDB_KEY").ok().filter(|s| !s.is_empty());
+        let api_key = std::env::var("OXIPAGE_TMDB_KEY")
+            .ok()
+            .filter(|s| !s.is_empty());
         Self { http, api_key }
     }
 

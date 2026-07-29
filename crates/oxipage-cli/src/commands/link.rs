@@ -1,7 +1,7 @@
+use crate::output::Output;
 use clap::Subcommand;
 use oxipage_ext_links::model::LinkCardInput;
 use oxipage_ext_links::repo;
-use crate::output::Output;
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum LinkCommand {
@@ -20,7 +20,9 @@ pub enum LinkCommand {
         featured: bool,
     },
     List,
-    Rm { id: i64 },
+    Rm {
+        id: i64,
+    },
 }
 
 pub(crate) async fn link(c: LinkCommand, out: &Output) -> anyhow::Result<()> {

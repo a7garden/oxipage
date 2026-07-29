@@ -116,7 +116,10 @@ pub async fn create_entry(
     Ok(entry)
 }
 
-pub async fn find_entry_by_slug(pool: &SqlitePool, slug: &str) -> anyhow::Result<Option<MovieEntry>> {
+pub async fn find_entry_by_slug(
+    pool: &SqlitePool,
+    slug: &str,
+) -> anyhow::Result<Option<MovieEntry>> {
     let entry = sqlx::query_as::<_, MovieEntry>(&format!(
         "SELECT {ENTRY_COLUMNS} FROM movie_entry WHERE slug = ?"
     ))
@@ -256,9 +259,8 @@ pub async fn update_entry(
     sets.push("updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')");
     let set_clause = sets.join(", ");
 
-    let sql = format!(
-        "UPDATE movie_entry SET {set_clause} WHERE slug = ? RETURNING {ENTRY_COLUMNS}"
-    );
+    let sql =
+        format!("UPDATE movie_entry SET {set_clause} WHERE slug = ? RETURNING {ENTRY_COLUMNS}");
     let mut q = sqlx::query_as::<_, MovieEntry>(&sql);
     if let Some(v) = &patch.tmdb_id {
         q = q.bind(*v);
@@ -334,7 +336,10 @@ pub async fn create_group(
     Ok(group)
 }
 
-pub async fn find_group_by_slug(pool: &SqlitePool, slug: &str) -> anyhow::Result<Option<SeriesGroup>> {
+pub async fn find_group_by_slug(
+    pool: &SqlitePool,
+    slug: &str,
+) -> anyhow::Result<Option<SeriesGroup>> {
     let group = sqlx::query_as::<_, SeriesGroup>(&format!(
         "SELECT {GROUP_COLUMNS} FROM series_group WHERE slug = ?"
     ))

@@ -1,7 +1,7 @@
 //! `oxipage open` — 실행 중인 서버의 URL을 브라우저로 오픈 (doc/13 §13.4.2).
 
-use clap::Args;
 use crate::output::Output;
+use clap::Args;
 
 #[derive(Args, Debug, Clone)]
 pub struct OpenArgs {

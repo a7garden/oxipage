@@ -67,7 +67,10 @@ pub async fn update(
     if let Some(ref status) = patch.status
         && !matches!(status.as_str(), "active" | "archived" | "wip")
     {
-        return Err(ApiError::validation("status", "status must be active|archived|wip"));
+        return Err(ApiError::validation(
+            "status",
+            "status must be active|archived|wip",
+        ));
     }
     let project = match repo::update(&state.db, &slug, &patch)
         .await
@@ -104,7 +107,6 @@ pub async fn publish(
     State(state): State<AppState>,
     Path(slug): Path<String>,
 ) -> Result<Json<DataEnvelope<crate::model::Project>>, ApiError> {
-    
     if repo::find_by_slug(&state.db, &slug)
         .await
         .map_err(ApiError::internal)?
@@ -116,10 +118,14 @@ pub async fn publish(
         .await
         .map_err(ApiError::internal)?;
     reindex(&state, &project).await?;
-    let title = project.title_en.clone()
+    let title = project
+        .title_en
+        .clone()
         .or_else(|| project.title_ko.clone())
         .unwrap_or_else(|| project.slug.clone());
-    let description = project.description_en.clone()
+    let description = project
+        .description_en
+        .clone()
         .or_else(|| project.description_ko.clone())
         .unwrap_or_default();
     let _truncated: String = description.chars().take(200).collect();
@@ -197,8 +203,14 @@ async fn reindex(state: &AppState, project: &crate::model::Project) -> Result<()
 }
 
 fn validate_input(input: &ProjectInput) -> Result<(), ApiError> {
-    let ko_empty = input.title_ko.as_deref().is_none_or(|s| s.trim().is_empty());
-    let en_empty = input.title_en.as_deref().is_none_or(|s| s.trim().is_empty());
+    let ko_empty = input
+        .title_ko
+        .as_deref()
+        .is_none_or(|s| s.trim().is_empty());
+    let en_empty = input
+        .title_en
+        .as_deref()
+        .is_none_or(|s| s.trim().is_empty());
     if ko_empty && en_empty {
         return Err(ApiError::validation(
             "title_ko",

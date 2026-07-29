@@ -241,9 +241,17 @@ mod tests {
         upsert(&pool, "blog", "b", "B", "body", None, Some("2026-01-01"))
             .await
             .unwrap();
-        upsert(&pool, "projects", "c", "C", "body", None, Some("2026-01-01"))
-            .await
-            .unwrap();
+        upsert(
+            &pool,
+            "projects",
+            "c",
+            "C",
+            "body",
+            None,
+            Some("2026-01-01"),
+        )
+        .await
+        .unwrap();
 
         delete_extension(&pool, "blog").await.unwrap();
         let hits = search(&pool, "body", None, 10).await.unwrap();
@@ -254,12 +262,28 @@ mod tests {
     #[tokio::test]
     async fn search_filters_by_lang() {
         let pool = setup().await;
-        upsert(&pool, "blog", "ko", "Rust", "body", Some("ko"), Some("2026-01-01"))
-            .await
-            .unwrap();
-        upsert(&pool, "blog", "en", "Rust", "body", Some("en"), Some("2026-01-01"))
-            .await
-            .unwrap();
+        upsert(
+            &pool,
+            "blog",
+            "ko",
+            "Rust",
+            "body",
+            Some("ko"),
+            Some("2026-01-01"),
+        )
+        .await
+        .unwrap();
+        upsert(
+            &pool,
+            "blog",
+            "en",
+            "Rust",
+            "body",
+            Some("en"),
+            Some("2026-01-01"),
+        )
+        .await
+        .unwrap();
 
         let hits = search(&pool, "body", Some("ko"), 10).await.unwrap();
         assert_eq!(hits.len(), 1);

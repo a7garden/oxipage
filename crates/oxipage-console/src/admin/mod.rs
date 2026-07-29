@@ -41,7 +41,10 @@ impl IntoResponse for AdminError {
         let (status, code) = match &self {
             AdminError::NotFound(_) => (axum::http::StatusCode::NOT_FOUND, "not_found"),
             AdminError::BadRequest(_) => (axum::http::StatusCode::BAD_REQUEST, "bad_request"),
-            AdminError::Internal(_) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "internal_error"),
+            AdminError::Internal(_) => (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+            ),
         };
         let msg = self.to_string();
         (
@@ -79,7 +82,10 @@ pub async fn run_admin(port: u16) -> anyhow::Result<()> {
 fn build_admin_router(ctx: AdminContext) -> Router {
     Router::new()
         // sites CRUD
-        .route("/api/admin/sites", get(sites_api::list).post(sites_api::add))
+        .route(
+            "/api/admin/sites",
+            get(sites_api::list).post(sites_api::add),
+        )
         .route(
             "/api/admin/sites/active",
             get(sites_api::get_active).put(sites_api::set_active),

@@ -9,11 +9,7 @@ pub struct CacheArgs {
     pub extension: Option<String>,
 }
 
-pub(crate) async fn cache(
-    c: CacheArgs,
-    out: &Output,
-    client: &Client,
-) -> anyhow::Result<()> {
+pub(crate) async fn cache(c: CacheArgs, out: &Output, client: &Client) -> anyhow::Result<()> {
     let path = if let Some(ref ext) = c.extension {
         format!("/api/v1/cache/refresh?extension={}", ext)
     } else {

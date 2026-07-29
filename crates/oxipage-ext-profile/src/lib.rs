@@ -144,7 +144,10 @@ impl BuildExt for ProfileExtension {
         "profile"
     }
 
-    fn build_pages(&self, db: &SqlitePool) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
+    fn build_pages(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
         let handle = tokio::runtime::Handle::current();
         let profile: Option<model::Profile> = handle.block_on(repo::get(db))?;
 
@@ -179,13 +182,19 @@ impl BuildExt for ProfileExtension {
         }])
     }
 
-    fn build_data(&self, db: &SqlitePool) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
+    fn build_data(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
         let handle = tokio::runtime::Handle::current();
         let profile: Option<model::Profile> = handle.block_on(repo::get(db))?;
         Ok(Box::new(profile))
     }
 
-    fn build_search_docs(&self, _db: &SqlitePool) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+    fn build_search_docs(
+        &self,
+        _db: &SqlitePool,
+    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
         Ok(vec![])
     }
 }

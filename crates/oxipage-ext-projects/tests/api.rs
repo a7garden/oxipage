@@ -16,7 +16,7 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
         db: pool,
         config: Arc::new(Config::default()),
         registry: registry.clone(),
-                wasm_loader: None,
+        wasm_loader: None,
         site_override: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         builders: std::sync::Arc::new(vec![]),
     };
@@ -95,7 +95,11 @@ async fn draft_create_publish_with_screenshots() {
     // 초안은 show 404
     let res = app
         .clone()
-        .oneshot(Request::get(format!("/api/v1/projects/{slug}")).body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get(format!("/api/v1/projects/{slug}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
@@ -133,7 +137,11 @@ async fn draft_create_publish_with_screenshots() {
     // show에 screenshots 2개
     let res = app
         .clone()
-        .oneshot(Request::get(format!("/api/v1/projects/{slug}")).body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get(format!("/api/v1/projects/{slug}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
@@ -156,7 +164,11 @@ async fn draft_create_publish_with_screenshots() {
 
     // 이제 1개
     let res = app
-        .oneshot(Request::get(format!("/api/v1/projects/{slug}")).body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get(format!("/api/v1/projects/{slug}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let json = body_json(res).await;

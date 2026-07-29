@@ -71,10 +71,13 @@ impl ExtensionRegistry {
     pub async fn register_and_activate(&self, ext: Arc<dyn Extension>) -> String {
         let id = ext.id().to_string();
         self.extensions.write().unwrap().push(ext);
-        self.runtime
-            .write()
-            .await
-            .insert(id.clone(), RuntimeStatus { enabled: true, purged: false });
+        self.runtime.write().await.insert(
+            id.clone(),
+            RuntimeStatus {
+                enabled: true,
+                purged: false,
+            },
+        );
         id
     }
 
@@ -91,19 +94,20 @@ impl ExtensionRegistry {
         let snapshot = self.iter();
         let mut entries = Vec::new();
         for ext in &snapshot {
-            let row: Option<(i64, i64)> =
-                sqlx::query_as("SELECT enabled, purged FROM extension_state WHERE extension_id = ?")
-                    .bind(ext.id())
-                    .fetch_optional(pool)
-                    .await?;
+            let row: Option<(i64, i64)> = sqlx::query_as(
+                "SELECT enabled, purged FROM extension_state WHERE extension_id = ?",
+            )
+            .bind(ext.id())
+            .fetch_optional(pool)
+            .await?;
             let status = match row {
                 Some((e, p)) => RuntimeStatus {
                     enabled: e != 0,
                     purged: p != 0,
                 },
                 None => {
-                    let enabled = toml_enabled.is_empty()
-                        || toml_enabled.iter().any(|id| id == ext.id());
+                    let enabled =
+                        toml_enabled.is_empty() || toml_enabled.iter().any(|id| id == ext.id());
                     sqlx::query(
                         "INSERT INTO extension_state (extension_id, enabled, purged)
                          VALUES (?1, ?2, 0)",
@@ -135,7 +139,10 @@ impl ExtensionRegistry {
 
     /// 라우트가 살아있는가 (enabled && !purged). 미들웨어가 사용.
     pub async fn is_active(&self, id: &str) -> bool {
-        self.status_of(id).await.map(|s| s.active()).unwrap_or(false)
+        self.status_of(id)
+            .await
+            .map(|s| s.active())
+            .unwrap_or(false)
     }
 
     pub async fn status_snapshot(&self) -> HashMap<String, RuntimeStatus> {

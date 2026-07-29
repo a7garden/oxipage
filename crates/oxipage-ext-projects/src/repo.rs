@@ -6,7 +6,10 @@ const COLUMNS: &str = "id, slug, title_ko, title_en, description_ko, description
                        published_at, created_at, updated_at";
 
 pub fn slugify(title_en: Option<&str>, title_ko: Option<&str>) -> String {
-    let raw = title_en.filter(|s| !s.is_empty()).or(title_ko).unwrap_or("");
+    let raw = title_en
+        .filter(|s| !s.is_empty())
+        .or(title_ko)
+        .unwrap_or("");
     let base: String = raw
         .to_lowercase()
         .chars()
@@ -48,7 +51,11 @@ pub async fn ensure_unique_slug(pool: &SqlitePool, base: &str) -> anyhow::Result
     anyhow::bail!("could not allocate unique slug for {base}")
 }
 
-pub async fn create(pool: &SqlitePool, input: &ProjectInput, resolved_slug: &str) -> anyhow::Result<Project> {
+pub async fn create(
+    pool: &SqlitePool,
+    input: &ProjectInput,
+    resolved_slug: &str,
+) -> anyhow::Result<Project> {
     let tech_stack = serde_json::to_string(&input.tech_stack)?;
     let project = sqlx::query_as::<_, Project>(&format!(
         "INSERT INTO project (slug, title_ko, title_en, description_ko, description_en,
@@ -80,12 +87,20 @@ pub async fn find_by_slug(pool: &SqlitePool, slug: &str) -> anyhow::Result<Optio
     Ok(p)
 }
 
-pub async fn list(pool: &SqlitePool, status: Option<&str>, limit: i64) -> anyhow::Result<Vec<Project>> {
+pub async fn list(
+    pool: &SqlitePool,
+    status: Option<&str>,
+    limit: i64,
+) -> anyhow::Result<Vec<Project>> {
     let limit = limit.clamp(1, 200);
     let sql = if status.is_some() {
-        format!("SELECT {COLUMNS} FROM project WHERE published_at IS NOT NULL AND status = ? ORDER BY featured DESC, published_at DESC LIMIT ?")
+        format!(
+            "SELECT {COLUMNS} FROM project WHERE published_at IS NOT NULL AND status = ? ORDER BY featured DESC, published_at DESC LIMIT ?"
+        )
     } else {
-        format!("SELECT {COLUMNS} FROM project WHERE published_at IS NOT NULL ORDER BY featured DESC, published_at DESC LIMIT ?")
+        format!(
+            "SELECT {COLUMNS} FROM project WHERE published_at IS NOT NULL ORDER BY featured DESC, published_at DESC LIMIT ?"
+        )
     };
     let mut q = sqlx::query_as::<_, Project>(&sql);
     if let Some(s) = status {
@@ -109,18 +124,42 @@ pub async fn publish(pool: &SqlitePool, slug: &str) -> anyhow::Result<Project> {
     Ok(p)
 }
 
-pub async fn update(pool: &SqlitePool, slug: &str, patch: &ProjectPatch) -> anyhow::Result<Option<Project>> {
+pub async fn update(
+    pool: &SqlitePool,
+    slug: &str,
+    patch: &ProjectPatch,
+) -> anyhow::Result<Option<Project>> {
     let mut sets: Vec<String> = Vec::new();
-    if patch.title_ko.is_some() { sets.push("title_ko = ?".into()); }
-    if patch.title_en.is_some() { sets.push("title_en = ?".into()); }
-    if patch.description_ko.is_some() { sets.push("description_ko = ?".into()); }
-    if patch.description_en.is_some() { sets.push("description_en = ?".into()); }
-    if patch.tech_stack.is_some() { sets.push("tech_stack = ?".into()); }
-    if patch.status.is_some() { sets.push("status = ?".into()); }
-    if patch.started_at.is_some() { sets.push("started_at = ?".into()); }
-    if patch.ended_at.is_some() { sets.push("ended_at = ?".into()); }
-    if patch.links.is_some() { sets.push("links = ?".into()); }
-    if patch.featured.is_some() { sets.push("featured = ?".into()); }
+    if patch.title_ko.is_some() {
+        sets.push("title_ko = ?".into());
+    }
+    if patch.title_en.is_some() {
+        sets.push("title_en = ?".into());
+    }
+    if patch.description_ko.is_some() {
+        sets.push("description_ko = ?".into());
+    }
+    if patch.description_en.is_some() {
+        sets.push("description_en = ?".into());
+    }
+    if patch.tech_stack.is_some() {
+        sets.push("tech_stack = ?".into());
+    }
+    if patch.status.is_some() {
+        sets.push("status = ?".into());
+    }
+    if patch.started_at.is_some() {
+        sets.push("started_at = ?".into());
+    }
+    if patch.ended_at.is_some() {
+        sets.push("ended_at = ?".into());
+    }
+    if patch.links.is_some() {
+        sets.push("links = ?".into());
+    }
+    if patch.featured.is_some() {
+        sets.push("featured = ?".into());
+    }
 
     // title_ko/title_en을 둘 다 NULL로 만드는 PATCH는 거부 (체크제약 위반 방지).
     let cur = match find_by_slug(pool, slug).await? {
@@ -148,16 +187,36 @@ pub async fn update(pool: &SqlitePool, slug: &str, patch: &ProjectPatch) -> anyh
     };
     let sql = format!("UPDATE project SET {set_clause} WHERE slug = ? RETURNING {COLUMNS}");
     let mut q = sqlx::query_as::<_, Project>(&sql);
-    if let Some(v) = &patch.title_ko { q = q.bind(v); }
-    if let Some(v) = &patch.title_en { q = q.bind(v); }
-    if let Some(v) = &patch.description_ko { q = q.bind(v); }
-    if let Some(v) = &patch.description_en { q = q.bind(v); }
-    if let Some(v) = tech_json.as_ref() { q = q.bind(v); }
-    if let Some(v) = &patch.status { q = q.bind(v); }
-    if let Some(v) = &patch.started_at { q = q.bind(v); }
-    if let Some(v) = &patch.ended_at { q = q.bind(v); }
-    if let Some(v) = links_json.as_ref() { q = q.bind(v); }
-    if let Some(v) = &patch.featured { q = q.bind(v); }
+    if let Some(v) = &patch.title_ko {
+        q = q.bind(v);
+    }
+    if let Some(v) = &patch.title_en {
+        q = q.bind(v);
+    }
+    if let Some(v) = &patch.description_ko {
+        q = q.bind(v);
+    }
+    if let Some(v) = &patch.description_en {
+        q = q.bind(v);
+    }
+    if let Some(v) = tech_json.as_ref() {
+        q = q.bind(v);
+    }
+    if let Some(v) = &patch.status {
+        q = q.bind(v);
+    }
+    if let Some(v) = &patch.started_at {
+        q = q.bind(v);
+    }
+    if let Some(v) = &patch.ended_at {
+        q = q.bind(v);
+    }
+    if let Some(v) = links_json.as_ref() {
+        q = q.bind(v);
+    }
+    if let Some(v) = &patch.featured {
+        q = q.bind(v);
+    }
     let p = q.bind(slug).fetch_optional(pool).await?;
     Ok(p)
 }
@@ -202,7 +261,10 @@ pub async fn add_screenshot(
     Ok(shot)
 }
 
-pub async fn list_screenshots(pool: &SqlitePool, project_slug: &str) -> anyhow::Result<Vec<Screenshot>> {
+pub async fn list_screenshots(
+    pool: &SqlitePool,
+    project_slug: &str,
+) -> anyhow::Result<Vec<Screenshot>> {
     let shots = sqlx::query_as::<_, Screenshot>(&format!(
         "SELECT {SCREENSHOT_COLUMNS} FROM screenshot
          WHERE project_id = (SELECT id FROM project WHERE slug = ?)
@@ -214,7 +276,11 @@ pub async fn list_screenshots(pool: &SqlitePool, project_slug: &str) -> anyhow::
     Ok(shots)
 }
 
-pub async fn delete_screenshot(pool: &SqlitePool, project_slug: &str, sid: i64) -> anyhow::Result<bool> {
+pub async fn delete_screenshot(
+    pool: &SqlitePool,
+    project_slug: &str,
+    sid: i64,
+) -> anyhow::Result<bool> {
     let res = sqlx::query(
         "DELETE FROM screenshot
          WHERE id = ? AND project_id = (SELECT id FROM project WHERE slug = ?)",

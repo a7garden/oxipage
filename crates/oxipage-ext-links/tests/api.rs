@@ -16,7 +16,7 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
         db: pool,
         config: Arc::new(Config::default()),
         registry: registry.clone(),
-                wasm_loader: None,
+        wasm_loader: None,
         site_override: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         builders: std::sync::Arc::new(vec![]),
     };
@@ -122,7 +122,11 @@ async fn create_show_patch_delete_and_featured_filter() {
     // featured 필터 — 1개
     let res = app
         .clone()
-        .oneshot(Request::get("/api/v1/links?featured=true").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/v1/links?featured=true")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let json = body_json(res).await;
@@ -131,7 +135,11 @@ async fn create_show_patch_delete_and_featured_filter() {
     // show
     let res = app
         .clone()
-        .oneshot(Request::get(format!("/api/v1/links/{id1}")).body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get(format!("/api/v1/links/{id1}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);

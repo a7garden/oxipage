@@ -1,19 +1,21 @@
 use crate::build::build_site;
 use crate::build_writer::write_build_output;
-use crate::setup;
 use crate::error::ApiError;
-use crate::extension::{CliArgSpec, CliCommandManifest, CliCommandSpec, CliSubcommandSpec, Extension, Lang};
+use crate::extension::{
+    CliArgSpec, CliCommandManifest, CliCommandSpec, CliSubcommandSpec, Extension, Lang,
+};
 use crate::search::SearchHit;
+use crate::setup;
 use crate::state::AppState;
-use std::sync::Arc;
 use axum::extract::{Path, Query, Request, State};
 use axum::http::StatusCode;
 use axum::http::{Uri, header};
+use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
-use axum::middleware::Next;
 use rust_embed::RustEmbed;
+use std::sync::Arc;
 use tower_http::trace::TraceLayer;
 
 #[derive(RustEmbed)]
@@ -64,18 +66,33 @@ pub fn build_app(state: AppState) -> Router {
     let mut api = Router::new()
         .route("/lobby/manifest", get(lobby_manifest))
         .route("/lobby/config", get(lobby_config_list))
-        .route("/lobby/config/{ext_id}", axum::routing::put(lobby_config_update))
+        .route(
+            "/lobby/config/{ext_id}",
+            axum::routing::put(lobby_config_update),
+        )
         .route("/search", get(search_handler))
         .route("/docs", get(docs_ui))
         .route("/docs/openapi.json", get(docs_spec))
         .route("/extensions", get(extensions_list))
-        .route("/extensions/{id}/enable", axum::routing::post(extension_enable))
-        .route("/extensions/{id}/disable", axum::routing::post(extension_disable))
+        .route(
+            "/extensions/{id}/enable",
+            axum::routing::post(extension_enable),
+        )
+        .route(
+            "/extensions/{id}/disable",
+            axum::routing::post(extension_disable),
+        )
         .route("/extensions/{id}", axum::routing::delete(extension_purge))
-        .route("/extensions/install", axum::routing::post(extension_install))
+        .route(
+            "/extensions/install",
+            axum::routing::post(extension_install),
+        )
         .route("/backup/snapshot", axum::routing::post(backup_snapshot))
         .route("/cli/commands", get(cli_commands_handler))
-        .route("/cli/exec/{ext_id}/{sub_command}", axum::routing::post(cli_exec_handler))
+        .route(
+            "/cli/exec/{ext_id}/{sub_command}",
+            axum::routing::post(cli_exec_handler),
+        )
         .route("/theme", get(theme_get).put(theme_put))
         .route("/themes", get(theme_catalog))
         .route("/build", axum::routing::post(build_handler))
@@ -121,7 +138,6 @@ async fn healthz() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "status": "ok" }))
 }
 
-
 async fn docs_spec(State(state): State<AppState>) -> Json<serde_json::Value> {
     Json(crate::openapi::openapi_spec(
         &state.config.site.base_url,
@@ -129,9 +145,7 @@ async fn docs_spec(State(state): State<AppState>) -> Json<serde_json::Value> {
     ))
 }
 
-async fn build_handler(
-    State(state): State<AppState>,
-) -> Result<Json<serde_json::Value>, ApiError> {
+async fn build_handler(State(state): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
     let config = &state.config;
     let out_dir = config.server.data_dir.join("out");
     let media_dir = config.server.data_dir.join("media");
@@ -172,11 +186,7 @@ async fn cache_refresh_handler(
 
 async fn docs_ui() -> axum::response::Response {
     let html = crate::openapi::swagger_ui_html("/api/console/docs/openapi.json");
-    (
-        [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
-        html,
-    )
-        .into_response()
+    ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], html).into_response()
 }
 /// 동적 라우트 폴백. WASM(런타임 적재) 확장의 HTTP 요청을 디스패치한다.
 /// `/api/console/{ext_id}/**` 경로에서 ext_id가 WASM 확장이면 route_dispatcher 로 위임.
@@ -377,7 +387,6 @@ async fn lobby_config_update(
     }))
 }
 
-
 // ─── backup (doc/05 §5.4) ───
 
 /// `VACUUM INTO` 포인트-인-타임 스냅샷. admin 스코프 필요.
@@ -474,9 +483,13 @@ async fn extension_enable(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<DataEnvelope<ExtensionInfo>>, ApiError> {
-    let ext = state
-        .registry.find(&id)
-        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "extension_not_found", "unknown extension id"))?;
+    let ext = state.registry.find(&id).ok_or_else(|| {
+        ApiError::new(
+            StatusCode::NOT_FOUND,
+            "extension_not_found",
+            "unknown extension id",
+        )
+    })?;
     let prev = state.registry.status_of(&id).await;
     let was_purged = prev.map(|s| s.purged).unwrap_or(false);
     let was_enabled = prev.map(|s| s.enabled).unwrap_or(false);
@@ -502,9 +515,13 @@ async fn extension_disable(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<DataEnvelope<ExtensionInfo>>, ApiError> {
-    let ext = state
-        .registry.find(&id)
-        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "extension_not_found", "unknown extension id"))?;
+    let ext = state.registry.find(&id).ok_or_else(|| {
+        ApiError::new(
+            StatusCode::NOT_FOUND,
+            "extension_not_found",
+            "unknown extension id",
+        )
+    })?;
     let prev = state.registry.set_enabled(&state.db, &id, false).await?;
     if prev.map(|s| s.enabled).unwrap_or(false) {
         // enabled→disabled 전환 시에만 FTS 색인 즉시 정리 (doc/02 §2.13).
@@ -522,9 +539,13 @@ async fn extension_purge(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
-    let ext = state
-        .registry.find(&id)
-        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "extension_not_found", "unknown extension id"))?;
+    let ext = state.registry.find(&id).ok_or_else(|| {
+        ApiError::new(
+            StatusCode::NOT_FOUND,
+            "extension_not_found",
+            "unknown extension id",
+        )
+    })?;
     // 1. disable + FTS 정리.
     state.registry.set_enabled(&state.db, &id, false).await?;
     let _ = ext.on_disable(&state).await;
@@ -547,7 +568,9 @@ async fn extension_purge(
     if media.exists() {
         match std::fs::remove_dir_all(&media) {
             Ok(_) => {}
-            Err(e) => tracing::warn!(path = %media.display(), error = %e, "failed to remove media dir during purge"),
+            Err(e) => {
+                tracing::warn!(path = %media.display(), error = %e, "failed to remove media dir during purge")
+            }
         }
     }
     // 4. 마이그레이션 기록 제거 — enable-after-purge가 재실행하도록.
@@ -573,8 +596,7 @@ async fn extension_purge(
 /// 임베드된 레지스트리 카탈로그 (빌드 시점 snapshot of registry/index.json).
 const REGISTRY_INDEX_JSON: &str = include_str!("../_registry.json");
 /// 임베드된 데모 wasm 아티팩트 — install 오프라인 검증용 (remote 다운로드 경로와 별개).
-const DEMO_WASM_BYTES: &[u8] =
-    include_bytes!("../_wasm-demo.wasm");
+const DEMO_WASM_BYTES: &[u8] = include_bytes!("../_wasm-demo.wasm");
 
 /// 신뢰하는 ed25519 공개키 (base64). .wasm 아티팩트 서명 검증에 사용.
 /// 프로덕션에서는 config 로 주입 가능. 데모용 고정 키.
@@ -604,23 +626,46 @@ fn verify_wasm_signature(bytes: &[u8], signature_b64: &str) -> Result<(), ApiErr
 
     let pubkey_raw = base64::engine::general_purpose::STANDARD
         .decode(TRUSTED_WASM_PUBKEY_B64)
-        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "sig_key_error", &e.to_string()))?;
-    let pubkey_arr: [u8; 32] = pubkey_raw
-        .as_slice()
-        .try_into()
-        .map_err(|_| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "sig_key_error", "pubkey not 32 bytes"))?;
-    let pubkey = VerifyingKey::from_bytes(&pubkey_arr)
-        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "sig_key_error", &e.to_string()))?;
+        .map_err(|e| {
+            ApiError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "sig_key_error",
+                &e.to_string(),
+            )
+        })?;
+    let pubkey_arr: [u8; 32] = pubkey_raw.as_slice().try_into().map_err(|_| {
+        ApiError::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "sig_key_error",
+            "pubkey not 32 bytes",
+        )
+    })?;
+    let pubkey = VerifyingKey::from_bytes(&pubkey_arr).map_err(|e| {
+        ApiError::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "sig_key_error",
+            &e.to_string(),
+        )
+    })?;
 
     let sig_raw = base64::engine::general_purpose::STANDARD
         .decode(signature_b64)
         .map_err(|e| ApiError::new(StatusCode::BAD_REQUEST, "bad_signature", &e.to_string()))?;
-    let sig = Signature::from_slice(&sig_raw)
-        .map_err(|_| ApiError::new(StatusCode::BAD_REQUEST, "bad_signature", "malformed signature bytes"))?;
+    let sig = Signature::from_slice(&sig_raw).map_err(|_| {
+        ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "bad_signature",
+            "malformed signature bytes",
+        )
+    })?;
 
-    pubkey
-        .verify(bytes, &sig)
-        .map_err(|_| ApiError::new(StatusCode::CONFLICT, "signature_mismatch", "wasm artifact signature verification failed"))
+    pubkey.verify(bytes, &sig).map_err(|_| {
+        ApiError::new(
+            StatusCode::CONFLICT,
+            "signature_mismatch",
+            "wasm artifact signature verification failed",
+        )
+    })
 }
 
 #[derive(serde::Deserialize)]
@@ -640,13 +685,20 @@ async fn extension_install(
             "invalid extension name",
         ));
     }
-    let index: RegistryIndex = serde_json::from_str(REGISTRY_INDEX_JSON)
-        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "registry_error", &e.to_string()))?;
+    let index: RegistryIndex = serde_json::from_str(REGISTRY_INDEX_JSON).map_err(|e| {
+        ApiError::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "registry_error",
+            &e.to_string(),
+        )
+    })?;
     let entry = index
         .extensions
         .iter()
         .find(|e| e.name == name)
-        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "not_found", "unknown extension name"))?;
+        .ok_or_else(|| {
+            ApiError::new(StatusCode::NOT_FOUND, "not_found", "unknown extension name")
+        })?;
     if !entry.runtime_loadable {
         return Err(ApiError::new(
             StatusCode::CONFLICT,
@@ -658,13 +710,16 @@ async fn extension_install(
     let bytes: Vec<u8> = if name == "wasm-demo" {
         DEMO_WASM_BYTES.to_vec()
     } else {
-        let url = entry
-            .wasm_url
-            .as_deref()
-            .ok_or_else(|| ApiError::new(StatusCode::CONFLICT, "no_wasm_url", "registry entry has no wasm_url"))?;
-        let resp = reqwest::get(url)
-            .await
-            .map_err(|e| ApiError::new(StatusCode::BAD_GATEWAY, "download_failed", &e.to_string()))?;
+        let url = entry.wasm_url.as_deref().ok_or_else(|| {
+            ApiError::new(
+                StatusCode::CONFLICT,
+                "no_wasm_url",
+                "registry entry has no wasm_url",
+            )
+        })?;
+        let resp = reqwest::get(url).await.map_err(|e| {
+            ApiError::new(StatusCode::BAD_GATEWAY, "download_failed", &e.to_string())
+        })?;
         if !resp.status().is_success() {
             return Err(ApiError::new(
                 StatusCode::BAD_GATEWAY,
@@ -683,11 +738,21 @@ async fn extension_install(
         verify_wasm_signature(&bytes, sig)?;
     }
     let dir = state.config.server.data_dir.join("extensions");
-    std::fs::create_dir_all(&dir)
-        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "fs_error", &e.to_string()))?;
+    std::fs::create_dir_all(&dir).map_err(|e| {
+        ApiError::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "fs_error",
+            &e.to_string(),
+        )
+    })?;
     let path = dir.join(format!("{name}.wasm"));
-    std::fs::write(&path, &bytes)
-        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "fs_error", &e.to_string()))?;
+    std::fs::write(&path, &bytes).map_err(|e| {
+        ApiError::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "fs_error",
+            &e.to_string(),
+        )
+    })?;
 
     // 라이브 활성화: wasm_loader 가 있으면 즉시 로드·등록·활성화 (재기동 불필요).
     if let Some(loader) = &state.wasm_loader {
@@ -771,7 +836,9 @@ fn is_safe_ident(name: &str) -> bool {
 /// 보간되는 table_names() 에는 이 함수를 쓰면 안 된다 — is_safe_ident 를 쓸 것.
 fn is_safe_extension_name(name: &str) -> bool {
     !name.is_empty()
-        && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
 /// `/api/console/{ext}/**` 경로에서 ext 세그먼트 추출. 코어 라우트(lobby/auth/search/docs)는
@@ -787,11 +854,7 @@ fn extension_id_from_path(path: &str) -> Option<String> {
 }
 
 /// 런타임 게이트 미들웨어. registry에 있는 확장이 비활성/purged면 404.
-async fn extension_gate(
-    State(state): State<AppState>,
-    request: Request,
-    next: Next,
-) -> Response {
+async fn extension_gate(State(state): State<AppState>, request: Request, next: Next) -> Response {
     if let Some(ext_id) = extension_id_from_path(request.uri().path())
         && state.registry.find(&ext_id).is_some()
         && !state.registry.is_active(&ext_id).await
@@ -808,9 +871,7 @@ async fn extension_gate(
 
 // ─── CLI 동적 명령 (doc/11) ───
 
-async fn cli_commands_handler(
-    State(state): State<AppState>,
-) -> Json<CliCommandManifest> {
+async fn cli_commands_handler(State(state): State<AppState>) -> Json<CliCommandManifest> {
     // 활성 확장 상태 스냅샷을 미리 수집 (async boundary)
     let statuses = state.registry.status_snapshot().await;
 
@@ -818,37 +879,34 @@ async fn cli_commands_handler(
         .registry
         .iter()
         .into_iter()
-        .filter(|ext| {
-            statuses
-                .get(ext.id())
-                .map(|s| s.active())
-                .unwrap_or(false)
-        })
+        .filter(|ext| statuses.get(ext.id()).map(|s| s.active()).unwrap_or(false))
         .flat_map(|ext| {
             let id = ext.id().to_string();
-            ext.cli_commands().into_iter().map(move |cmd| CliCommandSpec {
-                extension_id: id.clone(),
-                name: cmd.name.to_string(),
-                about: cmd.about.to_string(),
-                subcommands: cmd
-                    .subcommands
-                    .into_iter()
-                    .map(|sub| CliSubcommandSpec {
-                        name: sub.name.to_string(),
-                        about: sub.about.to_string(),
-                        args: sub
-                            .args
-                            .into_iter()
-                            .map(|a| CliArgSpec {
-                                long: a.long.to_string(),
-                                short: a.short,
-                                help: a.help.to_string(),
-                                required: a.required,
-                            })
-                            .collect(),
-                    })
-                    .collect(),
-            })
+            ext.cli_commands()
+                .into_iter()
+                .map(move |cmd| CliCommandSpec {
+                    extension_id: id.clone(),
+                    name: cmd.name.to_string(),
+                    about: cmd.about.to_string(),
+                    subcommands: cmd
+                        .subcommands
+                        .into_iter()
+                        .map(|sub| CliSubcommandSpec {
+                            name: sub.name.to_string(),
+                            about: sub.about.to_string(),
+                            args: sub
+                                .args
+                                .into_iter()
+                                .map(|a| CliArgSpec {
+                                    long: a.long.to_string(),
+                                    short: a.short,
+                                    help: a.help.to_string(),
+                                    required: a.required,
+                                })
+                                .collect(),
+                        })
+                        .collect(),
+                })
         })
         .collect();
     Json(CliCommandManifest { extensions })
@@ -867,31 +925,22 @@ async fn cli_exec_handler(
     Path((ext_id, sub_command)): Path<(String, String)>,
     Json(input): Json<CliExecInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let ext = state
-        .registry
-        .find(&ext_id)
-        .ok_or_else(|| {
-            let msg = format!("extension '{ext_id}' not found");
-            ApiError::new(
-                axum::http::StatusCode::NOT_FOUND,
-                "extension_not_found",
-                &msg,
-            )
-        })?;
+    let ext = state.registry.find(&ext_id).ok_or_else(|| {
+        let msg = format!("extension '{ext_id}' not found");
+        ApiError::new(
+            axum::http::StatusCode::NOT_FOUND,
+            "extension_not_found",
+            &msg,
+        )
+    })?;
 
     // 확장의 cli_commands()에서 서브커맨드 찾기
     let cmd = ext
         .cli_commands()
         .into_iter()
-        .find_map(|c| {
-            c.subcommands
-                .into_iter()
-                .find(|s| s.name == sub_command)
-        })
+        .find_map(|c| c.subcommands.into_iter().find(|s| s.name == sub_command))
         .ok_or_else(|| {
-            let msg = format!(
-                "subcommand '{sub_command}' not found in extension '{ext_id}'"
-            );
+            let msg = format!("subcommand '{sub_command}' not found in extension '{ext_id}'");
             ApiError::new(
                 axum::http::StatusCode::NOT_FOUND,
                 "subcommand_not_found",
@@ -901,9 +950,8 @@ async fn cli_exec_handler(
 
     // 핸들러가 있으면 서버에서 실행할 수 없다 — 컴파일 확장 전용
     if cmd.handler.is_some() {
-        let msg = format!(
-            "command '{ext_id} {sub_command}' has a native handler and cannot be proxied"
-        );
+        let msg =
+            format!("command '{ext_id} {sub_command}' has a native handler and cannot be proxied");
         return Err(ApiError::new(
             axum::http::StatusCode::BAD_REQUEST,
             "handler_not_proxyable",
@@ -996,13 +1044,13 @@ async fn theme_catalog() -> Json<DataEnvelope<Vec<serde_json::Value>>> {
 }
 
 /// GET /api/console/theme — 현재 적용 테마 (인증 불요, 공개 웹이 읽음)
-async fn theme_get(State(state): State<AppState>) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
-    let row: Option<(String,)> = sqlx::query_as(
-        "SELECT theme_id FROM theme_config WHERE id = 1",
-    )
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|e| ApiError::internal(anyhow::anyhow!("db: {e}")))?;
+async fn theme_get(
+    State(state): State<AppState>,
+) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
+    let row: Option<(String,)> = sqlx::query_as("SELECT theme_id FROM theme_config WHERE id = 1")
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| ApiError::internal(anyhow::anyhow!("db: {e}")))?;
 
     let theme_id = row.map(|r| r.0).unwrap_or_else(|| "paper".to_string());
     Ok(Json(DataEnvelope {
@@ -1020,7 +1068,6 @@ async fn theme_put(
     State(state): State<AppState>,
     Json(input): Json<ThemePutInput>,
 ) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
-
     // 유효한 테마인지 확인
     let valid = THEMES.iter().any(|t| t.id == input.theme_id);
     if !valid {

@@ -39,10 +39,7 @@ impl Extension for ProjectsExtension {
 
     fn routes(&self) -> Router<AppState> {
         Router::new()
-            .route(
-                "/",
-                get(routes::list).post(routes::create),
-            )
+            .route("/", get(routes::list).post(routes::create))
             .route(
                 "/{slug}",
                 get(routes::show)
@@ -78,15 +75,26 @@ impl BuildExt for ProjectsExtension {
         "projects"
     }
 
-    fn build_pages(&self, db: &SqlitePool) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
+    fn build_pages(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
         let handle = tokio::runtime::Handle::current();
         let projects: Vec<model::Project> = handle.block_on(repo::list(db, None, 200))?;
 
         let mut pages = Vec::with_capacity(projects.len());
 
         for p in &projects {
-            let title = p.title_en.as_deref().or(p.title_ko.as_deref()).unwrap_or("");
-            let desc = p.description_en.as_deref().or(p.description_ko.as_deref()).unwrap_or("");
+            let title = p
+                .title_en
+                .as_deref()
+                .or(p.title_ko.as_deref())
+                .unwrap_or("");
+            let desc = p
+                .description_en
+                .as_deref()
+                .or(p.description_ko.as_deref())
+                .unwrap_or("");
             let excerpt: String = desc.chars().take(160).collect();
 
             pages.push(StaticPage {
@@ -120,13 +128,19 @@ impl BuildExt for ProjectsExtension {
         Ok(pages)
     }
 
-    fn build_data(&self, db: &SqlitePool) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
+    fn build_data(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
         let handle = tokio::runtime::Handle::current();
         let projects: Vec<model::Project> = handle.block_on(repo::list(db, None, 200))?;
         Ok(Box::new(projects))
     }
 
-    fn build_search_docs(&self, db: &SqlitePool) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+    fn build_search_docs(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
         let handle = tokio::runtime::Handle::current();
         let projects: Vec<model::Project> = handle.block_on(repo::list(db, None, 200))?;
 

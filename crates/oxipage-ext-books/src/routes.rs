@@ -95,7 +95,6 @@ pub async fn publish(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<DataEnvelope<Book>>, ApiError> {
-    
     if repo::find_by_id(&state.db, id)
         .await
         .map_err(ApiError::internal)?
@@ -107,7 +106,11 @@ pub async fn publish(
         .await
         .map_err(ApiError::internal)?;
     reindex(&state, &book).await?;
-    let review = book.review_ko.clone().or_else(|| book.review_en.clone()).unwrap_or_default();
+    let review = book
+        .review_ko
+        .clone()
+        .or_else(|| book.review_en.clone())
+        .unwrap_or_default();
     let _desc: String = review.chars().take(200).collect();
     Ok(Json(DataEnvelope { data: book }))
 }
@@ -130,7 +133,10 @@ pub async fn external_search(
         ));
     }
     let limit = q.limit.unwrap_or(10).clamp(1, 20) as usize;
-    let results = client.search(query, limit).await.map_err(ApiError::internal)?;
+    let results = client
+        .search(query, limit)
+        .await
+        .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope { data: results }))
 }
 
@@ -170,8 +176,7 @@ fn validate_create(input: &BookInput) -> Result<(), ApiError> {
             "status must be wishlist|reading|completed|dropped",
         ));
     }
-    Rating::new(input.rating)
-        .map_err(|e| ApiError::validation("rating", &e.to_string()))?;
+    Rating::new(input.rating).map_err(|e| ApiError::validation("rating", &e.to_string()))?;
     Ok(())
 }
 

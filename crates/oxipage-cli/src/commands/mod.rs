@@ -33,9 +33,9 @@ use crate::client::Client;
 use crate::output::Output;
 use crate::sites;
 use crate::{Cli, Command};
+use oxipage_core::extension::{CliCommand, CliHandler};
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use oxipage_core::extension::{CliCommand, CliHandler};
 
 // ───────────────────────── dispatch ─────────────────────────
 
@@ -77,7 +77,9 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
             }
         }
         Command::Status => init_console::status(&out, &client).await,
-        Command::Console { port, preview } => init_console::console(port, preview, cli.config.as_deref()).await,
+        Command::Console { port, preview } => {
+            init_console::console(port, preview, cli.config.as_deref()).await
+        }
         Command::Blog(c) => blog::blog(c, &out).await,
         Command::Open { admin, port } => open::open(OpenArgs { admin, port }, &out),
         Command::Project(c) => project::project(c, &out).await,
@@ -90,11 +92,9 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
         Command::Deploy(c) => deploy::deploy(c, &out).await,
         Command::Query(c) => query::query(c).await,
         Command::Schema(c) => schema::schema(c).await,
-        Command::Site(_) => unreachable!(), // handled above
+        Command::Site(_) => unreachable!(),      // handled above
         Command::Admin { .. } => unreachable!(), // handled above
-        Command::Dynamic(ref args) => {
-            dispatch_dynamic(args, &client, &out).await
-        }
+        Command::Dynamic(ref args) => dispatch_dynamic(args, &client, &out).await,
     }
 }
 
@@ -107,18 +107,24 @@ fn resolve_site_name<'a>(
     sites_file: &'a sites::SitesFile,
 ) -> anyhow::Result<Option<&'a str>> {
     // 1. --site flag (explicit, highest priority)
-    if let Some(name) = cli_site && !name.is_empty() {
+    if let Some(name) = cli_site
+        && !name.is_empty()
+    {
         if sites_file.exists(name) {
             return Ok(Some(name));
         }
         anyhow::bail!("site '{name}' not found — use `oxipage site add` to create it");
     }
     // 2. OXIPAGE_SITE env — 명시적이므로 flag와 동일하게 존재 여부 검증
-    if let Ok(env) = std::env::var("OXIPAGE_SITE") && !env.is_empty() {
+    if let Ok(env) = std::env::var("OXIPAGE_SITE")
+        && !env.is_empty()
+    {
         if sites_file.exists(&env) {
             return Ok(sites_file.resolve_name(None));
         }
-        anyhow::bail!("site '{env}' (from OXIPAGE_SITE env) not found — use `oxipage site add` to create it");
+        anyhow::bail!(
+            "site '{env}' (from OXIPAGE_SITE env) not found — use `oxipage site add` to create it"
+        );
     }
     // 3. default_site (from sites.toml)
     Ok(sites_file.resolve_name(None))
@@ -211,13 +217,11 @@ pub(super) fn resolve_data_dir() -> anyhow::Result<std::path::PathBuf> {
 // ──────────────────── 동적 명령 디스패치 (doc/11) ────────────────────
 
 /// Dynamic args를 받아 확장 레지스트리에서 명령을 조회하고 실행한다.
-async fn dispatch_dynamic(
-    args: &[String],
-    client: &Client,
-    out: &Output,
-) -> anyhow::Result<()> {
+async fn dispatch_dynamic(args: &[String], client: &Client, out: &Output) -> anyhow::Result<()> {
     if args.is_empty() {
-        anyhow::bail!("missing dynamic command name.\nRun `oxipage --help` for available commands.");
+        anyhow::bail!(
+            "missing dynamic command name.\nRun `oxipage --help` for available commands."
+        );
     }
     let ext_name = &args[0];
     let sub_name = args.get(1).ok_or_else(|| {
@@ -258,19 +262,17 @@ async fn resolve_command_registry(client: &Client) -> anyhow::Result<DynamicRegi
     // 2. 서버 디스커버리 (실패 시 조용히 폴백)
     let discovered = match client.get("/api/v1/cli/commands").await {
         Ok(val) => {
-            let manifest: oxipage_core::extension::CliCommandManifest =
-                serde_json::from_value(val)
-                    .unwrap_or(oxipage_core::extension::CliCommandManifest {
-                        extensions: vec![],
-                    });
+            let manifest: oxipage_core::extension::CliCommandManifest = serde_json::from_value(val)
+                .unwrap_or(oxipage_core::extension::CliCommandManifest { extensions: vec![] });
             manifest
         }
-        Err(_) => oxipage_core::extension::CliCommandManifest {
-            extensions: vec![],
-        },
+        Err(_) => oxipage_core::extension::CliCommandManifest { extensions: vec![] },
     };
 
-    Ok(DynamicRegistry { compiled, discovered })
+    Ok(DynamicRegistry {
+        compiled,
+        discovered,
+    })
 }
 
 /// `--key value --flag` 형태의 raw args를 `BTreeMap<String, String>`으로 파싱.
@@ -319,11 +321,7 @@ enum LookupResult {
 }
 
 impl DynamicRegistry {
-    fn lookup(
-        &self,
-        ext_name: &str,
-        sub_name: &str,
-    ) -> anyhow::Result<LookupResult> {
+    fn lookup(&self, ext_name: &str, sub_name: &str) -> anyhow::Result<LookupResult> {
         // 1. 컴파일 목록에서 검색
         if let Some(cmd) = self.compiled.iter().find(|c| c.name == ext_name)
             && let Some(sub) = cmd.subcommands.iter().find(|s| s.name == sub_name)
@@ -379,14 +377,21 @@ mod tests {
     #[test]
     fn endpoint_cli_flag_wins() {
         let sites = empty_sites();
-        let result = resolve_endpoint(Some("https://cli.example.com".into()), None, &sites, None).unwrap();
+        let result =
+            resolve_endpoint(Some("https://cli.example.com".into()), None, &sites, None).unwrap();
         assert_eq!(result, "https://cli.example.com");
     }
 
     #[test]
     fn endpoint_cli_flag_overrides_site() {
         let sites = sites_with_one("prod", "https://prod.example.com", None);
-        let result = resolve_endpoint(Some("https://override.example.com".into()), Some("prod"), &sites, None).unwrap();
+        let result = resolve_endpoint(
+            Some("https://override.example.com".into()),
+            Some("prod"),
+            &sites,
+            None,
+        )
+        .unwrap();
         assert_eq!(result, "https://override.example.com");
     }
 

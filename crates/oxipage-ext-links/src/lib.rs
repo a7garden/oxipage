@@ -7,10 +7,10 @@ use axum::Router;
 use axum::routing::get;
 
 use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
-use std::error::Error;
-use sqlx::SqlitePool;
 use oxipage_core::extension::{Extension, Lang, LobbyCard, LobbyCardItem, Migration};
 use oxipage_core::state::AppState;
+use sqlx::SqlitePool;
+use std::error::Error;
 use tokio::runtime::Handle;
 
 pub struct LinksExtension;
@@ -70,14 +70,21 @@ impl Extension for LinksExtension {
 }
 
 impl BuildExt for LinksExtension {
-    fn ext_id(&self) -> &'static str { "links" }
+    fn ext_id(&self) -> &'static str {
+        "links"
+    }
 
-    fn build_pages(&self, db: &SqlitePool) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
+    fn build_pages(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
         let handle = Handle::current();
         let cards: Vec<model::LinkCard> = handle.block_on(repo::list(db, None, 500))?;
-        let _html = cards.iter().map(|c| {
-            format!("<li><a href=\"{}\">{}</a></li>", c.url, c.title)
-        }).collect::<Vec<_>>().join("\n");
+        let _html = cards
+            .iter()
+            .map(|c| format!("<li><a href=\"{}\">{}</a></li>", c.url, c.title))
+            .collect::<Vec<_>>()
+            .join("\n");
         Ok(vec![StaticPage {
             path: "links/index.html".into(),
             content: r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
@@ -85,13 +92,19 @@ impl BuildExt for LinksExtension {
         }])
     }
 
-    fn build_data(&self, db: &SqlitePool) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
+    fn build_data(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
         let handle = Handle::current();
         let cards: Vec<model::LinkCard> = handle.block_on(repo::list(db, None, 500))?;
         Ok(Box::new(cards))
     }
 
-    fn build_search_docs(&self, _db: &SqlitePool) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+    fn build_search_docs(
+        &self,
+        _db: &SqlitePool,
+    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
         Ok(vec![])
     }
 }

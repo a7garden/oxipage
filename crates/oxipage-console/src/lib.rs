@@ -55,7 +55,9 @@ pub async fn run_console() -> anyhow::Result<()> {
 /// 테스트/커스텀 빌드용 진입점 — 확장 목록을 주입받는다.
 pub async fn run_console_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow::Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
         .init();
 
     let config_path = std::env::var("OXIPAGE_CONFIG")
@@ -84,7 +86,9 @@ pub async fn run_console_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow
             all
         }
         #[cfg(not(feature = "wasm"))]
-        { all }
+        {
+            all
+        }
     };
 
     // 단일 진실 소스 (doc/02 §2.13): 모든 컴파일 확장이 registry에 들어가 라우트까지 항상

@@ -8,16 +8,18 @@ use axum::routing::{get, post};
 use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
 use oxipage_core::client::Client;
 
-
-use oxipage_core::extension::{CliArg, CliHandler, CliCommand, CliSubcommand, Extension, Lang, LobbyCard, LobbyCardItem, Migration};
+use oxipage_core::extension::{
+    CliArg, CliCommand, CliHandler, CliSubcommand, Extension, Lang, LobbyCard, LobbyCardItem,
+    Migration,
+};
 use oxipage_core::state::AppState;
+use sqlx::SqlitePool;
 use std::collections::BTreeMap;
+use std::error::Error;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio::runtime::Handle;
-use std::error::Error;
-use sqlx::SqlitePool;
 
 pub struct NovelsExtension;
 
@@ -25,9 +27,11 @@ pub struct NovelsExtension;
 
 struct NovelAddHandler;
 impl CliHandler for NovelAddHandler {
-    fn run(&self, args: BTreeMap<String, String>, client: &Client)
-        -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>>
-    {
+    fn run(
+        &self,
+        args: BTreeMap<String, String>,
+        client: &Client,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>> {
         let title = args.get("title").cloned().unwrap_or_default();
         let slug = args.get("slug").cloned().unwrap_or_default();
         let mut body = serde_json::json!({ "title": title, "slug": slug });
@@ -39,7 +43,9 @@ impl CliHandler for NovelAddHandler {
         }
         let client = client.clone();
         Box::pin(async move {
-            let resp = client.post("/api/v1/novels/", &body).await
+            let resp = client
+                .post("/api/v1/novels/", &body)
+                .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("{}", serde_json::to_string_pretty(&resp)?);
             Ok(())
@@ -49,12 +55,16 @@ impl CliHandler for NovelAddHandler {
 
 struct NovelListHandler;
 impl CliHandler for NovelListHandler {
-    fn run(&self, _args: BTreeMap<String, String>, client: &Client)
-        -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>>
-    {
+    fn run(
+        &self,
+        _args: BTreeMap<String, String>,
+        client: &Client,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>> {
         let client = client.clone();
         Box::pin(async move {
-            let resp = client.get("/api/v1/novels/").await
+            let resp = client
+                .get("/api/v1/novels/")
+                .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("{}", serde_json::to_string_pretty(&resp)?);
             Ok(())
@@ -64,9 +74,11 @@ impl CliHandler for NovelListHandler {
 
 struct NovelChapterAddHandler;
 impl CliHandler for NovelChapterAddHandler {
-    fn run(&self, args: BTreeMap<String, String>, client: &Client)
-        -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>>
-    {
+    fn run(
+        &self,
+        args: BTreeMap<String, String>,
+        client: &Client,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>> {
         let slug = args.get("slug").cloned().unwrap_or_default();
         let title = args.get("title").cloned().unwrap_or_default();
         let mut body = serde_json::json!({ "title": title });
@@ -79,7 +91,9 @@ impl CliHandler for NovelChapterAddHandler {
         let client = client.clone();
         Box::pin(async move {
             let path = format!("/api/v1/novels/{slug}/chapters");
-            let resp = client.post(&path, &body).await
+            let resp = client
+                .post(&path, &body)
+                .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("{}", serde_json::to_string_pretty(&resp)?);
             Ok(())
@@ -114,9 +128,15 @@ impl Extension for NovelsExtension {
     fn routes(&self) -> Router<AppState> {
         Router::new()
             .route("/", get(routes::list_novels).post(routes::create_novel))
-            .route("/{slug}", get(routes::show_novel).delete(routes::delete_novel))
+            .route(
+                "/{slug}",
+                get(routes::show_novel).delete(routes::delete_novel),
+            )
             .route("/{slug}/publish", post(routes::publish_novel))
-            .route("/{slug}/chapters", get(routes::list_chapters).post(routes::create_chapter))
+            .route(
+                "/{slug}/chapters",
+                get(routes::list_chapters).post(routes::create_chapter),
+            )
             .route("/{slug}/chapters/draft", get(routes::list_chapters_draft))
             .route(
                 "/{slug}/chapters/{order}",
@@ -124,7 +144,10 @@ impl Extension for NovelsExtension {
                     .patch(routes::update_chapter)
                     .delete(routes::delete_chapter),
             )
-            .route("/{slug}/chapters/{order}/publish", post(routes::publish_chapter))
+            .route(
+                "/{slug}/chapters/{order}/publish",
+                post(routes::publish_chapter),
+            )
     }
 
     async fn lobby_summary(&self, ctx: &AppState) -> Option<LobbyCard> {
@@ -151,10 +174,30 @@ impl Extension for NovelsExtension {
                     name: "add",
                     about: "Create a new novel",
                     args: vec![
-                        CliArg { long: "title", short: Some('t'), help: "Novel title", required: true },
-                        CliArg { long: "slug", short: Some('s'), help: "URL slug", required: true },
-                        CliArg { long: "genre", short: Some('g'), help: "Genre tag", required: false },
-                        CliArg { long: "synopsis", short: None, help: "Short description", required: false },
+                        CliArg {
+                            long: "title",
+                            short: Some('t'),
+                            help: "Novel title",
+                            required: true,
+                        },
+                        CliArg {
+                            long: "slug",
+                            short: Some('s'),
+                            help: "URL slug",
+                            required: true,
+                        },
+                        CliArg {
+                            long: "genre",
+                            short: Some('g'),
+                            help: "Genre tag",
+                            required: false,
+                        },
+                        CliArg {
+                            long: "synopsis",
+                            short: None,
+                            help: "Short description",
+                            required: false,
+                        },
                     ],
                     handler: Some(Arc::new(NovelAddHandler)),
                 },
@@ -168,10 +211,30 @@ impl Extension for NovelsExtension {
                     name: "chapter",
                     about: "Add a chapter to a novel",
                     args: vec![
-                        CliArg { long: "slug", short: Some('s'), help: "Novel slug", required: true },
-                        CliArg { long: "title", short: Some('t'), help: "Chapter title", required: true },
-                        CliArg { long: "order", short: Some('o'), help: "Chapter order number", required: false },
-                        CliArg { long: "content", short: Some('c'), help: "Chapter content (plain text)", required: false },
+                        CliArg {
+                            long: "slug",
+                            short: Some('s'),
+                            help: "Novel slug",
+                            required: true,
+                        },
+                        CliArg {
+                            long: "title",
+                            short: Some('t'),
+                            help: "Chapter title",
+                            required: true,
+                        },
+                        CliArg {
+                            long: "order",
+                            short: Some('o'),
+                            help: "Chapter order number",
+                            required: false,
+                        },
+                        CliArg {
+                            long: "content",
+                            short: Some('c'),
+                            help: "Chapter content (plain text)",
+                            required: false,
+                        },
                     ],
                     handler: Some(Arc::new(NovelChapterAddHandler)),
                 },
@@ -181,15 +244,26 @@ impl Extension for NovelsExtension {
 }
 
 impl BuildExt for NovelsExtension {
-    fn ext_id(&self) -> &'static str { "novels" }
+    fn ext_id(&self) -> &'static str {
+        "novels"
+    }
 
-    fn build_pages(&self, db: &SqlitePool) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
+    fn build_pages(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
         let handle = Handle::current();
         let novels: Vec<model::Novel> = handle.block_on(repo::list_novels(db, false, 200))?;
         let mut pages = Vec::new();
 
         for novel in &novels {
-            let excerpt: String = novel.synopsis.as_deref().unwrap_or("").chars().take(160).collect();
+            let excerpt: String = novel
+                .synopsis
+                .as_deref()
+                .unwrap_or("")
+                .chars()
+                .take(160)
+                .collect();
             pages.push(StaticPage {
                 path: format!("novels/{}/index.html", novel.slug),
                 content: format!(
@@ -202,7 +276,9 @@ impl BuildExt for NovelsExtension {
                     title=novel.title, excerpt=excerpt, slug=novel.slug),
             });
 
-            let chapters: Vec<model::NovelChapter> = handle.block_on(repo::list_chapters(db, &novel.slug, false)).unwrap_or_default();
+            let chapters: Vec<model::NovelChapter> = handle
+                .block_on(repo::list_chapters(db, &novel.slug, false))
+                .unwrap_or_default();
             for ch in &chapters {
                 pages.push(StaticPage {
                     path: format!("novels/{}/chapter-{}/index.html", novel.slug, ch.chapter_order),
@@ -213,7 +289,10 @@ impl BuildExt for NovelsExtension {
                         novel=novel.title, chapter=ch.title, slug=novel.slug, order=ch.chapter_order),
                 });
                 pages.push(StaticPage {
-                    path: format!("novels/{}/chapter-{}/index.md", novel.slug, ch.chapter_order),
+                    path: format!(
+                        "novels/{}/chapter-{}/index.md",
+                        novel.slug, ch.chapter_order
+                    ),
                     content: ch.body.clone(),
                 });
             }
@@ -221,21 +300,40 @@ impl BuildExt for NovelsExtension {
         Ok(pages)
     }
 
-    fn build_data(&self, db: &SqlitePool) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
+    fn build_data(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
         let handle = Handle::current();
         let novels: Vec<model::Novel> = handle.block_on(repo::list_novels(db, false, 200))?;
         Ok(Box::new(novels))
     }
 
-    fn build_search_docs(&self, db: &SqlitePool) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+    fn build_search_docs(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
         let handle = Handle::current();
         let novels: Vec<model::Novel> = handle.block_on(repo::list_novels(db, false, 200))?;
-        Ok(novels.into_iter().map(|n| {
-            let excerpt: String = n.synopsis.as_deref().unwrap_or("").chars().take(200).collect();
-            SearchDoc {
-                id: format!("novels/{}", n.slug), title: n.title, body_preview: excerpt,
-                doc_type: "novels".into(), url: format!("/novels/{}", n.slug), published_at: n.published_at,
-            }
-        }).collect())
+        Ok(novels
+            .into_iter()
+            .map(|n| {
+                let excerpt: String = n
+                    .synopsis
+                    .as_deref()
+                    .unwrap_or("")
+                    .chars()
+                    .take(200)
+                    .collect();
+                SearchDoc {
+                    id: format!("novels/{}", n.slug),
+                    title: n.title,
+                    body_preview: excerpt,
+                    doc_type: "novels".into(),
+                    url: format!("/novels/{}", n.slug),
+                    published_at: n.published_at,
+                }
+            })
+            .collect())
     }
 }

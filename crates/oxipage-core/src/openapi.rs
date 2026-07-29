@@ -7,7 +7,7 @@
 
 use crate::extension::Extension;
 use crate::registry::ExtensionRegistry;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 pub fn openapi_spec(base_url: &str, registry: &ExtensionRegistry) -> Value {
     let server = if base_url.is_empty() {

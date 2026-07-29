@@ -74,13 +74,20 @@ pub(crate) async fn status(out: &Output, client: &Client) -> anyhow::Result<()> 
     Ok(())
 }
 
-pub(crate) async fn console(port: Option<u16>, preview: bool, _config_path: Option<&std::path::Path>) -> anyhow::Result<()> {
+pub(crate) async fn console(
+    port: Option<u16>,
+    preview: bool,
+    _config_path: Option<&std::path::Path>,
+) -> anyhow::Result<()> {
     if preview {
         // Preview mode: serve out/ directory
         let port = port.unwrap_or(8787);
         let out_dir = std::path::PathBuf::from("data/out");
         if !out_dir.exists() {
-            anyhow::bail!("out directory not found at {}. Run `oxipage build` first.", out_dir.display());
+            anyhow::bail!(
+                "out directory not found at {}. Run `oxipage build` first.",
+                out_dir.display()
+            );
         }
         println!("preview server on http://127.0.0.1:{}", port);
         serve_static_dir(&out_dir, port).await?;
@@ -106,11 +113,10 @@ pub(crate) async fn admin(port: Option<u16>) -> anyhow::Result<()> {
 
 /// Start a lightweight HTTP server that serves a static directory.
 async fn serve_static_dir(dir: &Path, port: u16) -> anyhow::Result<()> {
-    let app = Router::new()
-        .fallback_service(ServeDir::new(dir).append_index_html_on_directories(true));
+    let app =
+        Router::new().fallback_service(ServeDir::new(dir).append_index_html_on_directories(true));
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let listener = TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
     Ok(())
 }
-

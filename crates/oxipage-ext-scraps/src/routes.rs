@@ -93,13 +93,16 @@ pub async fn publish(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<DataEnvelope<ScrapItem>>, ApiError> {
-    
     let item = repo::publish(&state.db, id)
         .await
         .map_err(ApiError::internal)?
         .ok_or_else(|| not_found(id))?;
     reindex(&state, &item).await?;
-    let note = item.note_ko.clone().or_else(|| item.note_en.clone()).unwrap_or_default();
+    let note = item
+        .note_ko
+        .clone()
+        .or_else(|| item.note_en.clone())
+        .unwrap_or_default();
     let _desc: String = note.chars().take(200).collect();
     Ok(Json(DataEnvelope { data: item }))
 }
@@ -114,7 +117,15 @@ pub async fn debug_insert_queue_item(
     title: &str,
     og_image_url: Option<&str>,
 ) -> anyhow::Result<ScrapItem> {
-    repo::upsert_queue_item(pool, source, source_item_id, source_url, title, og_image_url).await
+    repo::upsert_queue_item(
+        pool,
+        source,
+        source_item_id,
+        source_url,
+        title,
+        og_image_url,
+    )
+    .await
 }
 
 fn validate_input(input: &ScrapInput) -> Result<(), ApiError> {

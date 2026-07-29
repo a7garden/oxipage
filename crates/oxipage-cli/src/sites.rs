@@ -57,13 +57,10 @@ impl SitesFile {
     pub fn save(&self) -> Result<()> {
         let path = sites_path()?;
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("creating {}", parent.display()))?;
+            fs::create_dir_all(parent).with_context(|| format!("creating {}", parent.display()))?;
         }
-        let raw = toml::to_string_pretty(self)
-            .context("serializing sites")?;
-        fs::write(&path, &raw)
-            .with_context(|| format!("writing {}", path.display()))?;
+        let raw = toml::to_string_pretty(self).context("serializing sites")?;
+        fs::write(&path, &raw).with_context(|| format!("writing {}", path.display()))?;
         set_mode_0600(&path)?;
         Ok(())
     }
@@ -76,15 +73,22 @@ impl SitesFile {
     /// assumes the input has been validated.
     pub fn resolve_name<'a>(&'a self, cli_site: Option<&'a str>) -> Option<&'a str> {
         // 1. --site flag (already validated by caller)
-        if let Some(name) = cli_site && !name.is_empty() && self.sites.contains_key(name) {
+        if let Some(name) = cli_site
+            && !name.is_empty()
+            && self.sites.contains_key(name)
+        {
             return Some(name);
         }
         // 2. OXIPAGE_SITE env
-        if let Ok(env) = std::env::var("OXIPAGE_SITE") && !env.is_empty() && self.sites.contains_key(&env) {
+        if let Ok(env) = std::env::var("OXIPAGE_SITE")
+            && !env.is_empty()
+            && self.sites.contains_key(&env)
+        {
             return self.sites.get_key_value(&env).map(|(k, _)| k.as_str());
         }
         // 3. default_site from file
-        self.default_site.as_deref()
+        self.default_site
+            .as_deref()
             .and_then(|name| self.sites.contains_key(name).then_some(name))
     }
 
@@ -111,7 +115,8 @@ impl SitesFile {
     /// / credentials (doc/09 §9.5 — independent fallthrough).
     pub fn resolve_token(&self, site_name: Option<&str>) -> Option<String> {
         let name = site_name?;
-        self.sites.get(name)
+        self.sites
+            .get(name)
             .and_then(|s| s.token.as_ref())
             .filter(|t| !t.is_empty())
             .cloned()
@@ -124,8 +129,6 @@ impl SitesFile {
         names
     }
 }
-
-
 
 // ──────────────────────────── path resolution ────────────────────────────
 

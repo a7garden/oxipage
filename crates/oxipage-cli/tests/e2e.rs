@@ -29,7 +29,11 @@ fn oxipage(args: &[&str], sandbox_home: &PathBuf) -> std::process::Output {
 fn test_help() {
     let sb = std::env::temp_dir().join("oxipage_e2e_test");
     let out = oxipage(&["--help"], &sb);
-    assert!(out.status.success(), "stdout: {}", String::from_utf8_lossy(&out.stdout));
+    assert!(
+        out.status.success(),
+        "stdout: {}",
+        String::from_utf8_lossy(&out.stdout)
+    );
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(stdout.contains("Usage:"));
     assert!(stdout.contains("--site"));
@@ -45,7 +49,11 @@ fn test_help() {
 fn test_site_list_empty() {
     let sb = std::env::temp_dir().join("oxipage_e2e_test_empty");
     let out = oxipage(&["site", "list"], &sb);
-    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(stdout.contains("no sites configured"));
 }
@@ -57,8 +65,21 @@ fn test_site_add_list_rm_flow() {
     let sb = std::env::temp_dir().join("oxipage_e2e_test_crud");
 
     // Add a site
-    let out = oxipage(&["site", "add", "test-site", "--endpoint", "http://localhost:9999"], &sb);
-    assert!(out.status.success(), "add failed: {}", String::from_utf8_lossy(&out.stderr));
+    let out = oxipage(
+        &[
+            "site",
+            "add",
+            "test-site",
+            "--endpoint",
+            "http://localhost:9999",
+        ],
+        &sb,
+    );
+    assert!(
+        out.status.success(),
+        "add failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 
     // List should show it
     let out = oxipage(&["site", "list"], &sb);
@@ -79,7 +100,11 @@ fn test_site_add_list_rm_flow() {
 
     // Remove it
     let out = oxipage(&["site", "rm", "test-site"], &sb);
-    assert!(out.status.success(), "rm failed: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "rm failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 
     // Verify gone
     let out = oxipage(&["site", "list"], &sb);
@@ -122,9 +147,22 @@ fn test_json_output() {
     let sb = std::env::temp_dir().join("oxipage_e2e_test_json");
 
     // Add a site then check json
-    let _ = oxipage(&["site", "add", "json-test", "--endpoint", "http://localhost:7777"], &sb);
+    let _ = oxipage(
+        &[
+            "site",
+            "add",
+            "json-test",
+            "--endpoint",
+            "http://localhost:7777",
+        ],
+        &sb,
+    );
     let out = oxipage(&["--json", "site", "list"], &sb);
-    assert!(out.status.success(), "list failed: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "list failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     let stdout = String::from_utf8_lossy(&out.stdout);
     // Should be JSON array
     assert!(stdout.starts_with('[') || stdout.starts_with("[\n"));
@@ -137,8 +175,22 @@ fn test_json_output() {
 fn test_site_add_default_flag() {
     let sb = std::env::temp_dir().join("oxipage_e2e_test_default");
 
-    let out = oxipage(&["site", "add", "primary", "--endpoint", "http://pri:1", "--default"], &sb);
-    assert!(out.status.success(), "add failed: {}", String::from_utf8_lossy(&out.stderr));
+    let out = oxipage(
+        &[
+            "site",
+            "add",
+            "primary",
+            "--endpoint",
+            "http://pri:1",
+            "--default",
+        ],
+        &sb,
+    );
+    assert!(
+        out.status.success(),
+        "add failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 
     let out = oxipage(&["site", "list"], &sb);
     let stdout = String::from_utf8_lossy(&out.stdout);

@@ -7,9 +7,8 @@ fn main() {
     let web_dist = root.join("../../web/dist");
     if web_dist.exists() {
         let _ = std::fs::remove_dir_all(&embed_dir);
-        copy_dir(&web_dist, &embed_dir).unwrap_or_else(|e| {
-            panic!("failed to copy web/dist to embedded-spa: {e}")
-        });
+        copy_dir(&web_dist, &embed_dir)
+            .unwrap_or_else(|e| panic!("failed to copy web/dist to embedded-spa: {e}"));
     } else if !embed_dir.exists() {
         std::fs::create_dir_all(&embed_dir).unwrap();
         std::fs::write(
@@ -26,9 +25,8 @@ fn main() {
     let registry_json = root.join("_registry.json");
     let registry_src = root.join("../../../registry/index.json");
     if registry_src.exists() {
-        std::fs::copy(&registry_src, &registry_json).unwrap_or_else(|e| {
-            panic!("failed to copy registry/index.json: {e}")
-        });
+        std::fs::copy(&registry_src, &registry_json)
+            .unwrap_or_else(|e| panic!("failed to copy registry/index.json: {e}"));
     } else if !registry_json.exists() {
         std::fs::write(&registry_json, "[]").unwrap();
     }
@@ -41,9 +39,8 @@ fn main() {
     let wasm_demo = root.join("_wasm-demo.wasm");
     let wasm_src = root.join("../../../crates/oxipage-ext-wasm-demo/artifacts/wasm-demo.wasm");
     if wasm_src.exists() {
-        std::fs::copy(&wasm_src, &wasm_demo).unwrap_or_else(|e| {
-            panic!("failed to copy wasm-demo.wasm: {e}")
-        });
+        std::fs::copy(&wasm_src, &wasm_demo)
+            .unwrap_or_else(|e| panic!("failed to copy wasm-demo.wasm: {e}"));
     } else if !wasm_demo.exists() {
         std::fs::write(&wasm_demo, b"").unwrap();
     }

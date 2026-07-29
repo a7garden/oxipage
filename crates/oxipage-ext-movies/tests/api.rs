@@ -16,7 +16,7 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
         db: pool,
         config: Arc::new(Config::default()),
         registry: registry.clone(),
-                wasm_loader: None,
+        wasm_loader: None,
         site_override: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         builders: std::sync::Arc::new(vec![]),
     };
@@ -51,7 +51,9 @@ async fn rating_11_is_422() {
             Request::post("/api/v1/movies")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
-                .body(json_body(r#"{"media_type":"movie","title":"X","rating":11}"#))
+                .body(json_body(
+                    r#"{"media_type":"movie","title":"X","rating":11}"#,
+                ))
                 .unwrap(),
         )
         .await
@@ -70,7 +72,9 @@ async fn rating_negative_is_422() {
             Request::post("/api/v1/movies")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
-                .body(json_body(r#"{"media_type":"movie","title":"X","rating":-1}"#))
+                .body(json_body(
+                    r#"{"media_type":"movie","title":"X","rating":-1}"#,
+                ))
                 .unwrap(),
         )
         .await
@@ -86,7 +90,9 @@ async fn invalid_media_type_is_422() {
             Request::post("/api/v1/movies")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
-                .body(json_body(r#"{"media_type":"anime","title":"X","rating":5}"#))
+                .body(json_body(
+                    r#"{"media_type":"anime","title":"X","rating":5}"#,
+                ))
                 .unwrap(),
         )
         .await
@@ -213,7 +219,9 @@ async fn patch_updates_rating() {
             Request::post("/api/v1/movies")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
-                .body(json_body(r#"{"media_type":"movie","title":"Old","rating":3}"#))
+                .body(json_body(
+                    r#"{"media_type":"movie","title":"Old","rating":3}"#,
+                ))
                 .unwrap(),
         )
         .await
@@ -245,7 +253,9 @@ async fn delete_removes_entry() {
             Request::post("/api/v1/movies")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
-                .body(json_body(r#"{"media_type":"movie","title":"Doomed","rating":5}"#))
+                .body(json_body(
+                    r#"{"media_type":"movie","title":"Doomed","rating":5}"#,
+                ))
                 .unwrap(),
         )
         .await
@@ -361,7 +371,10 @@ async fn create_group_and_attach_movie() {
     let json = body_json(res).await;
     assert_eq!(json["data"]["title_ko"], "해리포터");
     assert_eq!(json["data"]["entries"].as_array().unwrap().len(), 1);
-    assert_eq!(json["data"]["entries"][0]["title"], "해리포터와 마법사의 돌");
+    assert_eq!(
+        json["data"]["entries"][0]["title"],
+        "해리포터와 마법사의 돌"
+    );
 
     // 5) list?series_group= 필터
     let res = app

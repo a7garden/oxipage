@@ -16,7 +16,7 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
         db: pool,
         config: Arc::new(Config::default()),
         registry: registry.clone(),
-                wasm_loader: None,
+        wasm_loader: None,
         site_override: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         builders: std::sync::Arc::new(vec![]),
     };
@@ -234,7 +234,7 @@ async fn queue_publish_and_source_filter_flow() {
         db: pool,
         config: Arc::new(Config::default()),
         registry: registry.clone(),
-                wasm_loader: None,
+        wasm_loader: None,
         site_override: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         builders: std::sync::Arc::new(vec![]),
     };
@@ -242,7 +242,9 @@ async fn queue_publish_and_source_filter_flow() {
         e.on_startup(&state_app).await.unwrap();
     }
     let r = registry.find("scraps").unwrap().routes();
-    let app = Router::new().nest("/api/v1/scraps", r).with_state(state_app);
+    let app = Router::new()
+        .nest("/api/v1/scraps", r)
+        .with_state(state_app);
 
     let res = app
         .clone()

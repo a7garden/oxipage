@@ -97,7 +97,10 @@ impl IntegrationsConfig {
 
     /// tmdb_api_key_env가 가리키는 환경변수에서 키 값을 읽거나 OXIPAGE_TMDB_KEY 폴백.
     pub fn tmdb_key(&self) -> Option<String> {
-        let env_name = self.tmdb_api_key_env.as_deref().unwrap_or("OXIPAGE_TMDB_KEY");
+        let env_name = self
+            .tmdb_api_key_env
+            .as_deref()
+            .unwrap_or("OXIPAGE_TMDB_KEY");
         std::env::var(env_name).ok().filter(|s| !s.is_empty())
     }
 

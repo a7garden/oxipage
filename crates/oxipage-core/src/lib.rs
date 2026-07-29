@@ -1,7 +1,8 @@
 pub mod backup;
 pub mod build;
-pub mod builder;
 pub mod build_writer;
+pub mod builder;
+pub mod client;
 pub mod config;
 pub mod db;
 pub mod error;
@@ -16,4 +17,3 @@ pub mod scheduler;
 pub mod search;
 pub mod setup;
 pub mod state;
-pub mod client;

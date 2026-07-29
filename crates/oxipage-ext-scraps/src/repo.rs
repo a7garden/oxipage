@@ -64,12 +64,11 @@ pub async fn upsert_queue_item(
 }
 
 pub async fn find_by_id(pool: &SqlitePool, id: i64) -> anyhow::Result<Option<ScrapItem>> {
-    let item = sqlx::query_as::<_, ScrapItem>(&format!(
-        "SELECT {COLUMNS} FROM scrap_item WHERE id = ?"
-    ))
-    .bind(id)
-    .fetch_optional(pool)
-    .await?;
+    let item =
+        sqlx::query_as::<_, ScrapItem>(&format!("SELECT {COLUMNS} FROM scrap_item WHERE id = ?"))
+            .bind(id)
+            .fetch_optional(pool)
+            .await?;
     Ok(item)
 }
 
@@ -108,7 +107,11 @@ pub async fn list(
     Ok(items)
 }
 
-pub async fn update(pool: &SqlitePool, id: i64, patch: &ScrapPatch) -> anyhow::Result<Option<ScrapItem>> {
+pub async fn update(
+    pool: &SqlitePool,
+    id: i64,
+    patch: &ScrapPatch,
+) -> anyhow::Result<Option<ScrapItem>> {
     let mut sets: Vec<&str> = Vec::new();
     if patch.note_ko.is_some() {
         sets.push("note_ko = ?");

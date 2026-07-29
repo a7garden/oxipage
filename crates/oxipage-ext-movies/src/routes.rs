@@ -83,10 +83,7 @@ pub async fn create(
         .or_else(|| fetched.as_ref().and_then(|f| f.release_year));
 
     // slug: 명시 > title.
-    let base_slug = input
-        .slug
-        .clone()
-        .unwrap_or_else(|| repo::slugify(title));
+    let base_slug = input.slug.clone().unwrap_or_else(|| repo::slugify(title));
     let slug = repo::ensure_unique_entry_slug(&state.db, &base_slug)
         .await
         .map_err(ApiError::internal)?;
@@ -179,7 +176,6 @@ pub async fn publish(
     State(state): State<AppState>,
     Path(slug): Path<String>,
 ) -> Result<Json<DataEnvelope<MovieEntry>>, ApiError> {
-    
     if repo::find_entry_by_slug(&state.db, &slug)
         .await
         .map_err(ApiError::internal)?
@@ -191,7 +187,11 @@ pub async fn publish(
         .await
         .map_err(ApiError::internal)?;
     reindex(&state, &entry).await?;
-    let review = entry.review_ko.clone().or_else(|| entry.review_en.clone()).unwrap_or_default();
+    let review = entry
+        .review_ko
+        .clone()
+        .or_else(|| entry.review_en.clone())
+        .unwrap_or_default();
     let _desc: String = review.chars().take(200).collect();
     let _og_image = entry.poster_path.clone().map(|p| {
         if p.starts_with("http") {
@@ -220,10 +220,7 @@ pub async fn tmdb_search(
     if query.is_empty() {
         return Err(ApiError::validation("q", "q must not be empty"));
     }
-    let results = tmdb
-        .search(query)
-        .await
-        .map_err(ApiError::internal)?;
+    let results = tmdb.search(query).await.map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope { data: results }))
 }
 
@@ -323,12 +320,7 @@ fn validate_input(input: &MovieEntryInput) -> Result<(), ApiError> {
         ));
     }
     // tmdb_id도 title도 둘 다 없으면 안 된다.
-    if input.tmdb_id.is_none()
-        && input
-            .title
-            .as_deref()
-            .is_none_or(|s| s.trim().is_empty())
-    {
+    if input.tmdb_id.is_none() && input.title.as_deref().is_none_or(|s| s.trim().is_empty()) {
         return Err(ApiError::validation(
             "title",
             "either tmdb_id or title must be provided",

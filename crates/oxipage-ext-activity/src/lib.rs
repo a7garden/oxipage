@@ -9,27 +9,34 @@ use axum::routing::{get, post};
 use oxipage_core::client::Client;
 
 use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
-use oxipage_core::extension::{CliCommand, CliSubcommand, CliHandler, ExternalApiKey, ExternalKeyScope, Extension, Lang, LobbyCard, LobbyCardItem, Migration};
+use oxipage_core::extension::{
+    CliCommand, CliHandler, CliSubcommand, Extension, ExternalApiKey, ExternalKeyScope, Lang,
+    LobbyCard, LobbyCardItem, Migration,
+};
 use oxipage_core::scheduler::ScheduledJob;
 use oxipage_core::state::AppState;
+use sqlx::SqlitePool;
 use std::collections::BTreeMap;
+use std::error::Error;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio::runtime::Handle;
-use std::error::Error;
-use sqlx::SqlitePool;
 
 // ── CLI handlers ──
 
 struct ActivitySyncHandler;
 impl CliHandler for ActivitySyncHandler {
-    fn run(&self, _args: BTreeMap<String, String>, client: &Client)
-        -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>>
-    {
+    fn run(
+        &self,
+        _args: BTreeMap<String, String>,
+        client: &Client,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>> {
         let client = client.clone();
         Box::pin(async move {
-            let resp = client.post_raw("/api/console/activity/sync", serde_json::json!({})).await
+            let resp = client
+                .post_raw("/api/console/activity/sync", serde_json::json!({}))
+                .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("{}", serde_json::to_string_pretty(&resp)?);
             Ok(())
@@ -137,14 +144,12 @@ impl Extension for ActivityExtension {
         vec![CliCommand {
             name: "activity",
             about: "Manage activity feed",
-            subcommands: vec![
-                CliSubcommand {
-                    name: "sync",
-                    about: "Trigger activity sync from GitHub",
-                    args: vec![],
-                    handler: Some(Arc::new(ActivitySyncHandler)),
-                },
-            ],
+            subcommands: vec![CliSubcommand {
+                name: "sync",
+                about: "Trigger activity sync from GitHub",
+                args: vec![],
+                handler: Some(Arc::new(ActivitySyncHandler)),
+            }],
         }]
     }
 
@@ -162,9 +167,14 @@ impl Extension for ActivityExtension {
 }
 
 impl BuildExt for ActivityExtension {
-    fn ext_id(&self) -> &'static str { "activity" }
+    fn ext_id(&self) -> &'static str {
+        "activity"
+    }
 
-    fn build_pages(&self, db: &SqlitePool) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
+    fn build_pages(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
         let handle = Handle::current();
         let _events: Vec<model::ActivityEvent> = handle.block_on(repo::list(db, None, 200))?;
         Ok(vec![StaticPage {
@@ -174,13 +184,19 @@ impl BuildExt for ActivityExtension {
         }])
     }
 
-    fn build_data(&self, db: &SqlitePool) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
+    fn build_data(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
         let handle = Handle::current();
         let events: Vec<model::ActivityEvent> = handle.block_on(repo::list(db, None, 200))?;
         Ok(Box::new(events))
     }
 
-    fn build_search_docs(&self, _db: &SqlitePool) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+    fn build_search_docs(
+        &self,
+        _db: &SqlitePool,
+    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
         Ok(vec![])
     }
 }

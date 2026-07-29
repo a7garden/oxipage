@@ -1,7 +1,7 @@
+use crate::output::Output;
 use clap::Subcommand;
 use oxipage_ext_blog::model::{BlogPatch, BlogPostInput};
 use oxipage_ext_blog::repo;
-use crate::output::Output;
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum BlogCommand {
@@ -47,7 +47,13 @@ pub(crate) async fn blog(c: BlogCommand, out: &Output) -> anyhow::Result<()> {
     let pool = oxipage_core::db::connect(&data_dir.join("oxipage.db")).await?;
 
     match c {
-        BlogCommand::New { title, lang, file, tags, publish } => {
+        BlogCommand::New {
+            title,
+            lang,
+            file,
+            tags,
+            publish,
+        } => {
             let body = match file {
                 Some(p) => std::fs::read_to_string(p)?,
                 None => String::new(),
@@ -84,13 +90,23 @@ pub(crate) async fn blog(c: BlogCommand, out: &Output) -> anyhow::Result<()> {
                 .ok_or_else(|| anyhow::anyhow!("post not found: {slug}"))?;
             out.data(serde_json::to_value(&post)?, "post")
         }
-        BlogCommand::Edit { slug, title, file, tags } => {
+        BlogCommand::Edit {
+            slug,
+            title,
+            file,
+            tags,
+        } => {
             let body = match file {
                 Some(p) => Some(std::fs::read_to_string(p)?),
                 None => None,
             };
             let tags_opt = if tags.is_empty() { None } else { Some(tags) };
-            let patch = BlogPatch { title, body, lang: None, tags: tags_opt };
+            let patch = BlogPatch {
+                title,
+                body,
+                lang: None,
+                tags: tags_opt,
+            };
             let post = repo::update(&pool, &slug, &patch)
                 .await?
                 .ok_or_else(|| anyhow::anyhow!("post not found: {slug}"))?;

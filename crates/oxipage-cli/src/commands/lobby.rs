@@ -3,7 +3,6 @@ use crate::output::Output;
 use clap::Subcommand;
 use serde_json::json;
 
-
 #[derive(Subcommand, Debug, Clone)]
 pub enum LobbyCommand {
     /// 확장별 로비 표시 모드 설정 (doc/03 §3.6).
@@ -16,18 +15,13 @@ pub enum LobbyCommand {
     Config,
 }
 
-
-pub(crate) async fn lobby(
-    c: LobbyCommand,
-    out: &Output,
-    client: &Client,
-) -> anyhow::Result<()> {
+pub(crate) async fn lobby(c: LobbyCommand, out: &Output, client: &Client) -> anyhow::Result<()> {
     match c {
         LobbyCommand::Layout { extension, mode } => {
             if !matches!(mode.as_str(), "canvas" | "grid" | "list") {
                 anyhow::bail!("mode must be canvas|grid|list (got {mode})");
             }
-            
+
             let payload = json!({ "display_mode": mode });
             let res = client
                 .put(&format!("/api/v1/lobby/config/{extension}"), &payload)

@@ -18,13 +18,9 @@ pub enum SiteCommand {
     /// 사이트 목록
     List,
     /// 사이트 상세 정보
-    Show {
-        name: Option<String>,
-    },
+    Show { name: Option<String> },
     /// 기본 사이트로 전환
-    Use {
-        name: String,
-    },
+    Use { name: String },
     /// 사이트 정보 수정
     Edit {
         name: String,
@@ -34,9 +30,7 @@ pub enum SiteCommand {
         token: Option<String>,
     },
     /// 사이트 삭제
-    Rm {
-        name: String,
-    },
+    Rm { name: String },
 }
 
 pub(crate) async fn dispatch_site(
@@ -49,17 +43,26 @@ pub(crate) async fn dispatch_site(
         SiteCommand::List => site_list(out, sites_file, active_site),
         SiteCommand::Show { name } => site_show(out, sites_file, name.as_deref(), active_site),
         SiteCommand::Use { name } => site_use(out, sites_file, name).await,
-        SiteCommand::Add { name, endpoint, token, default } => {
-            site_add(out, sites_file, name, endpoint, token.as_deref(), *default).await
-        }
-        SiteCommand::Edit { name, endpoint, token } => {
-            site_edit(out, sites_file, name, endpoint.as_deref(), token.as_deref()).await
-        }
+        SiteCommand::Add {
+            name,
+            endpoint,
+            token,
+            default,
+        } => site_add(out, sites_file, name, endpoint, token.as_deref(), *default).await,
+        SiteCommand::Edit {
+            name,
+            endpoint,
+            token,
+        } => site_edit(out, sites_file, name, endpoint.as_deref(), token.as_deref()).await,
         SiteCommand::Rm { name } => site_rm(out, sites_file, name).await,
     }
 }
 
-fn site_list(out: &Output, sites_file: &sites::SitesFile, active_site: Option<&str>) -> anyhow::Result<()> {
+fn site_list(
+    out: &Output,
+    sites_file: &sites::SitesFile,
+    active_site: Option<&str>,
+) -> anyhow::Result<()> {
     if out.json {
         let list: Vec<serde_json::Value> = sites_file
             .site_names()
@@ -83,7 +86,11 @@ fn site_list(out: &Output, sites_file: &sites::SitesFile, active_site: Option<&s
         }
         for name in &names {
             let entry = sites_file.get(name);
-            let marker = if Some(name.as_str()) == active_site { "* " } else { "  " };
+            let marker = if Some(name.as_str()) == active_site {
+                "* "
+            } else {
+                "  "
+            };
             let ep = entry.map(|e| e.endpoint.as_str()).unwrap_or("?");
             println!("{marker}{name}   {ep}");
         }
@@ -97,7 +104,8 @@ fn site_show(
     name: Option<&str>,
     active_site: Option<&str>,
 ) -> anyhow::Result<()> {
-    let target = name.or(active_site)
+    let target = name
+        .or(active_site)
         .and_then(|n| sites_file.get(n).map(|e| (n, e)));
     let (name, entry) = match target {
         Some(pair) => pair,
@@ -108,24 +116,31 @@ fn site_show(
     if out.json {
         let masked = entry.token.as_ref().map(|t| {
             if t.len() > 8 {
-                format!("{}...{}", &t[..6], &t[t.len()-3..])
+                format!("{}...{}", &t[..6], &t[t.len() - 3..])
             } else {
                 "***".into()
             }
         });
-        println!("{}", serde_json::to_string_pretty(&json!({
-            "name": name,
-            "endpoint": entry.endpoint,
-            "token": masked,
-            "active": Some(name) == active_site,
-        }))?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "name": name,
+                "endpoint": entry.endpoint,
+                "token": masked,
+                "active": Some(name) == active_site,
+            }))?
+        );
     } else {
-        let active_label = if Some(name) == active_site { " (active)" } else { "" };
+        let active_label = if Some(name) == active_site {
+            " (active)"
+        } else {
+            ""
+        };
         println!("name:       {name}{active_label}");
         println!("endpoint:   {}", entry.endpoint);
         if let Some(tok) = &entry.token {
             let masked = if tok.len() > 8 {
-                format!("{}...{}", &tok[..6], &tok[tok.len()-3..])
+                format!("{}...{}", &tok[..6], &tok[tok.len() - 3..])
             } else {
                 "***".into()
             };
@@ -137,11 +152,7 @@ fn site_show(
     Ok(())
 }
 
-async fn site_use(
-    out: &Output,
-    sites_file: &sites::SitesFile,
-    name: &str,
-) -> anyhow::Result<()> {
+async fn site_use(out: &Output, sites_file: &sites::SitesFile, name: &str) -> anyhow::Result<()> {
     if !sites_file.exists(name) {
         anyhow::bail!("site '{name}' not found");
     }
@@ -194,9 +205,10 @@ async fn site_edit(
     endpoint: Option<&str>,
     token: Option<&str>,
 ) -> anyhow::Result<()> {
-    let _entry = sites_file.sites.get(name).ok_or_else(|| {
-        anyhow::anyhow!("site '{name}' not found — use `oxipage site add` first")
-    })?;
+    let _entry = sites_file
+        .sites
+        .get(name)
+        .ok_or_else(|| anyhow::anyhow!("site '{name}' not found — use `oxipage site add` first"))?;
     let mut new_sites = sites_file.clone();
     let new_entry = new_sites.sites.get_mut(name).unwrap();
     if let Some(ep) = endpoint {
@@ -206,7 +218,7 @@ async fn site_edit(
     match token {
         Some("") => new_entry.token = None,
         Some(t) => new_entry.token = Some(t.to_string()),
-        None => {},
+        None => {}
     }
     new_sites.save()?;
     if !out.json {
@@ -215,11 +227,7 @@ async fn site_edit(
     Ok(())
 }
 
-async fn site_rm(
-    out: &Output,
-    sites_file: &sites::SitesFile,
-    name: &str,
-) -> anyhow::Result<()> {
+async fn site_rm(out: &Output, sites_file: &sites::SitesFile, name: &str) -> anyhow::Result<()> {
     if !sites_file.exists(name) {
         anyhow::bail!("site '{name}' not found");
     }

@@ -50,7 +50,11 @@ pub async fn ensure_unique_slug(pool: &SqlitePool, base: &str) -> anyhow::Result
 
 // ─── Novel ───
 
-pub async fn create_novel(pool: &SqlitePool, input: &NovelInput, resolved_slug: &str) -> anyhow::Result<Novel> {
+pub async fn create_novel(
+    pool: &SqlitePool,
+    input: &NovelInput,
+    resolved_slug: &str,
+) -> anyhow::Result<Novel> {
     let tags = serde_json::to_string(&input.tags)?;
     let novel = sqlx::query_as::<_, Novel>(&format!(
         "INSERT INTO novel (slug, title, synopsis, cover_image, status, tags)
@@ -69,19 +73,24 @@ pub async fn create_novel(pool: &SqlitePool, input: &NovelInput, resolved_slug: 
 }
 
 pub async fn find_novel_by_slug(pool: &SqlitePool, slug: &str) -> anyhow::Result<Option<Novel>> {
-    let n = sqlx::query_as::<_, Novel>(&format!("SELECT {NOVEL_COLUMNS} FROM novel WHERE slug = ?"))
-        .bind(slug)
-        .fetch_optional(pool)
-        .await?;
+    let n =
+        sqlx::query_as::<_, Novel>(&format!("SELECT {NOVEL_COLUMNS} FROM novel WHERE slug = ?"))
+            .bind(slug)
+            .fetch_optional(pool)
+            .await?;
     Ok(n)
 }
 
 pub async fn list_novels(pool: &SqlitePool, draft: bool, limit: i64) -> anyhow::Result<Vec<Novel>> {
     let limit = limit.clamp(1, 200);
     let sql = if draft {
-        format!("SELECT {NOVEL_COLUMNS} FROM novel WHERE published_at IS NULL ORDER BY created_at DESC LIMIT ?")
+        format!(
+            "SELECT {NOVEL_COLUMNS} FROM novel WHERE published_at IS NULL ORDER BY created_at DESC LIMIT ?"
+        )
     } else {
-        format!("SELECT {NOVEL_COLUMNS} FROM novel WHERE published_at IS NOT NULL ORDER BY published_at DESC LIMIT ?")
+        format!(
+            "SELECT {NOVEL_COLUMNS} FROM novel WHERE published_at IS NOT NULL ORDER BY published_at DESC LIMIT ?"
+        )
     };
     let novels = sqlx::query_as::<_, Novel>(&sql)
         .bind(limit)
@@ -145,7 +154,11 @@ async fn novel_id(pool: &SqlitePool, novel_slug: &str) -> anyhow::Result<i64> {
         .ok_or_else(|| anyhow::anyhow!("novel not found"))
 }
 
-pub async fn list_chapters(pool: &SqlitePool, novel_slug: &str, draft: bool) -> anyhow::Result<Vec<NovelChapter>> {
+pub async fn list_chapters(
+    pool: &SqlitePool,
+    novel_slug: &str,
+    draft: bool,
+) -> anyhow::Result<Vec<NovelChapter>> {
     let sql = if draft {
         format!(
             "SELECT {CHAPTER_COLUMNS} FROM novel_chapter
@@ -167,7 +180,11 @@ pub async fn list_chapters(pool: &SqlitePool, novel_slug: &str, draft: bool) -> 
     Ok(chapters)
 }
 
-pub async fn find_chapter(pool: &SqlitePool, novel_slug: &str, order: i32) -> anyhow::Result<Option<NovelChapter>> {
+pub async fn find_chapter(
+    pool: &SqlitePool,
+    novel_slug: &str,
+    order: i32,
+) -> anyhow::Result<Option<NovelChapter>> {
     let ch = sqlx::query_as::<_, NovelChapter>(&format!(
         "SELECT {CHAPTER_COLUMNS} FROM novel_chapter
          WHERE novel_id = (SELECT id FROM novel WHERE slug = ?)
@@ -187,9 +204,16 @@ pub async fn update_chapter(
     patch: &ChapterPatch,
 ) -> anyhow::Result<Option<NovelChapter>> {
     let mut sets: Vec<String> = Vec::new();
-    if patch.title.is_some() { sets.push("title = ?".into()); }
-    if patch.body.is_some() { sets.push("body = ?".into()); sets.push("char_count = ?".into()); }
-    if patch.chapter_order.is_some() { sets.push("chapter_order = ?".into()); }
+    if patch.title.is_some() {
+        sets.push("title = ?".into());
+    }
+    if patch.body.is_some() {
+        sets.push("body = ?".into());
+        sets.push("char_count = ?".into());
+    }
+    if patch.chapter_order.is_some() {
+        sets.push("chapter_order = ?".into());
+    }
     if sets.is_empty() {
         return find_chapter(pool, novel_slug, order).await;
     }
@@ -205,14 +229,25 @@ pub async fn update_chapter(
     let mut q = sqlx::query_as::<_, NovelChapter>(&sql)
         .bind(novel_slug)
         .bind(order);
-    if let Some(v) = &patch.title { q = q.bind(v); }
-    if let Some(v) = &patch.body { q = q.bind(v); q = q.bind(cc.unwrap_or(0)); }
-    if let Some(v) = patch.chapter_order { q = q.bind(v); }
+    if let Some(v) = &patch.title {
+        q = q.bind(v);
+    }
+    if let Some(v) = &patch.body {
+        q = q.bind(v);
+        q = q.bind(cc.unwrap_or(0));
+    }
+    if let Some(v) = patch.chapter_order {
+        q = q.bind(v);
+    }
     let ch = q.fetch_optional(pool).await?;
     Ok(ch)
 }
 
-pub async fn publish_chapter(pool: &SqlitePool, novel_slug: &str, order: i32) -> anyhow::Result<NovelChapter> {
+pub async fn publish_chapter(
+    pool: &SqlitePool,
+    novel_slug: &str,
+    order: i32,
+) -> anyhow::Result<NovelChapter> {
     let ch = sqlx::query_as::<_, NovelChapter>(&format!(
         "UPDATE novel_chapter
             SET published_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
@@ -228,7 +263,11 @@ pub async fn publish_chapter(pool: &SqlitePool, novel_slug: &str, order: i32) ->
     Ok(ch)
 }
 
-pub async fn delete_chapter(pool: &SqlitePool, novel_slug: &str, order: i32) -> anyhow::Result<bool> {
+pub async fn delete_chapter(
+    pool: &SqlitePool,
+    novel_slug: &str,
+    order: i32,
+) -> anyhow::Result<bool> {
     let res = sqlx::query(
         "DELETE FROM novel_chapter
          WHERE novel_id = (SELECT id FROM novel WHERE slug = ?)

@@ -25,9 +25,7 @@ struct TableInfo {
     columns: Vec<ColumnInfo>,
 }
 
-pub(crate) async fn schema(
-    c: SchemaCommand,
-) -> anyhow::Result<()> {
+pub(crate) async fn schema(c: SchemaCommand) -> anyhow::Result<()> {
     // Resolve DB path
     let config_path = std::env::var("OXIPAGE_CONFIG")
         .map(PathBuf::from)
@@ -49,7 +47,9 @@ pub(crate) async fn schema(
     let conn = rusqlite::Connection::open(&db_path)?;
 
     // Query all tables
-    let table_pattern = c.extension.as_deref()
+    let table_pattern = c
+        .extension
+        .as_deref()
         .map(|ext| format!("%{}%", ext))
         .unwrap_or_else(|| "%".to_string());
 
@@ -84,16 +84,21 @@ pub(crate) async fn schema(
     }
 
     if c.json {
-        println!("{}", serde_json::to_string_pretty(&serde_json::json!({ "tables": tables }))?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({ "tables": tables }))?
+        );
     } else {
         for table in &tables {
             println!("{}", table.name);
             for col in &table.columns {
                 let pk = if col.pk { " PK" } else { "" };
                 let nullable = if col.nullable { "" } else { " NOT NULL" };
-                println!("  {col_name:<30} {col_type:<15}{pk}{nullable}",
+                println!(
+                    "  {col_name:<30} {col_type:<15}{pk}{nullable}",
                     col_name = col.name,
-                    col_type = col.r#type);
+                    col_type = col.r#type
+                );
             }
             println!();
         }

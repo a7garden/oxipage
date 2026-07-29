@@ -9,13 +9,16 @@ use axum::routing::{get, post};
 use oxipage_core::client::Client;
 
 use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
-use oxipage_core::extension::{CliArg, CliHandler, CliCommand, CliSubcommand, ExternalApiKey, ExternalKeyScope, Extension, Lang, LobbyCard, LobbyCardItem, Migration};
+use oxipage_core::extension::{
+    CliArg, CliCommand, CliHandler, CliSubcommand, Extension, ExternalApiKey, ExternalKeyScope,
+    Lang, LobbyCard, LobbyCardItem, Migration,
+};
 use oxipage_core::state::AppState;
+use sqlx::SqlitePool;
 use std::collections::BTreeMap;
+use std::error::Error;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::error::Error;
-use sqlx::SqlitePool;
 
 pub struct BooksExtension;
 
@@ -23,9 +26,11 @@ pub struct BooksExtension;
 
 struct BookAddHandler;
 impl CliHandler for BookAddHandler {
-    fn run(&self, args: BTreeMap<String, String>, client: &Client)
-        -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>>
-    {
+    fn run(
+        &self,
+        args: BTreeMap<String, String>,
+        client: &Client,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>> {
         let title = args.get("title").cloned().unwrap_or_default();
         let mut body = serde_json::json!({ "title": title });
         if let Some(author) = args.get("author") {
@@ -36,7 +41,9 @@ impl CliHandler for BookAddHandler {
         }
         let client = client.clone();
         Box::pin(async move {
-            let resp = client.post("/api/v1/books/", &body).await
+            let resp = client
+                .post("/api/v1/books/", &body)
+                .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("{}", serde_json::to_string_pretty(&resp)?);
             Ok(())
@@ -103,18 +110,31 @@ impl Extension for BooksExtension {
         vec![CliCommand {
             name: "books",
             about: "Manage book reviews",
-            subcommands: vec![
-                CliSubcommand {
-                    name: "add",
-                    about: "Add a book review",
-                    args: vec![
-                        CliArg { long: "title", short: Some('t'), help: "Book title", required: true },
-                        CliArg { long: "author", short: Some('a'), help: "Book author", required: false },
-                        CliArg { long: "rating", short: Some('r'), help: "Rating (1-10)", required: false },
-                    ],
-                    handler: Some(Arc::new(BookAddHandler)),
-                },
-            ],
+            subcommands: vec![CliSubcommand {
+                name: "add",
+                about: "Add a book review",
+                args: vec![
+                    CliArg {
+                        long: "title",
+                        short: Some('t'),
+                        help: "Book title",
+                        required: true,
+                    },
+                    CliArg {
+                        long: "author",
+                        short: Some('a'),
+                        help: "Book author",
+                        required: false,
+                    },
+                    CliArg {
+                        long: "rating",
+                        short: Some('r'),
+                        help: "Rating (1-10)",
+                        required: false,
+                    },
+                ],
+                handler: Some(Arc::new(BookAddHandler)),
+            }],
         }]
     }
 
@@ -131,14 +151,26 @@ impl Extension for BooksExtension {
 }
 
 impl BuildExt for BooksExtension {
-    fn ext_id(&self) -> &'static str { "books" }
+    fn ext_id(&self) -> &'static str {
+        "books"
+    }
 
-    fn build_pages(&self, db: &SqlitePool) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
+    fn build_pages(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
         let handle = tokio::runtime::Handle::current();
         let books: Vec<model::Book> = handle.block_on(repo::list(db, None, 200))?;
         let mut pages = Vec::with_capacity(books.len());
         for b in &books {
-            let excerpt: String = b.review_ko.as_deref().or(b.review_en.as_deref()).unwrap_or("").chars().take(160).collect();
+            let excerpt: String = b
+                .review_ko
+                .as_deref()
+                .or(b.review_en.as_deref())
+                .unwrap_or("")
+                .chars()
+                .take(160)
+                .collect();
             pages.push(StaticPage {
                 path: format!("books/{}/index.html", b.id),
                 content: format!(
@@ -152,22 +184,35 @@ impl BuildExt for BooksExtension {
         Ok(pages)
     }
 
-    fn build_data(&self, db: &SqlitePool) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
+    fn build_data(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
         let handle = tokio::runtime::Handle::current();
         let books: Vec<model::Book> = handle.block_on(repo::list(db, None, 200))?;
         Ok(Box::new(books))
     }
 
-    fn build_search_docs(&self, db: &SqlitePool) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+    fn build_search_docs(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
         let handle = tokio::runtime::Handle::current();
         let books: Vec<model::Book> = handle.block_on(repo::list(db, None, 200))?;
-        Ok(books.into_iter().map(|b| {
-            let body = b.review_ko.or(b.review_en).unwrap_or_default();
-            let excerpt: String = body.chars().take(200).collect();
-            SearchDoc {
-                id: format!("books/{}", b.id), title: b.title, body_preview: excerpt,
-                doc_type: "books".into(), url: format!("/books/{}", b.id), published_at: b.finished_at,
-            }
-        }).collect())
+        Ok(books
+            .into_iter()
+            .map(|b| {
+                let body = b.review_ko.or(b.review_en).unwrap_or_default();
+                let excerpt: String = body.chars().take(200).collect();
+                SearchDoc {
+                    id: format!("books/{}", b.id),
+                    title: b.title,
+                    body_preview: excerpt,
+                    doc_type: "books".into(),
+                    url: format!("/books/{}", b.id),
+                    published_at: b.finished_at,
+                }
+            })
+            .collect())
     }
 }

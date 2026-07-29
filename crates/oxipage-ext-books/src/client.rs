@@ -47,7 +47,10 @@ impl BooksClient {
             match self.search_aladin(key, q, limit).await {
                 Ok(v) if !v.is_empty() => return Ok(v),
                 Ok(_) => {
-                    tracing::debug!(query = q, "aladin returned no results; falling back to google_books");
+                    tracing::debug!(
+                        query = q,
+                        "aladin returned no results; falling back to google_books"
+                    );
                 }
                 Err(e) => {
                     tracing::warn!(error = ?e, query = q, "aladin search failed; falling back to google_books");
@@ -58,7 +61,12 @@ impl BooksClient {
     }
 
     /// 1순위: 알라딘 OpenAPI. QueryType=Title 고정 (제목 검색이 가장 흔함).
-    async fn search_aladin(&self, key: &str, q: &str, limit: usize) -> anyhow::Result<Vec<BookSearchResult>> {
+    async fn search_aladin(
+        &self,
+        key: &str,
+        q: &str,
+        limit: usize,
+    ) -> anyhow::Result<Vec<BookSearchResult>> {
         let resp = self
             .http
             .get(ALADIN_ENDPOINT)

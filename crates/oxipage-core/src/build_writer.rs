@@ -75,7 +75,10 @@ pub fn write_build_output(
 }
 
 /// Recursive directory copy (simple implementation).
-fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+fn copy_dir_recursive(
+    src: &Path,
+    dst: &Path,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     if !src.is_dir() {
         return Err(format!("not a directory: {}", src.display()).into());
     }

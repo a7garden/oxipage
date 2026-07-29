@@ -53,7 +53,10 @@ pub async fn update(
     if let Some(ref url) = patch.url
         && !is_valid_url(url)
     {
-        return Err(ApiError::validation("url", "url must start with http:// or https://"));
+        return Err(ApiError::validation(
+            "url",
+            "url must start with http:// or https://",
+        ));
     }
     let card = repo::update(&state.db, id, &patch)
         .await
@@ -82,7 +85,10 @@ fn validate(title: &str, url: &str) -> Result<(), ApiError> {
         return Err(ApiError::validation("title", "title must not be empty"));
     }
     if !is_valid_url(url) {
-        return Err(ApiError::validation("url", "url must start with http:// or https://"));
+        return Err(ApiError::validation(
+            "url",
+            "url must start with http:// or https://",
+        ));
     }
     Ok(())
 }

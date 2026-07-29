@@ -34,7 +34,8 @@ const SUFFIX: &[u8] = b"\",\"url\":\"https://oxipage.dev\"}]}";
 const ROUTE_MANIFEST: &[u8] =
     b"[{\"method\":\"GET\",\"path\":\"/info\"},{\"method\":\"GET\",\"path\":\"/time\"},{\"method\":\"GET\",\"path\":\"/db\"}]";
 
-const INFO_JSON: &[u8] = b"{\"extension\":\"wasm-demo\",\"version\":\"v2\",\"routes\":[\"/info\",\"/time\",\"/db\"]}";
+const INFO_JSON: &[u8] =
+    b"{\"extension\":\"wasm-demo\",\"version\":\"v2\",\"routes\":[\"/info\",\"/time\",\"/db\"]}";
 const DB_ERROR_JSON: &[u8] = b"{\"error\":\"db_query_failed\"}";
 const NOT_FOUND_JSON: &[u8] = b"{\"error\":\"not_found\"}";
 
@@ -55,7 +56,10 @@ const RESP_SIZE: usize = 8192;
 pub extern "C" fn alloc(size: i32) -> i32 {
     unsafe {
         let size = size as usize;
-        if HEAP_OFFSET.checked_add(size).map_or(true, |end| end > HEAP_SIZE) {
+        if HEAP_OFFSET
+            .checked_add(size)
+            .map_or(true, |end| end > HEAP_SIZE)
+        {
             return 0;
         }
         let base = core::ptr::addr_of!(HEAP) as *const u8;
@@ -143,11 +147,7 @@ pub extern "C" fn display_name_len(lang: i32) -> i32 {
 }
 
 const fn pick(lang: i32) -> &'static [u8] {
-    if lang == 0 {
-        NAME_KO
-    } else {
-        NAME_EN
-    }
+    if lang == 0 { NAME_KO } else { NAME_EN }
 }
 
 // ─── ABI export: lobby 카드 ───

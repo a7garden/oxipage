@@ -60,8 +60,11 @@ pub struct PageSpec {
 /// CLI 핸들러 트레이트 — 인자 맵을 받아 HTTP 호출로 명령을 실행한다.
 pub trait CliHandler: Send + Sync {
     /// 인자 맵 (--key value 쌍)을 받아 CLI 명령을 실행한다.
-    fn run(&self, args: BTreeMap<String, String>, client: &crate::client::Client)
-        -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>>;
+    fn run(
+        &self,
+        args: BTreeMap<String, String>,
+        client: &crate::client::Client,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>>;
 }
 /// CLI 서브커맨드 하나의 정의. 확장이 `cli_commands()`로 반환한다.
 #[derive(Clone)]
@@ -383,7 +386,10 @@ pub(crate) async fn persist_extension_config(
         Some((Some(s),)) => serde_json::from_str(&s).unwrap_or_default(),
         _ => serde_json::Map::new(),
     };
-    config.insert(key.to_string(), serde_json::Value::String(value.to_string()));
+    config.insert(
+        key.to_string(),
+        serde_json::Value::String(value.to_string()),
+    );
     let serialized = serde_json::to_string(&config)?;
     sqlx::query(
         "INSERT INTO extension_state (extension_id, enabled, purged, config)
@@ -396,7 +402,6 @@ pub(crate) async fn persist_extension_config(
     .await?;
     Ok(())
 }
-
 
 // ───────────────────────── 동적 라우트 디스패치 (WASM) ─────────────────────────
 

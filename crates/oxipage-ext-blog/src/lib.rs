@@ -69,12 +69,10 @@ impl Extension for BlogExtension {
             .route("/{slug}/publish", post(routes::publish))
     }
     async fn seed_sample_data(&self, ctx: &AppState) -> anyhow::Result<()> {
-        let exists: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM blog_post WHERE slug = ?1",
-        )
-        .bind(WELCOME_POST_SLUG)
-        .fetch_one(&ctx.db)
-        .await?;
+        let exists: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM blog_post WHERE slug = ?1")
+            .bind(WELCOME_POST_SLUG)
+            .fetch_one(&ctx.db)
+            .await?;
         if exists.0 > 0 {
             return Ok(()); // 멱등성 — 이미 있으면 시드 안 함
         }
@@ -92,7 +90,6 @@ impl Extension for BlogExtension {
         .await?;
         Ok(())
     }
-
 
     async fn lobby_summary(&self, ctx: &AppState) -> Option<LobbyCard> {
         let posts = repo::list(&ctx.db, false, None, 3).await.ok()?;
@@ -115,7 +112,10 @@ impl BuildExt for BlogExtension {
         "blog"
     }
 
-    fn build_pages(&self, db: &SqlitePool) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
+    fn build_pages(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
         let handle = tokio::runtime::Handle::current();
         let posts: Vec<model::BlogPost> = handle.block_on(repo::list(db, false, None, i64::MAX))?;
 
@@ -179,13 +179,19 @@ impl BuildExt for BlogExtension {
         Ok(pages)
     }
 
-    fn build_data(&self, db: &SqlitePool) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
+    fn build_data(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
         let handle = tokio::runtime::Handle::current();
         let posts: Vec<model::BlogPost> = handle.block_on(repo::list(db, false, None, i64::MAX))?;
         Ok(Box::new(posts))
     }
 
-    fn build_search_docs(&self, db: &SqlitePool) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+    fn build_search_docs(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
         let handle = tokio::runtime::Handle::current();
         let posts: Vec<model::BlogPost> = handle.block_on(repo::list(db, false, None, i64::MAX))?;
 

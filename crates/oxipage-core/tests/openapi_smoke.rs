@@ -2,10 +2,10 @@
 //! 9개 실제 확장에 의존하지 않고 더미 확장으로 핵심 메커니즘을 검증한다.
 
 use async_trait::async_trait;
-use std::sync::Arc;
 use oxipage_core::extension::{Extension, Lang, LobbyCard, Migration};
 use oxipage_core::registry::ExtensionRegistry;
 use oxipage_core::state::AppState;
+use std::sync::Arc;
 
 struct FakeExt(&'static str);
 #[async_trait]

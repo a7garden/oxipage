@@ -9,14 +9,17 @@ use axum::routing::{get, post};
 use oxipage_core::client::Client;
 
 use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
-use oxipage_core::extension::{CliArg, CliHandler, CliCommand, CliSubcommand, ExternalApiKey, ExternalKeyScope, Extension, Lang, LobbyCard, LobbyCardItem, Migration};
+use oxipage_core::extension::{
+    CliArg, CliCommand, CliHandler, CliSubcommand, Extension, ExternalApiKey, ExternalKeyScope,
+    Lang, LobbyCard, LobbyCardItem, Migration,
+};
 use oxipage_core::state::AppState;
+use sqlx::SqlitePool;
 use std::collections::BTreeMap;
+use std::error::Error;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::error::Error;
-use sqlx::SqlitePool;
 
 pub struct MoviesExtension;
 
@@ -24,9 +27,11 @@ pub struct MoviesExtension;
 
 struct MovieAddHandler;
 impl CliHandler for MovieAddHandler {
-    fn run(&self, args: BTreeMap<String, String>, client: &Client)
-        -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>>
-    {
+    fn run(
+        &self,
+        args: BTreeMap<String, String>,
+        client: &Client,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>> {
         let title = args.get("title").cloned().unwrap_or_default();
         let mut body = serde_json::json!({ "title": title });
         if let Some(slug) = args.get("slug") {
@@ -37,7 +42,9 @@ impl CliHandler for MovieAddHandler {
         }
         let client = client.clone();
         Box::pin(async move {
-            let resp = client.post("/api/v1/movies/", &body).await
+            let resp = client
+                .post("/api/v1/movies/", &body)
+                .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("{}", serde_json::to_string_pretty(&resp)?);
             Ok(())
@@ -47,15 +54,19 @@ impl CliHandler for MovieAddHandler {
 
 struct MovieSeriesCreateHandler;
 impl CliHandler for MovieSeriesCreateHandler {
-    fn run(&self, args: BTreeMap<String, String>, client: &Client)
-        -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>>
-    {
+    fn run(
+        &self,
+        args: BTreeMap<String, String>,
+        client: &Client,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>> {
         let name = args.get("name").cloned().unwrap_or_default();
         let slug = args.get("slug").cloned().unwrap_or_default();
         let body = serde_json::json!({ "name": name, "slug": slug });
         let client = client.clone();
         Box::pin(async move {
-            let resp = client.post("/api/v1/movies/series", &body).await
+            let resp = client
+                .post("/api/v1/movies/series", &body)
+                .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("{}", serde_json::to_string_pretty(&resp)?);
             Ok(())
@@ -98,7 +109,10 @@ impl Extension for MoviesExtension {
                     .delete(routes::delete),
             )
             .route("/{slug}/publish", post(routes::publish))
-            .route("/series", get(routes::list_groups).post(routes::create_group))
+            .route(
+                "/series",
+                get(routes::list_groups).post(routes::create_group),
+            )
             .route("/series/{slug}", get(routes::show_group))
     }
 
@@ -126,9 +140,24 @@ impl Extension for MoviesExtension {
                     name: "add",
                     about: "Add a movie review",
                     args: vec![
-                        CliArg { long: "title", short: Some('t'), help: "Movie title", required: true },
-                        CliArg { long: "slug", short: Some('s'), help: "URL slug", required: false },
-                        CliArg { long: "rating", short: Some('r'), help: "Rating (1-10)", required: false },
+                        CliArg {
+                            long: "title",
+                            short: Some('t'),
+                            help: "Movie title",
+                            required: true,
+                        },
+                        CliArg {
+                            long: "slug",
+                            short: Some('s'),
+                            help: "URL slug",
+                            required: false,
+                        },
+                        CliArg {
+                            long: "rating",
+                            short: Some('r'),
+                            help: "Rating (1-10)",
+                            required: false,
+                        },
                     ],
                     handler: Some(Arc::new(MovieAddHandler)),
                 },
@@ -136,8 +165,18 @@ impl Extension for MoviesExtension {
                     name: "series",
                     about: "Create a series group",
                     args: vec![
-                        CliArg { long: "name", short: Some('n'), help: "Series name", required: true },
-                        CliArg { long: "slug", short: Some('s'), help: "URL slug", required: true },
+                        CliArg {
+                            long: "name",
+                            short: Some('n'),
+                            help: "Series name",
+                            required: true,
+                        },
+                        CliArg {
+                            long: "slug",
+                            short: Some('s'),
+                            help: "URL slug",
+                            required: true,
+                        },
                     ],
                     handler: Some(Arc::new(MovieSeriesCreateHandler)),
                 },
@@ -155,18 +194,30 @@ impl Extension for MoviesExtension {
             scope: ExternalKeyScope::ExtensionConfig,
         }]
     }
-
 }
 impl BuildExt for MoviesExtension {
-    fn ext_id(&self) -> &'static str { "movies" }
+    fn ext_id(&self) -> &'static str {
+        "movies"
+    }
 
-    fn build_pages(&self, db: &SqlitePool) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
+    fn build_pages(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
         let handle = tokio::runtime::Handle::current();
-        let entries: Vec<model::MovieEntry> = handle.block_on(repo::list_entries_published(db, None, 200))?;
+        let entries: Vec<model::MovieEntry> =
+            handle.block_on(repo::list_entries_published(db, None, 200))?;
         let mut pages = Vec::with_capacity(entries.len());
         for e in &entries {
             let title = &e.title;
-            let excerpt: String = e.review_ko.as_deref().or(e.review_en.as_deref()).unwrap_or("").chars().take(160).collect();
+            let excerpt: String = e
+                .review_ko
+                .as_deref()
+                .or(e.review_en.as_deref())
+                .unwrap_or("")
+                .chars()
+                .take(160)
+                .collect();
             pages.push(StaticPage {
                 path: format!("movies/{}/index.html", e.slug),
                 content: format!(
@@ -180,23 +231,38 @@ impl BuildExt for MoviesExtension {
         Ok(pages)
     }
 
-    fn build_data(&self, db: &SqlitePool) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
+    fn build_data(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
         let handle = tokio::runtime::Handle::current();
-        let entries: Vec<model::MovieEntry> = handle.block_on(repo::list_entries_published(db, None, 200))?;
+        let entries: Vec<model::MovieEntry> =
+            handle.block_on(repo::list_entries_published(db, None, 200))?;
         Ok(Box::new(entries))
     }
 
-    fn build_search_docs(&self, db: &SqlitePool) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
+    fn build_search_docs(
+        &self,
+        db: &SqlitePool,
+    ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
         let handle = tokio::runtime::Handle::current();
-        let entries: Vec<model::MovieEntry> = handle.block_on(repo::list_entries_published(db, None, 200))?;
-        Ok(entries.into_iter().map(|e| {
-            let title = e.title;
-            let body = e.review_ko.or(e.review_en).unwrap_or_default();
-            let excerpt: String = body.chars().take(200).collect();
-            SearchDoc {
-                id: format!("movies/{}", e.slug), title, body_preview: excerpt,
-                doc_type: "movies".into(), url: format!("/movies/{}", e.slug), published_at: e.published_at,
-            }
-        }).collect())
+        let entries: Vec<model::MovieEntry> =
+            handle.block_on(repo::list_entries_published(db, None, 200))?;
+        Ok(entries
+            .into_iter()
+            .map(|e| {
+                let title = e.title;
+                let body = e.review_ko.or(e.review_en).unwrap_or_default();
+                let excerpt: String = body.chars().take(200).collect();
+                SearchDoc {
+                    id: format!("movies/{}", e.slug),
+                    title,
+                    body_preview: excerpt,
+                    doc_type: "movies".into(),
+                    url: format!("/movies/{}", e.slug),
+                    published_at: e.published_at,
+                }
+            })
+            .collect())
     }
 }

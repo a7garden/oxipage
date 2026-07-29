@@ -10,9 +10,7 @@ pub struct QueryCommand {
     pub json: bool,
 }
 
-pub(crate) async fn query(
-    c: QueryCommand,
-) -> anyhow::Result<()> {
+pub(crate) async fn query(c: QueryCommand) -> anyhow::Result<()> {
     if !is_read_only(&c.sql) {
         anyhow::bail!("Only SELECT queries are allowed for safety");
     }
@@ -73,7 +71,14 @@ pub(crate) async fn query(
         }
         // Print header
         println!("{}", col_names.join(" | "));
-        println!("{}", col_names.iter().map(|_| "---").collect::<Vec<_>>().join(" | "));
+        println!(
+            "{}",
+            col_names
+                .iter()
+                .map(|_| "---")
+                .collect::<Vec<_>>()
+                .join(" | ")
+        );
         for row in &results {
             let vals: Vec<String> = col_names
                 .iter()
@@ -93,9 +98,7 @@ pub(crate) async fn query(
 
 fn is_read_only(sql: &str) -> bool {
     let trimmed = sql.trim().to_uppercase();
-    trimmed.starts_with("SELECT")
-        || trimmed.starts_with("PRAGMA")
-        || trimmed.starts_with("EXPLAIN")
+    trimmed.starts_with("SELECT") || trimmed.starts_with("PRAGMA") || trimmed.starts_with("EXPLAIN")
 }
 
 fn rusqlite_val_to_json(val: rusqlite::types::Value) -> serde_json::Value {

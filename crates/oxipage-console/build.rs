@@ -7,9 +7,8 @@ fn main() {
     let web_dist = root.join("../../admin-web/dist");
     if web_dist.exists() {
         let _ = std::fs::remove_dir_all(&embed_dir);
-        copy_dir(&web_dist, &embed_dir).unwrap_or_else(|e| {
-            panic!("failed to copy admin-web/dist to embedded-spa: {e}")
-        });
+        copy_dir(&web_dist, &embed_dir)
+            .unwrap_or_else(|e| panic!("failed to copy admin-web/dist to embedded-spa: {e}"));
     } else if !embed_dir.exists() {
         std::fs::create_dir_all(&embed_dir).unwrap();
         std::fs::write(

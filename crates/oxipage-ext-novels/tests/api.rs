@@ -16,7 +16,7 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
         db: pool,
         config: Arc::new(Config::default()),
         registry: registry.clone(),
-                wasm_loader: None,
+        wasm_loader: None,
         site_override: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         builders: std::sync::Arc::new(vec![]),
     };
@@ -46,7 +46,9 @@ async fn novel_create_publish_with_chapter_charcount() {
             Request::post("/api/v1/novels")
                 .header("content-type", "application/json")
                 .header(AUTHORIZATION, bearer("tok"))
-                .body(Body::from(r##"{"title":"빛의 이야기","status":"ongoing"}"##))
+                .body(Body::from(
+                    r##"{"title":"빛의 이야기","status":"ongoing"}"##,
+                ))
                 .unwrap(),
         )
         .await
@@ -93,7 +95,11 @@ async fn novel_create_publish_with_chapter_charcount() {
     // show chapter — 발행본
     let res = app
         .clone()
-        .oneshot(Request::get(format!("/api/v1/novels/{slug}/chapters/1")).body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get(format!("/api/v1/novels/{slug}/chapters/1"))
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
@@ -103,10 +109,13 @@ async fn novel_create_publish_with_chapter_charcount() {
     // 챕터 목록 (발행본만)
     let res = app
         .clone()
-        .oneshot(Request::get(format!("/api/v1/novels/{slug}/chapters")).body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get(format!("/api/v1/novels/{slug}/chapters"))
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let json = body_json(res).await;
     assert_eq!(json["data"].as_array().unwrap().len(), 1);
 }
-

@@ -50,7 +50,7 @@ async fn test_app() -> axum::Router {
         db: pool,
         config: Arc::new(Config::default()),
         registry,
-                wasm_loader: None,
+        wasm_loader: None,
         site_override: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         builders: std::sync::Arc::new(vec![]),
     };
@@ -96,7 +96,11 @@ async fn manifest_lists_enabled_extensions() {
 async fn extension_routes_are_mounted_under_api_v1() {
     let app = test_app().await;
     let res = app
-        .oneshot(Request::get("/api/console/dummy").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/console/dummy")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
@@ -123,14 +127,17 @@ async fn spa_fallback_serves_index_html_for_unknown_paths() {
 async fn unknown_api_path_returns_404_json() {
     let app = test_app().await;
     let res = app
-        .oneshot(Request::get("/api/console/nope/").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/console/nope/")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
     let body = body_string(res).await;
     assert!(body.contains("\"error\""));
 }
-
 
 // ─── extension lifecycle (doc/02 §2.13, doc/04 §4.3) ───
 
@@ -142,7 +149,7 @@ async fn admin_app() -> axum::Router {
         db: pool,
         config: Arc::new(Config::default()),
         registry,
-                wasm_loader: None,
+        wasm_loader: None,
         site_override: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         builders: std::sync::Arc::new(vec![]),
     };
@@ -161,7 +168,10 @@ fn admin_req(method: &str, uri: &str) -> Request<Body> {
 #[tokio::test]
 async fn extensions_list_returns_admin_state() {
     let app = admin_app().await;
-    let res = app.oneshot(admin_req("GET", "/api/console/extensions")).await.unwrap();
+    let res = app
+        .oneshot(admin_req("GET", "/api/console/extensions"))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let body = body_string(res).await;
     assert!(body.contains("dummy"), "body: {body}");
@@ -172,7 +182,11 @@ async fn disable_gates_extension_routes() {
     let app = admin_app().await;
     let before = app
         .clone()
-        .oneshot(Request::get("/api/console/dummy").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/console/dummy")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(before.status(), StatusCode::OK);
@@ -183,7 +197,11 @@ async fn disable_gates_extension_routes() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let gated = app
-        .oneshot(Request::get("/api/console/dummy").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/console/dummy")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(gated.status(), StatusCode::NOT_FOUND);
@@ -203,7 +221,11 @@ async fn enable_restores_extension_routes() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let after = app
-        .oneshot(Request::get("/api/console/dummy").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/console/dummy")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(after.status(), StatusCode::OK);
@@ -221,7 +243,11 @@ async fn purge_marks_extension_and_gates_routes() {
     let body = body_string(res).await;
     assert!(body.contains("\"purged\":true"), "body: {body}");
     let gated = app
-        .oneshot(Request::get("/api/console/dummy").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/console/dummy")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(gated.status(), StatusCode::NOT_FOUND);
@@ -248,7 +274,7 @@ async fn install_writes_wasm_and_registers_state() {
         db: pool.clone(),
         config: Arc::new(config),
         registry,
-                wasm_loader: None,
+        wasm_loader: None,
         site_override: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         builders: std::sync::Arc::new(vec![]),
     };
@@ -266,13 +292,24 @@ async fn install_writes_wasm_and_registers_state() {
     assert_eq!(res.status(), StatusCode::OK, "install should succeed");
     let body = body_string(res).await;
     assert!(body.contains("wasm-demo"), "body: {body}");
-    assert!(body.contains("\"bytes\""), "body should report byte count: {body}");
+    assert!(
+        body.contains("\"bytes\""),
+        "body should report byte count: {body}"
+    );
 
     // 1. .wasm 파일이 data/extensions/<name>.wasm 에 쓰였는지.
     let wasm_path = data_dir.join("extensions").join("wasm-demo.wasm");
-    assert!(wasm_path.exists(), "wasm artifact should be written at {}", wasm_path.display());
+    assert!(
+        wasm_path.exists(),
+        "wasm artifact should be written at {}",
+        wasm_path.display()
+    );
     let meta = std::fs::metadata(&wasm_path).unwrap();
-    assert!(meta.len() > 100, "wasm artifact non-trivial size, got {}", meta.len());
+    assert!(
+        meta.len() > 100,
+        "wasm artifact non-trivial size, got {}",
+        meta.len()
+    );
 
     // 2. extension_state 행이 enabled=0 으로 추가됐는지 (부팅 시 적재 대기).
     let (enabled,): (i64,) =

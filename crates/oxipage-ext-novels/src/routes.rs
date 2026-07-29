@@ -29,9 +29,15 @@ pub async fn create_novel(
         return Err(ApiError::validation("title", "title must not be empty"));
     }
     if !matches!(input.status.as_str(), "ongoing" | "completed" | "hiatus") {
-        return Err(ApiError::validation("status", "status must be ongoing|completed|hiatus"));
+        return Err(ApiError::validation(
+            "status",
+            "status must be ongoing|completed|hiatus",
+        ));
     }
-    let base_slug = input.slug.clone().unwrap_or_else(|| repo::slugify(&input.title));
+    let base_slug = input
+        .slug
+        .clone()
+        .unwrap_or_else(|| repo::slugify(&input.title));
     let slug = repo::ensure_unique_slug(&state.db, &base_slug)
         .await
         .map_err(ApiError::internal)?;
@@ -77,7 +83,6 @@ pub async fn publish_novel(
     State(state): State<AppState>,
     Path(slug): Path<String>,
 ) -> Result<Json<DataEnvelope<Novel>>, ApiError> {
-    
     if repo::find_novel_by_slug(&state.db, &slug)
         .await
         .map_err(ApiError::internal)?
@@ -203,7 +208,6 @@ pub async fn publish_chapter(
     State(state): State<AppState>,
     Path((slug, order)): Path<(String, i32)>,
 ) -> Result<Json<DataEnvelope<NovelChapter>>, ApiError> {
-    
     let ch = repo::publish_chapter(&state.db, &slug, order)
         .await
         .map_err(ApiError::internal)?;

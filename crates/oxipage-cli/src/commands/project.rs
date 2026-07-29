@@ -1,7 +1,7 @@
+use crate::output::Output;
 use clap::Subcommand;
 use oxipage_ext_projects::model::ProjectInput;
 use oxipage_ext_projects::repo;
-use crate::output::Output;
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum ProjectCommand {

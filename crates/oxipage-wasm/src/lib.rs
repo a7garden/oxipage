@@ -36,6 +36,7 @@
 //! | `host_http_get` | `(i32 url_ptr, i32 url_len) -> i64` | HTTP GET → body |
 
 use async_trait::async_trait;
+use axum::Router;
 use oxipage_core::extension::{
     Extension, Lang, LobbyCard, LobbyCardItem, Migration, RouteDispatcher, RouteResponse,
     RouteSpec, WasmLoader,
@@ -46,7 +47,6 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use wasmtime::{Caller, Config, Engine, Instance, Linker, Module, Store};
-use axum::Router;
 
 const IMPORT_MODULE: &str = "env";
 /// 라우트 요청당 fuel (약 10M unit ≈ 수십 ms CPU).
@@ -103,8 +103,20 @@ impl WasmExtensionAdapter {
         call_init(&mut store, &instance)?;
 
         let id = read_str_0arg(&mut store, &instance, "ext_id_ptr", "ext_id_len")?;
-        let display_ko = read_str_1arg(&mut store, &instance, "display_name_ptr", "display_name_len", 0)?;
-        let display_en = read_str_1arg(&mut store, &instance, "display_name_ptr", "display_name_len", 1)?;
+        let display_ko = read_str_1arg(
+            &mut store,
+            &instance,
+            "display_name_ptr",
+            "display_name_len",
+            0,
+        )?;
+        let display_en = read_str_1arg(
+            &mut store,
+            &instance,
+            "display_name_ptr",
+            "display_name_len",
+            1,
+        )?;
 
         // route manifest 추출 (optional — v1 모듈은 export 하지 않음).
         let route_specs = read_route_manifest(&mut store, &instance).unwrap_or_default();
@@ -201,7 +213,13 @@ impl WasmExtensionAdapter {
                 .get_typed_func::<(i32, i32, i32, i32, i32), i64>(&mut store, "handle_request")?;
             let packed = handle.call(
                 &mut store,
-                (method_code, path_ptr, path_bytes.len() as i32, body_ptr, body.len() as i32),
+                (
+                    method_code,
+                    path_ptr,
+                    path_bytes.len() as i32,
+                    body_ptr,
+                    body.len() as i32,
+                ),
             )?;
 
             let status = ((packed >> 32) & 0xFFFF) as u16;
@@ -415,11 +433,7 @@ fn build_linker(engine: &Engine) -> Linker<WasmHostState> {
 
 /// host_db_query 구현. SELECT 만 허용. 결과를 JSON 으로 직렬화해 모듈의 alloc 으로
 /// 획득한 버퍼에 쓰고 packed ptr+len 반환.
-fn host_db_query_impl(
-    caller: &mut Caller<'_, WasmHostState>,
-    sql_ptr: i32,
-    sql_len: i32,
-) -> i64 {
+fn host_db_query_impl(caller: &mut Caller<'_, WasmHostState>, sql_ptr: i32, sql_len: i32) -> i64 {
     // 1. SQL 문자열 읽기.
     let sql = match read_guest_string(caller, sql_ptr, sql_len) {
         Ok(s) => s,
@@ -460,11 +474,7 @@ fn host_db_query_impl(
 }
 
 /// host_http_get 구현. URL GET → body bytes.
-fn host_http_get_impl(
-    caller: &mut Caller<'_, WasmHostState>,
-    url_ptr: i32,
-    url_len: i32,
-) -> i64 {
+fn host_http_get_impl(caller: &mut Caller<'_, WasmHostState>, url_ptr: i32, url_len: i32) -> i64 {
     let url = match read_guest_string(caller, url_ptr, url_len) {
         Ok(s) => s,
         Err(_) => return 0,
@@ -476,7 +486,10 @@ fn host_http_get_impl(
             if !resp.status().is_success() {
                 return Err(format!("HTTP {}", resp.status()));
             }
-            resp.bytes().await.map_err(|e| e.to_string()).map(|b| b.to_vec())
+            resp.bytes()
+                .await
+                .map_err(|e| e.to_string())
+                .map(|b| b.to_vec())
         })
     });
 
@@ -508,7 +521,10 @@ fn write_capability_result(caller: &mut Caller<'_, WasmHostState>, data: &[u8]) 
     };
     let params = [wasmtime::Val::I32(data.len() as i32)];
     let mut results = [wasmtime::Val::I32(0)];
-    if alloc_func.call(&mut *caller, &params, &mut results).is_err() {
+    if alloc_func
+        .call(&mut *caller, &params, &mut results)
+        .is_err()
+    {
         return 0;
     };
     let ptr = results[0].i32().unwrap_or(0);
@@ -539,8 +555,8 @@ fn read_guest_string(
         .and_then(|e| e.into_memory())
         .ok_or_else(|| anyhow::anyhow!("missing memory export"))?;
     let data = mem.data(caller);
-    let slice = sub_slice(data, ptr, len)
-        .ok_or_else(|| anyhow::anyhow!("string ptr/len out of bounds"))?;
+    let slice =
+        sub_slice(data, ptr, len).ok_or_else(|| anyhow::anyhow!("string ptr/len out of bounds"))?;
     Ok(std::str::from_utf8(slice)?.to_owned())
 }
 
@@ -561,7 +577,9 @@ fn rows_to_json(rows: &[sqlx::sqlite::SqliteRow]) -> String {
                     row.try_get::<Option<f64>, _>(i)
                         .ok()
                         .flatten()
-                        .and_then(|v| serde_json::Number::from_f64(v).map(serde_json::Value::Number))
+                        .and_then(|v| {
+                            serde_json::Number::from_f64(v).map(serde_json::Value::Number)
+                        })
                 })
                 .or_else(|| {
                     row.try_get::<Option<String>, _>(i)
@@ -732,9 +750,15 @@ mod tests {
             return;
         };
         let ext = WasmExtensionAdapter::load(path).expect("load demo wasm");
-        let card = ext.lobby_card().expect("lobby_card call").expect("some card");
+        let card = ext
+            .lobby_card()
+            .expect("lobby_card call")
+            .expect("some card");
         assert_eq!(card.id, "wasm-demo");
-        assert!(card.items.iter().any(|i| i.title.contains("WASM")), "card: {card:?}");
+        assert!(
+            card.items.iter().any(|i| i.title.contains("WASM")),
+            "card: {card:?}"
+        );
     }
 
     #[test]
@@ -744,7 +768,11 @@ mod tests {
             return;
         };
         let ext = WasmExtensionAdapter::load(path).expect("load demo wasm");
-        assert!(!ext.route_specs.is_empty(), "should have routes: {:?}", ext.route_specs);
+        assert!(
+            !ext.route_specs.is_empty(),
+            "should have routes: {:?}",
+            ext.route_specs
+        );
         assert!(
             ext.route_specs.iter().any(|r| r.path.contains("info")),
             "should have /info route: {:?}",

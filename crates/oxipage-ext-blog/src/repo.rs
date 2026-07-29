@@ -11,13 +11,7 @@ pub fn slugify(title: &str) -> String {
     let base: String = title
         .to_lowercase()
         .chars()
-        .map(|c| {
-            if c.is_alphanumeric() {
-                c
-            } else {
-                '-'
-            }
-        })
+        .map(|c| if c.is_alphanumeric() { c } else { '-' })
         .collect();
     let trimmed = base.trim_matches('-').to_string();
     if trimmed.is_empty() {
@@ -61,7 +55,11 @@ async fn slug_exists(pool: &SqlitePool, slug: &str) -> anyhow::Result<bool> {
     Ok(row.0 > 0)
 }
 
-pub async fn create(pool: &SqlitePool, input: &BlogPostInput, resolved_slug: &str) -> anyhow::Result<BlogPost> {
+pub async fn create(
+    pool: &SqlitePool,
+    input: &BlogPostInput,
+    resolved_slug: &str,
+) -> anyhow::Result<BlogPost> {
     let tags = serde_json::to_string(&input.tags)?;
     let post = sqlx::query_as::<_, BlogPost>(&format!(
         "INSERT INTO blog_post (slug, title, body, lang, translation_group_id, tags)
@@ -80,16 +78,22 @@ pub async fn create(pool: &SqlitePool, input: &BlogPostInput, resolved_slug: &st
 }
 
 pub async fn find_by_slug(pool: &SqlitePool, slug: &str) -> anyhow::Result<Option<BlogPost>> {
-    let post = sqlx::query_as::<_, BlogPost>(&format!("SELECT {COLUMNS} FROM blog_post WHERE slug = ?"))
-        .bind(slug)
-        .fetch_optional(pool)
-        .await?;
+    let post =
+        sqlx::query_as::<_, BlogPost>(&format!("SELECT {COLUMNS} FROM blog_post WHERE slug = ?"))
+            .bind(slug)
+            .fetch_optional(pool)
+            .await?;
     Ok(post)
 }
 
 /// draft=true → 초안(published_at IS NULL)만.
 /// draft=false → 발행본(published_at NOT NULL)만.
-pub async fn list(pool: &SqlitePool, draft: bool, lang: Option<&str>, limit: i64) -> anyhow::Result<Vec<BlogPost>> {
+pub async fn list(
+    pool: &SqlitePool,
+    draft: bool,
+    lang: Option<&str>,
+    limit: i64,
+) -> anyhow::Result<Vec<BlogPost>> {
     let limit = limit.clamp(1, 200);
     let (sql, has_lang) = match (draft, lang.is_some()) {
         (true, true) => (
@@ -147,7 +151,11 @@ pub async fn publish(pool: &SqlitePool, slug: &str) -> anyhow::Result<BlogPost> 
     Ok(post)
 }
 
-pub async fn update(pool: &SqlitePool, slug: &str, patch: &BlogPatch) -> anyhow::Result<Option<BlogPost>> {
+pub async fn update(
+    pool: &SqlitePool,
+    slug: &str,
+    patch: &BlogPatch,
+) -> anyhow::Result<Option<BlogPost>> {
     // 부분 갱신 — 제공된 필드만.
     let mut sets: Vec<&str> = Vec::new();
     if patch.title.is_some() {
@@ -171,9 +179,8 @@ pub async fn update(pool: &SqlitePool, slug: &str, patch: &BlogPatch) -> anyhow:
         Some(t) => Some(serde_json::to_string(t)?),
         None => None,
     };
-    let query_str = format!(
-        "UPDATE blog_post SET {set_clause} WHERE slug = ?slug RETURNING {COLUMNS}"
-    );
+    let query_str =
+        format!("UPDATE blog_post SET {set_clause} WHERE slug = ?slug RETURNING {COLUMNS}");
     let mut q = sqlx::query_as::<_, BlogPost>(&query_str);
     if let Some(v) = &patch.title {
         q = q.bind(v);
@@ -200,7 +207,11 @@ pub async fn delete(pool: &SqlitePool, slug: &str) -> anyhow::Result<bool> {
 }
 
 /// translation_group에 속한 글(자신 제외).
-pub async fn list_translations(pool: &SqlitePool, group_id: i64, exclude_slug: &str) -> anyhow::Result<Vec<BlogPost>> {
+pub async fn list_translations(
+    pool: &SqlitePool,
+    group_id: i64,
+    exclude_slug: &str,
+) -> anyhow::Result<Vec<BlogPost>> {
     let posts = sqlx::query_as::<_, BlogPost>(&format!(
         "SELECT {COLUMNS} FROM blog_post
          WHERE translation_group_id = ? AND slug != ?

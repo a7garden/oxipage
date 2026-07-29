@@ -57,8 +57,8 @@ impl Scheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use async_trait::async_trait;
     use crate::registry::ExtensionRegistry;
+    use async_trait::async_trait;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct CountingJob {
@@ -66,7 +66,9 @@ mod tests {
     }
     #[async_trait]
     impl ScheduledJob for CountingJob {
-        fn name(&self) -> &str { "counter" }
+        fn name(&self) -> &str {
+            "counter"
+        }
         async fn run(&self, _ctx: &AppState) -> anyhow::Result<()> {
             self.counter.fetch_add(1, Ordering::SeqCst);
             Ok(())
@@ -77,7 +79,9 @@ mod tests {
     async fn run_all_once_runs_all_jobs() {
         let counter = Arc::new(AtomicUsize::new(0));
         let mut s = Scheduler::new();
-        s.register(Arc::new(CountingJob { counter: counter.clone() }));
+        s.register(Arc::new(CountingJob {
+            counter: counter.clone(),
+        }));
         s.run_all_once(&test_app_state()).await;
         assert_eq!(counter.load(Ordering::SeqCst), 1);
     }

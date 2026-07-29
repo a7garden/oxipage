@@ -37,8 +37,7 @@ impl Client {
         if insecure {
             builder = builder.danger_accept_invalid_certs(true);
         }
-        let http = builder.build()
-            .context("failed to build HTTP client")?;
+        let http = builder.build().context("failed to build HTTP client")?;
         Ok(Client {
             endpoint,
             token,
@@ -65,11 +64,7 @@ impl Client {
         if let Some(t) = &self.token {
             req = req.bearer_auth(t);
         }
-        let req = if let Some(b) = body {
-            req.json(b)
-        } else {
-            req
-        };
+        let req = if let Some(b) = body { req.json(b) } else { req };
 
         let resp = req.send().await.map_err(|e| ApiError {
             status: 0,
@@ -80,9 +75,9 @@ impl Client {
         let status = resp.status();
         let status_num = status.as_u16();
         let text = resp.text().await.unwrap_or_default();
-        let value: Value = serde_json::from_str(&text).unwrap_or_else(|_| {
-            serde_json::json!({ "error": { "code": "invalid_body", "message": text } })
-        });
+        let value: Value = serde_json::from_str(&text).unwrap_or_else(
+            |_| serde_json::json!({ "error": { "code": "invalid_body", "message": text } }),
+        );
 
         if !status.is_success() {
             let err = value.get("error").cloned().unwrap_or(value);
@@ -112,12 +107,14 @@ impl Client {
     }
 
     pub async fn post<B: Serialize>(&self, path: &str, body: &B) -> Result<Value, ApiError> {
-        let v = serde_json::to_value(body).context("failed to serialize body").map_err(|e| ApiError {
-            status: 0,
-            code: "serialize_error".into(),
-            message: e.to_string(),
-            field: None,
-        })?;
+        let v = serde_json::to_value(body)
+            .context("failed to serialize body")
+            .map_err(|e| ApiError {
+                status: 0,
+                code: "serialize_error".into(),
+                message: e.to_string(),
+                field: None,
+            })?;
         self.request(reqwest::Method::POST, path, Some(&v)).await
     }
 
@@ -165,13 +162,15 @@ mod tests {
 
     #[test]
     fn test_client_endpoint_trimmed() {
-        let client = Client::new("http://localhost:8787/".into(), Some("tok".into()), false).unwrap();
+        let client =
+            Client::new("http://localhost:8787/".into(), Some("tok".into()), false).unwrap();
         assert_eq!(client.endpoint(), "http://localhost:8787");
     }
 
     #[test]
     fn test_client_has_token() {
-        let client = Client::new("http://localhost:8787".into(), Some("tok".into()), false).unwrap();
+        let client =
+            Client::new("http://localhost:8787".into(), Some("tok".into()), false).unwrap();
         assert!(client.has_token());
     }
 

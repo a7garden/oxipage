@@ -15,7 +15,9 @@ pub enum BuildCommand {
 
 pub(crate) async fn build(c: BuildCommand) -> anyhow::Result<()> {
     match c {
-        BuildCommand::Run { out_dir: custom_out } => {
+        BuildCommand::Run {
+            out_dir: custom_out,
+        } => {
             // 1. Resolve data directory from config
             let data_dir = super::resolve_data_dir()?;
             let db_path = data_dir.join("oxipage.db");
@@ -23,7 +25,10 @@ pub(crate) async fn build(c: BuildCommand) -> anyhow::Result<()> {
             let web_dist = PathBuf::from("web/dist");
 
             if !db_path.exists() {
-                anyhow::bail!("Database not found at {}. Is the server initialized?", db_path.display());
+                anyhow::bail!(
+                    "Database not found at {}. Is the server initialized?",
+                    db_path.display()
+                );
             }
 
             // 2. Connect to the database
@@ -46,10 +51,7 @@ pub(crate) async fn build(c: BuildCommand) -> anyhow::Result<()> {
                 .map(PathBuf::from)
                 .unwrap_or_else(|| data_dir.join("out"));
             oxipage_core::build_writer::write_build_output(
-                &output,
-                &out_path,
-                &media_dir,
-                &web_dist,
+                &output, &out_path, &media_dir, &web_dist,
             )
             .map_err(|e| anyhow::anyhow!("{}", e))?;
 
@@ -65,5 +67,3 @@ pub(crate) async fn build(c: BuildCommand) -> anyhow::Result<()> {
         }
     }
 }
-
-

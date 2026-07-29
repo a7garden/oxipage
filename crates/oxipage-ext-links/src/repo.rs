@@ -26,14 +26,19 @@ pub async fn create(pool: &SqlitePool, input: &LinkCardInput) -> anyhow::Result<
 }
 
 pub async fn find_by_id(pool: &SqlitePool, id: i64) -> anyhow::Result<Option<LinkCard>> {
-    let card = sqlx::query_as::<_, LinkCard>(&format!("SELECT {COLUMNS} FROM link_card WHERE id = ?"))
-        .bind(id)
-        .fetch_optional(pool)
-        .await?;
+    let card =
+        sqlx::query_as::<_, LinkCard>(&format!("SELECT {COLUMNS} FROM link_card WHERE id = ?"))
+            .bind(id)
+            .fetch_optional(pool)
+            .await?;
     Ok(card)
 }
 
-pub async fn list(pool: &SqlitePool, featured: Option<bool>, limit: i64) -> anyhow::Result<Vec<LinkCard>> {
+pub async fn list(
+    pool: &SqlitePool,
+    featured: Option<bool>,
+    limit: i64,
+) -> anyhow::Result<Vec<LinkCard>> {
     let limit = limit.clamp(1, 500);
     let sql = if featured.is_some() {
         format!(
@@ -55,16 +60,36 @@ pub async fn list(pool: &SqlitePool, featured: Option<bool>, limit: i64) -> anyh
     Ok(cards)
 }
 
-pub async fn update(pool: &SqlitePool, id: i64, patch: &LinkCardPatch) -> anyhow::Result<Option<LinkCard>> {
+pub async fn update(
+    pool: &SqlitePool,
+    id: i64,
+    patch: &LinkCardPatch,
+) -> anyhow::Result<Option<LinkCard>> {
     let mut sets: Vec<&str> = Vec::new();
-    if patch.title.is_some() { sets.push("title = ?"); }
-    if patch.url.is_some() { sets.push("url = ?"); }
-    if patch.description_ko.is_some() { sets.push("description_ko = ?"); }
-    if patch.description_en.is_some() { sets.push("description_en = ?"); }
-    if patch.thumbnail_url.is_some() { sets.push("thumbnail_url = ?"); }
-    if patch.tags.is_some() { sets.push("tags = ?"); }
-    if patch.display_order.is_some() { sets.push("display_order = ?"); }
-    if patch.featured.is_some() { sets.push("featured = ?"); }
+    if patch.title.is_some() {
+        sets.push("title = ?");
+    }
+    if patch.url.is_some() {
+        sets.push("url = ?");
+    }
+    if patch.description_ko.is_some() {
+        sets.push("description_ko = ?");
+    }
+    if patch.description_en.is_some() {
+        sets.push("description_en = ?");
+    }
+    if patch.thumbnail_url.is_some() {
+        sets.push("thumbnail_url = ?");
+    }
+    if patch.tags.is_some() {
+        sets.push("tags = ?");
+    }
+    if patch.display_order.is_some() {
+        sets.push("display_order = ?");
+    }
+    if patch.featured.is_some() {
+        sets.push("featured = ?");
+    }
     if sets.is_empty() {
         return find_by_id(pool, id).await;
     }
@@ -76,14 +101,30 @@ pub async fn update(pool: &SqlitePool, id: i64, patch: &LinkCardPatch) -> anyhow
     };
     let sql = format!("UPDATE link_card SET {set_clause} WHERE id = ? RETURNING {COLUMNS}");
     let mut q = sqlx::query_as::<_, LinkCard>(&sql);
-    if let Some(v) = &patch.title { q = q.bind(v); }
-    if let Some(v) = &patch.url { q = q.bind(v); }
-    if let Some(v) = &patch.description_ko { q = q.bind(v); }
-    if let Some(v) = &patch.description_en { q = q.bind(v); }
-    if let Some(v) = &patch.thumbnail_url { q = q.bind(v); }
-    if let Some(v) = tags_json.as_ref() { q = q.bind(v); }
-    if let Some(v) = patch.display_order { q = q.bind(v); }
-    if let Some(v) = patch.featured { q = q.bind(v); }
+    if let Some(v) = &patch.title {
+        q = q.bind(v);
+    }
+    if let Some(v) = &patch.url {
+        q = q.bind(v);
+    }
+    if let Some(v) = &patch.description_ko {
+        q = q.bind(v);
+    }
+    if let Some(v) = &patch.description_en {
+        q = q.bind(v);
+    }
+    if let Some(v) = &patch.thumbnail_url {
+        q = q.bind(v);
+    }
+    if let Some(v) = tags_json.as_ref() {
+        q = q.bind(v);
+    }
+    if let Some(v) = patch.display_order {
+        q = q.bind(v);
+    }
+    if let Some(v) = patch.featured {
+        q = q.bind(v);
+    }
     let card = q.bind(id).fetch_optional(pool).await?;
     Ok(card)
 }
