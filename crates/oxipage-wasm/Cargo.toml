@@ -1,6 +1,6 @@
 [package]
 name = "oxipage-wasm"
-version = "0.3.0"
+version = "0.2.0"
 edition = "2024"
 license.workspace = true
 description = "WASM 런타임 적재 호스트 v2 (doc/01 §1.4, doc/08 §8.4). wasmtime 임베디드 + capability."

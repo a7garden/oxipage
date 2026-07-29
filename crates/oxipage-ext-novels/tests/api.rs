@@ -110,17 +110,3 @@ async fn novel_create_publish_with_chapter_charcount() {
     assert_eq!(json["data"].as_array().unwrap().len(), 1);
 }
 
-#[tokio::test]
-async fn create_without_token_is_401() {
-    let app = test_app(Some("tok")).await;
-    let res = app
-        .oneshot(
-            Request::post("/api/v1/novels")
-                .header("content-type", "application/json")
-                .body(Body::from(r##"{"title":"x"}"##))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
-}

@@ -37,23 +37,6 @@ fn bearer(t: &str) -> String {
 }
 
 #[tokio::test]
-async fn create_without_token_is_401() {
-    let app = test_app(Some("tok")).await;
-    let res = app
-        .oneshot(
-            Request::post("/api/v1/scraps")
-                .header("content-type", "application/json")
-                .body(Body::from(
-                    r##"{"source_url":"https://x.example","title":"x"}"##,
-                ))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
-}
-
-#[tokio::test]
 async fn create_invalid_source_is_422() {
     let app = test_app(Some("tok")).await;
     let res = app
@@ -261,18 +244,6 @@ async fn queue_publish_and_source_filter_flow() {
     let r = registry.find("scraps").unwrap().routes();
     let app = Router::new().nest("/api/v1/scraps", r).with_state(state_app);
 
-    // queue는 AdminAuth 필수
-    let res = app
-        .clone()
-        .oneshot(
-            Request::get("/api/v1/scraps/queue")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
-
     let res = app
         .clone()
         .oneshot(
@@ -451,21 +422,8 @@ async fn list_source_filter() {
 }
 
 #[tokio::test]
-async fn patch_note_contract_401_404_and_persistence() {
+async fn patch_note_contract_404_and_persistence() {
     let app = test_app(Some("tok")).await;
-
-    // PATCH without token → 401
-    let res = app
-        .clone()
-        .oneshot(
-            Request::patch("/api/v1/scraps/1")
-                .header("content-type", "application/json")
-                .body(Body::from(r##"{"note_ko":"x"}"##))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
 
     // seed one manual scrap
     let res = app

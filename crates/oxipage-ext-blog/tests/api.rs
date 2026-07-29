@@ -39,36 +39,6 @@ fn bearer(token: &str) -> String {
 }
 
 #[tokio::test]
-async fn create_without_token_is_401() {
-    let app = test_app(Some("tok")).await;
-    let res = app
-        .oneshot(
-            Request::post("/api/v1/blog")
-                .header("content-type", "application/json")
-                .body(Body::from(r#"{"title":"x"}"#))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
-}
-
-#[tokio::test]
-async fn create_without_admin_configured_is_503() {
-    let app = test_app(None).await;
-    let res = app
-        .oneshot(
-            Request::post("/api/v1/blog")
-                .header("content-type", "application/json")
-                .body(Body::from(r#"{"title":"x"}"#))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
-}
-
-#[tokio::test]
 async fn create_with_empty_title_is_422() {
     let app = test_app(Some("tok")).await;
     let res = app
@@ -177,20 +147,6 @@ async fn draft_create_then_publish_flow() {
         .unwrap();
     let json = body_json(res).await;
     assert_eq!(json["data"].as_array().unwrap().len(), 1);
-}
-
-#[tokio::test]
-async fn publish_without_admin_configured_is_503() {
-    let app = test_app(None).await;
-    let res = app
-        .oneshot(
-            Request::post("/api/v1/blog/hello/publish")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
 }
 
 #[tokio::test]

@@ -39,21 +39,6 @@ fn bearer(token: &str) -> String {
 }
 
 #[tokio::test]
-async fn create_without_token_is_401() {
-    let app = test_app(Some("tok")).await;
-    let res = app
-        .oneshot(
-            Request::post("/api/v1/links")
-                .header("content-type", "application/json")
-                .body(Body::from(r##"{"title":"x","url":"https://y"}"##))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
-}
-
-#[tokio::test]
 async fn create_with_empty_title_is_422() {
     let app = test_app(Some("tok")).await;
     let res = app

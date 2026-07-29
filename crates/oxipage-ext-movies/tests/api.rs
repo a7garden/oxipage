@@ -42,23 +42,7 @@ fn json_body(s: &str) -> Body {
     Body::from(s.to_string())
 }
 
-// ─── 인증 / 검증 ───
-
-#[tokio::test]
-async fn create_without_token_is_401() {
-    let app = test_app(Some("tok")).await;
-    let res = app
-        .oneshot(
-            Request::post("/api/v1/movies")
-                .header("content-type", "application/json")
-                .body(json_body(r#"{"media_type":"movie","title":"X","rating":8}"#))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
-}
-
+// ─── 검증 ───
 #[tokio::test]
 async fn rating_11_is_422() {
     let app = test_app(Some("tok")).await;

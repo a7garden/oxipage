@@ -140,21 +140,6 @@ async fn invalid_status_is_422() {
 }
 
 #[tokio::test]
-async fn create_without_token_is_401() {
-    let app = test_app(Some("tok")).await;
-    let res = app
-        .oneshot(
-            Request::post("/api/v1/books")
-                .header("content-type", "application/json")
-                .body(Body::from(r##"{"title":"x","rating":5}"##))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
-}
-
-#[tokio::test]
 #[allow(clippy::await_holding_lock)] // ENV_LOCK은 의도된 전역 env 격리 가드
 async fn external_search_no_aladin_key_is_503() {
     // `OXIPAGE_ALADIN_TTBKEY`가 unset이면 503. 테스트 환경에서 unset 가정.

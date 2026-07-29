@@ -142,21 +142,6 @@ async fn list_honors_limit_order_and_repo_filter() {
     let json = body_json(res).await;
     assert_eq!(json["data"].as_array().unwrap().len(), 2);
 }
-
-#[tokio::test]
-async fn sync_without_token_is_401() {
-    let app = test_app(Some("tok")).await;
-    let res = app
-        .oneshot(
-            Request::post("/api/v1/activity/sync")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
-}
-
 #[tokio::test]
 async fn malformed_webhook_is_422() {
     let app = test_app(Some("tok")).await;

@@ -47,41 +47,6 @@ async fn get_profile_returns_seeded_singleton() {
 }
 
 #[tokio::test]
-async fn put_without_token_is_401() {
-    let app = test_app(Some("tok")).await;
-    let res = app
-        .oneshot(
-            Request::put("/api/v1/profile")
-                .header("content-type", "application/json")
-                .body(Body::from(r#"{"display_name":"X"}"#))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
-    let json = body_json(res).await;
-    assert_eq!(json["error"]["code"], "unauthorized");
-}
-
-#[tokio::test]
-async fn put_without_configured_token_is_503() {
-    let app = test_app(None).await;
-    let res = app
-        .oneshot(
-            Request::put("/api/v1/profile")
-                .header("content-type", "application/json")
-                .header("authorization", "Bearer anything")
-                .body(Body::from(r#"{"display_name":"X"}"#))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
-    let json = body_json(res).await;
-    assert_eq!(json["error"]["code"], "admin_not_configured");
-}
-
-#[tokio::test]
 async fn put_roundtrip_updates_profile() {
     let app = test_app(Some("tok")).await;
     let payload = r#"{

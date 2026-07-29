@@ -22,16 +22,16 @@ tracked in the [design spec](docs/superpowers/specs/2026-07-28-static-site-gener
 The detailed, living tracker is [`doc/08-remaining-implementation.md`](doc/08-remaining-implementation.md).
 
 - **v1 (current):** Axum HTTP server, SQLite (WAL) + per-extension namespaced migrations, FTS5 search
-  (`tokenize='trigram'`), publish-time SSR snapshots, PAT scope auth, rate limiting,
-  OpenAPI/Swagger UI, background-job scheduler (cron-driven).
+  (`tokenize='trigram'`), publish-time SSR snapshots, local-only server (no auth — bind to
+  127.0.0.1), rate limiting, OpenAPI/Swagger UI, background-job scheduler (cron-driven).
 - **9 extensions:** `profile` · `blog` · `projects` · `links` · `novels` · `movies` (TMDB) ·
   `books` (Aladin/Google Books) · `scraps` (HN/GeekNews) · `activity` (GitHub).
 - **CLI:** `init` · `status` · `serve` · `auth` · `blog` · `project` · `link` · `lobby` ·
   `backup` · `build` · `deploy` · `query` · `schema` · `cache refresh`.
 - **v2 SSG (in design):** `BuildExt` trait, rayon parallel build pipeline, `oxipage deploy`
   GitHub Pages target, `oxipage query/schema` for AI agents, React SPA → static JSON data.
-- **Verified:** `cargo test --workspace` **163 tests, 0 failed** · `cargo clippy --workspace
-  --all-targets -- -D warnings` clean · `cd web && bun run build` OK.
+- **Verified:** `cargo test --workspace` **137 tests pass, 0 failed** (3 ignored — platform-specific) ·
+  `cargo clippy --workspace --all-targets -- -D warnings` clean · `cd web && bun run build` OK.
 
 ## Requirements
 
@@ -92,34 +92,16 @@ variables that hold them. See [`oxipage.toml.example`](oxipage.toml.example).
 
 Open **http://127.0.0.1:8787** — you'll see the admin console.
 
-The server runs **with or without** an admin token. Without one it's fully read-only: every
-write API returns `503 admin_not_configured`. To create content, generate a bootstrap admin
-token and restart with it:
+### 3. Authentication (local-only)
 
-```bash
-export OXIPAGE_ADMIN_TOKEN=$(openssl rand -hex 32)   # a random secret; keep it safe
-./target/release/oxipage-server
-```
+The management server runs **without authentication** by design — it is intended to be bound
+to `127.0.0.1` and never exposed to the public internet (see [Deployment](#deployment)).
+The `oxipage` CLI still accepts `--token` / `OXIPAGE_TOKEN` for symmetry with future remote
+servers, but the local server does not enforce it. Do not bind the management server to a
+public interface without putting a reverse-proxy auth layer in front of it.
 
-### 3. Issue yourself a token
-
-The `OXIPAGE_ADMIN_TOKEN` is a bootstrap superuser (scope `admin`) meant for setup/recovery.
-For everyday use, mint a scoped PAT and store it so you don't pass `--token` every time:
-
-```bash
-# Point the CLI at your server (defaults to http://127.0.0.1:8787, or [site].base_url)
-export OXIPAGE_ENDPOINT=http://127.0.0.1:8787
-
-# Create a PAT using the admin token, then save it to the credentials file (0600)
-OXIPAGE_TOKEN=$OXIPAGE_ADMIN_TOKEN \
-  ./target/release/oxipage auth token create --label owner --scopes admin
-# → prints the plain token ONCE. Save it:
-./target/release/oxipage auth set <plain-token>
-./target/release/oxipage auth status   # → "a token is stored"
-```
-
-Now any CLI command reads the token from `~/.config/oxipage/credentials` (or `OXIPAGE_TOKEN`)
-automatically. Token resolution order: `--token` flag → `OXIPAGE_TOKEN` env → credentials file.
+Token resolution order for the CLI: `--token` flag → `OXIPAGE_TOKEN` env → credentials file
+at `~/.config/oxipage/credentials` (0600).
 
 ### 4. Create content and build
 
@@ -191,29 +173,23 @@ wire up the ones you want.
 
 ## Authentication
 
-Two paths (`crates/oxipage-core/src/auth.rs`):
+The management server (`oxipage` console / `oxipage serve`) is **local-only** and runs without
+enforced authentication. It is intended to be bound to `127.0.0.1` and never exposed to the
+public internet (see [Deployment](#deployment)). If you must expose it, put a reverse-proxy
+auth layer (mTLS, basic auth, OAuth proxy) in front of it.
 
-| Path | Use | Storage |
-|---|---|---|
-| `OXIPAGE_ADMIN_TOKEN` | Bootstrap superuser (setup/recovery) | Environment variable (server) |
-| PAT (`oxp_…`) | Everyday read/write, scoped | DB `auth_token`, SHA-256 hashed |
-
-PAT scopes: `post:write` (create/edit drafts), `post:publish` (publish), `read` (read drafts),
-`admin` (token management). The plain token is shown **once** at creation; thereafter only its
-hash is stored and verified. Token-management API: `GET/POST /api/v1/auth/tokens`,
-`DELETE /api/v1/auth/tokens/{id}` (all require `admin`).
-
-The GitHub activity webhook (`POST /api/v1/activity/webhook`) is public and verifies requests
-with an HMAC-SHA256 signature (`X-Hub-Signature-256`). Set `OXIPAGE_GITHUB_WEBHOOK_SECRET` to
-the secret you configured in your GitHub webhook settings; if unset, the endpoint returns 503.
+The CLI accepts `--token` / `OXIPAGE_TOKEN` for symmetry with future remote servers, but the
+local server does not enforce it. The GitHub activity webhook
+(`POST /api/v1/activity/webhook`) **is** public and verifies requests with an HMAC-SHA256
+signature (`X-Hub-Signature-256`). Set `OXIPAGE_GITHUB_WEBHOOK_SECRET` to the secret you
+configured in your GitHub webhook settings; if unset, the endpoint returns 503.
 
 ## HTTP API
 
 - Versioned prefix `/api/v1/**`; each extension mounts at `/api/v1/{extension}/**`.
 - `GET /healthz` · `GET /api/v1/lobby/manifest` · `GET /api/v1/search?q=` ·
   `GET /api/v1/docs` (Swagger UI) · `GET /api/v1/docs/openapi.json` ·
-  `POST /api/v1/backup/snapshot` (admin — SQLite `VACUUM INTO` point-in-time snapshot).
-- Public reads need no auth (rate-limited to 120 req/min/IP); writes require a bearer token.
+  `POST /api/v1/backup/snapshot`.
 
 ## Deployment
 
