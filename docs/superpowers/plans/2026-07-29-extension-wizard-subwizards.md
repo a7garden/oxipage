@@ -282,6 +282,55 @@ git add -A && git commit -m "feat(setup): movies/books/activity 키를 각자 Se
 - [ ] **Step 1: 실패 테스트 — StepOutcome 반환 + 가시성 직렬화**
 
 ```rust
+// ── fixtures (이 task에서 정의/사용) ──
+struct OutcomeSave;
+#[async_trait]
+impl SetupSaveHandler for OutcomeSave {
+    async fn save(&self, _ctx: &AppState, form: &serde_json::Map<String, serde_json::Value>)
+        -> anyhow::Result<StepOutcome> {
+        Ok(StepOutcome { values: form.clone() })
+    }
+}
+
+struct OutcomeExt;
+#[async_trait]
+impl Extension for OutcomeExt {
+    fn id(&self) -> &'static str { "outcome" }
+    fn display_name(&self, _: Lang) -> String { "Outcome".into() }
+    fn migrations(&self) -> Vec<Migration> { vec![] }
+    fn routes(&self) -> Router<AppState> { Router::new() }
+    fn setup_wizard(&self) -> Option<ExtensionWizard> {
+        Some(ExtensionWizard { steps: vec![
+            SetupStep { id: "step_one", title_ko: "1", title_en: "1",
+                description_ko: "", description_en: "", fields: vec![],
+                save_handler: Arc::new(OutcomeSave),
+                prefill: BTreeMap::new(), visible_when: None },
+        ] })
+    }
+}
+
+// ConditionalExt: 2번째 step에 visible_when 규칙. (MultiStepExt 재사용 금지 — Task 1 정의는 visible_when: None.)
+struct ConditionalExt;
+#[async_trait]
+impl Extension for ConditionalExt {
+    fn id(&self) -> &'static str { "cond" }
+    fn display_name(&self, _: Lang) -> String { "Cond".into() }
+    fn migrations(&self) -> Vec<Migration> { vec![] }
+    fn routes(&self) -> Router<AppState> { Router::new() }
+    fn setup_wizard(&self) -> Option<ExtensionWizard> {
+        Some(ExtensionWizard { steps: vec![
+            SetupStep { id: "cond_a", title_ko: "A", title_en: "A",
+                description_ko: "", description_en: "", fields: vec![],
+                save_handler: Arc::new(NoopSave),
+                prefill: BTreeMap::new(), visible_when: None },
+            SetupStep { id: "cond_b", title_ko: "B", title_en: "B",
+                description_ko: "", description_en: "", fields: vec![],
+                save_handler: Arc::new(NoopSave), prefill: BTreeMap::new(),
+                visible_when: Some(VisibilityRule::FieldNotEmpty { step_id: "cond_a", field: "x" }) },
+        ] })
+    }
+}
+
 #[tokio::test]
 async fn extension_step_returns_outcome() {
     let app = build_app(vec![Arc::new(OutcomeExt)]).await;
@@ -292,12 +341,11 @@ async fn extension_step_returns_outcome() {
 
 #[tokio::test]
 async fn status_serializes_visible_when() {
-    // MultiStepExt 의 두 번째 step 에 visible_when: FieldNotEmpty{step_id:"multi_a", field:"x"}
-    let json: serde_json::Value = body_json(get_resp(build_app(vec![Arc::new(MultiStepExt)]).await,
+    let json: serde_json::Value = body_json(get_resp(build_app(vec![Arc::new(ConditionalExt)]).await,
         "/api/console/setup/status").await);
     let rule = &json["data"]["extension_wizards"][0]["steps"][1]["visible_when"];
     assert_eq!(rule["kind"], "field_not_empty");
-    assert_eq!(rule["step_id"], "multi_a");
+    assert_eq!(rule["step_id"], "cond_a");
     assert_eq!(rule["field"], "x");
 }
 ```
@@ -427,9 +475,37 @@ git add -A && git commit -m "feat(setup-web): ExtensionSubWizard + 클라이언�
 `tests/setup_wizard.rs`:
 
 ```rust
+// ── fixtures (이 task에서 정의/사용) ──
+struct ActionSave;
+#[async_trait]
+impl SetupSaveHandler for ActionSave {
+    async fn save(&self, _ctx: &AppState, _form: &serde_json::Map<String, serde_json::Value>)
+        -> anyhow::Result<StepOutcome> {
+        let mut m = serde_json::Map::new();
+        m.insert("ok".into(), "1".into());
+        Ok(StepOutcome { values: m })
+    }
+}
+
+struct ActionExt;
+#[async_trait]
+impl Extension for ActionExt {
+    fn id(&self) -> &'static str { "action" }
+    fn display_name(&self, _: Lang) -> String { "Action".into() }
+    fn migrations(&self) -> Vec<Migration> { vec![] }
+    fn routes(&self) -> Router<AppState> { Router::new() }
+    fn setup_wizard(&self) -> Option<ExtensionWizard> {
+        Some(ExtensionWizard { steps: vec![
+            SetupStep { id: "do_it", title_ko: "Do", title_en: "Do",
+                description_ko: "", description_en: "", fields: vec![],
+                save_handler: Arc::new(ActionSave),
+                prefill: BTreeMap::new(), visible_when: None },
+        ] })
+    }
+}
+
 #[tokio::test]
 async fn action_step_dispatched_with_empty_form() {
-    // ActionExt: 빈 fields step, save → outcome {ok:"1"}
     let app = build_app(vec![Arc::new(ActionExt)]).await;
     let json: serde_json::Value = body_json(post_resp(app,
         "/api/console/setup/extension-step/action/do_it", "{}").await);
