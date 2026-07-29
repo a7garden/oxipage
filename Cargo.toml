@@ -5,6 +5,7 @@ members = [
     "crates/oxipage-console",
     "crates/oxipage-cli",
     "crates/oxipage-wasm",
+
     "crates/oxipage-ext-wasm-demo",
     "crates/oxipage-ext-activity",
     "crates/oxipage-ext-blog",

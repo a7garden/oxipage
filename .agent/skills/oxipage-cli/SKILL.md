@@ -15,21 +15,21 @@ description: >
 - Every `add`/`new` command creates a **draft only**. Never use `--publish` or the `publish`
   command until the user explicitly says "publish" / "게시해줘" / "make it live".
 - Always append `--json` to commands so you can parse the output.
-- On failure (especially 403 / insufficient scope), do **not** retry — report to the user exactly
-  which permission is missing.
+- On failure (especially connection refused, 5xx), do **not** retry blindly — report the exact
+  error (host/port/HTTP status) and ask the user how to proceed.
 
-## Authentication (token)
+## Authentication (local management server)
 
-- This skill requires an Oxipage PAT to be **pre-provisioned** in the oh-my-pi environment:
-  1. The owner runs, locally: `OXIPAGE_TOKEN=$OXIPAGE_ADMIN_TOKEN oxipage auth token create --label omp-agent --scopes post:write` (issued with the server's `OXIPAGE_ADMIN_TOKEN`, which has `admin` scope. Do **not** grant the agent `post:publish` — draft-first principle).
-  2. Inject the plain token into the oh-my-pi environment variable `OXIPAGE_TOKEN`. The plain token is shown only once, so store it immediately.
-  3. The CLI auto-attaches `Authorization: Bearer` when `OXIPAGE_TOKEN` is set. Without it, every write command fails with 401.
-- **`oxipage auth login` (browser) is not implemented** — it only prints guidance. Instead, issue
-  PATs via `oxipage auth token create`, and manage local storage with `oxipage auth set <token>`
-  (credentials file, 0600) / `oxipage auth status` / `oxipage auth unset`. PAT scope separation
-  (`post:write`/`post:publish`/`read`) is complete as of Phase 4.
-- On token expiry or insufficient scope (403), **ask the user to re-issue** — never attempt to
-  issue or escalate tokens yourself.
+- The management server (`oxipage console`) is **local-only by design** — bound to `127.0.0.1`
+  with no auth. Run it on the same machine; do not expose it to the network.
+- The CLI still accepts `--token` / `OXIPAGE_TOKEN` for symmetry with future remote servers,
+  but the local server ignores it. Resolution order: `--token` → `OXIPAGE_TOKEN` env →
+  `~/.config/oxipage/credentials` (0600) → `sites.toml` (multi-site) → none.
+- The `--site <name>` flag (or `OXIPAGE_SITE` env) selects a remote site from `sites.toml`.
+  The token in that profile is sent to the remote console, but **the remote server must enforce
+  auth at its own reverse-proxy** — `OXIPAGE_TOKEN` is not a substitute for that.
+- On `401`/`403` from a remote endpoint, **ask the user to check the reverse-proxy setup** —
+  do not retry, do not invent tokens.
 
 ## Endpoint
 - The CLI targets the server at: `--endpoint` / `OXIPAGE_ENDPOINT` env → `[site].base_url` in
@@ -41,10 +41,7 @@ description: >
 oxipage init                                   # scaffold oxipage.toml (profile-only, Korean defaults)
 oxipage status [--json]                         # server + content summary
 oxipage console [--port 8787]                     # start the local dev server
-oxipage auth set <token>                        # store token in credentials file (0600)
-oxipage auth status | unset                      # check / clear stored token
-oxipage auth token create --label X --scopes post:write,post:publish   # issue a PAT (needs admin, plain shown once)
-oxipage auth token list | revoke <id>            # manage PATs (needs admin)
+oxipage site list | add | use | show | edit | rm           # multi-site profiles (sites.toml, 0600)
 oxipage blog new "<title>" [--lang ko|en] [--file DRAFT.md] [--tag t1 --tag t2] [--json]
 oxipage blog publish <slug> [--json]
 oxipage blog list [--draft] [--lang ko] [--json]
@@ -62,7 +59,7 @@ oxipage link rm <id>
 oxipage lobby layout <extension> --mode canvas|grid|list
 oxipage lobby config [--json]
 oxipage build [--site <name>] [--json]              # static site generation
-oxipage deploy [--target github-pages|cloudflare|netlify] [--site <name>] [--json]  # deploy static site
+oxipage deploy [--target github-pages] [--site <name>] [--dry-run] [--json]  # github-pages only; CF/Netlify bail
 oxipage query "<SQL>" [--json]                      # direct SQL query (read-only)
 oxipage schema [--extension <name>] [--json]        # DB schema discovery
 oxipage cache refresh [--extension <name>] [--json] # refresh external API cache

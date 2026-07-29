@@ -81,9 +81,10 @@ impl Extension for MyFeatureExtension {
    On delete/disable, call `delete` / `delete_extension` (doc/02 §2.13).
 3. **Draft-first principle:** `create` always sets `published_at = NULL`. Publishing is a separate
    `POST /{id}/publish` action only (doc/04 §4.3).
-4. **Write-route auth:** a handler argument `_auth: AdminAuth` means entry itself requires the
-   `post:write` scope. Publish actions call `auth.require_scope("post:publish")?;` as the first
-   line. Token management calls `require_scope("admin")?` (doc/01 §1.8).
+4. **Write-route gate:** handlers that mutate state must live under the management API router.
+   The management server is local-only (bind `127.0.0.1`) with no auth; if you expose it, put
+   a reverse-proxy auth layer in front. Publish actions are a separate `POST /{id}/publish`
+   endpoint to keep the draft-first principle auditable in the route table.
 5. **Errors:** use `oxipage_core::error::ApiError` (`new` / `validation` / `internal`). The response
    envelope is `DataEnvelope<T>`.
 6. **`order` / `display_order`:** `order` is a SQL reserved word — always use `display_order`.
@@ -201,15 +202,15 @@ async fn seed_sample_data(&self, ctx: &AppState) -> anyhow::Result<()> {
 - 두 확장이 같은 `id`의 외부 키를 노출하면 마지막 확장이 우선.
 
 ## 4. Server registration
-
-Add the dependency to `crates/oxipage-server/Cargo.toml` and add one line —
+Add the dependency to `crates/oxipage-console/Cargo.toml` and add one line —
 `Arc::new(MyFeatureExtension)` — to the `all_extensions()` vec in `src/lib.rs`.
 
 ## 5. Test patterns
 
 In `tests/api.rs`, assemble the app with an in-memory DB and an `ExtensionRegistry`, then drive it
-with `oneshot`. Baseline cases: 401 (no token), 503 (no server token), 422 (validation), the
-create → show → publish flow, and FTS upsert verification. `oxipage-ext-blog` and
+with `oneshot`. Baseline cases: 404 (unknown extension), 422 (validation), the
+create → show → publish flow, and FTS upsert verification. The management server has no
+auth — write-route tests just exercise the handler. `oxipage-ext-blog` and
 `oxipage-ext-projects` are the references.
 
 ## 6. Runtime-installable extensions (known limitation, doc/01 §1.4)

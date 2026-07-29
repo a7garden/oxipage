@@ -16,21 +16,22 @@ server needed for the public site — zero operating cost, zero security surface
 
 ## Status
 
-Foundation (Phase 0) through agent integration / API hardening (Phase 4) and most of OSS
-productization (Phase 5) are implemented. The **v2 SSG pivot** (Phase 6) is designed and
-tracked in the [design spec](docs/superpowers/specs/2026-07-28-static-site-generator-design.md).
-The detailed, living tracker is [`doc/08-remaining-implementation.md`](doc/08-remaining-implementation.md).
+Foundation (Phase 0) through OSS productization (Phase 5) are implemented. The **v2 SSG
+pivot** (Phase 6) is implemented on this branch — `BuildExt` trait, rayon parallel build
+pipeline, `oxipage deploy` GitHub Pages target, `oxipage query/schema` for AI agents,
+React SPA → static JSON data. See [`docs/production-readiness-report.md`](docs/production-readiness-report.md).
 
-- **v1 (current):** Axum HTTP server, SQLite (WAL) + per-extension namespaced migrations, FTS5 search
-  (`tokenize='trigram'`), publish-time SSR snapshots, local-only server (no auth — bind to
-  127.0.0.1), rate limiting, OpenAPI/Swagger UI, background-job scheduler (cron-driven).
+- **Management server:** `oxipage console` (binary = `oxipage-console`) — Axum, SQLite (WAL) +
+  per-extension namespaced migrations, FTS5 search (`tokenize='trigram'`), publish-time SSR
+  snapshots, local-only (no auth — bind to `127.0.0.1`), rate limiting, OpenAPI/Swagger UI,
+  background-job scheduler (cron-driven).
+- **Static site generator:** `oxipage build` → `out/` (HTML + JSON + hashed assets, sources
+  the SPA from the embedded binary) → `oxipage deploy --target github-pages`.
 - **9 extensions:** `profile` · `blog` · `projects` · `links` · `novels` · `movies` (TMDB) ·
   `books` (Aladin/Google Books) · `scraps` (HN/GeekNews) · `activity` (GitHub).
-- **CLI:** `init` · `status` · `serve` · `auth` · `blog` · `project` · `link` · `lobby` ·
-  `backup` · `build` · `deploy` · `query` · `schema` · `cache refresh`.
-- **v2 SSG (in design):** `BuildExt` trait, rayon parallel build pipeline, `oxipage deploy`
-  GitHub Pages target, `oxipage query/schema` for AI agents, React SPA → static JSON data.
-- **Verified:** `cargo test --workspace` **137 tests pass, 0 failed** (3 ignored — platform-specific) ·
+- **CLI:** `init` · `status` · `console` · `blog` · `project` · `link` · `lobby` ·
+  `extension` · `site` · `admin` · `backup` · `build` · `deploy` · `query` · `schema` · `cache refresh`.
+- **Verified:** `cargo test --workspace` **139 passed / 0 failed** (3 ignored — platform-specific) ·
   `cargo clippy --workspace --all-targets -- -D warnings` clean · `cd web && bun run build` OK.
 
 ## Requirements
@@ -50,11 +51,10 @@ cd oxipage
 # 1) Build the frontend (embedded into the binary at compile time — do this first)
 cd web && bun install && bun run build && cd ..
 
-# 2) Build the release binaries (server + CLI + all extensions)
+# 2) Build the release binaries (management server + CLI + all extensions)
 cargo build --release
-# → target/release/oxipage-server   (the server)
-# → target/release/oxipage          (the CLI)
-```
+# → target/release/oxipage-console  (the local management server: API + admin-web UI)
+# → target/release/oxipage          (the CLI: content management + build + deploy + query)
 
 > **macOS 27 note:** the release profile pins `strip = "none"`. macOS 27's dyld rejects the
 > mis-aligned string pool of stripped Mach-O dylibs (rust-lang/rust#157750), so the default
@@ -83,9 +83,7 @@ Secrets (API keys) are **never** stored in the config file — only the *names* 
 variables that hold them. See [`oxipage.toml.example`](oxipage.toml.example).
 
 ### 2. Start the management server
-
-```bash
-./target/release/oxipage-server
+./target/release/oxipage-console
 # → listening on http://127.0.0.1:8787
 #   (admin-web + API — content management only)
 ```
@@ -200,13 +198,10 @@ Oxipage is a **Static Site Generator**. The public site needs no runtime server.
 ```bash
 oxipage build
 oxipage deploy --target github-pages
-```
-
 This pushes `out/` to the `gh-pages` branch of your repo. Your GitHub Pages URL will serve
 the site immediately. Cloudflare Pages (`--target cloudflare`) and Netlify (`--target netlify`)
-are also supported.
-
-### Local preview
+are tracked but not yet implemented (`deploy.rs` will refuse with `"<target> not yet
+implemented"`).
 
 Before deploying, preview the static site locally:
 
@@ -236,8 +231,8 @@ Media files under `data/media/` need a separate backup (rsync, restic, etc.).
 ```
 oxipage/
 ├── crates/
-│   ├── oxipage-core/          # management + build: HTTP, auth, search, scheduler, registry, BuildExt, build pipeline
-│   ├── oxipage-server/        # binary (oxipage-server) — statically links all extensions
+│   ├── oxipage-core/          # management + build: HTTP, search, scheduler, registry, BuildExt, build pipeline
+│   ├── oxipage-console/       # binary (oxipage-console) — the local management server (admin-web + API)
 │   ├── oxipage-cli/           # binary (oxipage) — content management + build + deploy + query
 │   └── oxipage-ext-*/         # 9 extensions, each owning its DB, routes, CLI, BuildExt
 ├── web/                       # React 19 + TS + Vite SPA, static JSON data layer
@@ -262,10 +257,10 @@ oxipage/
 ## Development
 
 ```bash
-cargo run -p oxipage-server          # backend :8787 (debug build reads web/dist from disk)
-cd web && bun run dev                # frontend dev server :5173 (/api → :8787 proxy)
+cargo run -p oxipage-console       # backend :8787 (debug build reads web/dist from disk)
+cd web && bun run dev              # frontend dev server :5173 (/api → :8787 proxy)
 
-cargo test --workspace                                   # 90 tests
+cargo test --workspace                                   # 139 tests
 cargo clippy --workspace --all-targets -- -D warnings    # must be clean
 ```
 
