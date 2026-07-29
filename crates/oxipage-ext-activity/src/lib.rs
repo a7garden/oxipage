@@ -10,8 +10,8 @@ use oxipage_core::client::Client;
 
 use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
 use oxipage_core::extension::{
-    CliCommand, CliHandler, CliSubcommand, Extension, ExternalApiKey, ExternalKeyScope, Lang,
-    LobbyCard, LobbyCardItem, Migration,
+    CliCommand, CliHandler, CliSubcommand, Extension, ExtensionWizard, Lang, LobbyCard,
+    LobbyCardItem, Migration, SetupField, SetupFieldKind, SetupSaveHandler, SetupStep,
 };
 use oxipage_core::scheduler::ScheduledJob;
 use oxipage_core::state::AppState;
@@ -152,16 +152,49 @@ impl Extension for ActivityExtension {
         }]
     }
 
-    fn external_api_keys(&self) -> Vec<ExternalApiKey> {
-        vec![ExternalApiKey {
-            id: "github_username",
-            label_ko: "GitHub 사용자명",
-            label_en: "GitHub username",
-            env_var: "OXIPAGE_GITHUB_USERNAME",
-            required: false,
-            // activity 확장은 config.integrations에서 username을 읽으므로 env만 set.
-            scope: ExternalKeyScope::EnvOnly,
-        }]
+    fn setup_wizard(&self) -> Option<ExtensionWizard> {
+        Some(ExtensionWizard {
+            steps: vec![SetupStep {
+                id: "activity_github",
+                title_ko: "GitHub 사용자명",
+                title_en: "GitHub username",
+                description_ko: "활동 동기화에 사용할 GitHub 사용자명 (선택)",
+                description_en: "GitHub username for activity sync (optional)",
+                fields: vec![SetupField {
+                    name: "github_username",
+                    label_ko: "GitHub 사용자명",
+                    label_en: "GitHub username",
+                    kind: SetupFieldKind::Text,
+                    required: false,
+                    placeholder_ko: None,
+                    placeholder_en: None,
+                }],
+                save_handler: Arc::new(ActivityGithubSave),
+                prefill: BTreeMap::new(),
+                visible_when: None,
+            }],
+        })
+    }
+}
+
+struct ActivityGithubSave;
+#[async_trait]
+impl SetupSaveHandler for ActivityGithubSave {
+    async fn save(
+        &self,
+        _ctx: &AppState,
+        form: &serde_json::Map<String, serde_json::Value>,
+    ) -> anyhow::Result<()> {
+        if let Some(v) = form.get("github_username").and_then(|x| x.as_str())
+            && !v.is_empty()
+        {
+            // SAFETY: setup wizard 는 단일 사용자 로컬 환경에서만 동작.
+            // activity 는 config.integrations 가 env 를 직접 읽으므로 env 만 set.
+            unsafe {
+                std::env::set_var("OXIPAGE_GITHUB_USERNAME", v);
+            }
+        }
+        Ok(())
     }
 }
 

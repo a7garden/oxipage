@@ -10,8 +10,9 @@ use oxipage_core::client::Client;
 
 use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
 use oxipage_core::extension::{
-    CliArg, CliCommand, CliHandler, CliSubcommand, Extension, ExternalApiKey, ExternalKeyScope,
-    Lang, LobbyCard, LobbyCardItem, Migration,
+    CliArg, CliCommand, CliHandler, CliSubcommand, Extension, ExtensionWizard, Lang,
+    LobbyCard, LobbyCardItem, Migration, SetupField, SetupFieldKind, SetupSaveHandler,
+    SetupStep, persist_extension_config,
 };
 use oxipage_core::state::AppState;
 use sqlx::SqlitePool;
@@ -138,15 +139,49 @@ impl Extension for BooksExtension {
         }]
     }
 
-    fn external_api_keys(&self) -> Vec<ExternalApiKey> {
-        vec![ExternalApiKey {
-            id: "aladin_key",
-            label_ko: "알라딘 TTBKey",
-            label_en: "Aladin TTBKey",
-            env_var: "OXIPAGE_ALADIN_TTBKEY",
-            required: false,
-            scope: ExternalKeyScope::ExtensionConfig,
-        }]
+    fn setup_wizard(&self) -> Option<ExtensionWizard> {
+        Some(ExtensionWizard {
+            steps: vec![SetupStep {
+                id: "books_key",
+                title_ko: "알라딘 API 키",
+                title_en: "Aladin API key",
+                description_ko: "도서 정보 연동을 위한 알라딘 TTBKey (선택)",
+                description_en: "Aladin TTBKey for book data (optional)",
+                fields: vec![SetupField {
+                    name: "aladin_key",
+                    label_ko: "알라딘 TTBKey",
+                    label_en: "Aladin TTBKey",
+                    kind: SetupFieldKind::Secret,
+                    required: false,
+                    placeholder_ko: None,
+                    placeholder_en: None,
+                }],
+                save_handler: Arc::new(BooksKeySave),
+                prefill: BTreeMap::new(),
+                visible_when: None,
+            }],
+        })
+    }
+}
+
+struct BooksKeySave;
+#[async_trait]
+impl SetupSaveHandler for BooksKeySave {
+    async fn save(
+        &self,
+        ctx: &AppState,
+        form: &serde_json::Map<String, serde_json::Value>,
+    ) -> anyhow::Result<()> {
+        if let Some(v) = form.get("aladin_key").and_then(|x| x.as_str())
+            && !v.is_empty()
+        {
+            // SAFETY: setup wizard 는 단일 사용자 로컬 환경에서만 동작.
+            unsafe {
+                std::env::set_var("OXIPAGE_ALADIN_TTBKEY", v);
+            }
+            persist_extension_config(ctx, "books", "OXIPAGE_ALADIN_TTBKEY", v).await?;
+        }
+        Ok(())
     }
 }
 

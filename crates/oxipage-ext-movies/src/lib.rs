@@ -10,8 +10,9 @@ use oxipage_core::client::Client;
 
 use oxipage_core::builder::{BuildExt, SearchDoc, StaticPage};
 use oxipage_core::extension::{
-    CliArg, CliCommand, CliHandler, CliSubcommand, Extension, ExternalApiKey, ExternalKeyScope,
-    Lang, LobbyCard, LobbyCardItem, Migration,
+    CliArg, CliCommand, CliHandler, CliSubcommand, Extension, ExtensionWizard, Lang,
+    LobbyCard, LobbyCardItem, Migration, SetupField, SetupFieldKind, SetupSaveHandler,
+    SetupStep, persist_extension_config,
 };
 use oxipage_core::state::AppState;
 use sqlx::SqlitePool;
@@ -74,6 +75,26 @@ impl CliHandler for MovieSeriesCreateHandler {
     }
 }
 
+struct MoviesKeySave;
+#[async_trait]
+impl SetupSaveHandler for MoviesKeySave {
+    async fn save(
+        &self,
+        ctx: &AppState,
+        form: &serde_json::Map<String, serde_json::Value>,
+    ) -> anyhow::Result<()> {
+        if let Some(v) = form.get("tmdb_key").and_then(|x| x.as_str())
+            && !v.is_empty()
+        {
+            // SAFETY: setup wizard 는 단일 사용자 로컬 환경에서만 동작.
+            unsafe {
+                std::env::set_var("OXIPAGE_TMDB_KEY", v);
+            }
+            persist_extension_config(ctx, "movies", "OXIPAGE_TMDB_KEY", v).await?;
+        }
+        Ok(())
+    }
+}
 #[async_trait]
 impl Extension for MoviesExtension {
     fn id(&self) -> &'static str {
@@ -184,15 +205,28 @@ impl Extension for MoviesExtension {
         }]
     }
 
-    fn external_api_keys(&self) -> Vec<ExternalApiKey> {
-        vec![ExternalApiKey {
-            id: "tmdb_key",
-            label_ko: "TMDB API 키",
-            label_en: "TMDB API key",
-            env_var: "OXIPAGE_TMDB_KEY",
-            required: false,
-            scope: ExternalKeyScope::ExtensionConfig,
-        }]
+    fn setup_wizard(&self) -> Option<ExtensionWizard> {
+        Some(ExtensionWizard {
+            steps: vec![SetupStep {
+                id: "movies_key",
+                title_ko: "TMDB API 키",
+                title_en: "TMDB API key",
+                description_ko: "영화 정보 연동을 위한 TMDB 키 (선택)",
+                description_en: "TMDB key for movie data (optional)",
+                fields: vec![SetupField {
+                    name: "tmdb_key",
+                    label_ko: "TMDB API 키",
+                    label_en: "TMDB API key",
+                    kind: SetupFieldKind::Secret,
+                    required: false,
+                    placeholder_ko: None,
+                    placeholder_en: None,
+                }],
+                save_handler: Arc::new(MoviesKeySave),
+                prefill: BTreeMap::new(),
+                visible_when: None,
+            }],
+        })
     }
 }
 impl BuildExt for MoviesExtension {
