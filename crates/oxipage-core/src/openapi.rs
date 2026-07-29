@@ -93,7 +93,7 @@ fn core_paths() -> Value {
         "/api/console/setup/status": {
             "get": {
                 "tags": ["setup"],
-                "summary": "setup 모드 상태 (extension_wizards + external_api_keys 동적 조립)",
+                "summary": "setup 모드 상태 (extension_wizards 동적 조립)",
                 "security": [],
                 "responses": ok_data("SetupStatus")
             }
@@ -120,14 +120,6 @@ fn core_paths() -> Value {
                 "summary": "확장 정의 setup step 저장 (registry 디스패치, loopback-only)",
                 "security": [],
                 "parameters": [{ "name": "ext_id", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "step_id", "in": "path", "required": true, "schema": { "type": "string" } }],
-                "responses": ok_data("SimpleOk")
-            }
-        },
-        "/api/console/setup/external-keys": {
-            "post": {
-                "tags": ["setup"],
-                "summary": "외부 API 키 일괄 저장 (registry 디스패치, loopback-only)",
-                "security": [],
                 "responses": ok_data("SimpleOk")
             }
         },

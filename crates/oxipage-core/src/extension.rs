@@ -196,43 +196,6 @@ pub trait Extension: Send + Sync {
         None
     }
 
-    /// 이 확장이 사용할 외부 API 키 메타. setup_status 응답에 노출되어
-    /// 마법사가 동적으로 키 입력란을 만든다. 실제 키 값은 `save_external_key`로 수신.
-    /// 기본 구현: 빈 vec (외부 키가 없는 확장).
-    fn external_api_keys(&self) -> Vec<ExternalApiKey> {
-        Vec::new()
-    }
-
-    /// 외부 API 키 값을 저장. 코어가 `external_api_keys()`에서 모은 id로 디스패치한다.
-    ///
-    /// **기본 구현:** `external_api_keys()`를 순회해 `key_id`와 일치하는 키를 찾고
-    /// `env_var`가 등록돼 있으면 `std::env::set_var`로 process env에 보존한다.
-    /// `scope == ExtensionConfig`이면 `extension_state.config` JSON에도 기록한다.
-    /// 자기 도메인별 추가 검증/저장이 필요하면 확장이 override할 수 있다.
-    async fn save_external_key(
-        &self,
-        ctx: &AppState,
-        key_id: &str,
-        value: &str,
-    ) -> anyhow::Result<()> {
-        for k in self.external_api_keys() {
-            if k.id == key_id {
-                // SAFETY: process env 오염이지만 setup wizard는 단일 사용자 환경에서만
-                // 동작하며, 이 시그니처는 v1 SSG 모델에서 "한 사용자가 한 사이트를
-                // 로컬에서 설정"하는 경로에 한정된다. 다른 env 변경 경로는 env_override
-                // 함수로 분리할 것.
-                unsafe {
-                    std::env::set_var(k.env_var, value);
-                }
-                if matches!(k.scope, ExternalKeyScope::ExtensionConfig) {
-                    persist_extension_config(ctx, self.id(), k.env_var, value).await?;
-                }
-                return Ok(());
-            }
-        }
-        Ok(())
-    }
-
     /// setup 완료 시점에 시드할 샘플 데이터 (예: 환영 글).
     /// 활성 확장에만 호출되며, 실패해도 setup 완료 진행(best-effort).
     async fn seed_sample_data(&self, _ctx: &AppState) -> anyhow::Result<()> {
@@ -245,7 +208,7 @@ pub trait Extension: Send + Sync {
 // setup 마법사가 확장의 자기-도메인 데이터(프로필 필드, 환영 글, API 키 등)를
 // 동적으로 조립/저장하기 위한 트레이트 경계. 코어는 이 타입들의 외형만 알고
 // 실제 SQL/데이터는 각 확장이 자기 `SetupStep::save_handler`와
-// `save_external_key`/`seed_sample_data` 안에서 다룬다.
+// `seed_sample_data` 안에서 다룬다.
 
 /// setup wizard 한 step의 선언적 정의.
 /// 코어가 step 라우팅 + 폼 디스패치를 담당하고, 이 구조체가 UI 필드와 저장 콜백을 표현.
@@ -381,28 +344,7 @@ pub trait SetupSaveHandler: Send + Sync {
     ) -> anyhow::Result<()>;
 }
 
-/// 외부 API 키 한 줄. setup_status 응답에 노출되어 마법사가 동적으로
-/// 입력란을 만들고, save 시 확장이 자기 도메인 위치에 저장한다.
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct ExternalApiKey {
-    pub id: &'static str,
-    pub label_ko: &'static str,
-    pub label_en: &'static str,
-    pub env_var: &'static str,
-    pub required: bool,
-    pub scope: ExternalKeyScope,
-}
-
-#[derive(Debug, Clone, Copy, serde::Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ExternalKeyScope {
-    /// process env에만 set (현재 IntegrationsConfig가 env를 직접 읽는 패턴).
-    EnvOnly,
-    /// env + `extension_state.config` JSON 둘 다.
-    ExtensionConfig,
-}
-
-/// `extension_state.config` JSON에 한 키를 upsert. save_external_key 기본 impl이 사용.
+/// `extension_state.config` JSON에 한 키를 upsert. 확장의 setup_wizard 키-step save 핸들러가 사용.
 /// 기존에 같은 키가 있으면 덮어쓰고, JSON이 깨져 있으면 빈 dict로 시작한다.
 pub async fn persist_extension_config(
     ctx: &AppState,

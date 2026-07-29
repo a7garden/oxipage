@@ -9,8 +9,6 @@ export interface SetupStatus {
   available_themes?: ThemeInfo[];
   /// 활성 확장이 소유한 서브-위자드 (동적 조립).
   extension_wizards?: ExtensionWizardInfo[];
-  /// 활성 확장이 노출한 외부 API 키 (동적 조립).
-  external_api_keys?: ExternalApiKey[];
 }
 
 export interface ExtensionInfo {
@@ -63,19 +61,10 @@ export interface SetupField {
   name: string;
   label_ko: string;
   label_en: string;
-  type: "text" | "textarea" | "url";
+  type: "text" | "textarea" | "url" | "secret";
   required: boolean;
   placeholder_ko?: string | null;
   placeholder_en?: string | null;
-}
-/// 외부 API 키. 마법사가 동적으로 키 입력란을 만들고, save 시 id로 dispatch.
-export interface ExternalApiKey {
-  id: string;
-  label_ko: string;
-  label_en: string;
-  env_var: string;
-  required: boolean;
-  scope: "env_only" | "extension_config";
 }
 
 export interface CompleteResult {
@@ -135,10 +124,6 @@ export async function submitExtensionStep(
   );
 }
 
-/// 활성 확장이 노출한 모든 외부 API 키를 한 번에 저장.
-export async function submitExternalKeys(values: Record<string, string>) {
-  return post<{ ok: boolean }>("/external-keys", { values });
-}
 
 export async function submitTheme(data: { theme_id: string; lobby_mode?: string }) {
   return post<{ ok: boolean }>("/theme", data);

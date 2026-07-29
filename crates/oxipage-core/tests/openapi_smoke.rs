@@ -57,7 +57,6 @@ async fn registry_extensions_appear_in_openapi_paths() {
     // 코어 시스템 경로도 함께 있어야 함
     assert!(paths.contains_key("/api/console/setup/status"));
     assert!(paths.contains_key("/api/console/setup/extension-step/{ext_id}/{step_id}"));
-    assert!(paths.contains_key("/api/console/setup/external-keys"));
     assert!(paths.contains_key("/api/console/lobby/manifest"));
     assert!(paths.contains_key("/healthz"));
 }

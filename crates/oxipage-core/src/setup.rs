@@ -5,7 +5,7 @@
 //! - setup 완료 후 410 Gone
 
 use crate::error::ApiError;
-use crate::extension::{DataEnvelope, ExtensionStepInfo, ExternalApiKey};
+use crate::extension::{DataEnvelope, ExtensionStepInfo};
 use crate::state::{AppState, SiteOverride};
 use axum::extract::{ConnectInfo, Path, Request, State};
 use axum::http::StatusCode;
@@ -92,8 +92,6 @@ pub struct StatusResult {
     pub available_themes: Vec<ThemeEntry>,
     /// 활성 확장이 소유한 서브-위자드 (각각 0..N step).
     pub extension_wizards: Vec<ExtensionWizardInfo>,
-    /// 활성 확장이 노출한 외부 API 키 목록(중복 id는 마지막 우선).
-    pub external_api_keys: Vec<ExternalApiKey>,
 }
 
 #[derive(Serialize)]
@@ -137,7 +135,7 @@ pub struct SimpleOk {
 /// 완료된 step 목록 조회.
 ///
 /// **확장 step은 동적이므로 core가 추적하지 않는다** — wizard UI가
-/// `extension_steps`/`external_api_keys`로 자체 조립한다. 이 함수는 코어
+/// `extension_wizards`로 자체 조립한다. 이 함수는 코어
 /// 자체 step(site/extensions/theme)과 `admin` 호환 마커만 반환.
 async fn get_completed_steps(state: &AppState) -> Result<Vec<String>, ApiError> {
     let mut steps = Vec::new();
@@ -201,8 +199,8 @@ fn update_toml_site(name: &str, base_url: &str) -> anyhow::Result<()> {
 /// setup_gate 미들웨어는 http.rs에서 별도 적용.
 ///
 /// **확장 step과 외부 API 키 라우트는 registry 디스패치** — 코어는
-/// 도메인 필드/키 이름을 모른다. 확장이 자기 `SetupStep`/`ExternalApiKey`를
-/// 통해 동적으로 제공한다.
+/// 도메인 필드를 모른다. 확장이 자기 `SetupStep`으로
+/// 동적으로 제공한다.
 pub fn setup_routes(api: Router<AppState>) -> Router<AppState> {
     api.route("/setup/status", get(setup_status_handler))
         .route("/setup/site", post(setup_site_handler))
@@ -211,7 +209,6 @@ pub fn setup_routes(api: Router<AppState>) -> Router<AppState> {
             "/setup/extension-step/{ext_id}/{step_id}",
             post(setup_extension_step_handler),
         )
-        .route("/setup/external-keys", post(setup_external_keys_handler))
         .route("/setup/theme", post(setup_theme_handler))
         .route("/setup/complete", post(setup_complete_handler))
 }
@@ -294,9 +291,6 @@ pub async fn setup_status_handler(
     let snapshot = state.registry.iter();
     let mut available_extensions: Vec<ExtInfo> = Vec::with_capacity(snapshot.len());
     let mut extension_wizards: Vec<ExtensionWizardInfo> = Vec::new();
-    let mut external_api_keys: Vec<ExternalApiKey> = Vec::new();
-    let mut seen_key_ids: std::collections::HashSet<&'static str> =
-        std::collections::HashSet::new();
 
     for ext in snapshot {
         available_extensions.push(ExtInfo {
@@ -326,15 +320,6 @@ pub async fn setup_status_handler(
                 steps,
             });
         }
-
-        for k in ext.external_api_keys() {
-            // 같은 id를 두 확장이 노출하면 마지막 확장이 우선.
-            if seen_key_ids.insert(k.id) {
-                external_api_keys.push(k);
-            } else if let Some(existing) = external_api_keys.iter_mut().find(|x| x.id == k.id) {
-                *existing = k;
-            }
-        }
     }
 
     Ok(Json(DataEnvelope {
@@ -344,7 +329,6 @@ pub async fn setup_status_handler(
             available_extensions,
             available_themes: THEMES.to_vec(),
             extension_wizards,
-            external_api_keys,
         },
     }))
 }
@@ -515,41 +499,6 @@ pub async fn setup_theme_handler(
     Ok(Json(DataEnvelope {
         data: SimpleOk { ok: true },
     }))
-}
-
-/// POST /api/console/setup/external-keys
-///
-/// **registry 디스패치:** 활성 확장의 `external_api_keys()`를 순회하며
-/// body의 `values`에 들어있는 id와 매칭되는 키 값을 `save_external_key`로 위임.
-/// 코어는 키 id/이름/env_var를 모른다 — 확장이 자기 트레이트 안에서 처리.
-pub async fn setup_external_keys_handler(
-    State(state): State<AppState>,
-    Json(body): Json<ExternalKeysInput>,
-) -> Result<Json<DataEnvelope<SimpleOk>>, ApiError> {
-    for ext in state.registry.iter() {
-        if !state.registry.is_active(ext.id()).await {
-            continue;
-        }
-        for k in ext.external_api_keys() {
-            if let Some(v) = body.values.get(k.id)
-                && let Some(s) = v.as_str()
-                && !s.is_empty()
-            {
-                ext.save_external_key(&state, k.id, s)
-                    .await
-                    .map_err(ApiError::internal)?;
-            }
-        }
-    }
-    Ok(Json(DataEnvelope {
-        data: SimpleOk { ok: true },
-    }))
-}
-
-#[derive(Deserialize)]
-pub struct ExternalKeysInput {
-    #[serde(default)]
-    pub values: serde_json::Map<String, serde_json::Value>,
 }
 
 /// POST /api/console/setup/complete

@@ -1,7 +1,6 @@
 //! Setup wizard Extension hook integration tests.
 //!
-//! `Extension` trait의 `setup_wizard` / `external_api_keys` /
-//! `seed_sample_data` hook이 setup API와 제대로 통합되는지 검증.
+//! `Extension` trait의 `setup_wizard` / `seed_sample_data` hook이 setup API와 제대로 통합되는지 검증.
 //! 코어가 도메인 필드를 모른다 — 확장이 자기 데이터를 제공한다.
 
 use async_trait::async_trait;
@@ -9,7 +8,7 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use oxipage_core::config::Config;
 use oxipage_core::extension::{
-    Extension, ExtensionWizard, ExternalApiKey, ExternalKeyScope, Lang, LobbyCard, Migration,
+    Extension, ExtensionWizard, Lang, LobbyCard, Migration,
     SetupField, SetupFieldKind, SetupSaveHandler, SetupStep,
 };
 use oxipage_core::registry::ExtensionRegistry;
@@ -85,16 +84,6 @@ impl Extension for DemoExt {
                 visible_when: None,
             }],
         })
-    }
-    fn external_api_keys(&self) -> Vec<ExternalApiKey> {
-        vec![ExternalApiKey {
-            id: "demo_key",
-            label_ko: "데모 키",
-            label_en: "Demo key",
-            env_var: "OXIPAGE_DEMO_KEY",
-            required: false,
-            scope: ExternalKeyScope::EnvOnly,
-        }]
     }
     async fn seed_sample_data(&self, _ctx: &AppState) -> anyhow::Result<()> {
         Ok(())
@@ -186,15 +175,28 @@ impl Extension for KeyOnlyExt {
     async fn lobby_summary(&self, _ctx: &AppState) -> Option<LobbyCard> {
         None
     }
-    fn external_api_keys(&self) -> Vec<ExternalApiKey> {
-        vec![ExternalApiKey {
-            id: "alpha",
-            label_ko: "알파",
-            label_en: "Alpha",
-            env_var: "OXIPAGE_ALPHA",
-            required: false,
-            scope: ExternalKeyScope::EnvOnly,
-        }]
+    fn setup_wizard(&self) -> Option<ExtensionWizard> {
+        Some(ExtensionWizard {
+            steps: vec![SetupStep {
+                id: "key_only_step",
+                title_ko: "알파 키",
+                title_en: "Alpha key",
+                description_ko: "테스트용 키 step",
+                description_en: "test key step",
+                fields: vec![SetupField {
+                    name: "alpha",
+                    label_ko: "알파",
+                    label_en: "Alpha",
+                    kind: SetupFieldKind::Secret,
+                    required: false,
+                    placeholder_ko: None,
+                    placeholder_en: None,
+                }],
+                save_handler: Arc::new(NoopSave),
+                prefill: std::collections::BTreeMap::new(),
+                visible_when: None,
+            }],
+        })
     }
 }
 /// build_app 결과 router에 loopback `ConnectInfo<SocketAddr>`를 주입.
@@ -322,52 +324,7 @@ async fn setup_status_includes_extension_wizards() {
     );
 }
 
-#[tokio::test]
-async fn setup_status_includes_external_api_keys() {
-    let app = build_app(vec![
-        Arc::new(DemoExt { step_id: "demo" }),
-        Arc::new(KeyOnlyExt),
-    ])
-    .await;
-    let res = app
-        .oneshot(
-            Request::get("/api/console/setup/status")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let body = axum::body::to_bytes(res.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    let keys = json["data"]["external_api_keys"].as_array().unwrap();
-    let ids: Vec<&str> = keys.iter().map(|k| k["id"].as_str().unwrap()).collect();
-    assert!(ids.contains(&"demo_key"));
-    assert!(ids.contains(&"alpha"));
-}
-
-#[tokio::test]
-async fn external_keys_handler_dispatches_to_extension() {
-    let app = build_app(vec![Arc::new(DemoExt { step_id: "demo" })]).await;
-    let res = app
-        .oneshot(
-            Request::post("/api/console/setup/external-keys")
-                .header("content-type", "application/json")
-                .body(Body::from(r#"{"values":{"demo_key":"secret"}}"#))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::OK);
-    // env var가 process env에 set되었는지 확인 (EnvOnly scope)
-    assert_eq!(
-        std::env::var("OXIPAGE_DEMO_KEY").ok().as_deref(),
-        Some("secret"),
-    );
-}
-
-/// 미활성 확장은 extension_steps/external_api_keys에서 제외되어야 한다.
+/// 미활성 확장은 extension_wizards에서 제외되어야 한다.
 /// (P2 §is_active gate 회귀 테스트 — 이 게이트를 제거하면 모든 테스트가 그대로 통과한다.)
 #[tokio::test]
 async fn disabled_extension_excluded_from_status() {
@@ -398,16 +355,6 @@ async fn disabled_extension_excluded_from_status() {
         !wizard_ids.contains(&"demo"),
         "disabled extension's wizard must be excluded, got: {wizard_ids:?}"
     );
-    let keys = json["data"]["external_api_keys"].as_array().unwrap();
-    let key_ids: Vec<&str> = keys.iter().map(|k| k["id"].as_str().unwrap()).collect();
-    assert!(
-        !key_ids.contains(&"demo_key"),
-        "disabled extension's key must be excluded, got: {key_ids:?}"
-    );
-    assert!(
-        key_ids.contains(&"alpha"),
-        "active extension's key must remain"
-    );
 }
 
 /// disable된 확장의 extension-step POST는 404로 거부되어야 한다.
@@ -431,32 +378,3 @@ async fn disabled_extension_step_returns_404() {
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
 }
 
-/// external_keys POST는 disabled 확장의 키를 침묵히 무시해야 한다.
-/// (admin이 실수로 구 키를 보내도 안전.)
-#[tokio::test]
-async fn external_keys_ignores_disabled_extension_keys() {
-    let app = build_app_with_toml_enabled(
-        vec![Arc::new(DemoExt { step_id: "demo" }), Arc::new(KeyOnlyExt)],
-        &["key_only".to_string()],
-    )
-    .await;
-    let res = app
-        .oneshot(
-            Request::post("/api/console/setup/external-keys")
-                .header("content-type", "application/json")
-                .body(Body::from(
-                    r#"{"values":{"demo_key":"should-be-ignored","alpha":"kept"}}"#,
-                ))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::OK);
-    // demo_key (disabled): env 안 바뀌어야 함.
-    assert_ne!(
-        std::env::var("OXIPAGE_DEMO_KEY").ok().as_deref(),
-        Some("should-be-ignored")
-    );
-    // alpha (active): env에 저장됨.
-    assert_eq!(std::env::var("OXIPAGE_ALPHA").ok().as_deref(), Some("kept"));
-}

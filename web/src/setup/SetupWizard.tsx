@@ -1,4 +1,4 @@
-// SetupWizard — status 응답의 extension_wizards/external_api_keys로 step을 동적 조립.
+// SetupWizard — status 응답의 extension_wizards로 step을 동적 조립.
 // 코어가 profile/movies/books를 모른다 — 확장이 자기 SetupStep으로 선언한다.
 
 import { useEffect, useMemo, useState } from "react";
@@ -7,7 +7,6 @@ import {
   submitSite,
   submitExtensions,
   submitExtensionStep,
-  submitExternalKeys,
   submitTheme,
   submitComplete,
   type CompleteResult,
@@ -18,7 +17,6 @@ import { SetupGuard } from "./SetupGuard";
 import { StepSite } from "./StepSite";
 import { StepExtensions } from "./StepExtensions";
 import { GenericStep } from "./GenericStep";
-import { ExternalKeysStep } from "./ExternalKeysStep";
 import { StepTheme } from "./StepTheme";
 import { StepDone } from "./StepDone";
 
@@ -26,7 +24,6 @@ type Step =
   | { type: "site"; id: string }
   | { type: "extensions"; id: string }
   | { type: "extension-step"; id: string; extensionId: string; step: ExtensionStepInfo }
-  | { type: "external-keys"; id: string }
   | { type: "theme"; id: string }
   | { type: "done"; id: string };
 
@@ -40,9 +37,6 @@ function buildSteps(status: SetupStatus | null): Step[] {
     for (const step of wizard.steps ?? []) {
       out.push({ type: "extension-step", id: step.id, extensionId: wizard.extension_id, step });
     }
-  }
-  if ((status.external_api_keys ?? []).length > 0) {
-    out.push({ type: "external-keys", id: "external-keys" });
   }
   out.push({ type: "theme", id: "theme" });
   out.push({ type: "done", id: "done" });
@@ -153,7 +147,7 @@ export function SetupWizard() {
             onNext={(data) =>
               handleNext(async () => {
                 await submitExtensions(data as { enabled: string[] });
-                // 활성 세트 변경 반영: extension_steps/external_api_keys는 is_active에
+                // 활성 세트 변경 반영: extension_wizards는 is_active에
                 // 의존하므로 status를 다시 받아 steps를 재조립해야 한다.
                 const fresh = await fetchSetupStatus();
                 setStatus(fresh);
@@ -176,15 +170,6 @@ export function SetupWizard() {
           />
         );
       }
-      case "external-keys":
-        return (
-          <ExternalKeysStep
-            keys={status.external_api_keys ?? []}
-            loading={loading}
-            onBack={() => setStepIdx((i) => Math.max(0, i - 1))}
-            onNext={(values) => handleNext(() => submitExternalKeys(values))}
-          />
-        );
       case "theme":
         return (
           <StepTheme

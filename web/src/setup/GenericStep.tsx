@@ -19,7 +19,7 @@ export function GenericStep({ step, initialValues, onNext, onBack, loading }: Pr
   // 필드별 로컬 상태. 시작은 initialValues 또는 빈 문자열.
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(
-      step.fields.map((f) => [f.name, initialValues?.[f.name] ?? ""]),
+      step.fields.map((f) => [f.name, f.type === "secret" ? "" : (initialValues?.[f.name] ?? "")]),
     ),
   );
   const set = (name: string, v: string) =>
@@ -41,6 +41,23 @@ export function GenericStep({ step, initialValues, onNext, onBack, loading }: Pr
             placeholder={f.placeholder_ko ?? ""}
             rows={5}
             className="w-full px-3 py-2 border border-line rounded-md text-sm bg-surface font-mono"
+          />
+        </div>
+      );
+    }
+    if (f.type === "secret") {
+      return (
+        <div key={f.name} className="mt-4">
+          <label className="block text-sm font-medium mb-2">
+            {f.label_ko}
+            {f.required && <span className="text-error ml-1">*</span>}
+          </label>
+          <Input
+            type="password"
+            autoComplete="off"
+            value={value}
+            onChange={(e) => set(f.name, e.target.value)}
+            placeholder={f.placeholder_ko ?? ""}
           />
         </div>
       );
