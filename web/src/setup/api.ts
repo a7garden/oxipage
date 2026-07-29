@@ -7,8 +7,8 @@ export interface SetupStatus {
   completed_steps?: string[];
   available_extensions?: ExtensionInfo[];
   available_themes?: ThemeInfo[];
-  /// 활성 확장이 노출한 setup step (동적 조립).
-  extension_steps?: ExtensionStepInfo[];
+  /// 활성 확장이 소유한 서브-위자드 (동적 조립).
+  extension_wizards?: ExtensionWizardInfo[];
   /// 활성 확장이 노출한 외부 API 키 (동적 조립).
   external_api_keys?: ExternalApiKey[];
 }
@@ -39,6 +39,24 @@ export interface ExtensionStepInfo {
   /// 예: `{"display_name": "site_name"}` → site_name을 display_name에 주입.
   /// 코어는 키 이름도, 가능한 source 값도 모른다 — 확장이 자기 SetupStep으로 선언.
   prefill?: Record<string, string>;
+  /// step 표시 조건 (클라이언트 평가). 없으면 항상 표시 (Phase 3).
+  visible_when?: VisibilityRule;
+  /// fields 가 비어있으면 action step (버튼만).
+  is_action?: boolean;
+}
+
+/// step 가시성 규칙. 코어가 직렬화해 내려주면 클라이언트가 evalRule 로 평가 (Phase 3).
+export type VisibilityRule =
+  | { kind: "field_not_empty"; step_id: string; field: string }
+  | { kind: "field_equals"; step_id: string; field: string; value: string }
+  | { kind: "all"; all: VisibilityRule[] }
+  | { kind: "any"; any: VisibilityRule[] };
+
+/// 한 확장의 서브-위자드 (status 응답). Phase 3에서 ExtensionSubWizard가 소비.
+export interface ExtensionWizardInfo {
+  extension_id: string;
+  display_name: { ko: string; en: string };
+  steps: ExtensionStepInfo[];
 }
 
 export interface SetupField {
@@ -105,12 +123,16 @@ export async function submitExtensions(data: { enabled: string[] }) {
   return post<{ enabled: string[] }>("/extensions", data);
 }
 
-/// 특정 확장 step의 form을 저장. step.id는 status 응답의 extension_steps에 있다.
+/// 특정 확장 step의 form을 저장. extId/stepId는 status 응답의 extension_wizards에 있다.
 export async function submitExtensionStep(
+  extId: string,
   stepId: string,
   form: Record<string, string>,
 ) {
-  return post<{ ok: boolean }>(`/extension-step/${encodeURIComponent(stepId)}`, form);
+  return post<{ ok: boolean }>(
+    `/extension-step/${encodeURIComponent(extId)}/${encodeURIComponent(stepId)}`,
+    form,
+  );
 }
 
 /// 활성 확장이 노출한 모든 외부 API 키를 한 번에 저장.

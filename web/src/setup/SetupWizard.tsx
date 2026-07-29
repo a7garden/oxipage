@@ -1,4 +1,4 @@
-// SetupWizard — status 응답의 extension_steps/external_api_keys로 step을 동적 조립.
+// SetupWizard — status 응답의 extension_wizards/external_api_keys로 step을 동적 조립.
 // 코어가 profile/movies/books를 모른다 — 확장이 자기 SetupStep으로 선언한다.
 
 import { useEffect, useMemo, useState } from "react";
@@ -25,7 +25,7 @@ import { StepDone } from "./StepDone";
 type Step =
   | { type: "site"; id: string }
   | { type: "extensions"; id: string }
-  | { type: "extension-step"; id: string; step: ExtensionStepInfo }
+  | { type: "extension-step"; id: string; extensionId: string; step: ExtensionStepInfo }
   | { type: "external-keys"; id: string }
   | { type: "theme"; id: string }
   | { type: "done"; id: string };
@@ -36,8 +36,10 @@ function buildSteps(status: SetupStatus | null): Step[] {
     { type: "site", id: "site" },
     { type: "extensions", id: "extensions" },
   ];
-  for (const step of status.extension_steps ?? []) {
-    out.push({ type: "extension-step", id: step.id, step });
+  for (const wizard of status.extension_wizards ?? []) {
+    for (const step of wizard.steps ?? []) {
+      out.push({ type: "extension-step", id: step.id, extensionId: wizard.extension_id, step });
+    }
   }
   if ((status.external_api_keys ?? []).length > 0) {
     out.push({ type: "external-keys", id: "external-keys" });
@@ -169,7 +171,7 @@ export function SetupWizard() {
             loading={loading}
             onBack={() => setStepIdx((i) => Math.max(0, i - 1))}
             onNext={(form) =>
-              handleNext(() => submitExtensionStep(current.step.id, form))
+              handleNext(() => submitExtensionStep(current.extensionId, current.step.id, form))
             }
           />
         );
