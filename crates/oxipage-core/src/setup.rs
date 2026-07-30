@@ -215,6 +215,12 @@ pub fn setup_routes(api: Router<AppState>) -> Router<AppState> {
 // ─── Middleware ───
 
 /// Check if setup wizard should run (no setup_completed_at in setup_state).
+///
+/// **Deprecated in favor of `oxipage_console::console_state::ConsoleState::is_setup_needed`.**
+/// This function reads from **console.db** but is called with the per-site DB pool.
+/// It happens to work because of the same table name, but the console's new
+/// `ConsoleState` is the canonical source.
+#[deprecated(note = "Use oxipage_console::console_state::ConsoleState::is_setup_needed")]
 pub async fn is_setup_needed(db: &sqlx::SqlitePool) -> bool {
     matches!(
         sqlx::query_as::<_, (Option<String>,)>(

@@ -5,6 +5,7 @@
 //! 런타임 탑재/제거는 DB `extension_state` 기반 (doc/02 §2.13). 새 확장 추가 시
 //! `all_extensions()`에 한 줄 추가하고 Cargo.toml 의존성을 추가.
 
+use crate::console_state::ConsoleState;
 use oxipage_core::builder::BuildExt;
 use oxipage_core::config::Config;
 use oxipage_core::extension::Extension;
@@ -100,8 +101,12 @@ pub async fn run_console_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow
     let db = oxipage_core::db::connect(&db_path).await?;
     registry.run_migrations(&db, &toml_enabled).await?;
 
-    // 첫 부팅 감지 — setup 마법사로 브라우저 오픈 (doc/13)
-    if oxipage_core::setup::is_setup_needed(&db).await {
+    // v2 SSG: setup state lives in console.db (~/.config/oxipage/console.db)
+    let proj = directories::ProjectDirs::from("dev", "oxipage", "oxipage")
+        .ok_or_else(|| anyhow::anyhow!("could not determine config directory"))?;
+    let config_dir = proj.config_dir().to_path_buf();
+    let console_state = ConsoleState::open(&config_dir).await?;
+    if console_state.is_setup_needed().await {
         let url = format!("http://{}:{}/setup", config.server.host, config.server.port);
         tracing::info!("first boot detected — opening setup wizard at {url}");
         open_browser(&url);
@@ -208,5 +213,6 @@ async fn shutdown_signal() {
 }
 
 pub mod admin;
+pub mod console_state;
 pub mod loader;
 pub mod sites_runtime;
