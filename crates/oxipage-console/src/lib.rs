@@ -172,7 +172,8 @@ pub async fn run_console_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow
     let site_registry = Arc::new(SiteRegistry::new(sites_file).await?);
     let console_router = crate::router::build_console_router(site_registry);
     let mut app = oxipage_core::http::build_app(state);
-    app = app.merge(console_router);
+    // Nest under /api/console so routes match the frontend's API calls.
+    app = app.nest("/api/console", console_router);
     let addr = SocketAddr::new(config.server.host.parse()?, config.server.port);
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!("oxipage listening on http://{addr}");
