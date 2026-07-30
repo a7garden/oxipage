@@ -1,5 +1,5 @@
 [extensions]
-enabled = []
+enabled = ["profile", "blog"]
 
 [lobby]
 default_mode = "grid"
@@ -13,4 +13,4 @@ port = 8787
 base_url = "http://127.0.0.1:8787"
 default_lang = "ko"
 languages = ["ko", "en"]
-name = "ㅗ호ㅓ"
+name = "My Site"
