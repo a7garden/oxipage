@@ -16,12 +16,21 @@ export async function getDefaultSite(): Promise<{ data: { default_site: string |
   return res.json();
 }
 
-export async function createSite(name: string, path: string, default_?: boolean): Promise<Response> {
-  return fetch(`${CONSOLE_BASE}/sites`, {
+export interface CreateSiteResult {
+  data: { slug: string; path: string };
+}
+
+export async function createSite(path: string): Promise<CreateSiteResult> {
+  const res = await fetch(`${CONSOLE_BASE}/setup/create-site`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name, path, default: default_ }),
+    body: JSON.stringify({ path }),
   });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error ?? `오류 (${res.status})`);
+  }
+  return res.json();
 }
 
 export async function removeSite(slug: string): Promise<Response> {

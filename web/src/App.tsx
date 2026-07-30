@@ -1,11 +1,9 @@
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { BrowserRouter, Link, Route, Routes } from "react-router";
 import { lazy, Suspense, useEffect } from "react";
-import { Languages, Search, Settings } from "lucide-react";
+import { Languages, Search } from "lucide-react";
 
 import { fetchManifest } from "./shared/api";
-import { SetupGuard } from "./setup/SetupGuard";
-import { SetupWizard } from "./setup/SetupWizard";
 import { Lobby } from "./lobby/Lobby";
 import { ProfilePage } from "./extensions/profile/ProfilePage";
 import { LanguageProvider, useLanguage } from "./shared/language";
@@ -108,13 +106,6 @@ function Shell() {
                 </Link>
               </Button>
               <LangToggle />
-              <button
-                onClick={() => window.open("http://127.0.0.1:8788", "_blank")}
-                className="inline-flex items-center justify-center size-10 rounded-md text-foreground hover:bg-surface transition-colors"
-                title="관리 콘솔"
-              >
-                <Settings size={18} />
-              </button>
               <ThemeToggle />
             </nav>
           </Container>
@@ -235,16 +226,7 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
-          <Route path="/setup/*" element={
-            <SetupGuard>
-              <SetupWizard />
-            </SetupGuard>
-          } />
-          <Route path="/*" element={
-            <SetupGuard>
-              <Shell />
-            </SetupGuard>
-          } />
+          <Route path="/*" element={<Shell />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>
