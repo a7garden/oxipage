@@ -166,4 +166,40 @@ impl SiteRegistry {
             sf.set_default(slug);
         }
     }
+
+    /// Remove a site from memory and the persisted sites file. Files on disk
+    /// are preserved (registry-only delete).
+    ///
+    /// Removing a slug that isn't registered is a no-op.
+    pub async fn remove_site(&self, slug: &str) -> anyhow::Result<()> {
+        // 1. Remove from in-memory HashMap.
+        self.sites.write().await.remove(slug);
+
+        // 2. Remove from persisted sites.toml and from the in-memory SitesFile.
+        let sites_path = directories::ProjectDirs::from("dev", "oxipage", "oxipage")
+            .map(|p| p.config_dir().join("sites.toml"));
+        if let Some(sp) = sites_path {
+            let mut sf = if sp.exists() {
+                std::fs::read_to_string(&sp)
+                    .ok()
+                    .and_then(|raw| toml::from_str::<SitesFile>(&raw).ok())
+                    .unwrap_or_default()
+            } else {
+                SitesFile::default()
+            };
+            let removed = sf.remove(slug);
+            if removed.is_none() {
+                // Slug not in file — nothing to persist, but treat as success.
+                return Ok(());
+            }
+            if let Some(parent) = sp.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let raw = toml::to_string_pretty(&sf)?;
+            std::fs::write(&sp, raw)?;
+            // Keep the in-memory SitesFile in sync with disk.
+            *self.sites_file.write().await = sf;
+        }
+        Ok(())
+    }
 }

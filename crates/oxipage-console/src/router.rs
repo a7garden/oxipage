@@ -7,8 +7,9 @@ use crate::deploy::site_deploy;
 use crate::middleware::site_db::inject_site_context;
 use crate::preview::handler::preview_handler;
 use crate::sites_runtime::SiteRegistry;
-use axum::extract::State;
-use axum::routing::{get, post};
+use axum::extract::{Path, State};
+use axum::http::StatusCode;
+use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use directories::ProjectDirs;
 use serde::Deserialize;
@@ -29,6 +30,7 @@ pub fn build_top_level_router() -> Router<Arc<SiteRegistry>> {
     Router::new()
         .route("/sites", get(list_sites))
         .route("/sites/default", get(get_default).put(set_default))
+        .route("/sites/{slug}", delete(delete_site_handler))
         .route("/build/{slug}", post(site_build::build_handler))
         .route("/deploy/{slug}", post(site_deploy::deploy_handler))
         .route("/preview/{slug}/{*rest}", get(preview_handler))
@@ -95,20 +97,23 @@ async fn set_default() -> Json<serde_json::Value> {
 
 async fn create_site_handler(
     Json(input): Json<CreateSiteInput>,
-) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, String)> {
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let path = PathBuf::from(input.path);
 
     // Validate path
     if path.exists() {
         if !path.join("oxipage.toml").exists() {
             return Err((
-                axum::http::StatusCode::BAD_REQUEST,
-                format!("path '{}' exists but is not an oxipage project (no oxipage.toml)", path.display()),
+                StatusCode::BAD_REQUEST,
+                format!(
+                    "path '{}' exists but is not an oxipage project (no oxipage.toml)",
+                    path.display()
+                ),
             ));
         }
     } else {
         std::fs::create_dir_all(&path)
-            .map_err(|e| (axum::http::StatusCode::BAD_REQUEST, format!("cannot create directory: {e}")))?;
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("cannot create directory: {e}")))?;
     }
 
     // Seed oxipage.toml if not present
@@ -127,7 +132,7 @@ data_dir = "data"
 enabled = ["profile", "blog"]
 "#;
         std::fs::write(path.join("oxipage.toml"), toml_content)
-            .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("cannot write oxipage.toml: {e}")))?;
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("cannot write oxipage.toml: {e}")))?;
     }
 
     // Derive slug from directory name
@@ -168,4 +173,14 @@ enabled = ["profile", "blog"]
     Ok(Json(serde_json::json!({
         "data": { "slug": slug, "path": path.to_string_lossy() }
     })))
+}
+
+async fn delete_site_handler(
+    State(registry): State<Arc<SiteRegistry>>,
+    Path(slug): Path<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    registry.remove_site(&slug).await.map_err(|e| {
+        (StatusCode::INTERNAL_SERVER_ERROR, format!("delete site: {e}"))
+    })?;
+    Ok(Json(serde_json::json!({"data": {"slug": slug, "removed": true}})))
 }

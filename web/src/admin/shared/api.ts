@@ -133,6 +133,11 @@ export async function updateConfig(
   patch: {
     site?: Partial<SiteConfig>;
     lobby?: Partial<LobbyConfig>;
+    integrations?: Partial<{
+      github_username: string | null;
+      tmdb_api_key_env: string | null;
+      aladin_ttbkey_env: string | null;
+    }>;
   },
 ): Promise<ConfigResponse> {
   const res = await siteScopedFetch(slug, "/config", {
@@ -141,6 +146,40 @@ export async function updateConfig(
     body: JSON.stringify(patch),
   });
   const json = await jsonOrThrow<{ data: ConfigResponse }>(res);
+  return json.data;
+}
+
+// ─── Stats / Recent ─────────────────────────────────────────────────────────
+
+export interface BuildStatus {
+  status: string;
+  started_at: string;
+  finished_at?: string;
+}
+
+export interface StatsResponse {
+  counts: Record<string, number>;
+  storage_bytes: number;
+  last_build: BuildStatus | null;
+}
+
+export interface RecentItem {
+  ext: string;
+  id: number;
+  title: string;
+  updated_at: string;
+  published_at: string | null;
+}
+
+export async function getStats(slug: string): Promise<StatsResponse> {
+  const res = await siteScopedFetch(slug, "/stats");
+  const json = await jsonOrThrow<{ data: StatsResponse }>(res);
+  return json.data;
+}
+
+export async function getRecent(slug: string, limit = 5): Promise<RecentItem[]> {
+  const res = await siteScopedFetch(slug, `/content/recent?limit=${limit}`);
+  const json = await jsonOrThrow<{ data: RecentItem[] }>(res);
   return json.data;
 }
 

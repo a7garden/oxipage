@@ -7,6 +7,7 @@ import { Input } from "../../shared/ui/input";
 import { Textarea } from "../../shared/ui/textarea";
 import { Drawer, DrawerField } from "../../shared/ui/drawer";
 import { Pencil, Trash2, Send, Plus } from "lucide-react";
+import { useRowFilter } from "../shared/useRowFilter";
 import { field, str } from "../shared/row-utils";
 
 interface Novel {
@@ -48,6 +49,9 @@ export function NovelsTab({ slug }: { slug: string }) {
     queryKey: ["site", slug, "content", "novels"],
     queryFn: () => contentClient.list<Novel>(slug, "novels", { draft: true }),
   });
+
+  const [search, setSearch] = useState("");
+  const filtered = useRowFilter(data ?? [], search, (row) => [row.title, row.slug]);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -157,14 +161,14 @@ export function NovelsTab({ slug }: { slug: string }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <Input placeholder="Search novels..." className="w-60" />
+        <Input placeholder="Search novels..." className="w-60" value={search} onChange={(e) => setSearch(e.target.value)} />
         <Button size="sm" onClick={() => { setEditing("new"); setForm(EMPTY); setError(null); }}>
           <Plus size={14} className="mr-1" /> New Novel
         </Button>
       </div>
       <ContentTable
         columns={columns}
-        data={data ?? []}
+        data={filtered}
         isLoading={isLoading}
         emptyTitle="No novels yet"
         emptyDescription="Start writing your first novel."

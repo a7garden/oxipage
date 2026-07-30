@@ -7,6 +7,7 @@ import { Input } from "../../shared/ui/input";
 import { Textarea } from "../../shared/ui/textarea";
 import { Drawer, DrawerField } from "../../shared/ui/drawer";
 import { Pencil, Trash2, Plus } from "lucide-react";
+import { useRowFilter } from "../shared/useRowFilter";
 import { field, str } from "../shared/row-utils";
 
 interface LinkCard {
@@ -55,6 +56,9 @@ export function LinksTab({ slug }: { slug: string }) {
     queryKey: ["site", slug, "content", "links"],
     queryFn: () => contentClient.list<LinkCard>(slug, "links"),
   });
+
+  const [search, setSearch] = useState("");
+  const filtered = useRowFilter(data ?? [], search, (row) => [row.title, row.url]);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -148,14 +152,14 @@ export function LinksTab({ slug }: { slug: string }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <Input placeholder="Search links..." className="w-60" />
+        <Input placeholder="Search links..." className="w-60" value={search} onChange={(e) => setSearch(e.target.value)} />
         <Button size="sm" onClick={() => { setEditing("new"); setForm(EMPTY); setError(null); }}>
           <Plus size={14} className="mr-1" /> New Link
         </Button>
       </div>
       <ContentTable
         columns={columns}
-        data={data ?? []}
+        data={filtered}
         isLoading={isLoading}
         emptyTitle="No links yet"
         emptyDescription="Add your first link."

@@ -8,6 +8,7 @@ import { Input } from "../../shared/ui/input";
 import { Textarea } from "../../shared/ui/textarea";
 import { Drawer, DrawerField } from "../../shared/ui/drawer";
 import { Pencil, Trash2, Send, Plus } from "lucide-react";
+import { useRowFilter } from "../shared/useRowFilter";
 import { field, str } from "../shared/row-utils";
 
 interface Project {
@@ -57,6 +58,9 @@ export function ProjectsTab({ slug }: { slug: string }) {
     queryKey: ["site", slug, "content", "projects"],
     queryFn: () => contentClient.list<Project>(slug, "projects", { draft: true }),
   });
+
+  const [search, setSearch] = useState("");
+  const filtered = useRowFilter(data ?? [], search, (row) => [row.title_ko ?? '', row.title_en ?? '', row.slug]);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -181,14 +185,14 @@ export function ProjectsTab({ slug }: { slug: string }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <Input placeholder="Search projects..." className="w-60" />
+        <Input placeholder="Search projects..." className="w-60" value={search} onChange={(e) => setSearch(e.target.value)} />
         <Button size="sm" onClick={() => { setEditing("new"); setForm(EMPTY); setError(null); }}>
           <Plus size={14} className="mr-1" /> New Project
         </Button>
       </div>
       <ContentTable
         columns={columns}
-        data={data ?? []}
+        data={filtered}
         isLoading={isLoading}
         emptyTitle="No projects yet"
         emptyDescription="Add your first project."
