@@ -56,3 +56,17 @@ export async function triggerBuild(slug: string): Promise<Response> {
 export async function triggerDeploy(slug: string): Promise<Response> {
   return fetch(`${CONSOLE_BASE}/s/${slug}/deploy`, { method: "POST" });
 }
+
+export async function getConfig(slug: string): Promise<any> {
+  const res = await siteScopedFetch(slug, "/config");
+  if (!res.ok) return {};
+  return (await res.json()).data ?? {};
+}
+
+export async function updateConfig(slug: string, config: any): Promise<Response> {
+  return fetch(`/api/console/s/${slug}/config`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(config),
+  });
+}
