@@ -1,26 +1,27 @@
 use crate::model::{ListQuery, ProjectDetail, ProjectInput, ProjectPatch, ScreenshotInput};
 use crate::repo;
 use axum::Json;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query};
 
 use oxipage_core::error::ApiError;
 use oxipage_core::extension::DataEnvelope;
 use oxipage_core::search;
-use oxipage_core::state::AppState;
+use oxipage_core::state::SiteScopedDb;
+use sqlx::SqlitePool;
 
 pub async fn list(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Query(q): Query<ListQuery>,
 ) -> Result<Json<DataEnvelope<Vec<crate::model::Project>>>, ApiError> {
     let limit = q.limit.unwrap_or(20);
-    let projects = repo::list(&state.db, q.status.as_deref(), limit)
+    let projects = repo::list(&pool.db, q.status.as_deref(), limit)
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope { data: projects }))
 }
 
 pub async fn create(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Json(input): Json<ProjectInput>,
 ) -> Result<Json<DataEnvelope<crate::model::Project>>, ApiError> {
     validate_input(&input)?;
@@ -28,27 +29,27 @@ pub async fn create(
         .slug
         .clone()
         .unwrap_or_else(|| repo::slugify(input.title_en.as_deref(), input.title_ko.as_deref()));
-    let slug = repo::ensure_unique_slug(&state.db, &base_slug)
+    let slug = repo::ensure_unique_slug(&pool.db, &base_slug)
         .await
         .map_err(ApiError::internal)?;
-    let project = repo::create(&state.db, &input, &slug)
+    let project = repo::create(&pool.db, &input, &slug)
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope { data: project }))
 }
 
 pub async fn show(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(slug): Path<String>,
 ) -> Result<Json<DataEnvelope<ProjectDetail>>, ApiError> {
-    let project = repo::find_by_slug(&state.db, &slug)
+    let project = repo::find_by_slug(&pool.db, &slug)
         .await
         .map_err(ApiError::internal)?
         .ok_or_else(|| not_found(&slug))?;
     if project.published_at.is_none() {
         return Err(not_found(&slug));
     }
-    let screenshots = repo::list_screenshots(&state.db, &slug)
+    let screenshots = repo::list_screenshots(&pool.db, &slug)
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope {
@@ -60,7 +61,7 @@ pub async fn show(
 }
 
 pub async fn update(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(slug): Path<String>,
     Json(patch): Json<ProjectPatch>,
 ) -> Result<Json<DataEnvelope<crate::model::Project>>, ApiError> {
@@ -72,7 +73,7 @@ pub async fn update(
             "status must be active|archived|wip",
         ));
     }
-    let project = match repo::update(&state.db, &slug, &patch)
+    let project = match repo::update(&pool.db, &slug, &patch)
         .await
         .map_err(ApiError::internal)?
     {
@@ -80,22 +81,22 @@ pub async fn update(
         None => return Err(not_found(&slug)),
     };
     if project.published_at.is_some() {
-        reindex(&state, &project).await?;
+        reindex(&pool.db, &project).await?;
     }
     Ok(Json(DataEnvelope { data: project }))
 }
 
 pub async fn delete(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(slug): Path<String>,
 ) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
-    let removed = repo::delete(&state.db, &slug)
+    let removed = repo::delete(&pool.db, &slug)
         .await
         .map_err(ApiError::internal)?;
     if !removed {
         return Err(not_found(&slug));
     }
-    search::delete(&state.db, "projects", &slug)
+    search::delete(&pool.db, "projects", &slug)
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope {
@@ -104,20 +105,20 @@ pub async fn delete(
 }
 
 pub async fn publish(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(slug): Path<String>,
 ) -> Result<Json<DataEnvelope<crate::model::Project>>, ApiError> {
-    if repo::find_by_slug(&state.db, &slug)
+    if repo::find_by_slug(&pool.db, &slug)
         .await
         .map_err(ApiError::internal)?
         .is_none()
     {
         return Err(not_found(&slug));
     }
-    let project = repo::publish(&state.db, &slug)
+    let project = repo::publish(&pool.db, &slug)
         .await
         .map_err(ApiError::internal)?;
-    reindex(&state, &project).await?;
+    reindex(&pool.db, &project).await?;
     let title = project
         .title_en
         .clone()
@@ -138,7 +139,7 @@ pub async fn publish(
 }
 
 pub async fn add_screenshot(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(slug): Path<String>,
     Json(input): Json<ScreenshotInput>,
 ) -> Result<Json<DataEnvelope<crate::model::Screenshot>>, ApiError> {
@@ -146,7 +147,7 @@ pub async fn add_screenshot(
         return Err(ApiError::validation("url", "url must not be empty"));
     }
     let shot = repo::add_screenshot(
-        &state.db,
+        &pool.db,
         &slug,
         &input.url,
         input.alt_ko.as_deref(),
@@ -159,10 +160,10 @@ pub async fn add_screenshot(
 }
 
 pub async fn delete_screenshot(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path((slug, sid)): Path<(String, i64)>,
 ) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
-    let removed = repo::delete_screenshot(&state.db, &slug, sid)
+    let removed = repo::delete_screenshot(&pool.db, &slug, sid)
         .await
         .map_err(ApiError::internal)?;
     if !removed {
@@ -173,7 +174,7 @@ pub async fn delete_screenshot(
     }))
 }
 
-async fn reindex(state: &AppState, project: &crate::model::Project) -> Result<(), ApiError> {
+async fn reindex(db: &SqlitePool, project: &crate::model::Project) -> Result<(), ApiError> {
     let title = project
         .title_en
         .clone()
@@ -190,7 +191,7 @@ async fn reindex(state: &AppState, project: &crate::model::Project) -> Result<()
         "ko"
     };
     search::upsert(
-        &state.db,
+        db,
         "projects",
         &project.slug,
         &title,

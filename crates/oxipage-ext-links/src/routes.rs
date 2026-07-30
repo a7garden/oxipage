@@ -1,39 +1,39 @@
 use crate::model::{LinkCardInput, LinkCardPatch, ListQuery};
 use crate::repo;
 use axum::Json;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query};
 
 use oxipage_core::error::ApiError;
 use oxipage_core::extension::DataEnvelope;
-use oxipage_core::state::AppState;
+use oxipage_core::state::SiteScopedDb;
 
 pub async fn list(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Query(q): Query<ListQuery>,
 ) -> Result<Json<DataEnvelope<Vec<crate::model::LinkCard>>>, ApiError> {
     let limit = q.limit.unwrap_or(50);
-    let cards = repo::list(&state.db, q.featured, limit)
+    let cards = repo::list(&pool.db, q.featured, limit)
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope { data: cards }))
 }
 
 pub async fn create(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Json(input): Json<LinkCardInput>,
 ) -> Result<Json<DataEnvelope<crate::model::LinkCard>>, ApiError> {
     validate(&input.title, &input.url)?;
-    let card = repo::create(&state.db, &input)
+    let card = repo::create(&pool.db, &input)
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope { data: card }))
 }
 
 pub async fn show(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(id): Path<i64>,
 ) -> Result<Json<DataEnvelope<crate::model::LinkCard>>, ApiError> {
-    let card = repo::find_by_id(&state.db, id)
+    let card = repo::find_by_id(&pool.db, id)
         .await
         .map_err(ApiError::internal)?
         .ok_or_else(|| not_found(id))?;
@@ -41,7 +41,7 @@ pub async fn show(
 }
 
 pub async fn update(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(id): Path<i64>,
     Json(patch): Json<LinkCardPatch>,
 ) -> Result<Json<DataEnvelope<crate::model::LinkCard>>, ApiError> {
@@ -58,7 +58,7 @@ pub async fn update(
             "url must start with http:// or https://",
         ));
     }
-    let card = repo::update(&state.db, id, &patch)
+    let card = repo::update(&pool.db, id, &patch)
         .await
         .map_err(ApiError::internal)?
         .ok_or_else(|| not_found(id))?;
@@ -66,10 +66,10 @@ pub async fn update(
 }
 
 pub async fn delete(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(id): Path<i64>,
 ) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
-    let removed = repo::delete(&state.db, id)
+    let removed = repo::delete(&pool.db, id)
         .await
         .map_err(ApiError::internal)?;
     if !removed {

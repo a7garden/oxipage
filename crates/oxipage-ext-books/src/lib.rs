@@ -76,7 +76,7 @@ impl Extension for BooksExtension {
         }]
     }
 
-    fn routes(&self) -> Router<AppState> {
+    fn routes(&self) -> Router {
         Router::new()
             .route("/", get(routes::list).post(routes::create))
             .route("/search", get(routes::external_search))

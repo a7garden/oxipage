@@ -68,22 +68,17 @@ pub fn build_app(state: AppState) -> Router {
         .route("/cache/refresh", axum::routing::post(cache_refresh_handler));
     // Setup API (loopback-only, unauthenticated, doc/13)
     api = setup::setup_routes(api);
-    // setup_gate: /setup/* 경로만 loopback-only + 완료 후 410
-    // 다른 경로는 통과 (확장 라우트 등에 영향 없음)
-    api = api.layer(axum::middleware::from_fn_with_state(
-        state.clone(),
-        setup::setup_gate,
-    ));
 
-    for ext in state.registry.iter() {
-        // WASM(런타임 적재) 확장은 route_dispatcher()가 Some → 네스팅하지 않고
-        // 폴백 핸들러가 요청 시점에 동적 디스패치한다. 핫 리로드 지원.
-        if ext.route_dispatcher().is_some() {
-            continue;
-        }
-        api = api.nest(&format!("/{}", ext.id()), ext.routes());
-    }
+    // Extension routes are now mounted by the console's build_console_router
+    // under per-site `/s/{slug}/{ext_id}` prefixes. The old single-site
+    // build_app does not nest extension routes here.
+    // State-dependent middleware: must come after ext route nest loop
+    // so the loop works with Router<()> (ext.routes() now returns Router).
     let api = api
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            setup::setup_gate,
+        ))
         .fallback(api_fallback)
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),

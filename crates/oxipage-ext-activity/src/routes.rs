@@ -3,22 +3,22 @@ use crate::model::{GithubEvent, ListQuery};
 use crate::repo;
 use axum::Json;
 use axum::body::Bytes;
-use axum::extract::{Query, State};
+use axum::extract::{Extension, Query};
 use axum::http::{HeaderMap, StatusCode};
 use hmac::{Hmac, Mac};
 
 use oxipage_core::error::ApiError;
 use oxipage_core::extension::DataEnvelope;
-use oxipage_core::state::AppState;
+use oxipage_core::state::SiteScopedDb;
 use sha2::Sha256;
 
 type HmacSha256 = Hmac<Sha256>;
 
 pub async fn list(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Query(query): Query<ListQuery>,
 ) -> Result<Json<DataEnvelope<Vec<crate::model::ActivityEvent>>>, ApiError> {
-    let events = repo::list(&state.db, query.repo.as_deref(), query.limit.unwrap_or(30))
+    let events = repo::list(&pool.db, query.repo.as_deref(), query.limit.unwrap_or(30))
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope { data: events }))
@@ -32,7 +32,7 @@ pub async fn list(
 /// 누구나 가짜 이벤트를 주입할 수 있었다. 시크릿 미설정 시엔 다른 통합과
 /// 동일하게 503으로 비활성화(조용히 비활성화 원칙, doc/01 §1.9).
 pub async fn webhook(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -52,7 +52,7 @@ pub async fn webhook(
     let event: GithubEvent = serde_json::from_slice(&body)
         .map_err(|e| ApiError::validation("body", &format!("invalid GitHub event JSON: {e}")))?;
     validate_event(&event)?;
-    repo::upsert(&state.db, &event.into_input())
+    repo::upsert(&pool.db, &event.into_input())
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(serde_json::json!({ "status": "ok" })))
@@ -124,14 +124,16 @@ fn hex_decode(s: &str) -> Option<Vec<u8>> {
         .collect()
 }
 
-pub async fn sync(State(state): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
-    let client = GithubClient::with_username(state.config.integrations.github_username())
-        .map_err(ApiError::internal)?;
+pub async fn sync(Extension(pool): Extension<SiteScopedDb>) -> Result<Json<serde_json::Value>, ApiError> {
+    let client = GithubClient::with_username(
+        std::env::var("OXIPAGE_GITHUB_USERNAME").ok(),
+    )
+    .map_err(ApiError::internal)?;
     if !client.enabled() {
         return Err(ApiError::new(
             StatusCode::SERVICE_UNAVAILABLE,
             "integration_disabled",
-            "GitHub activity sync requires integrations.github_username or OXIPAGE_GITHUB_USERNAME",
+            "GitHub activity sync requires OXIPAGE_GITHUB_USERNAME",
         ));
     }
     let events = client
@@ -141,7 +143,7 @@ pub async fn sync(State(state): State<AppState>) -> Result<Json<serde_json::Valu
     let count = events.len();
     for event in events {
         validate_event(&event)?;
-        repo::upsert(&state.db, &event.into_input())
+        repo::upsert(&pool.db, &event.into_input())
             .await
             .map_err(ApiError::internal)?;
     }

@@ -1,4 +1,7 @@
 //! Console router — builds the Axum router tree with site-prefixed routes.
+//!
+//! At startup, for each registered site slug, extension routes are mounted
+//! under `/s/{slug}/{ext_id}` with per-site `SiteScopedDb` middleware.
 
 use crate::middleware::site_db::inject_site_context;
 use crate::sites_runtime::SiteRegistry;
@@ -6,16 +9,27 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use std::sync::Arc;
 
-/// Build the console router tree with site CRUD + per-slug build/deploy.
+/// Build the console router tree.
 pub fn build_console_router(registry: Arc<SiteRegistry>) -> Router {
     let mut api = Router::new()
         .route("/sites", get(list_sites).post(create_site))
         .route("/sites/default", get(get_default).put(set_default));
 
     for (_slug, ctx) in registry.iter_blocking() {
-        let scoped = Router::new()
+        let mut nested = Router::new()
             .route("/build", post(build_handler))
-            .route("/deploy", post(deploy_handler))
+            .route("/deploy", post(deploy_handler));
+
+        // Mount each extension's routes under /{ext_id}
+        for ext in ctx.registry.iter() {
+            if ext.route_dispatcher().is_some() {
+                continue; // WASM → api_fallback
+            }
+            nested = nested.nest(&format!("/{}", ext.id()), ext.routes());
+        }
+
+        // Per-site context injected via middleware state
+        let scoped = nested
             .layer(axum::middleware::from_fn_with_state(
                 ctx.clone(),
                 inject_site_context,
@@ -27,7 +41,7 @@ pub fn build_console_router(registry: Arc<SiteRegistry>) -> Router {
     api
 }
 
-// ─── Site CRUD stubs (full impl in T5/T6) ───
+// ─── Site CRUD stubs ───
 
 async fn list_sites() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "data": [] }))

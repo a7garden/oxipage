@@ -6,6 +6,8 @@
 //!
 //! See spec §4.3 for architecture details.
 
+pub use oxipage_core::state::SiteScopedDb;
+
 use crate::loader;
 use oxipage_core::sites::SitesFile;
 use oxipage_core::config::Config;
@@ -17,15 +19,6 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-
-/// Per-site DB pool injected into request extensions by middleware.
-///
-/// Handlers extract it with `Extension(pool): Extension<SiteScopedDb>` and
-/// use `pool.db` instead of the old `state.db`.
-#[derive(Clone)]
-pub struct SiteScopedDb {
-    pub db: SqlitePool,
-}
 
 /// Context for one registered oxipage site.
 pub struct SiteContext {

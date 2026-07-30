@@ -282,7 +282,7 @@ impl Extension for WasmExtensionAdapter {
         Vec::new()
     }
 
-    fn routes(&self) -> axum::Router<AppState> {
+    fn routes(&self) -> axum::Router {
         // WASM 확장은 폴백 핸들러가 동적 디스패치하므로 빈 Router 반환.
         Router::new()
     }

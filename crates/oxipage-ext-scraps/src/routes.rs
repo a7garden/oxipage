@@ -1,52 +1,53 @@
 use crate::model::{ListQuery, ScrapInput, ScrapItem, ScrapPatch};
 use crate::repo;
 use axum::Json;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query};
 
 use oxipage_core::error::ApiError;
 use oxipage_core::extension::DataEnvelope;
 use oxipage_core::search;
-use oxipage_core::state::AppState;
+use oxipage_core::state::SiteScopedDb;
+use sqlx::SqlitePool;
 
 pub async fn list_published(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Query(q): Query<ListQuery>,
 ) -> Result<Json<DataEnvelope<Vec<ScrapItem>>>, ApiError> {
     let limit = q.limit.unwrap_or(20);
-    let items = repo::list(&state.db, true, q.source.as_deref(), limit)
+    let items = repo::list(&pool.db, true, q.source.as_deref(), limit)
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope { data: items }))
 }
 
 pub async fn list_queue(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Query(q): Query<ListQuery>,
 ) -> Result<Json<DataEnvelope<Vec<ScrapItem>>>, ApiError> {
     let limit = q.limit.unwrap_or(50);
-    let items = repo::list(&state.db, false, q.source.as_deref(), limit)
+    let items = repo::list(&pool.db, false, q.source.as_deref(), limit)
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope { data: items }))
 }
 
 pub async fn create_manual(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Json(input): Json<ScrapInput>,
 ) -> Result<Json<DataEnvelope<ScrapItem>>, ApiError> {
     validate_input(&input)?;
-    let item = repo::create_published(&state.db, &input)
+    let item = repo::create_published(&pool.db, &input)
         .await
         .map_err(ApiError::internal)?;
-    reindex(&state, &item).await?;
+    reindex(&pool.db, &item).await?;
     Ok(Json(DataEnvelope { data: item }))
 }
 
 pub async fn show(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(id): Path<i64>,
 ) -> Result<Json<DataEnvelope<ScrapItem>>, ApiError> {
-    let item = repo::find_by_id(&state.db, id)
+    let item = repo::find_by_id(&pool.db, id)
         .await
         .map_err(ApiError::internal)?
         .ok_or_else(|| not_found(id))?;
@@ -57,31 +58,31 @@ pub async fn show(
 }
 
 pub async fn update(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(id): Path<i64>,
     Json(patch): Json<ScrapPatch>,
 ) -> Result<Json<DataEnvelope<ScrapItem>>, ApiError> {
-    let item = repo::update(&state.db, id, &patch)
+    let item = repo::update(&pool.db, id, &patch)
         .await
         .map_err(ApiError::internal)?
         .ok_or_else(|| not_found(id))?;
     if item.published_at.is_some() {
-        reindex(&state, &item).await?;
+        reindex(&pool.db, &item).await?;
     }
     Ok(Json(DataEnvelope { data: item }))
 }
 
 pub async fn delete(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(id): Path<i64>,
 ) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
-    let removed = repo::delete(&state.db, id)
+    let removed = repo::delete(&pool.db, id)
         .await
         .map_err(ApiError::internal)?;
     if !removed {
         return Err(not_found(id));
     }
-    search::delete(&state.db, "scraps", &crate::model::search_doc_id(id))
+    search::delete(&pool.db, "scraps", &crate::model::search_doc_id(id))
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope {
@@ -90,14 +91,14 @@ pub async fn delete(
 }
 
 pub async fn publish(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(id): Path<i64>,
 ) -> Result<Json<DataEnvelope<ScrapItem>>, ApiError> {
-    let item = repo::publish(&state.db, id)
+    let item = repo::publish(&pool.db, id)
         .await
         .map_err(ApiError::internal)?
         .ok_or_else(|| not_found(id))?;
-    reindex(&state, &item).await?;
+    reindex(&pool.db, &item).await?;
     let note = item
         .note_ko
         .clone()
@@ -153,10 +154,10 @@ fn is_valid_url(url: &str) -> bool {
     url.starts_with("http://") || url.starts_with("https://")
 }
 
-async fn reindex(state: &AppState, item: &ScrapItem) -> Result<(), ApiError> {
+async fn reindex(db: &SqlitePool, item: &ScrapItem) -> Result<(), ApiError> {
     let body = crate::model::fts_body(item.note_ko.as_deref(), item.note_en.as_deref());
     search::upsert(
-        &state.db,
+        db,
         "scraps",
         &crate::model::search_doc_id(item.id),
         &item.title,

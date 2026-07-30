@@ -4,7 +4,8 @@
 //! is passed via state (not extracted from path), since the slug is hard-coded
 //! into the nest URL at startup.
 
-use crate::sites_runtime::{SiteContext, SiteScopedDb};
+use crate::sites_runtime::SiteContext;
+use crate::sites_runtime::SiteScopedDb;
 use axum::extract::{Request, State};
 use axum::middleware::Next;
 use axum::response::Response;

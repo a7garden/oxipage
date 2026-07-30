@@ -5,30 +5,31 @@ use crate::model::{
 };
 use crate::repo;
 use axum::Json;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query};
 use axum::http::StatusCode;
 
 use oxipage_core::error::ApiError;
 use oxipage_core::extension::DataEnvelope;
 use oxipage_core::rating::Rating;
 use oxipage_core::search;
-use oxipage_core::state::AppState;
+use oxipage_core::state::SiteScopedDb;
+use sqlx::SqlitePool;
 
 // ─── MovieEntry ───
 
 pub async fn list(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Query(q): Query<ListQuery>,
 ) -> Result<Json<DataEnvelope<Vec<MovieEntry>>>, ApiError> {
     let limit = q.limit.unwrap_or(20);
-    let entries = repo::list_entries_published(&state.db, q.series_group.as_deref(), limit)
+    let entries = repo::list_entries_published(&pool.db, q.series_group.as_deref(), limit)
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope { data: entries }))
 }
 
 pub async fn create(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Json(input): Json<MovieEntryInput>,
 ) -> Result<Json<DataEnvelope<MovieEntry>>, ApiError> {
     validate_input(&input)?;
@@ -84,12 +85,12 @@ pub async fn create(
 
     // slug: 명시 > title.
     let base_slug = input.slug.clone().unwrap_or_else(|| repo::slugify(title));
-    let slug = repo::ensure_unique_entry_slug(&state.db, &base_slug)
+    let slug = repo::ensure_unique_entry_slug(&pool.db, &base_slug)
         .await
         .map_err(ApiError::internal)?;
 
     let entry = repo::create_entry(
-        &state.db,
+        &pool.db,
         &input,
         &slug,
         input.tmdb_id,
@@ -104,10 +105,10 @@ pub async fn create(
 }
 
 pub async fn show(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(slug): Path<String>,
 ) -> Result<Json<DataEnvelope<MovieEntry>>, ApiError> {
-    let entry = repo::find_entry_by_slug(&state.db, &slug)
+    let entry = repo::find_entry_by_slug(&pool.db, &slug)
         .await
         .map_err(ApiError::internal)?
         .ok_or_else(|| not_found(&slug))?;
@@ -119,7 +120,7 @@ pub async fn show(
 }
 
 pub async fn update(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(slug): Path<String>,
     Json(patch): Json<MovieEntryPatch>,
 ) -> Result<Json<DataEnvelope<MovieEntry>>, ApiError> {
@@ -142,29 +143,29 @@ pub async fn update(
         })?;
     }
 
-    let entry = repo::update_entry(&state.db, &slug, &patch)
+    let entry = repo::update_entry(&pool.db, &slug, &patch)
         .await
         .map_err(ApiError::internal)?
         .ok_or_else(|| not_found(&slug))?;
 
     // 발행본이면 FTS re-upsert.
     if entry.published_at.is_some() {
-        reindex(&state, &entry).await?;
+        reindex(&pool.db, &entry).await?;
     }
     Ok(Json(DataEnvelope { data: entry }))
 }
 
 pub async fn delete(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(slug): Path<String>,
 ) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
-    let removed = repo::delete_entry(&state.db, &slug)
+    let removed = repo::delete_entry(&pool.db, &slug)
         .await
         .map_err(ApiError::internal)?;
     if !removed {
         return Err(not_found(&slug));
     }
-    search::delete(&state.db, "movies", &slug)
+    search::delete(&pool.db, "movies", &slug)
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope {
@@ -173,20 +174,20 @@ pub async fn delete(
 }
 
 pub async fn publish(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(slug): Path<String>,
 ) -> Result<Json<DataEnvelope<MovieEntry>>, ApiError> {
-    if repo::find_entry_by_slug(&state.db, &slug)
+    if repo::find_entry_by_slug(&pool.db, &slug)
         .await
         .map_err(ApiError::internal)?
         .is_none()
     {
         return Err(not_found(&slug));
     }
-    let entry = repo::publish_entry(&state.db, &slug)
+    let entry = repo::publish_entry(&pool.db, &slug)
         .await
         .map_err(ApiError::internal)?;
-    reindex(&state, &entry).await?;
+    reindex(&pool.db, &entry).await?;
     let review = entry
         .review_ko
         .clone()
@@ -232,7 +233,7 @@ pub struct TmdbSearchQuery {
 // ─── SeriesGroup ───
 
 pub async fn create_group(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Json(input): Json<SeriesGroupInput>,
 ) -> Result<Json<DataEnvelope<SeriesGroup>>, ApiError> {
     let ko_empty = input
@@ -267,34 +268,34 @@ pub async fn create_group(
         .slug
         .clone()
         .unwrap_or_else(|| repo::slugify(&base_title));
-    let slug = repo::ensure_unique_group_slug(&state.db, &base_slug)
+    let slug = repo::ensure_unique_group_slug(&pool.db, &base_slug)
         .await
         .map_err(ApiError::internal)?;
 
-    let group = repo::create_group(&state.db, &input, &slug)
+    let group = repo::create_group(&pool.db, &input, &slug)
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope { data: group }))
 }
 
 pub async fn list_groups(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
 ) -> Result<Json<DataEnvelope<Vec<SeriesGroup>>>, ApiError> {
-    let groups = repo::list_groups(&state.db)
+    let groups = repo::list_groups(&pool.db)
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope { data: groups }))
 }
 
 pub async fn show_group(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(slug): Path<String>,
 ) -> Result<Json<DataEnvelope<SeriesGroupDetail>>, ApiError> {
-    let group = repo::find_group_by_slug(&state.db, &slug)
+    let group = repo::find_group_by_slug(&pool.db, &slug)
         .await
         .map_err(ApiError::internal)?
         .ok_or_else(|| not_found_group(&slug))?;
-    let entries = repo::list_entries_by_group_id(&state.db, group.id, true)
+    let entries = repo::list_entries_by_group_id(&pool.db, group.id, true)
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope {
@@ -337,7 +338,7 @@ fn not_found(slug: &str) -> ApiError {
     )
 }
 
-async fn reindex(state: &AppState, entry: &MovieEntry) -> Result<(), ApiError> {
+async fn reindex(db: &SqlitePool, entry: &MovieEntry) -> Result<(), ApiError> {
     // title 우선: 영어 리뷰가 있으면 en. 없으면 ko. 둘 다 없으면 빈 문자열.
     let title = entry.title.clone();
     let body_en = entry.review_en.as_deref().unwrap_or("");
@@ -355,7 +356,7 @@ async fn reindex(state: &AppState, entry: &MovieEntry) -> Result<(), ApiError> {
         None
     };
     search::upsert(
-        &state.db,
+        db,
         "movies",
         &entry.slug,
         &title,

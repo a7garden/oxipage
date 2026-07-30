@@ -1,9 +1,10 @@
 use axum::Router;
+use axum::extract::Extension;
 use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode, header::AUTHORIZATION};
 use oxipage_core::config::Config;
 use oxipage_core::registry::ExtensionRegistry;
-use oxipage_core::state::AppState;
+use oxipage_core::state::{AppState, SiteScopedDb};
 use oxipage_ext_scraps::ScrapsExtension;
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -13,7 +14,7 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
     let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(ScrapsExtension)]));
     registry.run_migrations(&pool, &[]).await.unwrap();
     let state = AppState {
-        db: pool,
+        db: pool.clone(),
         config: Arc::new(Config::default()),
         registry: registry.clone(),
         wasm_loader: None,
@@ -24,7 +25,7 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
         e.on_startup(&state).await.unwrap();
     }
     let r = registry.find("scraps").unwrap().routes();
-    Router::new().nest("/api/console/scraps", r).with_state(state)
+    Router::new().nest("/api/console/scraps", r).layer(Extension(SiteScopedDb { db: pool }))
 }
 
 async fn body_json(res: axum::response::Response) -> serde_json::Value {
@@ -231,7 +232,7 @@ async fn queue_publish_and_source_filter_flow() {
 
     // 별도 app — admin 토큰으로 핸들러 검증
     let state_app = AppState {
-        db: pool,
+        db: pool.clone(),
         config: Arc::new(Config::default()),
         registry: registry.clone(),
         wasm_loader: None,
@@ -244,7 +245,7 @@ async fn queue_publish_and_source_filter_flow() {
     let r = registry.find("scraps").unwrap().routes();
     let app = Router::new()
         .nest("/api/console/scraps", r)
-        .with_state(state_app);
+        .layer(Extension(SiteScopedDb { db: pool }));
 
     let res = app
         .clone()

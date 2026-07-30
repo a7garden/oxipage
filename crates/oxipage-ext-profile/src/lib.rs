@@ -56,7 +56,7 @@ impl Extension for ProfileExtension {
         }]
     }
 
-    fn routes(&self) -> Router<AppState> {
+    fn routes(&self) -> Router {
         Router::new().route("/", get(routes::get_profile).put(routes::put_profile))
     }
     async fn lobby_summary(&self, _ctx: &AppState) -> Option<LobbyCard> {

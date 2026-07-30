@@ -5,16 +5,17 @@ use crate::model::{
 };
 use crate::repo;
 use axum::Json;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query};
 
 use oxipage_core::error::ApiError;
 use oxipage_core::extension::DataEnvelope;
 use oxipage_core::rating::Rating;
 use oxipage_core::search;
-use oxipage_core::state::AppState;
+use oxipage_core::state::SiteScopedDb;
+use sqlx::SqlitePool;
 
 pub async fn list(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Query(q): Query<ListQuery>,
 ) -> Result<Json<DataEnvelope<Vec<Book>>>, ApiError> {
     if let Some(s) = &q.status
@@ -26,28 +27,28 @@ pub async fn list(
         ));
     }
     let limit = q.limit.unwrap_or(20);
-    let books = repo::list(&state.db, q.status.as_deref(), limit)
+    let books = repo::list(&pool.db, q.status.as_deref(), limit)
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope { data: books }))
 }
 
 pub async fn create(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Json(input): Json<BookInput>,
 ) -> Result<Json<DataEnvelope<Book>>, ApiError> {
     validate_create(&input)?;
-    let book = repo::create(&state.db, &input)
+    let book = repo::create(&pool.db, &input)
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope { data: book }))
 }
 
 pub async fn show(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(id): Path<i64>,
 ) -> Result<Json<DataEnvelope<Book>>, ApiError> {
-    let book = repo::find_by_id(&state.db, id)
+    let book = repo::find_by_id(&pool.db, id)
         .await
         .map_err(ApiError::internal)?
         .ok_or_else(|| not_found(id))?;
@@ -58,32 +59,32 @@ pub async fn show(
 }
 
 pub async fn update(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(id): Path<i64>,
     Json(patch): Json<BookPatch>,
 ) -> Result<Json<DataEnvelope<Book>>, ApiError> {
     validate_patch(&patch)?;
-    let book = repo::update(&state.db, id, &patch)
+    let book = repo::update(&pool.db, id, &patch)
         .await
         .map_err(ApiError::internal)?
         .ok_or_else(|| not_found(id))?;
     if book.published_at.is_some() {
-        reindex(&state, &book).await?;
+        reindex(&pool.db, &book).await?;
     }
     Ok(Json(DataEnvelope { data: book }))
 }
 
 pub async fn delete(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(id): Path<i64>,
 ) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
-    let removed = repo::delete(&state.db, id)
+    let removed = repo::delete(&pool.db, id)
         .await
         .map_err(ApiError::internal)?;
     if !removed {
         return Err(not_found(id));
     }
-    search::delete(&state.db, "books", &id.to_string())
+    search::delete(&pool.db, "books", &id.to_string())
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope {
@@ -92,20 +93,20 @@ pub async fn delete(
 }
 
 pub async fn publish(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(id): Path<i64>,
 ) -> Result<Json<DataEnvelope<Book>>, ApiError> {
-    if repo::find_by_id(&state.db, id)
+    if repo::find_by_id(&pool.db, id)
         .await
         .map_err(ApiError::internal)?
         .is_none()
     {
         return Err(not_found(id));
     }
-    let book = repo::publish(&state.db, id)
+    let book = repo::publish(&pool.db, id)
         .await
         .map_err(ApiError::internal)?;
-    reindex(&state, &book).await?;
+    reindex(&pool.db, &book).await?;
     let review = book
         .review_ko
         .clone()
@@ -140,7 +141,7 @@ pub async fn external_search(
     Ok(Json(DataEnvelope { data: results }))
 }
 
-async fn reindex(state: &AppState, book: &Book) -> Result<(), ApiError> {
+async fn reindex(db: &SqlitePool, book: &Book) -> Result<(), ApiError> {
     // FTS 본문: review_en 우선, 없으면 review_ko. 둘 다 없으면 빈 문자열.
     let body = book
         .review_en
@@ -148,7 +149,7 @@ async fn reindex(state: &AppState, book: &Book) -> Result<(), ApiError> {
         .or(book.review_ko.as_deref())
         .unwrap_or("");
     search::upsert(
-        &state.db,
+        db,
         "books",
         &book.id.to_string(),
         &book.title,

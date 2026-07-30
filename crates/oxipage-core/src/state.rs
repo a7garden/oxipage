@@ -6,6 +6,16 @@ use sqlx::SqlitePool;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+/// Per-site DB pool injected into request extensions by middleware.
+///
+/// Extensions extract it with `Extension(pool): Extension<SiteScopedDb>` and
+/// use `pool.db` instead of the old `state.db` pattern. Defined in core so
+/// all extension crates can reference it without depending on oxipage-console.
+#[derive(Clone)]
+pub struct SiteScopedDb {
+    pub db: SqlitePool,
+}
+
 /// 사이트명/URL 오버라이드 — setup 마법사가 oxipage.toml을 갱신한 후
 /// 재시작 없이 런타임에 반영하기 위한 필드 (doc/13 §13.5.3).
 /// lobby manifest 등 사이트명 표시부는 override → config.site 순으로 읽음.
