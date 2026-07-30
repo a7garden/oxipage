@@ -7,9 +7,13 @@ import { Button } from "../../shared/ui/button";
 import { Input } from "../../shared/ui/input";
 import { Textarea } from "../../shared/ui/textarea";
 import { Drawer, DrawerField } from "../../shared/ui/drawer";
-import { Pencil, Trash2, Send, Plus } from "lucide-react";
+import { Pencil, Trash2, Send, Plus, ChevronDown, ChevronUp } from "lucide-react";
 import { useRowFilter } from "../shared/useRowFilter";
 import { field, str } from "../shared/row-utils";
+import {
+  addScreenshot, updateScreenshot, deleteScreenshot, showExtension,
+  type Screenshot,
+} from "../shared/api";
 
 interface Project {
   id: number;
@@ -95,6 +99,35 @@ export function ProjectsTab({ slug }: { slug: string }) {
     mutationFn: (s: string) => contentClient.delete(slug, "projects", s),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["site", slug, "content", "projects"] }),
   });
+
+  const [showScreenshots, setShowScreenshots] = useState(false);
+  const projectSlug = editing && editing !== "new" ? editing.slug : undefined;
+  const { data: projectDetail, refetch: refetchDetail } = useQuery({
+    queryKey: ["site", slug, "projects", projectSlug],
+    queryFn: () => showExtension<{ project: Project; screenshots: Screenshot[] }>(slug!, "projects", projectSlug!),
+    enabled: !!projectSlug && showScreenshots,
+  });
+  const screenshots = projectDetail?.screenshots ?? [];
+
+  const addShotMut = useMutation({
+    mutationFn: (input: { url: string; alt_ko?: string; alt_en?: string }) =>
+      addScreenshot(slug!, projectSlug!, input),
+    onSuccess: () => { refetchDetail(); setAddingScreenshot(false); setAddShotForm({ url: "", alt_ko: "", alt_en: "" }); },
+  });
+
+  const updateShotMut = useMutation({
+    mutationFn: ({ sid, patch }: { sid: number; patch: { alt_ko?: string; alt_en?: string; display_order?: number } }) =>
+      updateScreenshot(slug!, projectSlug!, sid, patch),
+    onSuccess: () => refetchDetail(),
+  });
+
+  const deleteShotMut = useMutation({
+    mutationFn: (sid: number) => deleteScreenshot(slug!, projectSlug!, sid),
+    onSuccess: () => refetchDetail(),
+  });
+
+  const [addingScreenshot, setAddingScreenshot] = useState(false);
+  const [addShotForm, setAddShotForm] = useState({ url: "", alt_ko: "", alt_en: "" });
 
   const openEdit = (p: Project) => {
     setEditing(p);
@@ -252,6 +285,69 @@ export function ProjectsTab({ slug }: { slug: string }) {
           />
           Featured
         </label>
+
+        {projectSlug && (
+          <div className="border-t border-line pt-4 mt-4">
+            <button
+              onClick={() => setShowScreenshots(!showScreenshots)}
+              className="flex items-center gap-2 text-sm font-semibold text-foreground mb-3 w-full text-left"
+            >
+              <ChevronDown size={14} className={`transition-transform ${showScreenshots ? "" : "-rotate-90"}`} />
+              Screenshots ({screenshots.length})
+            </button>
+            {showScreenshots && (
+              <div className="space-y-2 mb-3">
+                {screenshots.map((s: Screenshot, i: number) => (
+                  <div key={s.id} className="flex items-center gap-2 p-2 border border-line rounded">
+                    <img src={s.url} alt="" className="size-10 rounded object-cover shrink-0 border border-line" />
+                    <input
+                      className="flex-1 text-xs border border-line rounded px-1 py-0.5 bg-canvas"
+                      defaultValue={s.alt_ko ?? ""}
+                      onBlur={(e) => { if (e.target.value !== (s.alt_ko ?? "")) updateShotMut.mutate({ sid: s.id, patch: { alt_ko: e.target.value } }); }}
+                      placeholder="alt (KO)"
+                    />
+                    <input
+                      type="number"
+                      className="w-12 text-xs border border-line rounded px-1 py-0.5 bg-canvas text-center"
+                      defaultValue={s.display_order}
+                      onBlur={(e) => { const v = Number(e.target.value); if (v !== s.display_order) updateShotMut.mutate({ sid: s.id, patch: { display_order: v } }); }}
+                    />
+                    <span className="text-xs text-muted">#{s.display_order}</span>
+                    <button onClick={() => deleteShotMut.mutate(s.id)} className="text-red-500 hover:text-red-600">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={() => setAddingScreenshot(!addingScreenshot)}
+              className="flex items-center gap-1 text-xs text-muted hover:text-foreground"
+            >
+              <Plus size={12} /> {addingScreenshot ? "Cancel" : "Add Screenshot"}
+            </button>
+            {addingScreenshot && (
+              <div className="border border-line rounded p-3 mt-2 space-y-2 bg-surface/30">
+                <Input
+                  placeholder="Image URL"
+                  value={addShotForm.url}
+                  onChange={(e) => setAddShotForm((f) => ({ ...f, url: e.target.value }))}
+                />
+                <Input
+                  placeholder="Alt text (Korean)"
+                  value={addShotForm.alt_ko}
+                  onChange={(e) => setAddShotForm((f) => ({ ...f, alt_ko: e.target.value }))}
+                />
+                <div className="flex gap-2 justify-end">
+                  <Button size="sm" onClick={() => addShotMut.mutate({ url: addShotForm.url, alt_ko: addShotForm.alt_ko || undefined, alt_en: addShotForm.alt_en || undefined })} disabled={!addShotForm.url.trim() || addShotMut.isPending}>
+                    Add
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {error && <p className="text-sm text-red-600">{error}</p>}
       </Drawer>
     </div>

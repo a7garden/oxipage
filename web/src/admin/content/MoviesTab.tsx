@@ -6,9 +6,14 @@ import { Button } from "../../shared/ui/button";
 import { Input } from "../../shared/ui/input";
 import { Textarea } from "../../shared/ui/textarea";
 import { Drawer, DrawerField } from "../../shared/ui/drawer";
-import { Pencil, Trash2, Send, Plus } from "lucide-react";
+import { Pencil, Trash2, Send, Plus, X } from "lucide-react";
 import { useRowFilter } from "../shared/useRowFilter";
 import { field, str } from "../shared/row-utils";
+import {
+  listSeries, createSeries, showSeries, updateSeries, deleteSeries,
+  type SeriesGroup, type SeriesGroupDetail,
+} from "../shared/api";
+import { Badge } from "../../shared/ui/badge";
 
 interface MovieEntry {
   id: number;
@@ -23,6 +28,8 @@ interface MovieEntry {
   review_ko: string | null;
   review_en: string | null;
   rewatch: boolean;
+  series_group_slug: string | null;
+  series_order: number | null;
   published_at: string | null;
   created_at: string;
   updated_at: string;
@@ -37,6 +44,8 @@ interface FormState {
   review_ko: string;
   review_en: string;
   rewatch: boolean;
+  series_group_slug: string;
+  series_order: string;
 }
 
 const EMPTY: FormState = {
@@ -48,6 +57,8 @@ const EMPTY: FormState = {
   review_ko: "",
   review_en: "",
   rewatch: false,
+  series_group_slug: "",
+  series_order: "",
 };
 
 function StarRating({ rating }: { rating: unknown }) {
@@ -61,6 +72,7 @@ export function MoviesTab({ slug }: { slug: string }) {
   const [editing, setEditing] = useState<null | MovieEntry | "new">(null);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"movies" | "series">("movies");
 
   const { data, isLoading } = useQuery({
     queryKey: ["site", slug, "content", "movies"],
@@ -81,6 +93,8 @@ export function MoviesTab({ slug }: { slug: string }) {
         review_ko: form.review_ko || null,
         review_en: form.review_en || null,
         rewatch: form.rewatch,
+        series_group_slug: form.series_group_slug || null,
+        series_order: form.series_order ? parseInt(form.series_order, 10) : null,
       };
       if (editing === "new") return contentClient.create<MovieEntry>(slug, "movies", payload);
       if (editing) return contentClient.update<MovieEntry>(slug, "movies", editing.slug, payload);
@@ -116,6 +130,8 @@ export function MoviesTab({ slug }: { slug: string }) {
       review_ko: m.review_ko ?? "",
       review_en: m.review_en ?? "",
       rewatch: m.rewatch,
+      series_group_slug: (m as any).series_group_slug ?? "",
+      series_order: (m as any).series_order != null ? String((m as any).series_order) : "",
     });
     setError(null);
   };
@@ -178,6 +194,21 @@ export function MoviesTab({ slug }: { slug: string }) {
 
   return (
     <div>
+      <div className="flex gap-4 mb-4">
+        <button
+          onClick={() => setTab("movies")}
+          className={`text-sm font-medium pb-1 border-b-2 ${tab === "movies" ? "border-[#22c55e] text-foreground" : "border-transparent text-muted"}`}
+        >Movies</button>
+        <button
+          onClick={() => setTab("series")}
+          className={`text-sm font-medium pb-1 border-b-2 ${tab === "series" ? "border-[#22c55e] text-foreground" : "border-transparent text-muted"}`}
+        >Series</button>
+      </div>
+
+      {tab === "series" ? (
+        <SeriesView slug={slug} />
+      ) : (
+        <>
       <div className="flex items-center justify-between mb-3">
         <Input placeholder="Search movies..." className="w-60" value={search} onChange={(e) => setSearch(e.target.value)} />
         <Button size="sm" onClick={() => { setEditing("new"); setForm(EMPTY); setError(null); }}>
@@ -258,7 +289,173 @@ export function MoviesTab({ slug }: { slug: string }) {
           <input type="checkbox" checked={form.rewatch} onChange={(e) => setForm((f) => ({ ...f, rewatch: e.target.checked }))} />
           Rewatch
         </label>
+        <SeriesField slug={slug} form={form} setForm={setForm} />
         {error && <p className="text-sm text-red-600">{error}</p>}
+      </Drawer>
+    </>
+      )}
+    </div>
+  );
+}
+
+function SeriesField({ slug, form, setForm }: { slug: string; form: FormState; setForm: (cb: (prev: FormState) => FormState) => void }) {
+  const { data: groups = [] } = useQuery({
+    queryKey: ["site", slug, "movies", "series"],
+    queryFn: () => listSeries(slug),
+  });
+  return (
+    <>
+      <DrawerField label="Series">
+        <select
+          value={form.series_group_slug}
+          onChange={(e) => setForm((f) => ({ ...f, series_group_slug: e.target.value }))}
+          className="h-10 w-full rounded-md border border-line bg-canvas px-3 text-sm text-foreground"
+        >
+          <option value="">None</option>
+          {groups.map((g) => (
+            <option key={g.slug} value={g.slug}>{g.title_ko ?? g.title_en ?? g.slug}</option>
+          ))}
+        </select>
+      </DrawerField>
+      <DrawerField label="Series Order">
+        <Input
+          type="number" min={0} value={form.series_order}
+          onChange={(e) => setForm((f) => ({ ...f, series_order: e.target.value }))}
+          placeholder="0"
+        />
+      </DrawerField>
+    </>
+  );
+}
+
+function SeriesView({ slug }: { slug: string }) {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState<null | SeriesGroup | "new">(null);
+  const [seriesForm, setSeriesForm] = useState({ title_ko: "", title_en: "" });
+  const [selected, setSelected] = useState<null | SeriesGroup>(null);
+
+  const openEdit = (g: SeriesGroup) => {
+    setEditing(g);
+    setSeriesForm({ title_ko: g.title_ko ?? "", title_en: g.title_en ?? "" });
+  };
+
+  const { data: groups = [] } = useQuery({
+    queryKey: ["site", slug, "movies", "series"],
+    queryFn: () => listSeries(slug),
+  });
+
+  const { data: detail } = useQuery({
+    queryKey: ["site", slug, "movies", "series", selected?.slug],
+    queryFn: () => showSeries(slug, selected!.slug),
+    enabled: !!selected,
+  });
+
+  const createMut = useMutation({
+    mutationFn: () => createSeries(slug, seriesForm),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["site", slug, "movies", "series"] }); setEditing(null); setSeriesForm({ title_ko: "", title_en: "" }); },
+  });
+
+  const updateMut = useMutation({
+    mutationFn: () => updateSeries(slug, (editing as SeriesGroup).slug, seriesForm),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["site", slug, "movies", "series"] }); setEditing(null); setSeriesForm({ title_ko: "", title_en: "" }); },
+  });
+
+  const handleSave = () => { if (editing === "new") createMut.mutate(); else updateMut.mutate(); };
+
+  const deleteMut = useMutation({
+    mutationFn: (s: string) => deleteSeries(slug, s),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["site", slug, "movies", "series"] }); setSelected(null); },
+  });
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <Input placeholder="Filter series..." className="w-60" />
+        <Button size="sm" onClick={() => { setEditing("new"); setSeriesForm({ title_ko: "", title_en: "" }); }}>
+          <Plus size={14} className="mr-1" /> New Series
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-2 mb-4">
+        {groups.map((g) => (
+          <div
+            key={g.slug}
+            className={`border border-line rounded-lg p-3 flex items-center gap-3 cursor-pointer ${selected?.slug === g.slug ? "ring-1 ring-[#22c55e]" : ""}`}
+            onClick={() => setSelected(selected?.slug === g.slug ? null : g)}
+          >
+            <div className="size-9 rounded-lg bg-[#fef3c7] text-[#92400e] flex items-center justify-center text-base font-bold shrink-0">
+              {(g.title_ko ?? g.title_en ?? g.slug)[0].toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium">{g.title_ko ?? g.title_en ?? g.slug}</div>
+              <div className="text-xs text-muted">/{g.slug}</div>
+            </div>
+            {detail?.group.slug === g.slug && <Badge>{detail.entries.length} entries</Badge>}
+            <button
+              onClick={(e) => { e.stopPropagation(); openEdit(g); }}
+              className="text-muted hover:text-foreground shrink-0"
+            >
+              <Pencil size={14} />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); if (confirm(`Delete series "${g.title_ko ?? g.title_en ?? g.slug}"?`)) deleteMut.mutate(g.slug); }}
+              className="text-red-500 hover:text-red-600 shrink-0"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        ))}
+        {groups.length === 0 && (
+          <div className="text-center py-8 text-muted text-sm">No series yet. Create your first one.</div>
+        )}
+      </div>
+
+      {detail && (
+        <div className="border border-line rounded-lg p-4">
+          <h3 className="text-sm font-semibold mb-2">Members — {detail.group.title_ko ?? detail.group.title_en ?? detail.group.slug}</h3>
+          {detail.entries.length === 0 ? (
+            <p className="text-xs text-muted">No entries assigned to this series.</p>
+          ) : (
+            <div className="space-y-1">
+              {detail.entries.map((e: any) => (
+                <div key={e.id} className="flex items-center gap-2 text-sm px-2 py-1 rounded border border-line">
+                  <span className="text-muted w-6 text-center shrink-0">{e.series_order ?? "—"}</span>
+                  <span className="flex-1">{e.title}</span>
+                  <Badge variant="outline" className="text-[10px]">{e.rating}/10</Badge>
+                  <button
+                    onClick={() => { if (confirm(`Remove "${e.title}" from this series?`)) contentClient.update(slug, "movies", e.slug, { series_group_slug: null, series_order: null }).then(() => qc.invalidateQueries({ queryKey: ["site", slug, "movies", "series"] })); }}
+                    className="text-muted hover:text-red-500"
+                    title="Remove from series"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <Drawer
+        open={editing !== null}
+        onClose={() => setEditing(null)}
+        title={editing === "new" ? "New Series" : "Edit Series"}
+        width="w-[480px]"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
+            <Button onClick={() => handleSave()} disabled={createMut.isPending || updateMut.isPending || (!seriesForm.title_ko.trim() && !seriesForm.title_en.trim())}>
+              {(createMut.isPending || updateMut.isPending) ? "Saving..." : editing === "new" ? "Create" : "Save"}
+            </Button>
+          </>
+        }
+      >
+        <DrawerField label="Title (Korean)">
+          <Input value={seriesForm.title_ko} onChange={(e) => setSeriesForm((f) => ({ ...f, title_ko: e.target.value }))} />
+        </DrawerField>
+        <DrawerField label="Title (English)">
+          <Input value={seriesForm.title_en} onChange={(e) => setSeriesForm((f) => ({ ...f, title_en: e.target.value }))} />
+        </DrawerField>
       </Drawer>
     </div>
   );

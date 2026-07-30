@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { useParams } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listExtensions, setExtensionEnabled, type ExtensionStatus } from "../shared/api";
+import { listExtensions, setExtensionEnabled, type ExtensionStatus, listRegistry, installExtension, type RegistryEntry } from "../shared/api";
 import { Button } from "../../shared/ui/button";
 import { Skeleton } from "../../shared/ui/skeleton";
 
@@ -93,6 +94,55 @@ export function ExtensionsPage() {
           )}
         </>
       )}
+
+      <RegistrySection slug={slug} />
     </div>
+  );
+}
+
+function RegistrySection({ slug }: { slug?: string }) {
+  const qc = useQueryClient();
+  const [note, setNote] = useState<string | null>(null);
+
+  const { data: registry = [] } = useQuery({
+    queryKey: ["extensions", "registry"],
+    queryFn: listRegistry,
+  });
+
+  const installMut = useMutation({
+    mutationFn: (name: string) => installExtension(name),
+    onSuccess: (result, name) => {
+      if (slug) qc.invalidateQueries({ queryKey: ["site", slug, "extensions"] });
+      qc.invalidateQueries({ queryKey: ["extensions", "registry"] });
+      setNote(`${name}: ${result.activated ? "Activated" : result.note ?? "Restart to activate"}`);
+    },
+  });
+
+  const available = registry.filter((r) => !r.installed);
+  if (available.length === 0) return null;
+
+  return (
+    <>
+      <div className="text-xs font-semibold uppercase tracking-wider text-muted mb-3 mt-6">
+        Available from Registry
+      </div>
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        {available.map((entry) => (
+          <div key={entry.name} className="border border-line rounded-lg p-3 flex items-center gap-3">
+            <div className="size-9 rounded-lg bg-[#e0f2fe] text-[#0369a1] flex items-center justify-center text-base font-bold shrink-0">
+              {entry.name[0].toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium">{entry.name}</div>
+              <div className="text-xs text-muted truncate">{entry.source}</div>
+            </div>
+            <Button size="sm" onClick={() => installMut.mutate(entry.name)} disabled={installMut.isPending}>
+              Install
+            </Button>
+          </div>
+        ))}
+      </div>
+      {note && <p className="text-xs text-muted mt-2">{note}</p>}
+    </>
   );
 }

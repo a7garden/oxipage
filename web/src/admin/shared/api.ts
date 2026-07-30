@@ -244,7 +244,7 @@ async function listExtension<T>(
   return json.data ?? [];
 }
 
-async function showExtension<T>(slug: string, extId: string, id: string): Promise<T | null> {
+export async function showExtension<T>(slug: string, extId: string, id: string): Promise<T | null> {
   const res = await siteScopedFetch(slug, `/${extId}/${id}`);
   if (!res.ok) return null;
   const json = (await res.json()) as { data?: T };
@@ -287,3 +287,178 @@ export const contentClient = {
   delete: deleteExtension,
   action: actionExtension,
 };
+
+// ─── Sub-resource clients (nested paths, not flat contentClient) ────────
+
+// Novels chapters
+
+export interface NovelChapter {
+  id: number;
+  novel_id: number;
+  chapter_order: number;
+  title: string;
+  body: string;
+  char_count: number;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function listChapters(slug: string, novelSlug: string, draft = false): Promise<NovelChapter[]> {
+  const path = draft ? `/novels/${novelSlug}/chapters/draft` : `/novels/${novelSlug}/chapters`;
+  const res = await siteScopedFetch(slug, path);
+  if (!res.ok) return [];
+  const json = (await res.json()) as { data?: NovelChapter[] };
+  return json.data ?? [];
+}
+
+export async function createChapter(
+  slug: string, novelSlug: string, input: { chapter_order: number; title: string; body?: string },
+): Promise<NovelChapter> {
+  const res = await siteScopedFetch(slug, `/novels/${novelSlug}/chapters`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return jsonOrThrow<{ data: NovelChapter }>(res).then((j) => j.data);
+}
+
+export async function updateChapter(
+  slug: string, novelSlug: string, order: number,
+  patch: { title?: string; body?: string; chapter_order?: number },
+): Promise<NovelChapter> {
+  const res = await siteScopedFetch(slug, `/novels/${novelSlug}/chapters/${order}`, {
+    method: "PATCH", headers: { "content-type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  return jsonOrThrow<{ data: NovelChapter }>(res).then((j) => j.data);
+}
+
+export async function deleteChapter(slug: string, novelSlug: string, order: number): Promise<void> {
+  const res = await siteScopedFetch(slug, `/novels/${novelSlug}/chapters/${order}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+export async function publishChapter(slug: string, novelSlug: string, order: number): Promise<NovelChapter> {
+  const res = await siteScopedFetch(slug, `/novels/${novelSlug}/chapters/${order}/publish`, { method: "POST" });
+  return jsonOrThrow<{ data: NovelChapter }>(res).then((j) => j.data);
+}
+
+// Movies series groups
+
+export interface SeriesGroup {
+  id: number;
+  slug: string;
+  title_ko: string | null;
+  title_en: string | null;
+  cover_image: string | null;
+  group_rating: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SeriesGroupDetail {
+  group: SeriesGroup;
+  entries: unknown[]; // MovieEntry[] — type defined locally in MoviesTab
+}
+
+export async function listSeries(slug: string): Promise<SeriesGroup[]> {
+  const res = await siteScopedFetch(slug, "/movies/series");
+  if (!res.ok) return [];
+  const json = (await res.json()) as { data?: SeriesGroup[] };
+  return json.data ?? [];
+}
+
+export async function createSeries(
+  slug: string, input: { title_ko?: string; title_en?: string },
+): Promise<SeriesGroup> {
+  const res = await siteScopedFetch(slug, "/movies/series", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return jsonOrThrow<{ data: SeriesGroup }>(res).then((j) => j.data);
+}
+
+export async function showSeries(slug: string, groupSlug: string): Promise<SeriesGroupDetail | null> {
+  const res = await siteScopedFetch(slug, `/movies/series/${groupSlug}`);
+  if (!res.ok) return null;
+  return jsonOrThrow<{ data: SeriesGroupDetail }>(res).then((j) => j.data);
+}
+
+export async function updateSeries(
+  slug: string, groupSlug: string,
+  patch: Partial<{ title_ko: string; title_en: string; cover_image: string; group_rating: number }>,
+): Promise<SeriesGroup> {
+  const res = await siteScopedFetch(slug, `/movies/series/${groupSlug}`, {
+    method: "PATCH", headers: { "content-type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  return jsonOrThrow<{ data: SeriesGroup }>(res).then((j) => j.data);
+}
+
+export async function deleteSeries(slug: string, groupSlug: string): Promise<void> {
+  const res = await siteScopedFetch(slug, `/movies/series/${groupSlug}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+// Projects screenshots
+
+export interface Screenshot {
+  id: number;
+  project_id: number;
+  url: string;
+  alt_ko: string | null;
+  alt_en: string | null;
+  display_order: number;
+  created_at: string;
+}
+
+export async function addScreenshot(
+  slug: string, projectSlug: string,
+  input: { url: string; alt_ko?: string; alt_en?: string; display_order?: number },
+): Promise<Screenshot> {
+  const res = await siteScopedFetch(slug, `/projects/${projectSlug}/screenshots`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return jsonOrThrow<{ data: Screenshot }>(res).then((j) => j.data);
+}
+
+export async function updateScreenshot(
+  slug: string, projectSlug: string, sid: number,
+  patch: { alt_ko?: string; alt_en?: string; display_order?: number },
+): Promise<Screenshot> {
+  const res = await siteScopedFetch(slug, `/projects/${projectSlug}/screenshots/${sid}`, {
+    method: "PATCH", headers: { "content-type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  return jsonOrThrow<{ data: Screenshot }>(res).then((j) => j.data);
+}
+
+export async function deleteScreenshot(slug: string, projectSlug: string, sid: number): Promise<void> {
+  const res = await siteScopedFetch(slug, `/projects/${projectSlug}/screenshots/${sid}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+// WASM registry
+
+export interface RegistryEntry {
+  name: string;
+  runtime_loadable: boolean;
+  installed: boolean;
+  source: string;
+}
+
+export async function listRegistry(): Promise<RegistryEntry[]> {
+  const res = await fetch(`/api/console/extensions/registry`);
+  if (!res.ok) return [];
+  const json = (await res.json()) as { data?: RegistryEntry[] };
+  return json.data ?? [];
+}
+
+export async function installExtension(name: string): Promise<{ name: string; activated: boolean; note?: string }> {
+  const res = await fetch(`/api/console/extensions/install`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  return jsonOrThrow<{ data: { name: string; activated: boolean; note?: string } }>(res).then((j) => j.data);
+}

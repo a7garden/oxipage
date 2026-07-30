@@ -3,11 +3,16 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { contentClient } from "../shared/api";
 import { ContentTable } from "../shared/content-table";
 import { Button } from "../../shared/ui/button";
+import { Badge } from "../../shared/ui/badge";
 import { Input } from "../../shared/ui/input";
 import { Textarea } from "../../shared/ui/textarea";
 import { Drawer, DrawerField } from "../../shared/ui/drawer";
-import { Pencil, Trash2, Send, Plus } from "lucide-react";
+import { Pencil, Trash2, Send, Plus, ChevronDown, ChevronUp } from "lucide-react";
 import { useRowFilter } from "../shared/useRowFilter";
+import {
+  listChapters, createChapter, updateChapter, deleteChapter, publishChapter,
+  type NovelChapter,
+} from "../shared/api";
 import { field, str } from "../shared/row-utils";
 
 interface Novel {
@@ -44,6 +49,9 @@ export function NovelsTab({ slug }: { slug: string }) {
   const [editing, setEditing] = useState<null | Novel | "new">(null);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [error, setError] = useState<string | null>(null);
+  const [showChapters, setShowChapters] = useState(false);
+  const [editingChapter, setEditingChapter] = useState<null | number | "new">(null);
+  const [chapterForm, setChapterForm] = useState({ chapter_order: 1, title: "", body: "" });
 
   const { data, isLoading } = useQuery({
     queryKey: ["site", slug, "content", "novels"],
@@ -84,6 +92,44 @@ export function NovelsTab({ slug }: { slug: string }) {
     mutationFn: (s: string) => contentClient.delete(slug, "novels", s),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["site", slug, "content", "novels"] }),
   });
+
+  const novelSlug = editing && editing !== "new" ? editing.slug : undefined;
+  const { data: chapters = [] } = useQuery({
+    queryKey: ["site", slug, "novels", novelSlug, "chapters"],
+    queryFn: () => listChapters(slug!, novelSlug!),
+    enabled: !!novelSlug && showChapters,
+  });
+
+  const createChapterMut = useMutation({
+    mutationFn: (input: { chapter_order: number; title: string; body: string }) =>
+      createChapter(slug!, novelSlug!, input),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["site", slug, "novels", novelSlug, "chapters"] }); setEditingChapter(null); setChapterForm({ chapter_order: 1, title: "", body: "" }); },
+  });
+
+  const updateChapterMut = useMutation({
+    mutationFn: ({ order, patch }: { order: number; patch: { title?: string; body?: string; chapter_order?: number } }) =>
+      updateChapter(slug!, novelSlug!, order, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["site", slug, "novels", novelSlug, "chapters"] }),
+  });
+
+  const deleteChapterMut = useMutation({
+    mutationFn: (order: number) => deleteChapter(slug!, novelSlug!, order),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["site", slug, "novels", novelSlug, "chapters"] }),
+  });
+
+  const publishChapterMut = useMutation({
+    mutationFn: (order: number) => publishChapter(slug!, novelSlug!, order),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["site", slug, "novels", novelSlug, "chapters"] }),
+  });
+
+  const handleReorder = (order: number, direction: -1 | 1) => {
+    const idx = chapters.findIndex((c) => c.chapter_order === order);
+    if (idx === -1) return;
+    const target = chapters[idx + direction];
+    if (!target) return;
+    updateChapterMut.mutate({ order, patch: { chapter_order: target.chapter_order } });
+    updateChapterMut.mutate({ order: target.chapter_order, patch: { chapter_order: order } });
+  };
 
   const openEdit = (n: Novel) => {
     setEditing(n);
@@ -212,6 +258,70 @@ export function NovelsTab({ slug }: { slug: string }) {
         <DrawerField label="Synopsis">
           <Textarea value={form.synopsis} onChange={(e) => setForm((f) => ({ ...f, synopsis: e.target.value }))} rows={8} />
         </DrawerField>
+
+        {novelSlug && (
+          <div className="border-t border-line pt-4 mt-4">
+            <button
+              onClick={() => setShowChapters(!showChapters)}
+              className="flex items-center gap-2 text-sm font-semibold text-foreground mb-3 w-full text-left"
+            >
+              <ChevronDown size={14} className={`transition-transform ${showChapters ? "" : "-rotate-90"}`} />
+              Chapters ({chapters.length})
+            </button>
+            {showChapters && (
+              <div className="space-y-1 mb-3">
+                {chapters.map((ch, i) => (
+                  <div key={ch.id} className="flex items-center gap-2 px-2 py-1.5 rounded border border-line text-sm">
+                    <span className="text-muted w-6 shrink-0 text-center">{ch.chapter_order}</span>
+                    <span className="flex-1 truncate">{ch.title}</span>
+                    <Badge variant={ch.published_at ? "default" : "outline"} className="text-[10px] px-1.5">
+                      {ch.published_at ? "Published" : "Draft"}
+                    </Badge>
+                    <button onClick={() => { setEditingChapter(ch.chapter_order); setChapterForm({ chapter_order: ch.chapter_order, title: ch.title, body: ch.body }); }} className="text-muted hover:text-foreground"><Pencil size={14} /></button>
+                    <button onClick={() => handleReorder(ch.chapter_order, -1)} disabled={i === 0} className="text-muted hover:text-foreground disabled:opacity-30"><ChevronUp size={14} /></button>
+                    <button onClick={() => handleReorder(ch.chapter_order, 1)} disabled={i === chapters.length - 1} className="text-muted hover:text-foreground disabled:opacity-30"><ChevronDown size={14} /></button>
+                    <button onClick={() => { if (confirm(`Delete chapter "${ch.title}"?`)) deleteChapterMut.mutate(ch.chapter_order); }} className="text-red-500 hover:text-red-600"><Trash2 size={14} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={() => {
+                const nextOrder = chapters.length > 0 ? Math.max(...chapters.map((c) => c.chapter_order)) + 1 : 1;
+                setEditingChapter("new");
+                setChapterForm({ chapter_order: nextOrder, title: "", body: "" });
+              }}
+              className="flex items-center gap-1 text-xs text-muted hover:text-foreground"
+            >
+              <Plus size={12} /> Add Chapter
+            </button>
+            {editingChapter && (
+              <div className="border border-line rounded p-3 mt-2 space-y-2 bg-surface/30">
+                <Input
+                  placeholder="Chapter title"
+                  value={chapterForm.title}
+                  onChange={(e) => setChapterForm((f) => ({ ...f, title: e.target.value }))}
+                />
+                <Textarea
+                  placeholder="Chapter body"
+                  rows={6}
+                  value={chapterForm.body}
+                  onChange={(e) => setChapterForm((f) => ({ ...f, body: e.target.value }))}
+                />
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" size="sm" onClick={() => setEditingChapter(null)}>Cancel</Button>
+                  <Button size="sm" onClick={() => {
+                    if (editingChapter === "new") createChapterMut.mutate(chapterForm);
+                    else updateChapterMut.mutate({ order: editingChapter, patch: { title: chapterForm.title, body: chapterForm.body } });
+                  }}>
+                    {editingChapter === "new" ? "Add" : "Save"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {error && <p className="text-sm text-red-600">{error}</p>}
       </Drawer>
     </div>
