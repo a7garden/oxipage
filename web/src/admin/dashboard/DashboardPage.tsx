@@ -7,6 +7,7 @@ import { Badge } from "../../shared/ui/badge";
 import { Skeleton } from "../../shared/ui/skeleton";
 import { EmptyState, EmptyStateTitle, EmptyStateDescription } from "../../shared/ui/empty-state";
 import { Plus, RefreshCw, Rocket } from "lucide-react";
+import { field, str } from "../shared/row-utils";
 
 export function DashboardPage() {
   const { slug } = useParams();
@@ -20,8 +21,7 @@ export function DashboardPage() {
     queryFn: async () => {
       const res = await siteScopedFetch(slug!, "/blog/posts?limit=5");
       if (!res.ok) return [];
-      const json = await res.json();
-      return json.data ?? [];
+      return ((await res.json()) as { data?: unknown[] }).data ?? [];
     },
     enabled: !!slug,
   });
@@ -53,16 +53,12 @@ export function DashboardPage() {
       <h2 className="text-sm font-semibold text-foreground mb-3">Recent Posts</h2>
       {isLoading ? (
         <div className="space-y-2">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-12 w-full" />
-          ))}
+          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
         </div>
       ) : isError ? (
         <div className="border border-line rounded-lg p-6 text-center text-muted text-sm">
           Failed to load recent posts.{" "}
-          <button onClick={() => window.location.reload()} className="underline">
-            Retry
-          </button>
+          <button onClick={() => window.location.reload()} className="underline">Retry</button>
         </div>
       ) : recent && recent.length > 0 ? (
         <div className="border border-line rounded-lg overflow-hidden">
@@ -71,19 +67,16 @@ export function DashboardPage() {
             <div className="w-20 px-4 py-2.5">Status</div>
             <div className="w-28 px-4 py-2.5">Updated</div>
           </div>
-          {recent.map((post: any, i: number) => (
-            <div
-              key={post.id ?? post.slug ?? i}
-              className="flex border-t border-line text-sm hover:bg-surface/30 cursor-pointer"
-            >
-              <div className="flex-1 px-4 py-2.5 truncate">{post.title}</div>
+          {recent.map((row, i) => (
+            <div key={str(field(row, "id") || field(row, "slug") || i)} className="flex border-t border-line text-sm hover:bg-surface/30 cursor-pointer">
+              <div className="flex-1 px-4 py-2.5 truncate">{str(field(row, "title"))}</div>
               <div className="w-20 px-4 py-2.5">
-                <Badge variant={post.published_at ? "positive" : "secondary"}>
-                  {post.published_at ? "Published" : "Draft"}
+                <Badge variant={field(row, "published_at") ? "positive" : "secondary"}>
+                  {field(row, "published_at") ? "Published" : "Draft"}
                 </Badge>
               </div>
               <div className="w-28 px-4 py-2.5 text-muted text-xs">
-                {post.published_at ?? post.updated_at ?? "—"}
+                {str(field(row, "published_at") || field(row, "updated_at"))}
               </div>
             </div>
           ))}
@@ -97,15 +90,9 @@ export function DashboardPage() {
 
       <h2 className="text-sm font-semibold text-foreground mt-6 mb-3">Quick Actions</h2>
       <div className="flex gap-2">
-        <Button variant="outline" onClick={() => navigate(`/s/${slug}/content`)}>
-          <Plus size={14} className="mr-1" /> New Post
-        </Button>
-        <Button variant="outline" onClick={() => navigate(`/s/${slug}/extensions`)}>
-          <Plus size={14} className="mr-1" /> Install Extension
-        </Button>
-        <Button variant="outline" onClick={() => navigate(`/s/${slug}/deploy`)}>
-          <Rocket size={14} className="mr-1" /> Build & Deploy
-        </Button>
+        <Button variant="outline" onClick={() => navigate(`/s/${slug}/content`)}><Plus size={14} className="mr-1" /> New Post</Button>
+        <Button variant="outline" onClick={() => navigate(`/s/${slug}/extensions`)}><Plus size={14} className="mr-1" /> Install Extension</Button>
+        <Button variant="outline" onClick={() => navigate(`/s/${slug}/deploy`)}><Rocket size={14} className="mr-1" /> Build & Deploy</Button>
       </div>
     </div>
   );
