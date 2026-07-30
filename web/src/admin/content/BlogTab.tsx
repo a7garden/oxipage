@@ -6,6 +6,7 @@ import { Badge } from "../../shared/ui/badge";
 import { Button } from "../../shared/ui/button";
 import { Input } from "../../shared/ui/input";
 import { Textarea } from "../../shared/ui/textarea";
+import { MarkdownEditor } from "../shared/ui/MarkdownEditor";
 import { Drawer, DrawerField } from "../../shared/ui/drawer";
 import { Pencil, Trash2, Send, Plus } from "lucide-react";
 import { useRowFilter } from "../shared/useRowFilter";
@@ -229,12 +230,7 @@ export function BlogTab({ slug }: { slug: string }) {
           />
         </DrawerField>
         <DrawerField label="Body" hint="Markdown is supported">
-          <Textarea
-            value={form.body}
-            onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
-            rows={16}
-            className="font-mono"
-          />
+          <MarkdownEditor value={form.body} onChange={(v) => setForm((f) => ({ ...f, body: v }))} rows={16} />
         </DrawerField>
         {error && <p className="text-sm text-red-600">{error}</p>}
       </Drawer>

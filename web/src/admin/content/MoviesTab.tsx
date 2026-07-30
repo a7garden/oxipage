@@ -5,6 +5,7 @@ import { ContentTable } from "../shared/content-table";
 import { Button } from "../../shared/ui/button";
 import { Input } from "../../shared/ui/input";
 import { Textarea } from "../../shared/ui/textarea";
+import { MarkdownEditor } from "../shared/ui/MarkdownEditor";
 import { Drawer, DrawerField } from "../../shared/ui/drawer";
 import { Pencil, Trash2, Send, Plus, X } from "lucide-react";
 import { useRowFilter } from "../shared/useRowFilter";
@@ -280,10 +281,10 @@ export function MoviesTab({ slug }: { slug: string }) {
           </DrawerField>
         </div>
         <DrawerField label="Review (Korean)">
-          <Textarea value={form.review_ko} onChange={(e) => setForm((f) => ({ ...f, review_ko: e.target.value }))} rows={5} />
+          <MarkdownEditor value={form.review_ko} onChange={(v) => setForm((f) => ({ ...f, review_ko: v }))} rows={5} />
         </DrawerField>
         <DrawerField label="Review (English)">
-          <Textarea value={form.review_en} onChange={(e) => setForm((f) => ({ ...f, review_en: e.target.value }))} rows={5} />
+          <MarkdownEditor value={form.review_en} onChange={(v) => setForm((f) => ({ ...f, review_en: v }))} rows={5} />
         </DrawerField>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={form.rewatch} onChange={(e) => setForm((f) => ({ ...f, rewatch: e.target.checked }))} />

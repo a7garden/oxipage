@@ -6,6 +6,7 @@ import { Button } from "../../shared/ui/button";
 import { Badge } from "../../shared/ui/badge";
 import { Input } from "../../shared/ui/input";
 import { Textarea } from "../../shared/ui/textarea";
+import { MarkdownEditor } from "../shared/ui/MarkdownEditor";
 import { Drawer, DrawerField } from "../../shared/ui/drawer";
 import { Pencil, Trash2, Send, Plus, ChevronDown, ChevronUp } from "lucide-react";
 import { useRowFilter } from "../shared/useRowFilter";
@@ -302,12 +303,7 @@ export function NovelsTab({ slug }: { slug: string }) {
                   value={chapterForm.title}
                   onChange={(e) => setChapterForm((f) => ({ ...f, title: e.target.value }))}
                 />
-                <Textarea
-                  placeholder="Chapter body"
-                  rows={6}
-                  value={chapterForm.body}
-                  onChange={(e) => setChapterForm((f) => ({ ...f, body: e.target.value }))}
-                />
+                <MarkdownEditor value={chapterForm.body} onChange={(v) => setChapterForm((f) => ({ ...f, body: v }))} rows={6} placeholder="Chapter body" />
                 <div className="flex gap-2 justify-end">
                   <Button variant="outline" size="sm" onClick={() => setEditingChapter(null)}>Cancel</Button>
                   <Button size="sm" onClick={() => {

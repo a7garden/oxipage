@@ -6,6 +6,7 @@ import { Badge } from "../../shared/ui/badge";
 import { Button } from "../../shared/ui/button";
 import { Input } from "../../shared/ui/input";
 import { Textarea } from "../../shared/ui/textarea";
+import { MarkdownEditor } from "../shared/ui/MarkdownEditor";
 import { Drawer, DrawerField } from "../../shared/ui/drawer";
 import { Pencil, Trash2, Send, Plus } from "lucide-react";
 import { useRowFilter } from "../shared/useRowFilter";
@@ -206,10 +207,10 @@ export function ScrapsTab({ slug }: { slug: string }) {
           <Input value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} />
         </DrawerField>
         <DrawerField label="Note (Korean)">
-          <Textarea value={form.note_ko} onChange={(e) => setForm((f) => ({ ...f, note_ko: e.target.value }))} rows={5} />
+          <MarkdownEditor value={form.note_ko} onChange={(v) => setForm((f) => ({ ...f, note_ko: v }))} rows={5} />
         </DrawerField>
         <DrawerField label="Note (English)">
-          <Textarea value={form.note_en} onChange={(e) => setForm((f) => ({ ...f, note_en: e.target.value }))} rows={5} />
+          <MarkdownEditor value={form.note_en} onChange={(v) => setForm((f) => ({ ...f, note_en: v }))} rows={5} />
         </DrawerField>
         {error && <p className="text-sm text-red-600">{error}</p>}
       </Drawer>
