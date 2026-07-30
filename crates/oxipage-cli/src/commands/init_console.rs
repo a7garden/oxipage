@@ -104,12 +104,6 @@ pub(crate) async fn console(
     oxipage_console::run_console().await
 }
 
-pub(crate) async fn admin(port: Option<u16>) -> anyhow::Result<()> {
-    let p = port.unwrap_or(8788);
-    println!("oxipage admin console starting on http://127.0.0.1:{p}");
-    oxipage_console::admin::run_admin(p).await?;
-    Ok(())
-}
 
 /// Start a lightweight HTTP server that serves a static directory.
 async fn serve_static_dir(dir: &Path, port: u16) -> anyhow::Result<()> {

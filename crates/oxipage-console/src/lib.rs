@@ -227,7 +227,6 @@ async fn shutdown_signal() {
     tracing::info!("shutdown signal received");
 }
 
-pub mod admin;
 pub mod console_state;
 pub mod create_site;
 pub mod loader;

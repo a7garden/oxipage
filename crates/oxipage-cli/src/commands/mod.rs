@@ -61,10 +61,6 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
     let token = resolve_token(cli.token.clone(), site_name, &sites_file)?;
     let client = Client::new(endpoint, token, cli.insecure)?;
 
-    // Admin is like Serve — local process, not an HTTP command. No auth needed.
-    if let Command::Admin { port } = &cli.command {
-        return init_console::admin(*port).await;
-    }
 
     // Open doesn't need HTTP — just open browser
     match cli.command {
@@ -81,7 +77,7 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
             init_console::console(port, preview, cli.config.as_deref()).await
         }
         Command::Blog(c) => blog::blog(c, &out).await,
-        Command::Open { admin, port } => open::open(OpenArgs { admin, port }, &out),
+        Command::Open { port } => open::open(OpenArgs { port }, &out),
         Command::Project(c) => project::project(c, &out).await,
         Command::Link(c) => link::link(c, &out).await,
         Command::Lobby(c) => lobby::lobby(c, &out, &client).await,
@@ -93,7 +89,6 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
         Command::Query(c) => query::query(c).await,
         Command::Schema(c) => schema::schema(c).await,
         Command::Site(_) => unreachable!(),      // handled above
-        Command::Admin { .. } => unreachable!(), // handled above
         Command::Dynamic(ref args) => dispatch_dynamic(args, &client, &out).await,
     }
 }
