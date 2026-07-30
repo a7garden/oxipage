@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConsoleShell } from "./shell/ConsoleShell";
+import { ScrollToTop } from "./shared/ui/ScrollToTop";
 import { HomeRedirect } from "./sites/HomeRedirect";
 import { SitesPage } from "./sites/SitesPage";
 import { NewSiteWizardPage } from "./sites/NewSiteWizardPage";
@@ -55,6 +56,7 @@ export function AdminApp() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <ScrollToTop />
         <Routes>
           <Route
             path="/setup/*"
