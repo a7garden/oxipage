@@ -16,6 +16,7 @@ clap.workspace = true
 directories.workspace = true
 oxipage-core = { version = "0.7.0", path = "../oxipage-core" }
 oxipage-console = { version = "0.7.0", path = "../oxipage-console" }
+oxipage-deploy = { version = "0.7.0", path = "../oxipage-deploy" }
 oxipage-ext-blog = { version = "0.7.0", path = "../oxipage-ext-blog" }
 oxipage-ext-projects = { version = "0.7.0", path = "../oxipage-ext-projects" }
 oxipage-ext-links = { version = "0.7.0", path = "../oxipage-ext-links" }
