@@ -39,7 +39,7 @@ function SiteContextInfo() {
 export function Topbar() {
   return (
     <header className="sticky top-0 z-40 h-12 flex items-center px-4 gap-2 bg-canvas border-b border-line">
-      <div className="font-display text-[15px] font-bold text-[#2a6b4a] shrink-0">oxipage</div>
+      <div className="font-display text-[15px] font-bold shrink-0" style={{ color: "var(--p-accent-600)" }}>oxipage</div>
       <SiteSelector />
       <div className="w-px h-6 bg-line mx-2" />
       <SiteContextInfo />

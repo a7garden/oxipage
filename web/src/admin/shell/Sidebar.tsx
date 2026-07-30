@@ -31,11 +31,11 @@ export function Sidebar() {
   const { slug } = useParams();
 
   return (
-    <aside className="w-[200px] shrink-0 flex flex-col" style={{ backgroundColor: "#1a1e24" }}>
+    <aside className="w-[200px] shrink-0 flex flex-col" style={{ backgroundColor: "var(--console-sidebar-bg)" }}>
       <nav className="flex-1 pt-2">
         {navGroups.map((group) => (
           <div key={group.label}>
-            <div className="px-4 pt-4 pb-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
+            <div className="px-4 pt-4 pb-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--console-sidebar-label)" }}>
               {group.label}
             </div>
             {group.items.map((item) => {
@@ -48,12 +48,16 @@ export function Sidebar() {
                   end={item.path === ""}
                   className={({ isActive }) =>
                     `flex items-center gap-2.5 px-4 py-2 text-sm border-l-[3px] transition-all ${
-                      isActive
-                        ? "text-[#4ade80] border-l-[#22c55e]"
-                        : "text-[#9ca3af] border-l-transparent hover:text-[#e5e7eb] hover:bg-[rgba(255,255,255,0.04)]"
+                      isActive ? "" : "hover:text-[#e5e7eb] hover:bg-[rgba(255,255,255,0.04)]"
                     }`
                   }
-                  style={({ isActive }) => isActive ? { backgroundColor: "rgba(34, 197, 94, 0.1)" } : {}}
+                  style={({ isActive }) => ({
+                    color: isActive ? "var(--console-sidebar-text-active)" : "var(--console-sidebar-text)",
+                    borderLeftColor: isActive ? "var(--console-sidebar-border-active)" : "transparent",
+                    backgroundColor: isActive
+                      ? "color-mix(in srgb, var(--console-sidebar-border-active) 10%, transparent)"
+                      : undefined,
+                  })}
                 >
                   <Icon size={16} className="opacity-60 shrink-0" />
                   {item.label}
@@ -63,7 +67,7 @@ export function Sidebar() {
           </div>
         ))}
       </nav>
-      <div className="px-4 py-3 border-t border-[rgba(255,255,255,0.06)] text-xs" style={{ color: "#6b7280" }}>
+      <div className="px-4 py-3 border-t border-[rgba(255,255,255,0.06)] text-xs" style={{ color: "var(--console-sidebar-label)" }}>
         v1.0.0 · {slug ?? "no site"}
       </div>
     </aside>

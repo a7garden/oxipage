@@ -48,6 +48,13 @@
   /* Layout */
   --content-max-width: 64rem;
   --space-page-x: clamp(1rem, 4vw, 3rem);
+  /* Console sidebar — always dark, theme-agnostic (never toggled by data-theme) */
+  --console-sidebar-bg: #1a1e24;
+  --console-sidebar-text: #9ca3af;
+  --console-sidebar-text-active: #4ade80;
+  --console-sidebar-border-active: #22c55e;
+  --console-sidebar-hover-bg: rgba(255, 255, 255, 0.04);
+  --console-sidebar-label: #6b7280;
 }
 
 /* --- Semantic: light --- */
