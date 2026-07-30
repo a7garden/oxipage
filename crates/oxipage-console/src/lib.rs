@@ -170,10 +170,9 @@ pub async fn run_console_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow
         oxipage_core::sites::SitesFile::default()
     };
     let site_registry = Arc::new(SiteRegistry::new(sites_file).await?);
-    let console_router = crate::router::build_console_router(site_registry);
+    let console = crate::router::build_console_router(site_registry.clone());
     let mut app = oxipage_core::http::build_app(state);
-    // Nest under /api/console so routes match the frontend's API calls.
-    app = app.nest("/api/console", console_router);
+    app = app.nest("/api/console", console);
     let addr = SocketAddr::new(config.server.host.parse()?, config.server.port);
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!("oxipage listening on http://{addr}");
@@ -227,9 +226,12 @@ async fn shutdown_signal() {
     tracing::info!("shutdown signal received");
 }
 
+pub mod build;
 pub mod console_state;
 pub mod create_site;
+pub mod deploy;
 pub mod loader;
 pub mod middleware;
+pub mod preview;
 pub mod router;
 pub mod sites_runtime;

@@ -161,6 +161,7 @@ export function SetupWizard() {
             }
           />
         );
+      case "done":
         return <StepDone result={{ ok: true, message: "" }} slug={siteName} />;
     }
   };
