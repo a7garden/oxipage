@@ -3,7 +3,6 @@
 //! SiteScopedDb.
 
 use crate::build::site_build;
-use crate::create_site::create_site_handler;
 use crate::deploy::site_deploy;
 use crate::middleware::site_db::inject_site_context;
 use crate::preview::handler::preview_handler;
@@ -11,7 +10,18 @@ use crate::sites_runtime::SiteRegistry;
 use axum::extract::State;
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use directories::ProjectDirs;
+use serde::Deserialize;
+use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::OnceLock;
+
+#[derive(Deserialize)]
+pub struct CreateSiteInput {
+    pub path: String,
+}
+
+static REGISTRY: OnceLock<Arc<SiteRegistry>> = OnceLock::new();
 
 /// Build the top-level console routes. Returns `Router<Arc<SiteRegistry>>`
 /// without baking state — caller passes the registry once.
@@ -19,10 +29,10 @@ pub fn build_top_level_router() -> Router<Arc<SiteRegistry>> {
     Router::new()
         .route("/sites", get(list_sites))
         .route("/sites/default", get(get_default).put(set_default))
-        .route("/setup/create-site", post(create_site_handler))
         .route("/build/{slug}", post(site_build::build_handler))
         .route("/deploy/{slug}", post(site_deploy::deploy_handler))
         .route("/preview/{slug}/{*rest}", get(preview_handler))
+        .route("/setup/create-site", post(create_site_handler))
 }
 
 /// Per-site extension nests. Returns `Router<()>`. Handlers use
@@ -48,21 +58,112 @@ pub fn build_per_site_router(registry: &Arc<SiteRegistry>) -> Router {
 
 /// Full console router. Returns `Router<()>` after baking state.
 pub fn build_console_router(registry: Arc<SiteRegistry>) -> Router {
+    let _ = REGISTRY.set(registry.clone());
     let per_site = build_per_site_router(&registry);
     let top = build_top_level_router().with_state(registry);
     top.merge(per_site)
 }
 
-// ─── Site CRUD stubs ───
+// ─── Site CRUD ───
 
-async fn list_sites(State(_registry): State<Arc<SiteRegistry>>) -> Json<serde_json::Value> {
-    Json(serde_json::json!({ "data": [] }))
+async fn list_sites(State(registry): State<Arc<SiteRegistry>>) -> Json<serde_json::Value> {
+    let sites: Vec<_> = registry
+        .all_sites_from_file()
+        .await
+        .into_iter()
+        .map(|(name, path, active)| {
+            serde_json::json!({
+                "name": name,
+                "path": path.to_string_lossy(),
+                "active": active,
+            })
+        })
+        .collect();
+    Json(serde_json::json!({ "data": sites }))
 }
 
-async fn get_default(State(_registry): State<Arc<SiteRegistry>>) -> Json<serde_json::Value> {
-    Json(serde_json::json!({ "data": { "default_site": null } }))
+async fn get_default(State(registry): State<Arc<SiteRegistry>>) -> Json<serde_json::Value> {
+    let slug = registry.default_slug().await;
+    Json(serde_json::json!({ "data": { "default_site": slug } }))
 }
 
 async fn set_default() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "data": { "ok": true } }))
+}
+
+async fn create_site_handler(
+    Json(input): Json<CreateSiteInput>,
+) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, String)> {
+    let path = PathBuf::from(input.path);
+
+    // Validate path
+    if path.exists() {
+        if !path.join("oxipage.toml").exists() {
+            return Err((
+                axum::http::StatusCode::BAD_REQUEST,
+                format!("path '{}' exists but is not an oxipage project (no oxipage.toml)", path.display()),
+            ));
+        }
+    } else {
+        std::fs::create_dir_all(&path)
+            .map_err(|e| (axum::http::StatusCode::BAD_REQUEST, format!("cannot create directory: {e}")))?;
+    }
+
+    // Seed oxipage.toml if not present
+    if !path.join("oxipage.toml").exists() {
+        let toml_content = r#"[site]
+name = "My Site"
+base_url = "http://127.0.0.1:8787"
+default_lang = "ko"
+
+[server]
+host = "127.0.0.1"
+port = 8787
+data_dir = "data"
+
+[extensions]
+enabled = ["profile", "blog"]
+"#;
+        std::fs::write(path.join("oxipage.toml"), toml_content)
+            .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("cannot write oxipage.toml: {e}")))?;
+    }
+
+    // Derive slug from directory name
+    let slug = path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("site")
+        .to_string();
+
+    // Register in sites.toml (disk + in-memory)
+    if let Some(registry) = REGISTRY.get() {
+        let sites_path = ProjectDirs::from("dev", "oxipage", "oxipage")
+            .map(|p| p.config_dir().join("sites.toml"));
+        if let Some(ref sp) = sites_path {
+            let mut sf = if sp.exists() {
+                std::fs::read_to_string(sp)
+                    .ok()
+                    .and_then(|raw| toml::from_str(&raw).ok())
+                    .unwrap_or_default()
+            } else {
+                oxipage_core::sites::SitesFile::default()
+            };
+            sf.add(slug.clone(), path.clone());
+            if sf.default_site.is_none() {
+                sf.set_default(&slug);
+            }
+            if let Some(parent) = sp.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            if let Ok(raw) = toml::to_string_pretty(&sf) {
+                let _ = std::fs::write(sp, &raw);
+            }
+        }
+        // Update in-memory registry
+        registry.register_in_file(&slug, path.clone()).await;
+    }
+
+    Ok(Json(serde_json::json!({
+        "data": { "slug": slug, "path": path.to_string_lossy() }
+    })))
 }

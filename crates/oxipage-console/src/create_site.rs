@@ -2,11 +2,13 @@
 //! registers it in sites.toml. Called by the setup wizard and the
 //! "new site" UI.
 
-use axum::Json;
-use axum::http::StatusCode;
 use oxipage_core::sites::SitesFile;
 use serde::Deserialize;
 use std::path::PathBuf;
+use std::sync::Arc;
+
+use crate::loader::SiteLoader;
+use crate::sites_runtime::SiteRegistry;
 
 #[derive(Deserialize)]
 pub struct CreateSiteInput {
@@ -55,34 +57,22 @@ fn save_sites(sf: &SitesFile) -> Result<(), String> {
     Ok(())
 }
 
-/// POST /api/console/setup/create-site
-///
-/// Creates a new oxipage project directory at the given path, seeds it
-/// with a minimal `oxipage.toml`, registers it in `sites.toml`, and
-/// sets it as the default if none exists.
-pub async fn create_site_handler(
-    Json(input): Json<CreateSiteInput>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let path = PathBuf::from(input.path);
-
+/// Create a site on disk and optionally register it in the in-memory registry.
+/// Returns (slug, path).
+pub async fn create_site(
+    path: PathBuf,
+    registry: Option<&Arc<SiteRegistry>>,
+) -> Result<(String, String), String> {
     // Validate path
     if path.exists() {
         if !path.join("oxipage.toml").exists() {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                format!(
-                    "path '{}' exists but is not an oxipage project (no oxipage.toml)",
-                    path.display()
-                ),
+            return Err(format!(
+                "path '{}' exists but is not an oxipage project (no oxipage.toml)",
+                path.display()
             ));
         }
     } else {
-        std::fs::create_dir_all(&path).map_err(|e| {
-            (
-                StatusCode::BAD_REQUEST,
-                format!("cannot create directory: {e}"),
-            )
-        })?;
+        std::fs::create_dir_all(&path).map_err(|e| format!("cannot create directory: {e}"))?;
     }
 
     // Seed oxipage.toml if not present
@@ -100,12 +90,8 @@ data_dir = "data"
 [extensions]
 enabled = ["profile", "blog"]
 "#;
-        std::fs::write(path.join("oxipage.toml"), toml_content).map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("cannot write oxipage.toml: {e}"),
-            )
-        })?;
+        std::fs::write(path.join("oxipage.toml"), toml_content)
+            .map_err(|e| format!("cannot write oxipage.toml: {e}"))?;
     }
 
     // Derive slug from directory name
@@ -121,12 +107,19 @@ enabled = ["profile", "blog"]
     if sf.default_site.is_none() {
         sf.set_default(&slug);
     }
-    save_sites(&sf).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    save_sites(&sf)?;
 
-    Ok(Json(serde_json::json!({
-        "data": {
-            "slug": slug,
-            "path": path.to_string_lossy(),
+    // Register in in-memory registry if available
+    if let Some(registry) = registry {
+        match SiteLoader::load(slug.clone(), path.clone()).await {
+            Ok(ctx) => {
+                registry.add_site(&slug, Arc::new(ctx)).await;
+            }
+            Err(e) => {
+                tracing::warn!(slug, path = %path.display(), error = %e, "create-site: registry init skipped");
+            }
         }
-    })))
+    }
+
+    Ok((slug, path.to_string_lossy().into_owned()))
 }

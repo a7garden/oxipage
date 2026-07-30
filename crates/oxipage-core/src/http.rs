@@ -337,10 +337,22 @@ async fn backup_snapshot(
     }))
 }
 
+/// Serve embedded SPA assets for the admin console.
+///
+/// - Exact file matches (hashed JS/CSS, images) are served directly.
+/// - Everything else serves `admin.html` — this gives the Admin SPA
+///   client-side routing at `/` (sites, setup, dashboards).
+/// - The Lobby (`index.html`) is NOT served by the console server's static
+///   fallback. It is only used via `oxipage build` → static deployment,
+///   and previewed through `--preview` mode or `/api/console/preview/...`.
 async fn static_handler(uri: Uri) -> Response {
     let path = uri.path().trim_start_matches('/');
-    serve_asset(path)
-        .or_else(|| serve_asset("index.html"))
+    // Try exact file match (hashed assets, favicon, etc.)
+    if let Some(response) = serve_asset(path) {
+        return response;
+    }
+    // Everything else → admin SPA for client-side routing
+    serve_asset("admin.html")
         .unwrap_or_else(|| StatusCode::NOT_FOUND.into_response())
 }
 

@@ -113,4 +113,57 @@ impl SiteRegistry {
     pub fn len(&self) -> usize {
         self.sites.try_read().map(|g| g.len()).unwrap_or(0)
     }
+
+    /// Return all loaded sites as a sorted list.
+    pub async fn all_sites(&self) -> Vec<(String, PathBuf, bool)> {
+        let sites = self.sites.read().await;
+        let sf = self.sites_file.read().await;
+        let mut result: Vec<_> = sites
+            .iter()
+            .map(|(slug, ctx)| {
+                let active = sf.default_site.as_deref() == Some(slug.as_str());
+                (slug.clone(), ctx.path.clone(), active)
+            })
+            .collect();
+        result.sort_by(|a, b| a.0.cmp(&b.0));
+        result
+    }
+
+    /// Return all registered sites from the file (including those not yet loaded).
+    pub async fn all_sites_from_file(&self) -> Vec<(String, PathBuf, bool)> {
+        let sf = self.sites_file.read().await;
+        let loaded = self.sites.read().await;
+        let mut result: Vec<_> = sf
+            .sites
+            .iter()
+            .map(|(slug, entry)| {
+                let active = sf.default_site.as_deref() == Some(slug.as_str());
+                // Use the path from the file (always available)
+                (slug.clone(), entry.path.clone(), active)
+            })
+            .collect();
+        // Also include loaded sites that might not be in the file yet
+        for (slug, ctx) in loaded.iter() {
+            if !result.iter().any(|(s, _, _)| s == slug) {
+                let active = sf.default_site.as_deref() == Some(slug.as_str());
+                result.push((slug.clone(), ctx.path.clone(), active));
+            }
+        }
+        result.sort_by(|a, b| a.0.cmp(&b.0));
+        result
+    }
+
+    /// Dynamically add a site context to the in-memory registry.
+    pub async fn add_site(&self, slug: &str, ctx: Arc<SiteContext>) {
+        self.sites.write().await.insert(slug.to_string(), ctx);
+    }
+
+    /// Register a site slug+path in the in-memory sites file.
+    pub async fn register_in_file(&self, slug: &str, path: PathBuf) {
+        let mut sf = self.sites_file.write().await;
+        sf.add(slug.to_string(), path);
+        if sf.default_site.is_none() {
+            sf.set_default(slug);
+        }
+    }
 }
