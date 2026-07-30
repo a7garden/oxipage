@@ -25,7 +25,7 @@ enabled = ["profile", "blog"]
 
 /// Create a temp directory with a minimal oxipage.toml and return (TempDir, path).
 fn create_site_dir(name: &str) -> (TempDir, PathBuf) {
-    let dir = TempDir::with_prefix(&format!("oxipage-test-{name}-")).unwrap();
+    let dir = TempDir::with_prefix(format!("oxipage-test-{name}-")).unwrap();
     let toml_path = dir.path().join("oxipage.toml");
     std::fs::write(&toml_path, minimal_toml(name)).unwrap();
     let p = dir.path().to_path_buf();

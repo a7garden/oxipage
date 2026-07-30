@@ -55,16 +55,6 @@ pub fn save_sites(sf: &SitesFile) -> Result<()> {
     Ok(())
 }
 
-/// Save sites to an explicit path (for testing / setup API).
-pub fn save_sites_to(sf: &SitesFile, path: &std::path::Path) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    let raw = toml::to_string_pretty(sf).context("serializing sites")?;
-    fs::write(path, &raw)?;
-    Ok(())
-}
-
 // ──────────────────────────── path resolution ────────────────────────────
 
 /// ~/.config/oxipage/sites.toml

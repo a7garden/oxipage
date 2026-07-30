@@ -65,13 +65,20 @@ fn test_site_add_list_rm_flow() {
     let sb = std::env::temp_dir().join("oxipage_e2e_test_crud");
 
     // Add a site
+    let site_dir = sb.join("test-site");
+    std::fs::create_dir_all(&site_dir).unwrap();
+    std::fs::write(
+        site_dir.join("oxipage.toml"),
+        "[site]\nname = \"Test\"\nbase_url = \"http://localhost:9999\"\n",
+    )
+    .unwrap();
     let out = oxipage(
         &[
             "site",
             "add",
             "test-site",
-            "--endpoint",
-            "http://localhost:9999",
+            "--path",
+            site_dir.to_str().unwrap(),
         ],
         &sb,
     );
@@ -147,13 +154,20 @@ fn test_json_output() {
     let sb = std::env::temp_dir().join("oxipage_e2e_test_json");
 
     // Add a site then check json
-    let _ = oxipage(
+    let site_dir = sb.join("json-test");
+    std::fs::create_dir_all(&site_dir).unwrap();
+    std::fs::write(
+        site_dir.join("oxipage.toml"),
+        "[site]\nname = \"JSON\"\nbase_url = \"http://localhost:7777\"\n",
+    )
+    .unwrap();
+    let _out = oxipage(
         &[
             "site",
             "add",
             "json-test",
-            "--endpoint",
-            "http://localhost:7777",
+            "--path",
+            site_dir.to_str().unwrap(),
         ],
         &sb,
     );
@@ -175,13 +189,20 @@ fn test_json_output() {
 fn test_site_add_default_flag() {
     let sb = std::env::temp_dir().join("oxipage_e2e_test_default");
 
+    let site_dir = sb.join("primary");
+    std::fs::create_dir_all(&site_dir).unwrap();
+    std::fs::write(
+        site_dir.join("oxipage.toml"),
+        "[site]\nname = \"Primary\"\nbase_url = \"http://pri:1\"\n",
+    )
+    .unwrap();
     let out = oxipage(
         &[
             "site",
             "add",
             "primary",
-            "--endpoint",
-            "http://pri:1",
+            "--path",
+            site_dir.to_str().unwrap(),
             "--default",
         ],
         &sb,

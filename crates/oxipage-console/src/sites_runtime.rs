@@ -111,6 +111,11 @@ impl SiteRegistry {
             .unwrap_or_default()
     }
 
+    /// Returns `true` if no sites are loaded.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Number of loaded sites.
     pub fn len(&self) -> usize {
         self.sites.try_read().map(|g| g.len()).unwrap_or(0)
