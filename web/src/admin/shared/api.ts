@@ -43,7 +43,7 @@ export async function setDefaultSite(slug: string): Promise<Response> {
   return fetch(`${CONSOLE_BASE}/sites/default`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name: slug }),
+    body: JSON.stringify({ default_site: slug }),
   });
 }
 
@@ -64,18 +64,52 @@ export async function jsonOrThrow<T>(res: Response): Promise<T> {
 
 // ─── Build / Deploy ───────────────────────────────────────────────────────
 
-export interface BuildResult {
-  data: { out_dir: string; page_count: number };
+export interface BuildStart {
+  data: { build_id: string; status: string };
 }
 
-export async function triggerBuild(slug: string): Promise<BuildResult> {
+/// Thrown when a build/deploy is already in flight for the site (HTTP 409).
+/// Carries the in-progress run id so the UI can attach to its live stream.
+export class OperationConflictError extends Error {
+  kind: "build" | "deploy";
+  id: string;
+  constructor(kind: "build" | "deploy", id: string) {
+    super(`${kind}_in_progress`);
+    this.name = "OperationConflictError";
+    this.kind = kind;
+    this.id = id;
+  }
+}
+
+export async function triggerBuild(slug: string): Promise<BuildStart> {
   const res = await siteScopedFetch(slug, "/build", { method: "POST" });
+  if (res.status === 409) {
+    const body = await res.json().catch(() => ({}));
+    throw new OperationConflictError("build", body.build_id ?? "");
+  }
   return jsonOrThrow(res);
 }
 
-export async function triggerDeploy(slug: string): Promise<{ data: { slug: string; status: string; note: string } }> {
+export async function triggerDeploy(
+  slug: string,
+): Promise<{ data: { deploy_id: string; status: string } }> {
   const res = await siteScopedFetch(slug, "/deploy", { method: "POST" });
+  if (res.status === 409) {
+    const body = await res.json().catch(() => ({}));
+    throw new OperationConflictError("deploy", body.deploy_id ?? "");
+  }
+  if (res.status === 424) {
+    throw new Error("Build the site first — there is no build output to deploy.");
+  }
   return jsonOrThrow(res);
+}
+
+export function buildStreamUrl(slug: string, buildId: string): string {
+  return `${CONSOLE_BASE}/s/${slug}/build/${buildId}/stream`;
+}
+
+export function deployStreamUrl(slug: string, deployId: string): string {
+  return `${CONSOLE_BASE}/s/${slug}/deploy/${deployId}/stream`;
 }
 
 export interface BuildRecord {
