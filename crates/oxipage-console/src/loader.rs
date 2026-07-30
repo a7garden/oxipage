@@ -3,6 +3,8 @@
 //! Called by `SiteRegistry::new()` at startup for each valid site entry.
 
 use crate::sites_runtime::SiteContext;
+use crate::build::build_run::BuildGuard;
+use crate::deploy::deploy_run::DeployGuard;
 
 use oxipage_core::config::Config;
 use oxipage_core::extension::WasmLoader;
@@ -17,7 +19,7 @@ impl SiteLoader {
     ///
     /// Reads `oxipage.toml`, connects to `data/oxipage.db`, builds an
     /// extension registry, runs pending migrations.
-    pub async fn load(slug: String, path: PathBuf) -> anyhow::Result<SiteContext> {
+    pub async fn load(slug: String, path: PathBuf, build_guard: Arc<BuildGuard>, deploy_guard: Arc<DeployGuard>) -> anyhow::Result<SiteContext> {
         let toml_path = path.join("oxipage.toml");
         let cfg = Config::load(&toml_path)?;
         // Resolve data_dir relative to the site project directory, not CWD.
@@ -41,6 +43,8 @@ impl SiteLoader {
             db,
             registry,
             builders: Arc::new(crate::all_builders()),
+            build_guard,
+            deploy_guard,
             wasm_loader,
         })
     }

@@ -5,8 +5,8 @@
 //! the slug. The handlers here thin-wrap core state (`SiteContext.db`) that
 //! the per-site middleware injects.
 
-use crate::build::site_build;
-use crate::deploy::site_deploy;
+use crate::build::build_run::BuildRun;
+use crate::deploy::deploy_run::DeployRun;
 use crate::sites_runtime::SiteContext;
 use axum::Extension;
 use axum::Json;
@@ -16,6 +16,13 @@ use axum::{Router, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use axum::response::sse::{Event, KeepAlive, Sse};
+use oxipage_core::build::BuildEvent;
+use std::sync::atomic::AtomicBool;
+use tokio::sync::broadcast;
+use tokio_stream::StreamExt;
+use tokio_stream::wrappers::BroadcastStream;
+use oxipage_deploy::DeployEvent;
 
 // ─── config (GET/PUT) ───────────────────────────────────────────────────────
 
@@ -409,56 +416,153 @@ pub async fn extension_disable(
 
 pub async fn build_post(
     Extension(ctx): Extension<Arc<SiteContext>>,
-) -> Result<Json<site_build::BuildResult>, (StatusCode, String)> {
+) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<serde_json::Value>)> {
     let out_dir = ctx.path.join("out");
     tokio::fs::create_dir_all(&out_dir)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let output = oxipage_core::build::build_site(&ctx.db, &ctx.builders)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+        })?;
+
     let media_dir = ctx.config.server.data_dir.join("media");
-    oxipage_core::build_writer::write_build_output(&output, &out_dir, &media_dir)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let started_at = sqlx::query_scalar::<_, String>("SELECT datetime('now')")
+        .fetch_one(&ctx.db)
+        .await
+        .unwrap_or_else(|_| "unknown".into());
+    let build_id = uuid::Uuid::new_v4().to_string();
+    let (tx, _rx) = broadcast::channel::<BuildEvent>(64);
 
-    // Record this build in the build_log table (idempotent schema setup).
-    let _ = sqlx::query(
-        "CREATE TABLE IF NOT EXISTS build_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            status TEXT NOT NULL DEFAULT 'built',
-            created_at TEXT NOT NULL DEFAULT (datetime('now')),
-            page_count INTEGER,
-            out_dir TEXT
-        )",
-    )
-    .execute(&ctx.db)
-    .await;
-    let _ = sqlx::query(
-        "INSERT INTO build_log (status, page_count, out_dir) VALUES ('built', ?1, ?2)",
-    )
-    .bind(output.pages.len() as i64)
-    .bind(out_dir.to_string_lossy().to_string())
-    .execute(&ctx.db)
-    .await;
+    let run = BuildRun {
+        id: build_id.clone(),
+        tx,
+        started: AtomicBool::new(false),
+        started_at,
+        db: ctx.db.clone(),
+        builders: ctx.builders.clone(),
+        out_dir,
+        media_dir,
+        slug: ctx.slug.clone(),
+    };
+    if let Err(existing_id) = ctx.build_guard.try_start(&ctx.slug, run) {
+        return Err((
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({
+                "error": "build_in_progress",
+                "build_id": existing_id
+            })),
+        ));
+    }
 
-    Ok(Json(site_build::BuildResult {
-        data: site_build::BuildOutput {
-            out_dir: out_dir.to_string_lossy().into_owned(),
-            page_count: output.pages.len(),
-        },
-    }))
+    // Watchdog: if no SSE subscriber connects within 3s, start the build
+    // anyway so a dropped request never leaves the slug "in progress".
+    let guard = ctx.build_guard.clone();
+    let slug = ctx.slug.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        guard.ensure_build_started(&slug);
+    });
+
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(serde_json::json!({ "data": { "build_id": build_id, "status": "queued" } })),
+    ))
+}
+
+/// `GET /s/{slug}/build/{build_id}/stream` — Server-Sent Events stream of
+/// [`BuildEvent`]s for the in-flight build. The first subscriber triggers the
+/// build (lazy-start); a 3s watchdog (from `build_post`) is the fallback.
+pub async fn build_stream(
+    Extension(ctx): Extension<Arc<SiteContext>>,
+    Path(_build_id): Path<String>,
+) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, std::io::Error>>>, (StatusCode, String)>
+{
+    // Subscribe BEFORE starting so the first subscriber sees BuildStarted with
+    // zero event loss (broadcast delivers only post-subscribe messages).
+    let (_id, rx) = ctx
+        .build_guard
+        .subscribe(&ctx.slug)
+        .ok_or((StatusCode::NOT_FOUND, "no_active_build".to_string()))?;
+    ctx.build_guard.ensure_build_started(&ctx.slug);
+
+    let stream = BroadcastStream::new(rx).map(|res| {
+        Ok::<_, std::io::Error>(match res {
+            Ok(ev) => Event::default().data(serde_json::to_string(&ev).unwrap_or_default()),
+            // Lagged receiver (slow client) — emit an SSE comment, not data.
+            Err(_) => Event::default().comment("lagged"),
+        })
+    });
+    Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }
 
 pub async fn deploy_post(
     Extension(ctx): Extension<Arc<SiteContext>>,
-) -> Result<Json<site_deploy::DeployResponse>, (StatusCode, String)> {
-    let _ = ctx;
-    Ok(Json(site_deploy::DeployResponse {
-        data: site_deploy::DeployOutput {
-            slug: ctx.slug.clone(),
-            status: "queued",
-            note: "Deploy is currently invoked via `oxipage deploy --site <slug>`; console route is a stub pending module integration.",
-        },
-        }))
+) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<serde_json::Value>)> {
+    let out_dir = ctx.path.join("out");
+    if !out_dir.exists() {
+        // Deploy needs a prior build's output directory.
+        return Err((
+            StatusCode::FAILED_DEPENDENCY,
+            Json(serde_json::json!({ "error": "no_build_output" })),
+        ));
+    }
+    let deploy_id = uuid::Uuid::new_v4().to_string();
+    let (tx, _rx) = broadcast::channel::<DeployEvent>(32);
+
+    let run = DeployRun {
+        id: deploy_id.clone(),
+        tx,
+        started: AtomicBool::new(false),
+        out_dir,
+        slug: ctx.slug.clone(),
+    };
+    if let Err(existing_id) = ctx.deploy_guard.try_start(&ctx.slug, run) {
+        return Err((
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({
+                "error": "deploy_in_progress",
+                "deploy_id": existing_id
+            })),
+        ));
+    }
+
+    // Watchdog: if no SSE subscriber connects within 3s, start the deploy
+    // anyway so a dropped request never leaves the slug "in progress".
+    let guard = ctx.deploy_guard.clone();
+    let slug = ctx.slug.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        guard.ensure_deploy_started(&slug);
+    });
+
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(serde_json::json!({ "data": { "deploy_id": deploy_id, "status": "queued" } })),
+    ))
+}
+
+/// `GET /s/{slug}/deploy/{deploy_id}/stream` — Server-Sent Events stream of
+/// [`DeployEvent`]s for the in-flight deploy. Mirrors [`build_stream`].
+pub async fn deploy_stream(
+    Extension(ctx): Extension<Arc<SiteContext>>,
+    Path(_deploy_id): Path<String>,
+) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, std::io::Error>>>, (StatusCode, String)>
+{
+    let (_id, rx) = ctx
+        .deploy_guard
+        .subscribe(&ctx.slug)
+        .ok_or((StatusCode::NOT_FOUND, "no_active_deploy".to_string()))?;
+    ctx.deploy_guard.ensure_deploy_started(&ctx.slug);
+
+    let stream = BroadcastStream::new(rx).map(|res| {
+        Ok::<_, std::io::Error>(match res {
+            Ok(ev) => Event::default().data(serde_json::to_string(&ev).unwrap_or_default()),
+            Err(_) => Event::default().comment("lagged"),
+        })
+    });
+    Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }
 
 // ─── stats / recent ────────────────────────────────────────────────────────
@@ -641,7 +745,9 @@ pub fn per_site_router() -> Router {
         .route("/config", get(config_get).put(config_put))
         .route("/builds", get(builds_list))
         .route("/build", post(build_post))
+        .route("/build/{build_id}/stream", get(build_stream))
         .route("/deploy", post(deploy_post))
+        .route("/deploy/{deploy_id}/stream", get(deploy_stream))
         .route("/stats", get(stats_get))
         .route("/content/recent", get(recent_get))
         .route("/theme", get(theme_get).put(theme_put))

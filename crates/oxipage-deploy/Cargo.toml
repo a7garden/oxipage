@@ -1,0 +1,11 @@
+[package]
+name = "oxipage-deploy"
+version = "0.7.0"
+edition = "2024"
+license.workspace = true
+description = "Shared deploy pipeline (GitHub Pages) for oxipage CLI + console"
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+tokio.workspace = true

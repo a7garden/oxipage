@@ -9,6 +9,8 @@
 pub use oxipage_core::state::SiteScopedDb;
 
 use crate::loader;
+use crate::build::build_run::BuildGuard;
+use crate::deploy::deploy_run::DeployGuard;
 use oxipage_core::builder::BuildExt;
 use oxipage_core::config::Config;
 use oxipage_core::extension::WasmLoader;
@@ -28,6 +30,8 @@ pub struct SiteContext {
     pub db: SqlitePool,
     pub registry: Arc<ExtensionRegistry>,
     pub builders: Arc<Vec<Box<dyn BuildExt>>>,
+    pub build_guard: Arc<BuildGuard>,
+    pub deploy_guard: Arc<DeployGuard>,
     pub wasm_loader: Option<Arc<dyn WasmLoader>>,
 }
 
@@ -38,19 +42,21 @@ pub struct SiteContext {
 pub struct SiteRegistry {
     sites: RwLock<HashMap<String, Arc<SiteContext>>>,
     sites_file: RwLock<SitesFile>,
+    pub build_guard: Arc<BuildGuard>,
+    pub deploy_guard: Arc<DeployGuard>,
 }
 
 impl SiteRegistry {
     /// Load all valid sites from `SitesFile`. Invalid entries (missing path,
     /// missing oxipage.toml, DB connect failure) are skipped with a warning.
-    pub async fn new(sites_file: SitesFile) -> anyhow::Result<Self> {
+    pub async fn new(sites_file: SitesFile, build_guard: Arc<BuildGuard>, deploy_guard: Arc<DeployGuard>) -> anyhow::Result<Self> {
         let mut map = HashMap::new();
         for (slug, entry) in &sites_file.sites {
             if !entry.path.exists() {
                 tracing::warn!(slug, path = %entry.path.display(), "site path missing; skipping");
                 continue;
             }
-            match loader::SiteLoader::load(slug.clone(), entry.path.clone()).await {
+                match loader::SiteLoader::load(slug.clone(), entry.path.clone(), build_guard.clone(), deploy_guard.clone()).await {
                 Ok(ctx) => {
                     map.insert(slug.clone(), Arc::new(ctx));
                 }
@@ -62,6 +68,8 @@ impl SiteRegistry {
         Ok(Self {
             sites: RwLock::new(map),
             sites_file: RwLock::new(sites_file),
+            build_guard,
+            deploy_guard,
         })
     }
 
@@ -200,6 +208,35 @@ impl SiteRegistry {
             // Keep the in-memory SitesFile in sync with disk.
             *self.sites_file.write().await = sf;
         }
+        Ok(())
+    }
+
+    /// Set the default site slug. Validates the slug is loaded (only a working
+    /// site can be the default), then persists to sites.toml and syncs the
+    /// in-memory SitesFile. Mirrors [`remove_site`](Self::remove_site).
+    pub async fn set_default(&self, slug: &str) -> anyhow::Result<()> {
+        if !self.sites.read().await.contains_key(slug) {
+            anyhow::bail!("unknown site: {slug}");
+        }
+
+        let sites_path = directories::ProjectDirs::from("dev", "oxipage", "oxipage")
+            .map(|p| p.config_dir().join("sites.toml"))
+            .ok_or_else(|| anyhow::anyhow!("could not determine config directory"))?;
+        let mut sf = if sites_path.exists() {
+            std::fs::read_to_string(&sites_path)
+                .ok()
+                .and_then(|raw| toml::from_str::<SitesFile>(&raw).ok())
+                .unwrap_or_default()
+        } else {
+            SitesFile::default()
+        };
+        sf.set_default(slug);
+        if let Some(parent) = sites_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let raw = toml::to_string_pretty(&sf)?;
+        std::fs::write(&sites_path, raw)?;
+        *self.sites_file.write().await = sf;
         Ok(())
     }
 }

@@ -22,6 +22,11 @@ pub struct CreateSiteInput {
     pub path: String,
 }
 
+#[derive(Deserialize)]
+pub struct SetDefaultInput {
+    pub default_site: String,
+}
+
 static REGISTRY: OnceLock<Arc<SiteRegistry>> = OnceLock::new();
 
 /// Build the top-level console routes. Returns `Router<Arc<SiteRegistry>>`
@@ -91,8 +96,15 @@ async fn get_default(State(registry): State<Arc<SiteRegistry>>) -> Json<serde_js
     Json(serde_json::json!({ "data": { "default_site": slug } }))
 }
 
-async fn set_default() -> Json<serde_json::Value> {
-    Json(serde_json::json!({ "data": { "ok": true } }))
+async fn set_default(
+    State(registry): State<Arc<SiteRegistry>>,
+    Json(input): Json<SetDefaultInput>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    registry
+        .set_default(&input.default_site)
+        .await
+        .map_err(|e| (StatusCode::NOT_FOUND, e.to_string()))?;
+    Ok(Json(serde_json::json!({ "data": { "default_site": input.default_site } })))
 }
 
 async fn create_site_handler(

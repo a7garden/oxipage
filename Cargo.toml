@@ -4,6 +4,7 @@ members = [
     "crates/oxipage-core",
     "crates/oxipage-console",
     "crates/oxipage-cli",
+    "crates/oxipage-deploy",
     "crates/oxipage-wasm",
 
     "crates/oxipage-ext-wasm-demo",
@@ -51,6 +52,9 @@ wasmtime = { version = "33", default-features = false, features = ["cranelift", 
 hmac = "0.12"
 argon2 = "0.5"
 
+dashmap = "6"
+tokio-stream = "0.1"
+uuid = { version = "1", features = ["v4"] }
 [profile.release]
 lto = true
 codegen-units = 1
