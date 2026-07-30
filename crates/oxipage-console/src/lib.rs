@@ -215,4 +215,6 @@ async fn shutdown_signal() {
 pub mod admin;
 pub mod console_state;
 pub mod loader;
+pub mod middleware;
+pub mod router;
 pub mod sites_runtime;
