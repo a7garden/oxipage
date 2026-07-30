@@ -47,6 +47,8 @@ pub fn build_per_site_router(registry: &Arc<SiteRegistry>) -> Router {
             }
             nested = nested.nest(&format!("/{}", ext.id()), ext.routes());
         }
+        // Per-site console endpoints (config, theme, builds, extensions, build, deploy).
+        nested = nested.merge(crate::per_site::per_site_router());
         let scoped = nested.layer(axum::middleware::from_fn_with_state(
             ctx.clone(),
             inject_site_context,
