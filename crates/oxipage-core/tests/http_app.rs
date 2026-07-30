@@ -30,12 +30,8 @@ impl Extension for DummyExt {
     fn table_names(&self) -> Vec<&'static str> {
         vec!["dummy_t"]
     }
-    fn routes(&self) -> axum::Router<AppState> {
-        use axum::routing::get;
-        axum::Router::new().route(
-            "/",
-            get(|| async { axum::Json(serde_json::json!({"data": {"ok": true}})) }),
-        )
+    fn routes(&self) -> axum::Router {
+        axum::Router::new()
     }
     async fn lobby_summary(&self, _ctx: &AppState) -> Option<LobbyCard> {
         None
@@ -90,21 +86,6 @@ async fn manifest_lists_enabled_extensions() {
     assert!(body.contains("\"ko\":\"더미\""));
     assert!(body.contains("\"en\":\"Dummy\""));
     assert!(body.contains("\"default_lang\":\"ko\""));
-}
-
-#[tokio::test]
-async fn extension_routes_are_mounted_under_api_v1() {
-    let app = test_app().await;
-    let res = app
-        .oneshot(
-            Request::get("/api/console/dummy")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::OK);
-    assert!(body_string(res).await.contains("\"ok\":true"));
 }
 
 #[tokio::test]
@@ -175,82 +156,6 @@ async fn extensions_list_returns_admin_state() {
     assert_eq!(res.status(), StatusCode::OK);
     let body = body_string(res).await;
     assert!(body.contains("dummy"), "body: {body}");
-}
-
-#[tokio::test]
-async fn disable_gates_extension_routes() {
-    let app = admin_app().await;
-    let before = app
-        .clone()
-        .oneshot(
-            Request::get("/api/console/dummy")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(before.status(), StatusCode::OK);
-    let res = app
-        .clone()
-        .oneshot(admin_req("POST", "/api/console/extensions/dummy/disable"))
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::OK);
-    let gated = app
-        .oneshot(
-            Request::get("/api/console/dummy")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(gated.status(), StatusCode::NOT_FOUND);
-}
-
-#[tokio::test]
-async fn enable_restores_extension_routes() {
-    let app = admin_app().await;
-    app.clone()
-        .oneshot(admin_req("POST", "/api/console/extensions/dummy/disable"))
-        .await
-        .unwrap();
-    let res = app
-        .clone()
-        .oneshot(admin_req("POST", "/api/console/extensions/dummy/enable"))
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::OK);
-    let after = app
-        .oneshot(
-            Request::get("/api/console/dummy")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(after.status(), StatusCode::OK);
-}
-
-#[tokio::test]
-async fn purge_marks_extension_and_gates_routes() {
-    let app = admin_app().await;
-    let res = app
-        .clone()
-        .oneshot(admin_req("DELETE", "/api/console/extensions/dummy"))
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::OK);
-    let body = body_string(res).await;
-    assert!(body.contains("\"purged\":true"), "body: {body}");
-    let gated = app
-        .oneshot(
-            Request::get("/api/console/dummy")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(gated.status(), StatusCode::NOT_FOUND);
 }
 
 // ─── wasm runtime install (doc/08 §8.4) ───

@@ -1,26 +1,26 @@
 use crate::model::{BlogPatch, BlogPost, BlogPostInput, ListQuery};
 use crate::repo;
+use axum::extract::{Extension, Path, Query};
 use axum::Json;
-use axum::extract::{Path, Query, State};
-
 use oxipage_core::error::ApiError;
 use oxipage_core::extension::DataEnvelope;
 use oxipage_core::search;
-use oxipage_core::state::AppState;
+use oxipage_core::state::SiteScopedDb;
+use sqlx::SqlitePool;
 
 pub async fn list(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Query(q): Query<ListQuery>,
 ) -> Result<Json<DataEnvelope<Vec<BlogPost>>>, ApiError> {
     let limit = q.limit.unwrap_or(20);
-    let posts = repo::list(&state.db, q.draft, q.lang.as_deref(), limit)
+    let posts = repo::list(&pool.db, q.draft, q.lang.as_deref(), limit)
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope { data: posts }))
 }
 
 pub async fn create(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Json(input): Json<BlogPostInput>,
 ) -> Result<Json<DataEnvelope<BlogPost>>, ApiError> {
     validate_input(&input)?;
@@ -28,24 +28,23 @@ pub async fn create(
         .slug
         .clone()
         .unwrap_or_else(|| repo::slugify(&input.title));
-    let slug = repo::ensure_unique_slug(&state.db, &base_slug)
+    let slug = repo::ensure_unique_slug(&pool.db, &base_slug)
         .await
         .map_err(ApiError::internal)?;
-    let post = repo::create(&state.db, &input, &slug)
+    let post = repo::create(&pool.db, &input, &slug)
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope { data: post }))
 }
 
 pub async fn show(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(slug): Path<String>,
 ) -> Result<Json<DataEnvelope<BlogPost>>, ApiError> {
-    let post = repo::find_by_slug(&state.db, &slug)
+    let post = repo::find_by_slug(&pool.db, &slug)
         .await
         .map_err(ApiError::internal)?
         .ok_or_else(|| not_found(&slug))?;
-    // 발행본만 공개. 초안은 404로 숨김.
     if post.published_at.is_none() {
         return Err(not_found(&slug));
     }
@@ -53,7 +52,7 @@ pub async fn show(
 }
 
 pub async fn update(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(slug): Path<String>,
     Json(patch): Json<BlogPatch>,
 ) -> Result<Json<DataEnvelope<BlogPost>>, ApiError> {
@@ -63,28 +62,27 @@ pub async fn update(
     {
         return Err(ApiError::validation("lang", "lang must be 'ko' or 'en'"));
     }
-    let post = repo::update(&state.db, &slug, &patch)
+    let post = repo::update(&pool.db, &slug, &patch)
         .await
         .map_err(ApiError::internal)?
         .ok_or_else(|| not_found(&slug))?;
-    // 발행본이면 FTS re-upsert.
     if post.published_at.is_some() {
-        reindex(&state, &post).await?;
+        reindex(&pool.db, &post).await?;
     }
     Ok(Json(DataEnvelope { data: post }))
 }
 
 pub async fn delete(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(slug): Path<String>,
 ) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
-    let removed = repo::delete(&state.db, &slug)
+    let removed = repo::delete(&pool.db, &slug)
         .await
         .map_err(ApiError::internal)?;
     if !removed {
         return Err(not_found(&slug));
     }
-    search::delete(&state.db, "blog", &slug)
+    search::delete(&pool.db, "blog", &slug)
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope {
@@ -93,28 +91,26 @@ pub async fn delete(
 }
 
 pub async fn publish(
-    State(state): State<AppState>,
+    Extension(pool): Extension<SiteScopedDb>,
     Path(slug): Path<String>,
 ) -> Result<Json<DataEnvelope<BlogPost>>, ApiError> {
-    if repo::find_by_slug(&state.db, &slug)
+    if repo::find_by_slug(&pool.db, &slug)
         .await
         .map_err(ApiError::internal)?
         .is_none()
     {
         return Err(not_found(&slug));
     }
-    let post = repo::publish(&state.db, &slug)
+    let post = repo::publish(&pool.db, &slug)
         .await
         .map_err(ApiError::internal)?;
-    reindex(&state, &post).await?;
-    let _snapshot_path = format!("/blog/{}", post.slug);
-    let _desc: String = post.body.chars().take(200).collect();
+    reindex(&pool.db, &post).await?;
     Ok(Json(DataEnvelope { data: post }))
 }
 
-async fn reindex(state: &AppState, post: &BlogPost) -> Result<(), ApiError> {
+async fn reindex(db: &SqlitePool, post: &BlogPost) -> Result<(), ApiError> {
     search::upsert(
-        &state.db,
+        db,
         "blog",
         &post.slug,
         &post.title,

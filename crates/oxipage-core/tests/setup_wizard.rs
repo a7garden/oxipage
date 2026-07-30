@@ -56,9 +56,10 @@ impl Extension for DemoExt {
     fn table_names(&self) -> Vec<&'static str> {
         vec!["demo_t"]
     }
-    fn routes(&self) -> axum::Router<AppState> {
+    fn routes(&self) -> axum::Router {
         axum::Router::new()
     }
+
     async fn lobby_summary(&self, _ctx: &AppState) -> Option<LobbyCard> {
         None
     }
@@ -114,9 +115,10 @@ impl Extension for MultiStepExt {
     fn migrations(&self) -> Vec<Migration> {
         vec![]
     }
-    fn routes(&self) -> axum::Router<AppState> {
+    fn routes(&self) -> axum::Router {
         axum::Router::new()
     }
+
     async fn lobby_summary(&self, _ctx: &AppState) -> Option<LobbyCard> {
         None
     }
@@ -169,9 +171,10 @@ impl Extension for KeyOnlyExt {
     fn table_names(&self) -> Vec<&'static str> {
         vec![]
     }
-    fn routes(&self) -> axum::Router<AppState> {
+    fn routes(&self) -> axum::Router {
         axum::Router::new()
     }
+
     async fn lobby_summary(&self, _ctx: &AppState) -> Option<LobbyCard> {
         None
     }
@@ -404,9 +407,10 @@ impl Extension for OutcomeExt {
     fn migrations(&self) -> Vec<Migration> {
         vec![]
     }
-    fn routes(&self) -> axum::Router<AppState> {
+    fn routes(&self) -> axum::Router {
         axum::Router::new()
     }
+
     async fn lobby_summary(&self, _ctx: &AppState) -> Option<LobbyCard> {
         None
     }
@@ -439,9 +443,10 @@ impl Extension for ConditionalExt {
     fn migrations(&self) -> Vec<Migration> {
         vec![]
     }
-    fn routes(&self) -> axum::Router<AppState> {
+    fn routes(&self) -> axum::Router {
         axum::Router::new()
     }
+
     async fn lobby_summary(&self, _ctx: &AppState) -> Option<LobbyCard> {
         None
     }

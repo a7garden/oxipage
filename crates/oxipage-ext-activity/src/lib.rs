@@ -111,7 +111,7 @@ impl Extension for ActivityExtension {
         }]
     }
 
-    fn routes(&self) -> Router<AppState> {
+    fn routes(&self) -> Router {
         Router::new()
             .route("/", get(routes::list))
             .route("/webhook", post(routes::webhook))

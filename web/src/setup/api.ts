@@ -105,7 +105,13 @@ export async function fetchSetupStatus(): Promise<SetupStatus> {
 }
 
 export async function submitSite(data: { name: string; base_url?: string }) {
-  return post<{ ok: boolean }>("/site", data);
+   return post<{ ok: boolean }>("/site", data);
+ }
+
+/// Setup step 1: create-or-register an oxipage project directory.
+/// Returns the slug and registered path so later steps can target it.
+export async function createSite(path: string): Promise<{ data: { slug: string; path: string } }> {
+  return post<{ data: { slug: string; path: string } }>("/create-site", { path });
 }
 
 export async function submitExtensions(data: { enabled: string[] }) {

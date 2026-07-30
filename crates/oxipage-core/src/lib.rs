@@ -17,4 +17,5 @@ pub mod registry;
 pub mod scheduler;
 pub mod search;
 pub mod setup;
+pub mod sites;
 pub mod state;

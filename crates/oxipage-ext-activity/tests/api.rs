@@ -5,7 +5,7 @@ use hmac::{Hmac, Mac};
 use oxipage_core::config::Config;
 use oxipage_core::extension::Extension;
 use oxipage_core::registry::ExtensionRegistry;
-use oxipage_core::state::AppState;
+use oxipage_core::state::{AppState, SiteScopedDb};
 use oxipage_ext_activity::ActivityExtension;
 use sha2::Sha256;
 use std::sync::Arc;
@@ -22,8 +22,8 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
     let pool = oxipage_core::db::connect_memory().await.unwrap();
     let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(ActivityExtension)]));
     registry.run_migrations(&pool, &[]).await.unwrap();
-    let state = AppState {
-        db: pool,
+    let _state = AppState {
+        db: pool.clone(),
         config: Arc::new(Config::default()),
         registry: registry.clone(),
         wasm_loader: None,
@@ -35,7 +35,7 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
             "/api/console/activity",
             registry.find("activity").unwrap().routes(),
         )
-        .with_state(state)
+        .layer(axum::extract::Extension(SiteScopedDb { db: pool }))
 }
 
 async fn body_json(res: axum::response::Response) -> serde_json::Value {

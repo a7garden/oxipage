@@ -139,7 +139,9 @@ pub trait Extension: Send + Sync {
     fn migrations(&self) -> Vec<Migration>;
 
     /// `/api/console/{id}/**` 하위에 마운트될 라우터.
-    fn routes(&self) -> Router<AppState>;
+    /// Now returns `Router` (no shared state) — handlers use
+    /// `Extension<SiteScopedDb>` instead of `State<AppState>`.
+    fn routes(&self) -> Router;
 
     /// 로비 카드에 표시할 요약 데이터 (최근 글 3개, 활동 스파크라인 등).
     async fn lobby_summary(&self, ctx: &AppState) -> Option<LobbyCard>;

@@ -114,7 +114,7 @@ impl Extension for ScrapsExtension {
         }]
     }
 
-    fn routes(&self) -> Router<AppState> {
+    fn routes(&self) -> Router {
         Router::new()
             .route("/", get(routes::list_published).post(routes::create_manual))
             .route("/queue", get(routes::list_queue))

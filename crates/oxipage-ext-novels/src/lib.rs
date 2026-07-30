@@ -124,7 +124,7 @@ impl Extension for NovelsExtension {
         }]
     }
 
-    fn routes(&self) -> Router<AppState> {
+    fn routes(&self) -> Router {
         Router::new()
             .route("/", get(routes::list_novels).post(routes::create_novel))
             .route(
