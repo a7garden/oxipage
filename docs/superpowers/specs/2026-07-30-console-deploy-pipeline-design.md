@@ -45,24 +45,26 @@ Turn the Deploy page from a fire-and-forget button over a stub into a live, obse
 Client                          Console                         Core
 ─────                           ────────                        ────
 POST /build  ──────►  build guard check ──409──►  {error:"build_in_progress"}
+                 │  create BuildRun (channel + start-latch), return build_id
+                 │  schedule grace watchdog (run anyway if no subscriber attaches)
                  │            │
-                 │     spawn_blocking ──►  build_site_with_progress(db, builders, tx)
-                 │            │                      │ per-extension events
-                 │     broadcast fan-out ◄──────────┘
-                 │            │
-GET /build/{id}/stream  ──►  SSE (BroadcastStream) ──►  client log panel
-                 │            │
-                 │     on BuildComplete/Failed: UPDATE build_log.finished_at; drop guard
+GET /build/{id}/stream ──► first receiver triggers spawn_blocking
+                 │            │     build_site_with_progress(db, builders, tx)
+                 │            │            │ per-extension events — NONE missed
+                 │            │     broadcast fan-out ◄──────────┘
+                 │            ▼
+                 │     SSE (BroadcastStream) ──►  client log panel
+                 │     on BuildComplete/Failed: UPDATE finished_at; drop guard
                  ▼
 ```
 
-Build runs as a detached background task keyed by `build_id` in a shared `BuildRuns` map. The `mpsc`→`broadcast` split lets the producing task fan events to zero or more SSE subscribers (a client that connects after completion replays the buffered tail + terminal event).
+Build runs **lazily** to avoid an event-loss race: `POST /build` only creates the `BuildRun` (broadcast channel + start-latch) and returns `build_id` — it does **not** spawn the work yet. `spawn_blocking` is deferred until the first SSE subscriber attaches to the run's broadcast, so that subscriber sees `BuildStarted` and every following event. (A tokio broadcast receiver created at subscribe time misses anything sent *before* it exists — eager spawning loses early `ExtensionStart`/`ExtensionDone`.) A grace-period watchdog (≈3s) starts the build anyway if no subscriber ever connects, so a triggered-but-unwatched build still runs and the busy-guard is never held forever.
 
 ## 5. Backend — contracts
 
 ### 5.1 Per-site build guard
 
-- `BuildRuns` shared state: `DashMap<String /*slug*/, BuildRun>` where `BuildRun { id, tx: broadcast::Sender<BuildEvent>, started_at }`. Injected alongside the registry (a small `Arc` in `AppState` or the console app state).
+- `BuildRuns` shared state: `DashMap<String /*slug*/, BuildRun>` where `BuildRun { id, tx: broadcast::Sender<BuildEvent>, start: Arc<Notify>, started: AtomicBool, outcome: Arc<OnceCell<BuildOutcome>>, started_at }`. Injected alongside the registry (a small `Arc` in `AppState` or the console app state). `start`/`started` implement lazy-start; `outcome` lets a late subscriber read the terminal result after the run finishes.
 - `POST /build`: `try_insert(slug)`. If present → `409 { "error": "build_in_progress", "build_id": "<id>" }`. On the path, insert, run, remove on completion (success or error — use a guard/`Drop` to guarantee removal even on panic).
 - Deploy reuses the same guard: a deploy while a build runs for that site → 409 (and vice versa, or a separate deploy guard — the plan decides; recommendation: one "site busy" guard covering both).
 
@@ -90,10 +92,10 @@ pub fn build_site_with_progress(
 ### 5.3 Build endpoints
 
 **`POST /api/console/s/{slug}/build`** → `202 Accepted { "build_id": "<uuid>" }`
-- Guard check (409 if busy). Spawn `build_site_with_progress` in `spawn_blocking`, feeding an `mpsc` relayed to a `broadcast`. Insert into `BuildRuns`. On completion: `INSERT build_log (status, page_count, out_dir, finished_at)` / on failure: `status='failed'`. Remove guard.
+- Guard check (409 if busy). Create the `BuildRun` (broadcast channel + `start` latch), insert into `BuildRuns`. **Do not spawn yet.** Schedule a grace watchdog that, after ≈3s, starts the build if `!started` (so an unwatched build still runs). Return `202 { build_id }`.
 
 **`GET /api/console/s/{slug}/build/{build_id}/stream`** → `text/event-stream` (SSE)
-- Subscribes to the run's `broadcast` via `tokio_stream::wrappers::BroadcastStream`. Each `BuildEvent` → `data: <json>\n\n`. Terminates after `BuildComplete`/`BuildFailed`. Unknown `build_id` (completed/evicted) → a single terminal event with the last known status (or 404).
+- On first subscriber: if `!started`, atomically set `started` and `spawn_blocking(build_site_with_progress)` feeding the broadcast (cancelling the watchdog). Because emission begins only after a receiver exists, the subscriber sees `BuildStarted` first — no early events lost. Stream via `tokio_stream::wrappers::BroadcastStream`; each `BuildEvent` → `data: <json>\n\n`; terminates after `BuildComplete`/`BuildFailed`. On completion: `INSERT/UPDATE build_log (status, page_count, out_dir, finished_at)`; set `outcome`; drop guard. Unknown/evicted `build_id` → if `outcome` present, a single terminal event; else 404.
 
 ### 5.4 `build_log.finished_at`
 
