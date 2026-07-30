@@ -3,17 +3,19 @@
 //! At startup, for each registered site slug, extension routes are mounted
 //! under `/s/{slug}/{ext_id}` with per-site `SiteScopedDb` middleware.
 
+use crate::create_site::create_site_handler;
 use crate::middleware::site_db::inject_site_context;
 use crate::sites_runtime::SiteRegistry;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use std::sync::Arc;
 
-/// Build the console router tree.
+/// Build the console router tree (no state type — handlers use Extension<SiteScopedDb>).
 pub fn build_console_router(registry: Arc<SiteRegistry>) -> Router {
     let mut api = Router::new()
         .route("/sites", get(list_sites).post(create_site))
-        .route("/sites/default", get(get_default).put(set_default));
+        .route("/sites/default", get(get_default).put(set_default))
+        .route("/setup/create-site", post(create_site_handler));
 
     for (_slug, ctx) in registry.iter_blocking() {
         let mut nested = Router::new()

@@ -6,6 +6,7 @@
 //! `all_extensions()`에 한 줄 추가하고 Cargo.toml 의존성을 추가.
 
 use crate::console_state::ConsoleState;
+use crate::sites_runtime::SiteRegistry;
 use oxipage_core::builder::BuildExt;
 use oxipage_core::config::Config;
 use oxipage_core::extension::Extension;
@@ -158,7 +159,20 @@ pub async fn run_console_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow
     // 상시 cron 폴링은 더 이상 사용하지 않는다.
     // scheduler.spawn_all(state.clone());
 
-    let app = oxipage_core::http::build_app(state);
+    // Load registered sites from ~/.config/oxipage/sites.toml and build console router
+    let sites_path = proj.config_dir().join("sites.toml");
+    let sites_file = if sites_path.exists() {
+        std::fs::read_to_string(&sites_path)
+            .ok()
+            .and_then(|raw| toml::from_str(&raw).ok())
+            .unwrap_or_default()
+    } else {
+        oxipage_core::sites::SitesFile::default()
+    };
+    let site_registry = Arc::new(SiteRegistry::new(sites_file).await?);
+    let console_router = crate::router::build_console_router(site_registry);
+    let mut app = oxipage_core::http::build_app(state);
+    app = app.merge(console_router);
     let addr = SocketAddr::new(config.server.host.parse()?, config.server.port);
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!("oxipage listening on http://{addr}");
@@ -214,6 +228,7 @@ async fn shutdown_signal() {
 
 pub mod admin;
 pub mod console_state;
+pub mod create_site;
 pub mod loader;
 pub mod middleware;
 pub mod router;

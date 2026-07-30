@@ -31,6 +31,10 @@ struct DataEnvelope<T: serde::Serialize> {
 // shape the live handler serves (single source of truth for `fetchManifest()`).
 use crate::manifest::{Manifest, ManifestLocalized};
 
+/// Build the Oxipage HTTP application router.
+///
+/// If `console_routes` is provided, its routes are nested under
+/// `/api/console` alongside the built-in API routes.
 pub fn build_app(state: AppState) -> Router {
     let mut api = Router::new()
         .route("/lobby/manifest", get(lobby_manifest))
@@ -66,14 +70,10 @@ pub fn build_app(state: AppState) -> Router {
         .route("/themes", get(theme_catalog))
         .route("/build", axum::routing::post(build_handler))
         .route("/cache/refresh", axum::routing::post(cache_refresh_handler));
+
     // Setup API (loopback-only, unauthenticated, doc/13)
     api = setup::setup_routes(api);
 
-    // Extension routes are now mounted by the console's build_console_router
-    // under per-site `/s/{slug}/{ext_id}` prefixes. The old single-site
-    // build_app does not nest extension routes here.
-    // State-dependent middleware: must come after ext route nest loop
-    // so the loop works with Router<()> (ext.routes() now returns Router).
     let api = api
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
