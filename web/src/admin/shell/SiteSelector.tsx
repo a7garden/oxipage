@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams, Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { listSites } from "../shared/api";
+import { listSites, getStats } from "../shared/api";
 import { ChevronDown } from "lucide-react";
 
 export function SiteSelector() {
@@ -21,6 +21,12 @@ export function SiteSelector() {
 
   const current = sites.find((s) => slug ? s.name === slug : s.active) ?? sites[0];
   if (!current) return null;
+
+  const { data: stats } = useQuery({
+    queryKey: ["site", current.name, "stats"],
+    queryFn: () => getStats(current.name),
+    enabled: open,
+  });
 
   return (
     <div ref={ref} className="relative">
@@ -52,6 +58,13 @@ export function SiteSelector() {
               {s.name === current.name && <span className="ml-auto text-sm text-[#22c55e] font-bold">✓</span>}
             </Link>
           ))}
+          {stats && (
+            <div className="mt-3 pt-3 border-t border-line text-xs text-muted space-y-1">
+              <div className="flex justify-between"><span>Content</span><span>{Object.values(stats.counts).reduce((a: number, b: number) => a + b, 0)} entries</span></div>
+              <div className="flex justify-between"><span>Storage</span><span>{stats.storage_bytes < 1024 ? `${stats.storage_bytes} B` : stats.storage_bytes < 1048576 ? `${(stats.storage_bytes / 1024).toFixed(1)} KB` : `${(stats.storage_bytes / 1048576).toFixed(1)} MB`}</span></div>
+              <div className="flex justify-between"><span>Last build</span><span>{stats.last_build ? new Date(stats.last_build.started_at).toLocaleDateString() : "Never"}</span></div>
+            </div>
+          )}
           <div className="flex gap-2 mt-3 pt-3 border-t border-line">
             <Link to="/sites" className="text-xs px-3 py-1.5 rounded border border-line hover:bg-surface" onClick={() => setOpen(false)}>Manage Sites</Link>
             <Link to="/sites/new" className="text-xs px-3 py-1.5 rounded border border-line hover:bg-surface" onClick={() => setOpen(false)}>+ Add New Site</Link>

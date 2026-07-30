@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getConfig, updateConfig, removeSite, type ConfigResponse } from "../shared/api";
+import { getConfig, updateConfig, removeSite, listSites, getDefaultSite, setDefaultSite, type ConfigResponse } from "../shared/api";
 import { Button } from "../../shared/ui/button";
 import { Input } from "../../shared/ui/input";
 import { Skeleton } from "../../shared/ui/skeleton";
@@ -77,6 +77,19 @@ export function SettingsPage() {
 
   // Language chip editor
   const [newLang, setNewLang] = useState("");
+  // Default site (global) selector
+  const { data: sitesData } = useQuery({ queryKey: ["sites"], queryFn: listSites });
+  const { data: defaultData } = useQuery({ queryKey: ["default-site"], queryFn: getDefaultSite });
+  const sites = sitesData?.data ?? [];
+  const currentDefault = defaultData?.data.default_site ?? null;
+  const [defaultSiteSel, setDefaultSiteSel] = useState("");
+  const setDefault = useMutation({
+    mutationFn: setDefaultSite,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["default-site"] }),
+  });
+  useEffect(() => {
+    if (currentDefault) setDefaultSiteSel(currentDefault);
+  }, [currentDefault]);
 
   useEffect(() => {
     if (!data) return;
@@ -238,6 +251,35 @@ export function SettingsPage() {
           />
         </div>
 
+        <div className="border border-line rounded-lg p-5">
+          <h3 className="text-sm font-semibold mb-1">Default Site</h3>
+          <p className="text-xs text-muted mb-3">
+            The site opened by default when the console starts.
+          </p>
+          <div className="flex items-center gap-2">
+            <select
+              value={defaultSiteSel || currentDefault || ""}
+              onChange={(e) => setDefaultSiteSel(e.target.value)}
+              className="border border-line rounded px-2 py-1 text-sm bg-canvas max-w-xs"
+            >
+              {sites.map((s) => (
+                <option key={s.name} value={s.name}>{s.name}</option>
+              ))}
+            </select>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={setDefault.isPending || !defaultSiteSel || defaultSiteSel === currentDefault}
+              onClick={() => setDefault.mutate(defaultSiteSel)}
+            >
+              {setDefault.isPending ? "Setting…" : "Set default"}
+            </Button>
+            {setDefault.isSuccess && (
+              <span className="text-xs text-[#16a34a]">Updated</span>
+            )}
+          </div>
+        </div>
+
         <div className="border border-[#fecaca] rounded-lg p-5">
           <h3 className="text-sm font-semibold mb-4 text-[#dc2626]">Danger Zone</h3>
           {!confirmDelete ? (
@@ -249,6 +291,14 @@ export function SettingsPage() {
                 onClick={() => setConfirmDelete(true)}
               >
                 <Trash2 size={14} className="mr-1" /> Delete Site
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled
+                className="border-red-300 text-red-400 ml-2"
+              >
+                Purge All Data (Coming soon)
               </Button>
               <p className="text-xs text-muted mt-2">
                 Registry-only removal — site files on disk are preserved.
