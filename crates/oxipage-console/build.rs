@@ -2,20 +2,21 @@ fn main() {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let root = std::path::Path::new(&manifest_dir);
 
-    // Embedded Admin SPA — copy from admin-web/dist or create placeholder
+    // Admin SPA — bundled via `bun run build` in web/
+    // The output has `admin.html` + `assets/admin-*.js` from the dual-entry build.
     let embed_dir = root.join("embedded-spa");
-    let web_dist = root.join("../../admin-web/dist");
-    if web_dist.exists() {
+    let web_dist = root.join("../../web/dist");
+    if web_dist.exists() && web_dist.join("admin.html").exists() {
         let _ = std::fs::remove_dir_all(&embed_dir);
         copy_dir(&web_dist, &embed_dir)
-            .unwrap_or_else(|e| panic!("failed to copy admin-web/dist to embedded-spa: {e}"));
+            .unwrap_or_else(|e| panic!("failed to copy web/dist to embedded-spa: {e}"));
     } else if !embed_dir.exists() {
         std::fs::create_dir_all(&embed_dir).unwrap();
         std::fs::write(
-            embed_dir.join("index.html"),
+            embed_dir.join("admin.html"),
             "<!DOCTYPE html><html lang=ko><head><meta charset=utf-8>\
              <title>Oxipage Admin</title></head><body><div id=root>\
-             <p>Admin SPA not embedded — build with `bun run build` in admin-web/</p>\
+             <p>Admin SPA not embedded — build with `cd web && bun run build`</p>\
              </div></body></html>",
         )
         .unwrap();
