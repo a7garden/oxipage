@@ -100,7 +100,7 @@ export function SetupWizard() {
   }
 
   if (completeResult) {
-    return <StepDone result={completeResult} />;
+    return <StepDone result={completeResult} slug={siteName} />;
   }
 
   const renderStep = () => {
@@ -109,11 +109,12 @@ export function SetupWizard() {
         return (
           <StepSite
             loading={loading}
+            setLoading={setLoading}
             onNext={(data) => {
-              setSiteName(data.name);
-              return handleNext(() =>
-                submitSite(data as { name: string; base_url?: string }),
-              );
+              setSiteName(data.slug);
+              return handleNext(async () => {
+                await submitSite({ name: data.slug });
+              });
             }}
           />
         );
@@ -160,8 +161,7 @@ export function SetupWizard() {
             }
           />
         );
-      case "done":
-        return <StepDone result={{ ok: true, message: "" }} />;
+        return <StepDone result={{ ok: true, message: "" }} slug={siteName} />;
     }
   };
 

@@ -1,60 +1,68 @@
-// Step 1: 사이트 기본 정보 (doc/13 §13.7.2)
+// Step 1: 사이트 디렉토리 결정 (v2 SSG site-picker, spec D5).
+//
+// 위저드 시작 = 사이트 시작. 사용자가 신규 디렉토리를 만들거나
+// 기존 oxipage 디렉토리를 등록한다. Step 완료 시 dashboard로 진입한다.
 
 import { useState } from "react";
 import { Button } from "../shared/ui/button";
 import { Input } from "../shared/ui/input";
+import { createSite } from "./api";
 
 interface Props {
-  onNext: (data: { name: string; base_url?: string }) => void;
+  onNext: (data: { slug: string; path: string }) => void;
   loading: boolean;
+  setLoading: (loading: boolean) => void;
 }
 
-export function StepSite({ onNext, loading }: Props) {
-  const [name, setName] = useState("");
-  const [lang, setLang] = useState<"ko" | "en">("ko");
-  const valid = name.trim().length > 0 && name.trim().length <= 50;
+export function StepSite({ onNext, loading, setLoading }: Props) {
+  const [sitePath, setSitePath] = useState("~/oxipage/blog");
+  const [error, setError] = useState<string | null>(null);
+  const valid = sitePath.trim().length > 0;
+
+  async function submit() {
+    if (!valid) return;
+    setError(null);
+    setLoading(true);
+    try {
+      const { data } = await createSite(sitePath.trim());
+      onNext(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "create failed");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6 text-center">사이트 이름</h2>
+      <h2 className="text-xl font-semibold mb-6 text-center">사이트 디렉토리</h2>
+      <p className="text-sm text-subtle text-center mb-6">
+        새 디렉토리를 만들거나 기존 oxipage 디렉토리를 등록합니다.
+      </p>
 
-      <label className="block text-sm font-medium mb-2">사이트 이름</label>
+      <label className="block text-sm font-medium mb-2">경로</label>
       <Input
-        placeholder="내 작업실"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        maxLength={50}
+        placeholder="~/oxipage/blog"
+        value={sitePath}
+        onChange={(e) => setSitePath(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") submit();
+        }}
         autoFocus
       />
-      <p className="text-xs text-subtle mt-1">{name.length}/50</p>
+      <p className="text-xs text-subtle mt-1">
+        oxipage.toml이 없는 경로는 자동 생성됩니다.
+      </p>
 
-      <label className="block text-sm font-medium mt-6 mb-2">기본 언어</label>
-      <div className="flex gap-2">
-        <button
-          onClick={() => setLang("ko")}
-          className={`flex-1 py-2 px-4 rounded-md border text-sm transition-colors ${
-            lang === "ko"
-              ? "bg-primary text-primary-foreground border-primary"
-              : "border-line hover:bg-surface"
-          }`}
-        >
-          한국어
-        </button>
-        <button
-          onClick={() => setLang("en")}
-          className={`flex-1 py-2 px-4 rounded-md border text-sm transition-colors ${
-            lang === "en"
-              ? "bg-primary text-primary-foreground border-primary"
-              : "border-line hover:bg-surface"
-          }`}
-        >
-          English
-        </button>
-      </div>
+      {error && (
+        <p className="text-sm text-error mt-3" role="alert">
+          {error}
+        </p>
+      )}
 
       <div className="flex justify-end mt-8">
-        <Button onClick={() => onNext({ name: name.trim() })} disabled={!valid || loading}>
-          {loading ? "저장 중..." : "다음 →"}
+        <Button onClick={submit} disabled={!valid || loading}>
+          {loading ? "등록 중..." : "다음 →"}
         </Button>
       </div>
     </div>

@@ -3,10 +3,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SiteShell } from "./shell/SiteShell";
 import { HomeRedirect } from "./sites/HomeRedirect";
 import { SitesPage } from "./sites/SitesPage";
-import { NewSiteWizardPage } from "./sites/NewSiteWizardPage";
-import { DashboardPage } from "./dashboard/DashboardPage";
 
 const queryClient = new QueryClient();
+
+function DashboardPage() {
+  return <div>Dashboard (stub)</div>;
+}
+function NewSiteWizardPage() {
+  return <div>New Site Wizard (stub)</div>;
+}
 
 function AdminShell() {
   return (
