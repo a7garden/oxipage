@@ -1,139 +1,74 @@
-//! Site profiles — named connection profiles (endpoint + token) stored in
-//! `~/.config/oxipage/sites.toml` (doc/09).
+//! Site profiles — file I/O for `~/.config/oxipage/sites.toml` (doc/09).
+//!
+//! The data model (`SitesFile`, `SiteEntry`) lives in `oxipage-core` and is
+//! re-exported here for backward compat within the binary-only CLI crate.
+//! This module handles on-disk persistence: load, save, path resolution,
+//! and Unix permissions.
+//!
+//! # Orphan-rule note
+//!
+//! `SitesFile` / `SiteEntry` are defined in `oxipage-core`, so `impl` blocks
+//! for them can only live there. File I/O (`load`, `save`) is provided as
+//! free functions (`load_sites`, `save_sites`).
+
+pub use oxipage_core::sites::{SiteEntry, SitesFile};
+
 use anyhow::{Context, Result};
-use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 
-// ──────────────────────────── data model ────────────────────────────
+// ──────────────────────────── file I/O ────────────────────────────
 
-/// Top-level `~/.config/oxipage/sites.toml` file.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct SitesFile {
-    #[serde(default)]
-    pub default_site: Option<String>,
-    #[serde(default)]
-    pub sites: BTreeMap<String, SiteEntry>,
+/// Load sites from disk. If the file doesn't exist or is empty, return
+/// an empty `SitesFile` — not an error, so existing users without a
+/// sites file still work (legacy fallback).
+pub fn load_sites() -> SitesFile {
+    let path = match sites_path() {
+        Ok(p) => p,
+        Err(_) => return SitesFile::default(),
+    };
+    if !path.exists() {
+        return SitesFile::default();
+    }
+    let raw = match fs::read_to_string(&path) {
+        Ok(s) => s,
+        Err(_) => return SitesFile::default(),
+    };
+    if raw.trim().is_empty() {
+        return SitesFile::default();
+    }
+    toml::from_str(&raw).unwrap_or_else(|e| {
+        eprintln!("warning: ~/.config/oxipage/sites.toml is corrupt: {e}");
+        SitesFile::default()
+    })
 }
 
-/// One named site entry.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SiteEntry {
-    pub endpoint: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub token: Option<String>,
+/// Save sites to disk (0600 permissions).
+pub fn save_sites(sf: &SitesFile) -> Result<()> {
+    let path = sites_path()?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).with_context(|| format!("creating {}", parent.display()))?;
+    }
+    let raw = toml::to_string_pretty(sf).context("serializing sites")?;
+    fs::write(&path, &raw).with_context(|| format!("writing {}", path.display()))?;
+    set_mode_0600(&path)?;
+    Ok(())
 }
 
-impl SitesFile {
-    /// Load sites from disk. If the file doesn't exist or is empty, return
-    /// an empty `SitesFile` — not an error, so existing users without a
-    /// sites file still work (legacy fallback).
-    pub fn load() -> Self {
-        let path = match sites_path() {
-            Ok(p) => p,
-            Err(_) => return Self::default(),
-        };
-        if !path.exists() {
-            return Self::default();
-        }
-        let raw = match fs::read_to_string(&path) {
-            Ok(s) => s,
-            Err(_) => return Self::default(),
-        };
-        if raw.trim().is_empty() {
-            return Self::default();
-        }
-        toml::from_str(&raw).unwrap_or_else(|e| {
-            // Corrupt file → warn and fall back to empty. Never crash CLI
-            // because the sites file is malformed — the user can fix it
-            // with `oxipage site add/list/rm`.
-            eprintln!("warning: ~/.config/oxipage/sites.toml is corrupt: {e}");
-            Self::default()
-        })
+/// Save sites to an explicit path (for testing / setup API).
+pub fn save_sites_to(sf: &SitesFile, path: &std::path::Path) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
     }
-
-    /// Save sites to disk (0600 permissions).
-    pub fn save(&self) -> Result<()> {
-        let path = sites_path()?;
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).with_context(|| format!("creating {}", parent.display()))?;
-        }
-        let raw = toml::to_string_pretty(self).context("serializing sites")?;
-        fs::write(&path, &raw).with_context(|| format!("writing {}", path.display()))?;
-        set_mode_0600(&path)?;
-        Ok(())
-    }
-
-    /// Resolve the effective site name: `--site` flag → OXIPAGE_SITE env →
-    /// `default_site` → `None`.
-    ///
-    /// Caller (`commands::resolve_site_name`) validates `--site` existence
-    /// and bails on unknown names before calling this. This function
-    /// assumes the input has been validated.
-    pub fn resolve_name<'a>(&'a self, cli_site: Option<&'a str>) -> Option<&'a str> {
-        // 1. --site flag (already validated by caller)
-        if let Some(name) = cli_site
-            && !name.is_empty()
-            && self.sites.contains_key(name)
-        {
-            return Some(name);
-        }
-        // 2. OXIPAGE_SITE env
-        if let Ok(env) = std::env::var("OXIPAGE_SITE")
-            && !env.is_empty()
-            && self.sites.contains_key(&env)
-        {
-            return self.sites.get_key_value(&env).map(|(k, _)| k.as_str());
-        }
-        // 3. default_site from file
-        self.default_site
-            .as_deref()
-            .and_then(|name| self.sites.contains_key(name).then_some(name))
-    }
-
-    /// Check whether a given site name exists.
-    pub fn exists(&self, name: &str) -> bool {
-        self.sites.contains_key(name)
-    }
-
-    /// Get a site entry by name.
-    pub fn get(&self, name: &str) -> Option<&SiteEntry> {
-        self.sites.get(name)
-    }
-
-    /// Resolve the endpoint for a resolved site name. If the site name is
-    /// `None` or the named site isn't found, returns `None` (caller falls
-    /// through to legacy chain).
-    pub fn resolve_endpoint(&self, site_name: Option<&str>) -> Option<String> {
-        let name = site_name?;
-        self.sites.get(name).map(|s| s.endpoint.clone())
-    }
-
-    /// Resolve the token for a resolved site name. If the site has no token
-    /// (`None`/empty), returns `None` so the caller can fall through to env
-    /// / credentials (doc/09 §9.5 — independent fallthrough).
-    pub fn resolve_token(&self, site_name: Option<&str>) -> Option<String> {
-        let name = site_name?;
-        self.sites
-            .get(name)
-            .and_then(|s| s.token.as_ref())
-            .filter(|t| !t.is_empty())
-            .cloned()
-    }
-
-    /// Return a sorted list of site names (for `list` display).
-    pub fn site_names(&self) -> Vec<String> {
-        let mut names: Vec<String> = self.sites.keys().cloned().collect();
-        names.sort();
-        names
-    }
+    let raw = toml::to_string_pretty(sf).context("serializing sites")?;
+    fs::write(path, &raw)?;
+    Ok(())
 }
 
 // ──────────────────────────── path resolution ────────────────────────────
 
 /// ~/.config/oxipage/sites.toml
-fn sites_path() -> Result<PathBuf> {
+pub fn sites_path() -> Result<PathBuf> {
     let proj = directories::ProjectDirs::from("dev", "oxipage", "oxipage")
         .context("could not determine config directory")?;
     Ok(proj.config_dir().join("sites.toml"))
@@ -160,21 +95,20 @@ fn set_mode_0600(_p: &std::path::Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
 
     fn sample_sites() -> SitesFile {
         let mut sites = BTreeMap::new();
         sites.insert(
             "selfhost".into(),
             SiteEntry {
-                endpoint: "http://localhost:8787".into(),
-                token: Some("tok_self".into()),
+                path: PathBuf::from("/tmp/oxipage/selfhost"),
             },
         );
         sites.insert(
             "flyio".into(),
             SiteEntry {
-                endpoint: "https://oxipage.fly.dev".into(),
-                token: None,
+                path: PathBuf::from("/tmp/oxipage/flyio"),
             },
         );
         SitesFile {
@@ -184,16 +118,30 @@ mod tests {
     }
 
     #[test]
+    fn site_entry_round_trips_path_only() {
+        let sf = SitesFile {
+            default_site: Some("blog".into()),
+            sites: BTreeMap::from([(
+                "blog".into(),
+                SiteEntry { path: PathBuf::from("/tmp/oxipage/test-blog") },
+            )]),
+        };
+        let raw = toml::to_string(&sf).unwrap();
+        assert!(raw.contains("path"));
+        assert!(!raw.contains("endpoint"));
+        let back: SitesFile = toml::from_str(&raw).unwrap();
+        assert_eq!(back.sites["blog"].path, PathBuf::from("/tmp/oxipage/test-blog"));
+    }
+
+    #[test]
     fn test_resolve_name_flag() {
         let sf = sample_sites();
-        // --site flyio
         assert_eq!(sf.resolve_name(Some("flyio")), Some("flyio"));
     }
 
     #[test]
     fn test_resolve_name_default() {
         let sf = sample_sites();
-        // no flag, no env → default_site
         assert_eq!(sf.resolve_name(None), Some("selfhost"));
     }
 
@@ -201,38 +149,6 @@ mod tests {
     fn test_resolve_name_none() {
         let sf = SitesFile::default();
         assert_eq!(sf.resolve_name(None), None);
-    }
-
-    #[test]
-    fn test_resolve_endpoint() {
-        let sf = sample_sites();
-        assert_eq!(
-            sf.resolve_endpoint(Some("selfhost")).as_deref(),
-            Some("http://localhost:8787")
-        );
-        assert_eq!(sf.resolve_endpoint(None), None);
-    }
-
-    #[test]
-    fn test_resolve_token_with_token() {
-        let sf = sample_sites();
-        assert_eq!(
-            sf.resolve_token(Some("selfhost")).as_deref(),
-            Some("tok_self")
-        );
-    }
-
-    #[test]
-    fn test_resolve_token_without_token() {
-        let sf = sample_sites();
-        // flyio has no token → fall through (None)
-        assert_eq!(sf.resolve_token(Some("flyio")), None);
-    }
-
-    #[test]
-    fn test_resolve_token_none() {
-        let sf = sample_sites();
-        assert_eq!(sf.resolve_token(None), None);
     }
 
     #[test]
@@ -250,6 +166,22 @@ mod tests {
     }
 
     #[test]
+    fn test_add_remove() {
+        let mut sf = SitesFile::default();
+        sf.add("blog".into(), PathBuf::from("/tmp/blog"));
+        assert!(sf.exists("blog"));
+        sf.remove("blog");
+        assert!(!sf.exists("blog"));
+    }
+
+    #[test]
+    fn test_set_default() {
+        let mut sf = SitesFile::default();
+        sf.set_default("blog");
+        assert_eq!(sf.default_site.as_deref(), Some("blog"));
+    }
+
+    #[test]
     fn test_roundtrip_serialize() {
         let sf = sample_sites();
         let raw = toml::to_string_pretty(&sf).unwrap();
@@ -257,10 +189,8 @@ mod tests {
         assert_eq!(deser.default_site, sf.default_site);
         assert_eq!(deser.sites.len(), 2);
         assert_eq!(
-            deser.sites.get("selfhost").unwrap().endpoint,
-            "http://localhost:8787"
+            deser.sites.get("selfhost").unwrap().path,
+            PathBuf::from("/tmp/oxipage/selfhost")
         );
-        // flyio should have no token field
-        assert!(deser.sites.get("flyio").unwrap().token.is_none());
     }
 }

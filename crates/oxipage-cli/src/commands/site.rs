@@ -2,16 +2,15 @@ use crate::output::Output;
 use crate::sites;
 use clap::Subcommand;
 use serde_json::json;
+use std::path::PathBuf;
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum SiteCommand {
-    /// 새 사이트 등록
+    /// 새 사이트 등록 (로컬 oxipage 프로젝트 디렉토리)
     Add {
         name: String,
         #[arg(long)]
-        endpoint: String,
-        #[arg(long)]
-        token: Option<String>,
+        path: String,
         #[arg(long)]
         default: bool,
     },
@@ -25,9 +24,7 @@ pub enum SiteCommand {
     Edit {
         name: String,
         #[arg(long)]
-        endpoint: Option<String>,
-        #[arg(long)]
-        token: Option<String>,
+        path: Option<String>,
     },
     /// 사이트 삭제
     Rm { name: String },
@@ -45,15 +42,10 @@ pub(crate) async fn dispatch_site(
         SiteCommand::Use { name } => site_use(out, sites_file, name).await,
         SiteCommand::Add {
             name,
-            endpoint,
-            token,
+            path,
             default,
-        } => site_add(out, sites_file, name, endpoint, token.as_deref(), *default).await,
-        SiteCommand::Edit {
-            name,
-            endpoint,
-            token,
-        } => site_edit(out, sites_file, name, endpoint.as_deref(), token.as_deref()).await,
+        } => site_add(out, sites_file, name, path, *default).await,
+        SiteCommand::Edit { name, path } => site_edit(out, sites_file, name, path.as_deref()).await,
         SiteCommand::Rm { name } => site_rm(out, sites_file, name).await,
     }
 }
@@ -71,9 +63,8 @@ fn site_list(
                 let entry = sites_file.get(&name);
                 json!({
                     "name": name,
-                    "endpoint": entry.map(|e| e.endpoint.as_str()).unwrap_or(""),
+                    "path": entry.map(|e| e.path.to_string_lossy().to_string()).unwrap_or_default(),
                     "active": Some(name.as_str()) == active_site,
-                    "has_token": entry.and_then(|e| e.token.as_ref()).is_some(),
                 })
             })
             .collect();
@@ -91,8 +82,8 @@ fn site_list(
             } else {
                 "  "
             };
-            let ep = entry.map(|e| e.endpoint.as_str()).unwrap_or("?");
-            println!("{marker}{name}   {ep}");
+            let path = entry.map(|e| e.path.display().to_string()).unwrap_or_else(|| "?".into());
+            println!("{marker}{name}   {path}");
         }
     }
     Ok(())
@@ -114,19 +105,11 @@ fn site_show(
         }
     };
     if out.json {
-        let masked = entry.token.as_ref().map(|t| {
-            if t.len() > 8 {
-                format!("{}...{}", &t[..6], &t[t.len() - 3..])
-            } else {
-                "***".into()
-            }
-        });
         println!(
             "{}",
             serde_json::to_string_pretty(&json!({
                 "name": name,
-                "endpoint": entry.endpoint,
-                "token": masked,
+                "path": entry.path.to_string_lossy(),
                 "active": Some(name) == active_site,
             }))?
         );
@@ -137,17 +120,7 @@ fn site_show(
             ""
         };
         println!("name:       {name}{active_label}");
-        println!("endpoint:   {}", entry.endpoint);
-        if let Some(tok) = &entry.token {
-            let masked = if tok.len() > 8 {
-                format!("{}...{}", &tok[..6], &tok[tok.len() - 3..])
-            } else {
-                "***".into()
-            };
-            println!("token:      {masked}");
-        } else {
-            println!("token:      (none)");
-        }
+        println!("path:       {}", entry.path.display());
     }
     Ok(())
 }
@@ -158,7 +131,7 @@ async fn site_use(out: &Output, sites_file: &sites::SitesFile, name: &str) -> an
     }
     let mut new_sites = sites_file.clone();
     new_sites.default_site = Some(name.to_string());
-    new_sites.save()?;
+    sites::save_sites(&new_sites)?;
     if !out.json {
         println!("active site set to '{name}'");
     }
@@ -169,25 +142,25 @@ async fn site_add(
     out: &Output,
     sites_file: &sites::SitesFile,
     name: &str,
-    endpoint: &str,
-    token: Option<&str>,
+    path: &str,
     default: bool,
 ) -> anyhow::Result<()> {
     if sites_file.exists(name) {
         anyhow::bail!("site '{name}' already exists — use `oxipage site edit` to update");
     }
+    let site_path = PathBuf::from(path);
+    if !site_path.exists() {
+        anyhow::bail!("path '{path}' does not exist");
+    }
+    if !site_path.join("oxipage.toml").exists() {
+        anyhow::bail!("path '{path}' is not an oxipage project (no oxipage.toml found)");
+    }
     let mut new_sites = sites_file.clone();
-    new_sites.sites.insert(
-        name.to_string(),
-        sites::SiteEntry {
-            endpoint: endpoint.to_string(),
-            token: token.map(String::from),
-        },
-    );
+    new_sites.sites.insert(name.to_string(), sites::SiteEntry { path: site_path });
     if default || new_sites.default_site.is_none() {
         new_sites.default_site = Some(name.to_string());
     }
-    new_sites.save()?;
+    sites::save_sites(&new_sites)?;
     if !out.json {
         if default {
             println!("site '{name}' added and set as default");
@@ -202,25 +175,22 @@ async fn site_edit(
     out: &Output,
     sites_file: &sites::SitesFile,
     name: &str,
-    endpoint: Option<&str>,
-    token: Option<&str>,
+    path: Option<&str>,
 ) -> anyhow::Result<()> {
     let _entry = sites_file
         .sites
         .get(name)
         .ok_or_else(|| anyhow::anyhow!("site '{name}' not found — use `oxipage site add` first"))?;
     let mut new_sites = sites_file.clone();
-    let new_entry = new_sites.sites.get_mut(name).unwrap();
-    if let Some(ep) = endpoint {
-        new_entry.endpoint = ep.to_string();
+    let _new_entry = new_sites.sites.get_mut(name).unwrap();
+    if let Some(p) = path {
+        let site_path = PathBuf::from(p);
+        if !site_path.exists() {
+            anyhow::bail!("path '{p}' does not exist");
+        }
+        _new_entry.path = site_path;
     }
-    // token=Some("") → clear token; token=Some("tok") → set; token=None → leave as-is
-    match token {
-        Some("") => new_entry.token = None,
-        Some(t) => new_entry.token = Some(t.to_string()),
-        None => {}
-    }
-    new_sites.save()?;
+    sites::save_sites(&new_sites)?;
     if !out.json {
         println!("site '{name}' updated");
     }
@@ -238,7 +208,7 @@ async fn site_rm(out: &Output, sites_file: &sites::SitesFile, name: &str) -> any
         let next = new_sites.site_names().into_iter().next();
         new_sites.default_site = next;
     }
-    new_sites.save()?;
+    sites::save_sites(&new_sites)?;
     if !out.json {
         println!("site '{name}' removed");
     }
