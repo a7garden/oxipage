@@ -22,7 +22,7 @@ pub async fn list(
     Query(q): Query<ListQuery>,
 ) -> Result<Json<DataEnvelope<Vec<MovieEntry>>>, ApiError> {
     let limit = q.limit.unwrap_or(20);
-    let entries = repo::list_entries_published(&pool.db, q.series_group.as_deref(), limit)
+    let entries = repo::list_entries(&pool.db, q.series_group.as_deref(), limit, q.draft)
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope { data: entries }))

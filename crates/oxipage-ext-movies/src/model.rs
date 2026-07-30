@@ -89,6 +89,8 @@ pub struct MovieEntryPatch {
 pub struct ListQuery {
     pub series_group: Option<String>,
     pub limit: Option<i64>,
+    #[serde(default)]
+    pub draft: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]

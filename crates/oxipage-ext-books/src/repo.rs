@@ -38,23 +38,38 @@ pub async fn find_by_id(pool: &SqlitePool, id: i64) -> anyhow::Result<Option<Boo
     Ok(row)
 }
 
-/// `status=None` → 전체. 초안(`published_at IS NULL`)은 제외.
+/// `status=None` → 전체. `draft=true` → 미발행 행 포함. 기본은 발행본만.
 pub async fn list(
     pool: &SqlitePool,
     status: Option<&str>,
     limit: i64,
+    draft: bool,
 ) -> anyhow::Result<Vec<Book>> {
     let limit = limit.clamp(1, 200);
-    let sql = if status.is_some() {
+    let published_clause = if draft { "" } else { "published_at IS NOT NULL" };
+    let sql = if let Some(s) = status {
+        if draft {
+            format!(
+                "SELECT {COLUMNS} FROM book_entry
+                 WHERE status = ?
+                 ORDER BY COALESCE(published_at, created_at) DESC LIMIT ?"
+            )
+        } else {
+            format!(
+                "SELECT {COLUMNS} FROM book_entry
+                 WHERE {published_clause} AND status = ?
+                 ORDER BY published_at DESC LIMIT ?"
+            )
+        }
+    } else if draft {
         format!(
             "SELECT {COLUMNS} FROM book_entry
-             WHERE published_at IS NOT NULL AND status = ?
-             ORDER BY published_at DESC LIMIT ?"
+             ORDER BY COALESCE(published_at, created_at) DESC LIMIT ?"
         )
     } else {
         format!(
             "SELECT {COLUMNS} FROM book_entry
-             WHERE published_at IS NOT NULL
+             WHERE {published_clause}
              ORDER BY published_at DESC LIMIT ?"
         )
     };

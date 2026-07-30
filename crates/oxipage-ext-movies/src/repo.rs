@@ -129,38 +129,69 @@ pub async fn find_entry_by_slug(
     Ok(entry)
 }
 
-/// 발행본만. series_group_slug로 필터 가능.
+/// `draft=true` → 미발행 포함. 기본은 발행본만.
+/// series_group_slug로 필터 가능.
 /// 정렬: 최신 watched_at 우선, 없으면 최신 created_at. NULL은 뒤로.
+pub async fn list_entries(
+    pool: &SqlitePool,
+    series_group_slug: Option<&str>,
+    limit: i64,
+    draft: bool,
+) -> anyhow::Result<Vec<MovieEntry>> {
+    let limit = limit.clamp(1, 200);
+    let published_clause = if draft { "" } else { "published_at IS NOT NULL" };
+    let entries = if let Some(slug) = series_group_slug {
+        let sql = if draft {
+            format!(
+                "SELECT {ENTRY_COLUMNS} FROM movie_entry
+                 WHERE series_group_id = (SELECT id FROM series_group WHERE slug = ?)
+                 ORDER BY COALESCE(watched_at, created_at) DESC, id DESC
+                 LIMIT ?"
+            )
+        } else {
+            format!(
+                "SELECT {ENTRY_COLUMNS} FROM movie_entry
+                 WHERE {published_clause}
+                   AND series_group_id = (SELECT id FROM series_group WHERE slug = ?)
+                 ORDER BY COALESCE(watched_at, created_at) DESC, id DESC
+                 LIMIT ?"
+            )
+        };
+        sqlx::query_as::<_, MovieEntry>(&sql)
+            .bind(slug)
+            .bind(limit)
+            .fetch_all(pool)
+            .await?
+    } else {
+        let sql = if draft {
+            format!(
+                "SELECT {ENTRY_COLUMNS} FROM movie_entry
+                 ORDER BY COALESCE(watched_at, created_at) DESC, id DESC
+                 LIMIT ?"
+            )
+        } else {
+            format!(
+                "SELECT {ENTRY_COLUMNS} FROM movie_entry
+                 WHERE {published_clause}
+                 ORDER BY COALESCE(watched_at, created_at) DESC, id DESC
+                 LIMIT ?"
+            )
+        };
+        sqlx::query_as::<_, MovieEntry>(&sql)
+            .bind(limit)
+            .fetch_all(pool)
+            .await?
+    };
+    Ok(entries)
+}
+
+/// 하위 호환: 발행본만. 새 코드는 `list_entries(_, _, _, false)`를 직접 호출.
 pub async fn list_entries_published(
     pool: &SqlitePool,
     series_group_slug: Option<&str>,
     limit: i64,
 ) -> anyhow::Result<Vec<MovieEntry>> {
-    let limit = limit.clamp(1, 200);
-    let entries = if let Some(slug) = series_group_slug {
-        sqlx::query_as::<_, MovieEntry>(&format!(
-            "SELECT {ENTRY_COLUMNS} FROM movie_entry
-             WHERE published_at IS NOT NULL
-               AND series_group_id = (SELECT id FROM series_group WHERE slug = ?)
-             ORDER BY COALESCE(watched_at, created_at) DESC, id DESC
-             LIMIT ?"
-        ))
-        .bind(slug)
-        .bind(limit)
-        .fetch_all(pool)
-        .await?
-    } else {
-        sqlx::query_as::<_, MovieEntry>(&format!(
-            "SELECT {ENTRY_COLUMNS} FROM movie_entry
-             WHERE published_at IS NOT NULL
-             ORDER BY COALESCE(watched_at, created_at) DESC, id DESC
-             LIMIT ?"
-        ))
-        .bind(limit)
-        .fetch_all(pool)
-        .await?
-    };
-    Ok(entries)
+    list_entries(pool, series_group_slug, limit, false).await
 }
 
 /// 시리즈에 속한 entry (group_id 기반).

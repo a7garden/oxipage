@@ -81,6 +81,8 @@ pub struct BookPatch {
 pub struct ListQuery {
     pub status: Option<String>,
     pub limit: Option<i64>,
+    #[serde(default)]
+    pub draft: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]

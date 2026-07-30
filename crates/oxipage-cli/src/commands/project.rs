@@ -105,7 +105,7 @@ pub(crate) async fn project(c: ProjectCommand, out: &Output) -> anyhow::Result<(
             out.data(serde_json::to_value(&project)?, "published")
         }
         ProjectCommand::List { status, json: _ } => {
-            let projects = repo::list(&pool, status.as_deref(), 200).await?;
+            let projects = repo::list(&pool, status.as_deref(), 200, false).await?;
             out.data(serde_json::to_value(&projects)?, "projects")
         }
         ProjectCommand::Show { slug } => {

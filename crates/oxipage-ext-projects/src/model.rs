@@ -90,4 +90,7 @@ pub struct ScreenshotInput {
 pub struct ListQuery {
     pub status: Option<String>,
     pub limit: Option<i64>,
+    /// `draft=true` → 미발행 행 포함. 관리 콘솔용.
+    #[serde(default)]
+    pub draft: bool,
 }

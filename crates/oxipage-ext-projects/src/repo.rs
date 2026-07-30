@@ -91,15 +91,27 @@ pub async fn list(
     pool: &SqlitePool,
     status: Option<&str>,
     limit: i64,
+    draft: bool,
 ) -> anyhow::Result<Vec<Project>> {
     let limit = limit.clamp(1, 200);
-    let sql = if status.is_some() {
+    let published_clause = if draft { "" } else { "published_at IS NOT NULL" };
+    let sql = if let Some(s) = status {
+        if draft {
+            format!(
+                "SELECT {COLUMNS} FROM project WHERE status = ? ORDER BY featured DESC, published_at DESC, created_at DESC LIMIT ?"
+            )
+        } else {
+            format!(
+                "SELECT {COLUMNS} FROM project WHERE {published_clause} AND status = ? ORDER BY featured DESC, published_at DESC LIMIT ?"
+            )
+        }
+    } else if draft {
         format!(
-            "SELECT {COLUMNS} FROM project WHERE published_at IS NOT NULL AND status = ? ORDER BY featured DESC, published_at DESC LIMIT ?"
+            "SELECT {COLUMNS} FROM project ORDER BY featured DESC, published_at DESC, created_at DESC LIMIT ?"
         )
     } else {
         format!(
-            "SELECT {COLUMNS} FROM project WHERE published_at IS NOT NULL ORDER BY featured DESC, published_at DESC LIMIT ?"
+            "SELECT {COLUMNS} FROM project WHERE {published_clause} ORDER BY featured DESC, published_at DESC LIMIT ?"
         )
     };
     let mut q = sqlx::query_as::<_, Project>(&sql);

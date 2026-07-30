@@ -27,7 +27,7 @@ pub async fn list(
         ));
     }
     let limit = q.limit.unwrap_or(20);
-    let books = repo::list(&pool.db, q.status.as_deref(), limit)
+    let books = repo::list(&pool.db, q.status.as_deref(), limit, q.draft)
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope { data: books }))

@@ -90,7 +90,7 @@ impl Extension for BooksExtension {
     }
 
     async fn lobby_summary(&self, ctx: &AppState) -> Option<LobbyCard> {
-        let recent = repo::list(&ctx.db, None, 3).await.ok()?;
+        let recent = repo::list(&ctx.db, None, 3, false).await.ok()?;
         if recent.is_empty() {
             return None;
         }
@@ -230,7 +230,7 @@ impl BuildExt for BooksExtension {
         db: &SqlitePool,
         rt: &tokio::runtime::Handle,
     ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
-        let books: Vec<model::Book> = rt.block_on(repo::list(db, None, 200))?;
+        let books: Vec<model::Book> = rt.block_on(repo::list(db, None, 200, false))?;
         let mut pages = Vec::with_capacity(books.len());
         for b in &books {
             let excerpt: String = b
@@ -259,7 +259,7 @@ impl BuildExt for BooksExtension {
         db: &SqlitePool,
         rt: &tokio::runtime::Handle,
     ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
-        let books: Vec<model::Book> = rt.block_on(repo::list(db, None, 200))?;
+        let books: Vec<model::Book> = rt.block_on(repo::list(db, None, 200, false))?;
         Ok(Box::new(books))
     }
 
@@ -268,7 +268,7 @@ impl BuildExt for BooksExtension {
         db: &SqlitePool,
         rt: &tokio::runtime::Handle,
     ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
-        let books: Vec<model::Book> = rt.block_on(repo::list(db, None, 200))?;
+        let books: Vec<model::Book> = rt.block_on(repo::list(db, None, 200, false))?;
         Ok(books
             .into_iter()
             .map(|b| {

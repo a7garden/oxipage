@@ -55,7 +55,7 @@ impl Extension for ProjectsExtension {
     }
 
     async fn lobby_summary(&self, ctx: &AppState) -> Option<LobbyCard> {
-        let projects = repo::list(&ctx.db, None, 3).await.ok()?;
+        let projects = repo::list(&ctx.db, None, 3, false).await.ok()?;
         let items = projects
             .into_iter()
             .map(|p| LobbyCardItem {
@@ -80,7 +80,7 @@ impl BuildExt for ProjectsExtension {
         db: &SqlitePool,
         rt: &tokio::runtime::Handle,
     ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
-        let projects: Vec<model::Project> = rt.block_on(repo::list(db, None, 200))?;
+        let projects: Vec<model::Project> = rt.block_on(repo::list(db, None, 200, false))?;
 
         let mut pages = Vec::with_capacity(projects.len());
 
@@ -133,7 +133,7 @@ impl BuildExt for ProjectsExtension {
         db: &SqlitePool,
         rt: &tokio::runtime::Handle,
     ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
-        let projects: Vec<model::Project> = rt.block_on(repo::list(db, None, 200))?;
+        let projects: Vec<model::Project> = rt.block_on(repo::list(db, None, 200, false))?;
         Ok(Box::new(projects))
     }
 
@@ -142,7 +142,7 @@ impl BuildExt for ProjectsExtension {
         db: &SqlitePool,
         rt: &tokio::runtime::Handle,
     ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
-        let projects: Vec<model::Project> = rt.block_on(repo::list(db, None, 200))?;
+        let projects: Vec<model::Project> = rt.block_on(repo::list(db, None, 200, false))?;
 
         let docs: Vec<SearchDoc> = projects
             .into_iter()

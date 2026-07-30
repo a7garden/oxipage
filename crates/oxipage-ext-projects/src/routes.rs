@@ -14,7 +14,7 @@ pub async fn list(
     Query(q): Query<ListQuery>,
 ) -> Result<Json<DataEnvelope<Vec<crate::model::Project>>>, ApiError> {
     let limit = q.limit.unwrap_or(20);
-    let projects = repo::list(&pool.db, q.status.as_deref(), limit)
+    let projects = repo::list(&pool.db, q.status.as_deref(), limit, q.draft)
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope { data: projects }))
