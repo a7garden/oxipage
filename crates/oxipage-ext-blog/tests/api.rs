@@ -108,7 +108,11 @@ async fn draft_create_then_publish_flow() {
     // 발행본 목록은 비어 있음
     let res = app
         .clone()
-        .oneshot(Request::get("/api/console/blog").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/console/blog")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let json = body_json(res).await;
@@ -156,7 +160,11 @@ async fn draft_create_then_publish_flow() {
 
     // 발행본 목록에 1개
     let res = app
-        .oneshot(Request::get("/api/console/blog").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/console/blog")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let json = body_json(res).await;

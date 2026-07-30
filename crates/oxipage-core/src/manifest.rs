@@ -127,14 +127,13 @@ pub async fn assemble(
 /// (first boot seeds rows from `[extensions].enabled`), and silently dropping content there
 /// would be worse than including it. Once seeded, the row authoritatively gates inclusion.
 async fn is_active(db: &SqlitePool, ext_id: &str) -> bool {
-    let row: Option<(i64, i64)> = sqlx::query_as(
-        "SELECT enabled, purged FROM extension_state WHERE extension_id = ?",
-    )
-    .bind(ext_id)
-    .fetch_optional(db)
-    .await
-    .ok()
-    .flatten();
+    let row: Option<(i64, i64)> =
+        sqlx::query_as("SELECT enabled, purged FROM extension_state WHERE extension_id = ?")
+            .bind(ext_id)
+            .fetch_optional(db)
+            .await
+            .ok()
+            .flatten();
     match row {
         Some((enabled, purged)) => enabled != 0 && purged == 0,
         None => true,

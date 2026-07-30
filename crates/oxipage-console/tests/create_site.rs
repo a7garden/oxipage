@@ -38,5 +38,8 @@ async fn create_site_handler_seeds_toml_and_returns_slug() {
     let status = resp.status();
     let body = body_string(resp).await;
     assert_eq!(status, StatusCode::OK, "create-site failed: {body}");
-    assert!(target.join("oxipage.toml").exists(), "oxipage.toml should exist");
+    assert!(
+        target.join("oxipage.toml").exists(),
+        "oxipage.toml should exist"
+    );
 }

@@ -1,6 +1,6 @@
 use axum::Router;
-use axum::extract::Extension;
 use axum::body::{Body, to_bytes};
+use axum::extract::Extension;
 use axum::http::{Request, StatusCode};
 use oxipage_core::config::Config;
 use oxipage_core::registry::ExtensionRegistry;
@@ -39,7 +39,11 @@ async fn body_json(res: axum::response::Response) -> serde_json::Value {
 async fn get_profile_returns_seeded_singleton() {
     let app = test_app(Some("tok")).await;
     let res = app
-        .oneshot(Request::get("/api/console/profile").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/console/profile")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
@@ -76,7 +80,11 @@ async fn put_roundtrip_updates_profile() {
     assert_eq!(json["data"]["education"][0]["institution"], "SNU");
 
     let res = app
-        .oneshot(Request::get("/api/console/profile").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/console/profile")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let json = body_json(res).await;

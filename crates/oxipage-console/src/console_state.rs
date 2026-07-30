@@ -4,8 +4,8 @@
 //! per-site databases. The `setup_state` table tracks whether the first-run
 //! wizard has completed (spec §6.0).
 
-use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::SqlitePool;
+use sqlx::sqlite::SqlitePoolOptions;
 use std::path::Path;
 
 /// Console-level state: a lightweight SQLite DB with setup tracking.
@@ -50,11 +50,10 @@ impl ConsoleState {
 
     /// Returns `true` if the setup wizard has never completed.
     pub async fn is_setup_needed(&self) -> bool {
-        let row: Result<(Option<String>,), _> = sqlx::query_as(
-            "SELECT setup_completed_at FROM setup_state WHERE id = 1",
-        )
-        .fetch_one(&self.pool)
-        .await;
+        let row: Result<(Option<String>,), _> =
+            sqlx::query_as("SELECT setup_completed_at FROM setup_state WHERE id = 1")
+                .fetch_one(&self.pool)
+                .await;
         row.map(|r| r.0.is_none()).unwrap_or(true)
     }
 
@@ -78,12 +77,11 @@ mod tests {
     async fn console_state_migrates_setup_state_table() {
         let tmp = TempDir::with_prefix("oxipage-console-state-").unwrap();
         let state = ConsoleState::open(tmp.path()).await.unwrap();
-        let row: (i64, Option<String>) = sqlx::query_as(
-            "SELECT id, setup_completed_at FROM setup_state WHERE id = 1",
-        )
-        .fetch_one(state.pool())
-        .await
-        .unwrap();
+        let row: (i64, Option<String>) =
+            sqlx::query_as("SELECT id, setup_completed_at FROM setup_state WHERE id = 1")
+                .fetch_one(state.pool())
+                .await
+                .unwrap();
         assert_eq!(row.0, 1);
         assert!(row.1.is_none(), "setup should not be completed yet");
     }

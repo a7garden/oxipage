@@ -1,6 +1,6 @@
 use axum::Router;
-use axum::extract::Extension;
 use axum::body::{Body, to_bytes};
+use axum::extract::Extension;
 use axum::http::{Request, StatusCode, header::AUTHORIZATION};
 use oxipage_core::config::Config;
 use oxipage_core::registry::ExtensionRegistry;

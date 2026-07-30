@@ -1,6 +1,6 @@
 use axum::Router;
-use axum::extract::Extension;
 use axum::body::{Body, to_bytes};
+use axum::extract::Extension;
 use axum::http::{Request, StatusCode, header::AUTHORIZATION};
 use oxipage_core::config::Config;
 use oxipage_core::registry::ExtensionRegistry;
@@ -25,7 +25,9 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
         e.on_startup(&state).await.unwrap();
     }
     let r = registry.find("scraps").unwrap().routes();
-    Router::new().nest("/api/console/scraps", r).layer(Extension(SiteScopedDb { db: pool }))
+    Router::new()
+        .nest("/api/console/scraps", r)
+        .layer(Extension(SiteScopedDb { db: pool }))
 }
 
 async fn body_json(res: axum::response::Response) -> serde_json::Value {
@@ -117,7 +119,11 @@ async fn manual_create_list_show_patch_flow() {
     // list — 1개
     let res = app
         .clone()
-        .oneshot(Request::get("/api/console/scraps").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/console/scraps")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let json = body_json(res).await;
@@ -189,7 +195,11 @@ async fn manual_create_list_show_patch_flow() {
 
     // 삭제 후 비어 있음
     let res = app
-        .oneshot(Request::get("/api/console/scraps").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/console/scraps")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let json = body_json(res).await;
@@ -280,7 +290,11 @@ async fn queue_publish_and_source_filter_flow() {
     // 큐 row는 일반 list에 안 나옴
     let res = app
         .clone()
-        .oneshot(Request::get("/api/console/scraps").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/console/scraps")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let json = body_json(res).await;
@@ -316,7 +330,11 @@ async fn queue_publish_and_source_filter_flow() {
     // publish 후 list — 1개
     let res = app
         .clone()
-        .oneshot(Request::get("/api/console/scraps").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/console/scraps")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let json = body_json(res).await;

@@ -9,11 +9,11 @@
 pub use oxipage_core::state::SiteScopedDb;
 
 use crate::loader;
-use oxipage_core::sites::SitesFile;
+use oxipage_core::builder::BuildExt;
 use oxipage_core::config::Config;
 use oxipage_core::extension::WasmLoader;
-use oxipage_core::builder::BuildExt;
 use oxipage_core::registry::ExtensionRegistry;
+use oxipage_core::sites::SitesFile;
 use sqlx::SqlitePool;
 use std::collections::HashMap;
 use std::path::PathBuf;

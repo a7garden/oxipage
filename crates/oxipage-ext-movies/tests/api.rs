@@ -1,6 +1,6 @@
 use axum::Router;
-use axum::extract::Extension;
 use axum::body::{Body, to_bytes};
+use axum::extract::Extension;
 use axum::http::{Request, StatusCode, header::AUTHORIZATION};
 use oxipage_core::config::Config;
 use oxipage_core::registry::ExtensionRegistry;
@@ -166,7 +166,11 @@ async fn manual_create_publish_show_flow() {
     // 3) 발행본 목록은 비어있음
     let res = app
         .clone()
-        .oneshot(Request::get("/api/console/movies").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/console/movies")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let json = body_json(res).await;
@@ -204,7 +208,11 @@ async fn manual_create_publish_show_flow() {
 
     // 6) 발행본 목록에 1개
     let res = app
-        .oneshot(Request::get("/api/console/movies").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/console/movies")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let json = body_json(res).await;

@@ -1,6 +1,6 @@
 use axum::Router;
-use axum::extract::Extension;
 use axum::body::{Body, to_bytes};
+use axum::extract::Extension;
 use axum::http::{Request, StatusCode, header::AUTHORIZATION};
 use oxipage_core::config::Config;
 use oxipage_core::registry::ExtensionRegistry;
@@ -112,7 +112,11 @@ async fn create_show_patch_delete_and_featured_filter() {
     // 전체 목록 2개, order 순
     let res = app
         .clone()
-        .oneshot(Request::get("/api/console/links").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/console/links")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let json = body_json(res).await;
@@ -176,7 +180,11 @@ async fn create_show_patch_delete_and_featured_filter() {
 
     // 삭제 후 총 1개
     let res = app
-        .oneshot(Request::get("/api/console/links").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/console/links")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let json = body_json(res).await;

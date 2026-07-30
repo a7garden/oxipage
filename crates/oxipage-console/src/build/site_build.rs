@@ -2,8 +2,8 @@
 
 use crate::sites_runtime::SiteRegistry;
 use axum::extract::{Path, State};
-use axum::{Json, Router};
 use axum::routing::post;
+use axum::{Json, Router};
 use serde::Serialize;
 use std::sync::Arc;
 
@@ -26,10 +26,10 @@ pub(crate) async fn build_handler(
     State(registry): State<Arc<SiteRegistry>>,
     Path(slug): Path<String>,
 ) -> Result<Json<BuildResult>, (axum::http::StatusCode, String)> {
-    let ctx = registry
-        .ctx_for(&slug)
-        .await
-        .ok_or((axum::http::StatusCode::NOT_FOUND, "site_not_found".to_string()))?;
+    let ctx = registry.ctx_for(&slug).await.ok_or((
+        axum::http::StatusCode::NOT_FOUND,
+        "site_not_found".to_string(),
+    ))?;
     let out_dir = ctx.path.join("out");
     std::fs::create_dir_all(&out_dir)
         .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;

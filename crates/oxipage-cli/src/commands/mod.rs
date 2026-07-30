@@ -61,7 +61,6 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
     let token = resolve_token(cli.token.clone(), site_name, &sites_file)?;
     let client = Client::new(endpoint, token, cli.insecure)?;
 
-
     // Open doesn't need HTTP — just open browser
     match cli.command {
         Command::Init { wizard } => {
@@ -88,7 +87,7 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
         Command::Deploy(c) => deploy::deploy(c, &out).await,
         Command::Query(c) => query::query(c).await,
         Command::Schema(c) => schema::schema(c).await,
-        Command::Site(_) => unreachable!(),      // handled above
+        Command::Site(_) => unreachable!(), // handled above
         Command::Dynamic(ref args) => dispatch_dynamic(args, &client, &out).await,
     }
 }

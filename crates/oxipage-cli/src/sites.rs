@@ -113,14 +113,19 @@ mod tests {
             default_site: Some("blog".into()),
             sites: BTreeMap::from([(
                 "blog".into(),
-                SiteEntry { path: PathBuf::from("/tmp/oxipage/test-blog") },
+                SiteEntry {
+                    path: PathBuf::from("/tmp/oxipage/test-blog"),
+                },
             )]),
         };
         let raw = toml::to_string(&sf).unwrap();
         assert!(raw.contains("path"));
         assert!(!raw.contains("endpoint"));
         let back: SitesFile = toml::from_str(&raw).unwrap();
-        assert_eq!(back.sites["blog"].path, PathBuf::from("/tmp/oxipage/test-blog"));
+        assert_eq!(
+            back.sites["blog"].path,
+            PathBuf::from("/tmp/oxipage/test-blog")
+        );
     }
 
     #[test]

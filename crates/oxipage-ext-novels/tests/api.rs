@@ -1,6 +1,6 @@
 use axum::Router;
-use axum::extract::Extension;
 use axum::body::{Body, to_bytes};
+use axum::extract::Extension;
 use axum::http::{Request, StatusCode, header::AUTHORIZATION};
 use oxipage_core::config::Config;
 use oxipage_core::registry::ExtensionRegistry;
@@ -25,7 +25,9 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
         e.on_startup(&state).await.unwrap();
     }
     let r = registry.find("novels").unwrap().routes();
-    Router::new().nest("/api/console/novels", r).layer(Extension(SiteScopedDb { db: pool }))
+    Router::new()
+        .nest("/api/console/novels", r)
+        .layer(Extension(SiteScopedDb { db: pool }))
 }
 
 async fn body_json(res: axum::response::Response) -> serde_json::Value {

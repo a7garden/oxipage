@@ -1,8 +1,8 @@
 //! Tests for site-prefixed routes and middleware.
 
+use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use axum::Router;
 use oxipage_console::router::build_console_router;
 use oxipage_console::sites_runtime::SiteRegistry;
 use oxipage_core::sites::SitesFile;

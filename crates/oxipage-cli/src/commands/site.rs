@@ -82,7 +82,9 @@ fn site_list(
             } else {
                 "  "
             };
-            let path = entry.map(|e| e.path.display().to_string()).unwrap_or_else(|| "?".into());
+            let path = entry
+                .map(|e| e.path.display().to_string())
+                .unwrap_or_else(|| "?".into());
             println!("{marker}{name}   {path}");
         }
     }
@@ -156,7 +158,9 @@ async fn site_add(
         anyhow::bail!("path '{path}' is not an oxipage project (no oxipage.toml found)");
     }
     let mut new_sites = sites_file.clone();
-    new_sites.sites.insert(name.to_string(), sites::SiteEntry { path: site_path });
+    new_sites
+        .sites
+        .insert(name.to_string(), sites::SiteEntry { path: site_path });
     if default || new_sites.default_site.is_none() {
         new_sites.default_site = Some(name.to_string());
     }

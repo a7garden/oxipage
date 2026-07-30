@@ -226,19 +226,20 @@ impl SetupSaveHandler for ActivitySyncSave {
         let client = client::GithubClient::from_env()?;
         let mut synced = 0u32;
         if client.enabled()
-            && let Ok(events) = client.fetch_public_events().await {
-                for event in events {
-                    if event.kind.trim().is_empty()
-                        || event.repo.name.trim().is_empty()
-                        || event.created_at.trim().is_empty()
-                    {
-                        continue;
-                    }
-                    if repo::upsert(&ctx.db, &event.into_input()).await.is_ok() {
-                        synced += 1;
-                    }
+            && let Ok(events) = client.fetch_public_events().await
+        {
+            for event in events {
+                if event.kind.trim().is_empty()
+                    || event.repo.name.trim().is_empty()
+                    || event.created_at.trim().is_empty()
+                {
+                    continue;
+                }
+                if repo::upsert(&ctx.db, &event.into_input()).await.is_ok() {
+                    synced += 1;
                 }
             }
+        }
         let mut m = serde_json::Map::new();
         m.insert("synced".into(), synced.to_string().into());
         Ok(StepOutcome { values: m })
@@ -257,7 +258,13 @@ impl BuildExt for ActivityExtension {
         let events: Vec<model::ActivityEvent> = rt.block_on(repo::list(db, None, 200))?;
         let items = events
             .iter()
-            .map(|e| format!("<li>{summary} — {repo}</li>", summary = e.summary, repo = e.repo_full_name))
+            .map(|e| {
+                format!(
+                    "<li>{summary} — {repo}</li>",
+                    summary = e.summary,
+                    repo = e.repo_full_name
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
         Ok(vec![StaticPage {

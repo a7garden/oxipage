@@ -3,8 +3,8 @@
 //! route is a placeholder pending module integration.
 
 use crate::sites_runtime::SiteRegistry;
-use axum::extract::{Path, State};
 use axum::Json;
+use axum::extract::{Path, State};
 use serde::Serialize;
 use std::sync::Arc;
 

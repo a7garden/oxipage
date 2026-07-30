@@ -2,8 +2,8 @@
 //! registers it in sites.toml. Called by the setup wizard and the
 //! "new site" UI.
 
-use axum::http::StatusCode;
 use axum::Json;
+use axum::http::StatusCode;
 use oxipage_core::sites::SitesFile;
 use serde::Deserialize;
 use std::path::PathBuf;
@@ -68,11 +68,21 @@ pub async fn create_site_handler(
     // Validate path
     if path.exists() {
         if !path.join("oxipage.toml").exists() {
-            return Err((StatusCode::BAD_REQUEST, format!("path '{}' exists but is not an oxipage project (no oxipage.toml)", path.display())));
+            return Err((
+                StatusCode::BAD_REQUEST,
+                format!(
+                    "path '{}' exists but is not an oxipage project (no oxipage.toml)",
+                    path.display()
+                ),
+            ));
         }
     } else {
-        std::fs::create_dir_all(&path)
-            .map_err(|e| (StatusCode::BAD_REQUEST, format!("cannot create directory: {e}")))?;
+        std::fs::create_dir_all(&path).map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("cannot create directory: {e}"),
+            )
+        })?;
     }
 
     // Seed oxipage.toml if not present
@@ -90,8 +100,12 @@ data_dir = "data"
 [extensions]
 enabled = ["profile", "blog"]
 "#;
-        std::fs::write(path.join("oxipage.toml"), toml_content)
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("cannot write oxipage.toml: {e}")))?;
+        std::fs::write(path.join("oxipage.toml"), toml_content).map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("cannot write oxipage.toml: {e}"),
+            )
+        })?;
     }
 
     // Derive slug from directory name

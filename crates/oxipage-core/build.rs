@@ -32,8 +32,9 @@ fn main() {
     let web_dist_static = root.join("../../web/dist-static");
     if web_dist_static.exists() {
         let _ = std::fs::remove_dir_all(&static_embed_dir);
-        copy_dir(&web_dist_static, &static_embed_dir)
-            .unwrap_or_else(|e| panic!("failed to copy web/dist-static to embedded-spa-static: {e}"));
+        copy_dir(&web_dist_static, &static_embed_dir).unwrap_or_else(|e| {
+            panic!("failed to copy web/dist-static to embedded-spa-static: {e}")
+        });
     } else if !static_embed_dir.exists() {
         // Fall back to the live bundle so the build still produces a site (less efficient —
         // the SPA will attempt /api/console fetches, but at least the assets are present).

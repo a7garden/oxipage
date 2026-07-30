@@ -222,7 +222,8 @@ async fn lobby_config_list(
         if !state.registry.is_active(e.id()).await {
             continue;
         }
-        let info = crate::manifest::lobby_config_for(&state.db, &state.config, e.id(), idx as i64).await;
+        let info =
+            crate::manifest::lobby_config_for(&state.db, &state.config, e.id(), idx as i64).await;
         entries.push(LobbyConfigEntry {
             extension_id: e.id().to_string(),
             enabled: info.enabled,

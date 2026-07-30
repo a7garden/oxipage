@@ -40,7 +40,10 @@ pub(crate) async fn extension(
         }
         ExtensionCommand::Disable { name } => {
             let res = client
-                .post_raw(&format!("/api/console/extensions/{name}/disable"), json!({}))
+                .post_raw(
+                    &format!("/api/console/extensions/{name}/disable"),
+                    json!({}),
+                )
                 .await?;
             out.data(res, "extension disabled")
         }
@@ -50,7 +53,9 @@ pub(crate) async fn extension(
                     "purge is destructive — pass --yes to confirm (drops tables + removes media for '{name}')"
                 );
             }
-            let res = client.delete(&format!("/api/console/extensions/{name}")).await?;
+            let res = client
+                .delete(&format!("/api/console/extensions/{name}"))
+                .await?;
             out.data(res, "extension purged")
         }
         ExtensionCommand::Install { name } => {

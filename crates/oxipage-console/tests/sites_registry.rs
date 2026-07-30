@@ -43,9 +43,18 @@ async fn registry_loads_each_valid_site_and_lookups_db() {
     sf.set_default("a");
 
     let reg = SiteRegistry::new(sf).await.unwrap();
-    assert!(reg.db_for("a").await.is_some(), "site 'a' should have a DB pool");
-    assert!(reg.db_for("b").await.is_some(), "site 'b' should have a DB pool");
-    assert!(reg.db_for("missing").await.is_none(), "unknown slug should return None");
+    assert!(
+        reg.db_for("a").await.is_some(),
+        "site 'a' should have a DB pool"
+    );
+    assert!(
+        reg.db_for("b").await.is_some(),
+        "site 'b' should have a DB pool"
+    );
+    assert!(
+        reg.db_for("missing").await.is_none(),
+        "unknown slug should return None"
+    );
     assert_eq!(reg.default_slug().await, Some("a".into()));
     assert_eq!(reg.len(), 2);
 }
@@ -54,7 +63,10 @@ async fn registry_loads_each_valid_site_and_lookups_db() {
 async fn registry_skips_missing_path() {
     let mut sf = SitesFile::default();
     // Non-existent path — should be skipped with a warning.
-    sf.add("ghost".into(), PathBuf::from("/tmp/oxipage/nonexistent-XXXXXX"));
+    sf.add(
+        "ghost".into(),
+        PathBuf::from("/tmp/oxipage/nonexistent-XXXXXX"),
+    );
 
     let reg = SiteRegistry::new(sf).await.unwrap();
     assert!(reg.db_for("ghost").await.is_none());

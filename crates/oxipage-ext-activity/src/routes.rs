@@ -124,11 +124,11 @@ fn hex_decode(s: &str) -> Option<Vec<u8>> {
         .collect()
 }
 
-pub async fn sync(Extension(pool): Extension<SiteScopedDb>) -> Result<Json<serde_json::Value>, ApiError> {
-    let client = GithubClient::with_username(
-        std::env::var("OXIPAGE_GITHUB_USERNAME").ok(),
-    )
-    .map_err(ApiError::internal)?;
+pub async fn sync(
+    Extension(pool): Extension<SiteScopedDb>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let client = GithubClient::with_username(std::env::var("OXIPAGE_GITHUB_USERNAME").ok())
+        .map_err(ApiError::internal)?;
     if !client.enabled() {
         return Err(ApiError::new(
             StatusCode::SERVICE_UNAVAILABLE,

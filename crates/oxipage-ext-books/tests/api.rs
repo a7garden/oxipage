@@ -1,6 +1,6 @@
 use axum::Router;
-use axum::extract::Extension;
 use axum::body::{Body, to_bytes};
+use axum::extract::Extension;
 use axum::http::{Request, StatusCode, header::AUTHORIZATION};
 use oxipage_core::config::Config;
 use oxipage_core::registry::ExtensionRegistry;
@@ -25,7 +25,9 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
         e.on_startup(&state).await.unwrap();
     }
     let r = registry.find("books").unwrap().routes();
-    Router::new().nest("/api/console/books", r).layer(Extension(SiteScopedDb { db: pool }))
+    Router::new()
+        .nest("/api/console/books", r)
+        .layer(Extension(SiteScopedDb { db: pool }))
 }
 
 async fn body_json(res: axum::response::Response) -> serde_json::Value {
@@ -107,7 +109,11 @@ async fn manual_book_create_publish_show() {
 
     // list 에 포함
     let res = app
-        .oneshot(Request::get("/api/console/books").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/console/books")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let json = body_json(res).await;
@@ -292,7 +298,11 @@ async fn status_filter_and_patch_and_delete() {
 
     // 다시 list — 1개
     let res = app
-        .oneshot(Request::get("/api/console/books").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/api/console/books")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let json = body_json(res).await;

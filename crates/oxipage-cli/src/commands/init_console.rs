@@ -104,7 +104,6 @@ pub(crate) async fn console(
     oxipage_console::run_console().await
 }
 
-
 /// Start a lightweight HTTP server that serves a static directory.
 async fn serve_static_dir(dir: &Path, port: u16) -> anyhow::Result<()> {
     let app =

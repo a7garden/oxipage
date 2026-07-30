@@ -6,11 +6,11 @@
 //! `/blog/post-slug/index.html`).
 
 use crate::sites_runtime::SiteRegistry;
+use axum::Router;
 use axum::body::Body;
 use axum::extract::{Path, State};
-use axum::http::{header, Response, StatusCode};
+use axum::http::{Response, StatusCode, header};
 use axum::routing::get;
-use axum::Router;
 use std::path::PathBuf;
 use std::sync::Arc;
 
