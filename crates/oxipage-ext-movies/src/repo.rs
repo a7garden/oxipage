@@ -1,4 +1,4 @@
-use crate::model::{MovieEntry, MovieEntryInput, MovieEntryPatch, SeriesGroup, SeriesGroupInput};
+use crate::model::{MovieEntry, MovieEntryInput, MovieEntryPatch, SeriesGroup, SeriesGroupInput, SeriesGroupPatch};
 use sqlx::SqlitePool;
 
 const ENTRY_COLUMNS: &str = "id, slug, tmdb_id, media_type, title, poster_path, release_year,
@@ -378,6 +378,55 @@ pub async fn find_group_by_slug(
     .fetch_optional(pool)
     .await?;
     Ok(group)
+}
+
+pub async fn update_group(
+    pool: &SqlitePool,
+    slug: &str,
+    patch: &SeriesGroupPatch,
+) -> anyhow::Result<Option<SeriesGroup>> {
+    let mut sets: Vec<&str> = Vec::new();
+    if patch.title_ko.is_some() { sets.push("title_ko = ?"); }
+    if patch.title_en.is_some() { sets.push("title_en = ?"); }
+    if patch.cover_image.is_some() { sets.push("cover_image = ?"); }
+    if patch.group_rating.is_some() { sets.push("group_rating = ?"); }
+    if patch.group_review_ko.is_some() { sets.push("group_review_ko = ?"); }
+    if patch.group_review_en.is_some() { sets.push("group_review_en = ?"); }
+    if sets.is_empty() {
+        return find_group_by_slug(pool, slug).await;
+    }
+    sets.push("updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')");
+    let set_clause = sets.join(", ");
+
+    let sql = format!(
+        "UPDATE series_group SET {set_clause} WHERE slug = ? RETURNING {GROUP_COLUMNS}"
+    );
+    let mut q = sqlx::query_as::<_, SeriesGroup>(&sql);
+    if let Some(v) = &patch.title_ko { q = q.bind(v); }
+    if let Some(v) = &patch.title_en { q = q.bind(v); }
+    if let Some(v) = &patch.cover_image { q = q.bind(v); }
+    if let Some(v) = patch.group_rating { q = q.bind(v); }
+    if let Some(v) = &patch.group_review_ko { q = q.bind(v); }
+    if let Some(v) = &patch.group_review_en { q = q.bind(v); }
+    let group = q.bind(slug).fetch_optional(pool).await?;
+    Ok(group)
+}
+
+pub async fn delete_group(pool: &SqlitePool, slug: &str) -> anyhow::Result<bool> {
+    // Find group id first
+    let group = find_group_by_slug(pool, slug).await?;
+    let id = match group { Some(g) => g.id, None => return Ok(false) };
+    // Unassign members
+    sqlx::query("UPDATE movie_entry SET series_group_id = NULL WHERE series_group_id = ?")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    // Delete group
+    let res = sqlx::query("DELETE FROM series_group WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(res.rows_affected() > 0)
 }
 
 pub async fn list_groups(pool: &SqlitePool) -> anyhow::Result<Vec<SeriesGroup>> {

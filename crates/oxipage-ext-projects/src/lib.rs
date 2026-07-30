@@ -50,7 +50,8 @@ impl Extension for ProjectsExtension {
             .route("/{slug}/screenshots", post(routes::add_screenshot))
             .route(
                 "/{slug}/screenshots/{sid}",
-                axum::routing::delete(routes::delete_screenshot),
+                axum::routing::delete(routes::delete_screenshot)
+                    .patch(routes::update_screenshot),
             )
     }
 

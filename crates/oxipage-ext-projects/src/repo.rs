@@ -1,4 +1,4 @@
-use crate::model::{Project, ProjectInput, ProjectPatch, Screenshot};
+use crate::model::{Project, ProjectInput, ProjectPatch, Screenshot, ScreenshotPatch};
 use sqlx::SqlitePool;
 
 const COLUMNS: &str = "id, slug, title_ko, title_en, description_ko, description_en,
@@ -302,4 +302,35 @@ pub async fn delete_screenshot(
     .execute(pool)
     .await?;
     Ok(res.rows_affected() > 0)
+}
+
+pub async fn update_screenshot(
+    pool: &SqlitePool,
+    project_slug: &str,
+    sid: i64,
+    patch: &ScreenshotPatch,
+) -> anyhow::Result<Option<Screenshot>> {
+    let mut sets: Vec<&str> = Vec::new();
+    if patch.alt_ko.is_some() { sets.push("alt_ko = ?"); }
+    if patch.alt_en.is_some() { sets.push("alt_en = ?"); }
+    if patch.display_order.is_some() { sets.push("display_order = ?"); }
+    if sets.is_empty() {
+        let shots = sqlx::query_as::<_, Screenshot>(&format!(
+            "SELECT {SCREENSHOT_COLUMNS} FROM screenshot WHERE id = ?"
+        ))
+        .bind(sid)
+        .fetch_optional(pool)
+        .await?;
+        return Ok(shots);
+    }
+    let set_clause = sets.join(", ");
+    let sql = format!(
+        "UPDATE screenshot SET {set_clause} WHERE id = ?          AND project_id = (SELECT id FROM project WHERE slug = ?)          RETURNING {SCREENSHOT_COLUMNS}"
+    );
+    let mut q = sqlx::query_as::<_, Screenshot>(&sql);
+    if let Some(v) = &patch.alt_ko { q = q.bind(v); }
+    if let Some(v) = &patch.alt_en { q = q.bind(v); }
+    if let Some(v) = patch.display_order { q = q.bind(v); }
+    let shot = q.bind(sid).bind(project_slug).fetch_optional(pool).await?;
+    Ok(shot)
 }

@@ -77,6 +77,13 @@ pub struct ProjectPatch {
     pub featured: Option<bool>,
 }
 
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct ScreenshotPatch {
+    pub alt_ko: Option<String>,
+    pub alt_en: Option<String>,
+    pub display_order: Option<i32>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct ScreenshotInput {
     pub url: String,

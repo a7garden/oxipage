@@ -1,7 +1,7 @@
 use crate::integration::TmdbClient;
 use crate::model::{
     ListQuery, MovieEntry, MovieEntryInput, MovieEntryPatch, SeriesGroup, SeriesGroupDetail,
-    SeriesGroupInput, TmdbSearchResult,
+    SeriesGroupInput, SeriesGroupPatch, TmdbSearchResult,
 };
 use crate::repo;
 use axum::Json;
@@ -300,6 +300,33 @@ pub async fn show_group(
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope {
         data: SeriesGroupDetail { group, entries },
+    }))
+}
+
+pub async fn update_group(
+    Extension(pool): Extension<SiteScopedDb>,
+    Path(slug): Path<String>,
+    Json(patch): Json<SeriesGroupPatch>,
+) -> Result<Json<DataEnvelope<SeriesGroup>>, ApiError> {
+    let group = repo::update_group(&pool.db, &slug, &patch)
+        .await
+        .map_err(ApiError::internal)?
+        .ok_or_else(|| not_found_group(&slug))?;
+    Ok(Json(DataEnvelope { data: group }))
+}
+
+pub async fn delete_group(
+    Extension(pool): Extension<SiteScopedDb>,
+    Path(slug): Path<String>,
+) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
+    let removed = repo::delete_group(&pool.db, &slug)
+        .await
+        .map_err(ApiError::internal)?;
+    if !removed {
+        return Err(not_found_group(&slug));
+    }
+    Ok(Json(DataEnvelope {
+        data: serde_json::json!({"removed": true}),
     }))
 }
 

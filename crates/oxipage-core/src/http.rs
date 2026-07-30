@@ -60,6 +60,7 @@ pub fn build_app(state: AppState) -> Router {
             "/extensions/install",
             axum::routing::post(extension_install),
         )
+        .route("/extensions/registry", axum::routing::get(registry_list))
         .route("/backup/snapshot", axum::routing::post(backup_snapshot))
         .route("/cli/commands", get(cli_commands_handler))
         .route(
@@ -586,6 +587,37 @@ struct RegistryEntry {
     /// base64 ed25519 서명. 있으면 install 시 검증.
     #[serde(default)]
     signature: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+struct RegistryEntryPub {
+    name: String,
+    runtime_loadable: bool,
+    installed: bool,
+    source: &'static str,
+}
+
+async fn registry_list(
+    State(state): State<AppState>,
+) -> Result<Json<DataEnvelope<Vec<RegistryEntryPub>>>, ApiError> {
+    let index: RegistryIndex = serde_json::from_str(REGISTRY_INDEX_JSON).map_err(|e| {
+        ApiError::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "registry_error",
+            &e.to_string(),
+        )
+    })?;
+    let entries: Vec<RegistryEntryPub> = index
+        .extensions
+        .into_iter()
+        .filter(|e| e.runtime_loadable)
+                .map(|e| {
+            let installed = state.registry.find(&e.name).is_some();
+            let source = if e.name == "wasm-demo" { "embedded" } else { "remote" };
+            RegistryEntryPub { name: e.name, runtime_loadable: true, installed, source }
+        })
+        .collect();
+    Ok(Json(DataEnvelope { data: entries }))
 }
 
 /// .wasm 바이트의 ed25519 서명을 검증. 실패 시 CONFLICT 에러.

@@ -1,4 +1,4 @@
-use crate::model::{ListQuery, ProjectDetail, ProjectInput, ProjectPatch, ScreenshotInput};
+use crate::model::{ListQuery, ProjectDetail, ProjectInput, ProjectPatch, ScreenshotInput, ScreenshotPatch};
 use crate::repo;
 use axum::Json;
 use axum::extract::{Extension, Path, Query};
@@ -172,6 +172,18 @@ pub async fn delete_screenshot(
     Ok(Json(DataEnvelope {
         data: serde_json::json!({ "id": sid, "deleted": true }),
     }))
+}
+
+pub async fn update_screenshot(
+    Extension(pool): Extension<SiteScopedDb>,
+    Path((slug, sid)): Path<(String, i64)>,
+    Json(patch): Json<ScreenshotPatch>,
+) -> Result<Json<DataEnvelope<crate::model::Screenshot>>, ApiError> {
+    let shot = repo::update_screenshot(&pool.db, &slug, sid, &patch)
+        .await
+        .map_err(ApiError::internal)?
+        .ok_or_else(|| not_found(&format!("{slug}/screenshots/{sid}")))?;
+    Ok(Json(DataEnvelope { data: shot }))
 }
 
 async fn reindex(db: &SqlitePool, project: &crate::model::Project) -> Result<(), ApiError> {

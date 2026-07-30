@@ -93,6 +93,16 @@ pub struct ListQuery {
     pub draft: bool,
 }
 
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct SeriesGroupPatch {
+    pub title_ko: Option<String>,
+    pub title_en: Option<String>,
+    pub cover_image: Option<String>,
+    pub group_rating: Option<i8>,
+    pub group_review_ko: Option<String>,
+    pub group_review_en: Option<String>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct SeriesGroupInput {
     pub title_ko: Option<String>,
