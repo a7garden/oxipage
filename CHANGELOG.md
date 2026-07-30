@@ -5,7 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.7.0] - 2026-07-30
+
+### Added
+- **Site-scoped console.** The console server now operates per-site rather than per-app. The router is mounted under `/api/console`; every extension handler resolves through `SiteScopedDb` middleware that picks the right `console.db` from the request's site slug.
+- **Site directory wizard + `/s/{slug}/` redirect.** First-run setup walks the user through creating a site (slug, name, base URL, languages, enabled extensions). The `/s/{slug}/` URL scheme routes the SPA to the right site.
+- **Site-scoped build/deploy/preview endpoints.** `POST /api/console/sites/{slug}/build` runs `oxipage build` against the site's working directory; `/deploy` and `/preview` follow the same site-scoped shape.
+- **`create-site` CLI handler.** `oxipage init console` (or the new site-creation flow) creates the site directory, initializes `console.db`, registers the site, and surfaces the new slug in the site picker.
+- **Console-only SPA in `web/src/admin/`.** The old `admin-web/` Vite app was folded into `web/src/admin/` (shared Tailwind v4 + OKLCH tokens). One `web/dist` build now ships both lobby and console surfaces.
+- **`SitesFile` → `path-only` schema.** Sites are tracked as paths in `~/.config/oxipage/sites.toml`, no longer as opaque records.
+- **`console.db` with `setup_state` table.** Per-site setup state lives next to the site, not in a global DB.
+
+### Changed
+- **BREAKING: `Extension::routes()` now returns `Router` (no state).** Extension handlers receive `Extension<SiteScopedDb>` instead of `State<AppState>`. First-party extensions were updated in the same commit; no third-party consumers exist (the ecosystem is in-tree only).
+- **`oxipage-server` removed.** The old `:8788` admin module, the `admin-web/` app, and the standalone `admin` CLI subcommand were all deleted; the console absorbs their surface.
+
+### Fixed
+- Console router nested under `/api/console` so the SPA's static_handler no longer shadow-serves the API.
+- E2E CLI tests use `--path` for the site root (post schema migration).
+- `oxipage.toml` name + extensions corrupted from a merge smoke test — restored the original config.
+
+### Style
+- Workspace-wide `cargo fmt` pass (whitespace only).
 
 ## [0.6.0] - 2026-07-29
 
@@ -44,9 +65,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **oxipage-cli/SKILL.md**: replaced the removed PAT/auth flow with the loopback-only model.
 - **oxipage-core/Cargo.toml**: added explicit `include = [...]` so `cargo publish` bundles `embedded-spa/`, `_registry.json`, and `_wasm-demo.wasm` (these are gitignored build artifacts; without `include`, `cargo install oxipage` would ship a placeholder SPA and a broken `oxipage build`).
 
-### Style
-- Workspace-wide `cargo fmt` pass (whitespace only).
-
 ### Security
 - 17 outstanding `wasmtime 33.0.2` advisories remain, with two CRITICAL:
   - RUSTSEC-2026-0095 (Winch sandbox escape) — **does not apply**: workspace pin uses `features = ["cranelift", "runtime", "parallel-compilation", "cache"]`; the `winch` feature is not enabled, so the vulnerable code path is not compiled in.
@@ -65,7 +83,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Effective crates.io floor is `0.3.0` (`oxipage-wasm@0.3.0` already published under tag v0.3.0); 0.4.0 advances past that burn.
 - Continuation of the v0.3.0 line; the v0.3.0 Git tag was applied to a partial-publish state (4 crates were never released: `oxipage-ext-scraps`, `oxipage-ext-projects`, `oxipage-console`, `oxipage`). Those crates are not in 0.4.0 — they remain unpublished at 0.2.0 / absent from the registry; future cleanup is a separate concern.
 
-[Unreleased]: https://github.com/a7garden/oxipage/compare/v0.6.0...HEAD
+
+[Unreleased]: https://github.com/a7garden/oxipage/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/a7garden/oxipage/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/a7garden/oxipage/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/a7garden/oxipage/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/a7garden/oxipage/compare/v0.3.0...v0.4.0

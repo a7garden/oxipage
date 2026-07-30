@@ -1,6 +1,6 @@
 [package]
 name = "oxipage-ext-projects"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 license.workspace = true
 description = "프로젝트 포트폴리오 확장 — 구조적 이중언어, 스크린샷 갤러리 (doc/02 §2.4)"
@@ -14,7 +14,7 @@ anyhow.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 erased-serde.workspace = true
-oxipage-core = { version = "0.6.0", path = "../oxipage-core" }
+oxipage-core = { version = "0.7.0", path = "../oxipage-core" }
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true

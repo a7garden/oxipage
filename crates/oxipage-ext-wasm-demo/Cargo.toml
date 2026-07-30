@@ -1,6 +1,6 @@
 [package]
 name = "oxipage-ext-wasm-demo"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 description = "WASM 데모 확장 (doc/08 §8.4). 코어 모듈 + 수동 ABI. oxipage-wasm 호스트가 적재한다."
 publish = false
