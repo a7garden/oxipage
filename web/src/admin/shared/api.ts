@@ -219,19 +219,32 @@ export async function getRecent(slug: string, limit = 5): Promise<RecentItem[]> 
 
 // ─── Theme (GET/PUT) ──────────────────────────────────────────────────────
 
-export async function getTheme(slug: string): Promise<{ theme_id: string }> {
-  const res = await siteScopedFetch(slug, "/theme");
-  const json = await jsonOrThrow<{ data: { theme_id: string } }>(res);
+import type { ThemeDefinition } from "../../shared/theme";
+
+export interface SiteTheme {
+  theme_id: string;
+  definition: ThemeDefinition;
+}
+
+export async function listThemes(): Promise<ThemeDefinition[]> {
+  const res = await fetch(`${CONSOLE_BASE}/themes`);
+  const json = await jsonOrThrow<{ data: ThemeDefinition[] }>(res);
   return json.data;
 }
 
-export async function setTheme(slug: string, themeId: string): Promise<{ theme_id: string }> {
+export async function getTheme(slug: string): Promise<SiteTheme> {
+  const res = await siteScopedFetch(slug, "/theme");
+  const json = await jsonOrThrow<{ data: SiteTheme }>(res);
+  return json.data;
+}
+
+export async function setTheme(slug: string, themeId: string): Promise<SiteTheme> {
   const res = await siteScopedFetch(slug, "/theme", {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ theme_id: themeId }),
   });
-  const json = await jsonOrThrow<{ data: { theme_id: string } }>(res);
+  const json = await jsonOrThrow<{ data: SiteTheme }>(res);
   return json.data;
 }
 

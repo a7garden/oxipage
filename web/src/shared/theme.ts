@@ -96,3 +96,14 @@ export async function applyServerTheme(): Promise<void> {
     // 네트워크 에러 시 무시 — 로컬 테마 유지
   }
 }
+
+export interface ThemeDefinition {
+  id: string;
+  name_ko: string;
+  name_en: string;
+  mode: "light" | "dark";
+  accent_hue: number;
+  preview_colors: readonly [string, string, string, string];
+  description_ko: string;
+  description_en: string;
+}
