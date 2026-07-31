@@ -39,6 +39,7 @@ pub fn build_top_level_router() -> Router<Arc<SiteRegistry>> {
         .route("/sites/{slug}", delete(delete_site_handler))
         .route("/preview/{slug}/{*rest}", get(preview_handler))
         .route("/setup/create-site", post(create_site_handler))
+        .route("/theme", get(get_default_theme))
 }
 
 /// Per-site extension nests. Returns `Router<()>`. Handlers use
@@ -194,4 +195,54 @@ async fn delete_site_handler(
         (StatusCode::INTERNAL_SERVER_ERROR, format!("delete site: {e}"))
     })?;
     Ok(Json(serde_json::json!({"data": {"slug": slug, "removed": true}})))
+
+}
+
+/// `GET /api/console/theme` — current default site's theme definition.
+///
+/// Resolves the registered default site through `SiteRegistry`. With no
+/// registered site, returns `paper` without touching any DB. Never reads
+/// the global `AppState.db` (that handler used to read a different DB than
+/// the per-site endpoint).
+async fn get_default_theme(
+    State(registry): State<Arc<SiteRegistry>>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    use oxipage_core::theme::{find_theme, ALL_THEMES};
+
+    let slug = match registry.default_slug().await {
+        Some(s) => s,
+        None => {
+            let def = ALL_THEMES
+                .first()
+                .expect("paper always present in ALL_THEMES");
+            return Ok(Json(serde_json::json!({
+                "data": {
+                    "theme_id": def.id,
+                    "definition": def,
+                }
+            })));
+        }
+    };
+
+    let ctx = registry
+        .ctx_for(&slug)
+        .await
+        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("default site '{slug}' not loaded")))?;
+
+    let row: Option<(String,)> = sqlx::query_as("SELECT theme_id FROM theme_config WHERE id = 1")
+        .fetch_optional(&ctx.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("db: {e}")))?;
+
+    let theme_id = row.map(|r| r.0).unwrap_or_else(|| "paper".to_string());
+    let def = find_theme(&theme_id).unwrap_or_else(|| {
+        ALL_THEMES.first().expect("paper always present")
+    });
+
+    Ok(Json(serde_json::json!({
+        "data": {
+            "theme_id": def.id,
+            "definition": def,
+        }
+    })))
 }

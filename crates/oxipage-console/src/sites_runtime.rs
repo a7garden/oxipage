@@ -257,3 +257,22 @@ impl SiteRegistry {
         Ok(())
     }
 }
+
+impl SiteRegistry {
+    /// Build an empty registry for tests. No sites loaded, no default slug,
+    /// no-op build/deploy guards. Used by integration tests that exercise the
+    /// top-level router without booting a real site.
+    pub async fn empty_for_tests() -> Arc<Self> {
+        use crate::build::build_run::BuildGuard;
+        use crate::deploy::deploy_run::DeployGuard;
+
+        let sites_file = oxipage_core::sites::SitesFile::default();
+        let bg = Arc::new(BuildGuard::new());
+        let dg = Arc::new(DeployGuard::new());
+        Arc::new(
+            SiteRegistry::new(sites_file, bg, dg)
+                .await
+                .expect("empty SitesFile always loads"),
+        )
+    }
+}

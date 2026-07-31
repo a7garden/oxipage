@@ -7,6 +7,8 @@ use crate::extension::{
 use crate::search::SearchHit;
 use crate::setup;
 use crate::state::AppState;
+use crate::theme;
+
 use axum::body::Body;
 use axum::http::StatusCode;
 use axum::http::{Uri, header};
@@ -68,8 +70,8 @@ pub fn build_app(state: AppState) -> Router {
             "/cli/exec/{ext_id}/{sub_command}",
             axum::routing::post(cli_exec_handler),
         )
-        .route("/theme", get(theme_get).put(theme_put))
         .route("/themes", get(theme_catalog))
+
         .route("/build", axum::routing::post(build_handler))
         .route("/cache/refresh", axum::routing::post(cache_refresh_handler));
 
@@ -1042,119 +1044,15 @@ async fn cli_exec_handler(
 
 // ─── theme (doc/12 §12.7) ───
 
-/// 큐레이션 테마 카탈로그 엔트리.
-struct ThemeCatalogEntry {
-    id: &'static str,
-    name_ko: &'static str,
-    name_en: &'static str,
-    mode: &'static str,
-    accent_hue: f64,
-    description_ko: &'static str,
-    description_en: &'static str,
-}
-
-/// v1 큐레이션 테마 4종.
-const THEMES: &[ThemeCatalogEntry] = &[
-    ThemeCatalogEntry {
-        id: "paper",
-        name_ko: "종이",
-        name_en: "Paper",
-        mode: "light",
-        accent_hue: 160.0,
-        description_ko: "따뜻한 종이 배경, 파인 그린 악센트",
-        description_en: "Warm paper background, pine green accent",
-    },
-    ThemeCatalogEntry {
-        id: "midnight",
-        name_ko: "한밤",
-        name_en: "Midnight",
-        mode: "dark",
-        accent_hue: 230.0,
-        description_ko: "깊은 밤하늘, 시안-블루 악센트",
-        description_en: "Deep night sky, cyan-blue accent",
-    },
-    ThemeCatalogEntry {
-        id: "sepia",
-        name_ko: "세피아",
-        name_en: "Sepia",
-        mode: "light",
-        accent_hue: 70.0,
-        description_ko: "오래된 책장, 앰버-골드 악센트",
-        description_en: "Old bookshelf, amber-gold accent",
-    },
-    ThemeCatalogEntry {
-        id: "forest",
-        name_ko: "숲",
-        name_en: "Forest",
-        mode: "dark",
-        accent_hue: 155.0,
-        description_ko: "이끼 낀 숲, 에메랄드 악센트",
-        description_en: "Mossy forest, emerald accent",
-    },
-];
-
-/// GET /api/console/themes — 카탈로그 (인증 불요, 공개 웹이 읽음)
-async fn theme_catalog() -> Json<DataEnvelope<Vec<serde_json::Value>>> {
-    let list: Vec<serde_json::Value> = THEMES
-        .iter()
-        .map(|t| {
-            serde_json::json!({
-                "id": t.id,
-                "name": { "ko": t.name_ko, "en": t.name_en },
-                "mode": t.mode,
-                "accent_hue": t.accent_hue,
-                "description": { "ko": t.description_ko, "en": t.description_en },
-            })
-        })
-        .collect();
-    Json(DataEnvelope { data: list })
-}
-
-/// GET /api/console/theme — 현재 적용 테마 (인증 불요, 공개 웹이 읽음)
-async fn theme_get(
-    State(state): State<AppState>,
-) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
-    let row: Option<(String,)> = sqlx::query_as("SELECT theme_id FROM theme_config WHERE id = 1")
-        .fetch_optional(&state.db)
-        .await
-        .map_err(|e| ApiError::internal(anyhow::anyhow!("db: {e}")))?;
-
-    let theme_id = row.map(|r| r.0).unwrap_or_else(|| "paper".to_string());
-    Ok(Json(DataEnvelope {
-        data: serde_json::json!({"theme_id": theme_id}),
-    }))
-}
-
-/// PUT /api/console/theme — 테마 변경 (admin 스코프)
-#[derive(serde::Deserialize)]
-struct ThemePutInput {
-    theme_id: String,
-}
-
-async fn theme_put(
-    State(state): State<AppState>,
-    Json(input): Json<ThemePutInput>,
-) -> Result<Json<DataEnvelope<serde_json::Value>>, ApiError> {
-    // 유효한 테마인지 확인
-    let valid = THEMES.iter().any(|t| t.id == input.theme_id);
-    if !valid {
-        return Err(ApiError::new(
-            axum::http::StatusCode::BAD_REQUEST,
-            "invalid_theme",
-            &format!("'{}' is not a valid theme", input.theme_id),
-        ));
-    }
-
-    sqlx::query(
-        "INSERT INTO theme_config (id, theme_id, updated_at) VALUES (1, ?1, datetime('now'))
-         ON CONFLICT(id) DO UPDATE SET theme_id = ?1, updated_at = datetime('now')",
-    )
-    .bind(&input.theme_id)
-    .execute(&state.db)
-    .await
-    .map_err(|e| ApiError::internal(anyhow::anyhow!("db: {e}")))?;
-
-    Ok(Json(DataEnvelope {
-        data: serde_json::json!({"theme_id": input.theme_id}),
-    }))
+/// `GET /api/console/themes` — public catalog. Auth-free; used by the
+/// web SPA to enumerate available themes. Each entry is serialized with
+/// the SAME flat shape as the per-site and default-site theme endpoints
+/// (`{ id, name_ko, name_en, mode, accent_hue, preview_colors,
+/// description_ko, description_en }`). The browser `ThemeDefinition`
+/// type matches all three endpoints, so no shape translation is needed.
+async fn theme_catalog(
+) -> Json<DataEnvelope<Vec<theme::ThemeDefinition>>> {
+    Json(DataEnvelope {
+        data: theme::ALL_THEMES.to_vec(),
+    })
 }
