@@ -1,204 +1,258 @@
 //! Shared deploy pipeline for oxipage — used by the `oxipage deploy` CLI and
 //! the console's `POST /deploy` + SSE stream.
 //!
-//! Currently implements GitHub Pages via a `git worktree` + `gh-pages` branch
-//! push. Deploy steps are emitted as [`DeployEvent`] through an mpsc channel so
-//! both callers can surface progress (CLI prints; console streams as SSE).
+//! GitHub Pages deployment is repository-scoped: every git command runs with
+//! `Command::current_dir(repo_dir)`, the worktree is a fresh UUID under the
+//! system temp dir, cleanup is RAII, and no `bash -c` / external `cp` / `rm`
+//! is used. Target values are validated before any command runs.
 
-use std::path::Path;
-use std::process::Command;
+use oxipage_core::build_manifest::BuildManifest;
+use oxipage_core::site_paths::GitHubPagesTarget;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
 use tokio::sync::mpsc;
+
+/// Result of a deploy run.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DeployOutcome {
+    Deployed {
+        url: String,
+        commit: String,
+    },
+    Unchanged {
+        url: String,
+        commit: String,
+    },
+}
 
 /// Errors from a deploy run.
 #[derive(Debug, thiserror::Error)]
 pub enum DeployError {
-    #[error("out directory not found at {0}. Run `oxipage build` first.")]
-    OutDirMissing(String),
-    #[error("gh CLI not found. Install it from https://cli.github.com/")]
+    #[error("build output missing")]
+    OutDirMissing,
+    #[error("manifest base mismatch: expected {expected}, got {actual}")]
+    ManifestBaseMismatch { expected: String, actual: String },
+    #[error("invalid target: {0}")]
+    InvalidTarget(String),
+    #[error("gh not installed")]
     GhNotFound,
-    #[error("gh CLI not available")]
-    GhUnavailable,
-    #[error("Not authenticated with GitHub CLI. Run `gh auth login` first.")]
+    #[error("gh authentication required")]
     NotAuthenticated,
-    #[error("Failed to create gh-pages worktree")]
-    WorktreeCreateFailed,
-    #[error("Failed to checkout gh-pages worktree")]
-    WorktreeCheckoutFailed,
-    #[error("Failed to copy build output to worktree")]
-    CopyFailed,
-    #[error("GitHub Pages deploy failed: {0}")]
-    PushFailed(String),
+    #[error("not a git repository")]
+    NotGitRepository,
+    #[error("origin mismatch")]
+    OriginMismatch,
+    #[error("git failed during {0}")]
+    Git(&'static str),
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }
 
-/// Progress events for a deploy run. Emitted through an mpsc channel;
-/// serialized as `{"event":"<variant>", ...}` for the console SSE stream.
+/// Progress events for a deploy run. Serialized as
+/// `{"event":"<variant>", ...}` for the console SSE stream.
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "snake_case", tag = "event")]
 pub enum DeployEvent {
-    GhCheck,
-    AuthCheck,
+    PreflightStarted,
+    GhReady,
+    AuthReady,
+    RepositoryReady,
     WorktreeReady,
     FilesCopied { count: usize },
-    Pushing,
-    Deployed { url: String },
-    Failed { error: String },
+    CommitCreated { commit: String },
+    Pushing { branch: String },
+    Deployed { url: String, commit: String },
+    Unchanged { url: String, commit: String },
+    Failed { code: String, error: String },
 }
 
-/// Deploy `out_dir` to GitHub Pages.
+/// Whether a git remote URL points at the configured target repository.
+/// Accepts https, ssh git@, and ssh:// forms, with or without a trailing `.git`.
+pub fn origin_matches(remote: &str, target: &GitHubPagesTarget) -> bool {
+    let r = remote.trim().trim_end_matches('/').trim_end_matches(".git");
+    r == format!("https://github.com/{}/{}", target.owner, target.repo)
+        || r == format!("git@github.com:{}/{}", target.owner, target.repo)
+        || r == format!("ssh://git@github.com/{}/{}", target.owner, target.repo)
+}
+
+fn copy_tree(src: &Path, dst: &Path) -> std::io::Result<usize> {
+    let mut n = 0;
+    for e in std::fs::read_dir(src)? {
+        let e = e?;
+        let from = e.path();
+        let to = dst.join(e.file_name());
+        if from.is_dir() {
+            std::fs::create_dir_all(&to)?;
+            n += copy_tree(&from, &to)?;
+        } else {
+            std::fs::copy(from, to)?;
+            n += 1;
+        }
+    }
+    Ok(n)
+}
+
+/// Remove every entry in `dir` except the `.git` directory (the worktree's
+/// own git metadata must survive).
+fn clear(dir: &Path) -> std::io::Result<()> {
+    for e in std::fs::read_dir(dir)? {
+        let p = e?.path();
+        if p.file_name().is_some_and(|n| n == ".git") {
+            continue;
+        }
+        if p.is_dir() {
+            std::fs::remove_dir_all(p)?;
+        } else {
+            std::fs::remove_file(p)?;
+        }
+    }
+    Ok(())
+}
+
+/// RAII cleanup: removes the worktree entry + prunes + deletes the temp dir
+/// even if the deploy fails partway through.
+struct Cleanup {
+    repo: PathBuf,
+    worktree: PathBuf,
+}
+
+impl Drop for Cleanup {
+    fn drop(&mut self) {
+        let _ = Command::new("git")
+            .current_dir(&self.repo)
+            .args(["worktree", "remove", "--force"])
+            .arg(&self.worktree)
+            .output();
+        let _ = Command::new("git")
+            .current_dir(&self.repo)
+            .args(["worktree", "prune"])
+            .output();
+        let _ = std::fs::remove_dir_all(&self.worktree);
+    }
+}
+
+/// Run a subprocess with an explicit CWD and argument list (no shell
+/// interpolation). A missing `gh` binary maps to [`DeployError::GhNotFound`].
+fn run(cwd: &Path, program: &str, args: &[&str], step: &'static str) -> Result<Output, DeployError> {
+    let o = Command::new(program)
+        .current_dir(cwd)
+        .args(args)
+        .output()
+        .map_err(|e| {
+            if program == "gh" && e.kind() == std::io::ErrorKind::NotFound {
+                DeployError::GhNotFound
+            } else {
+                DeployError::Io(e)
+            }
+        })?;
+    if o.status.success() {
+        Ok(o)
+    } else {
+        Err(DeployError::Git(step))
+    }
+}
+
+/// Deploy `out_dir` to GitHub Pages for the configured target.
 ///
 /// Blocking — runs git/gh subprocesses and emits progress via `tx` (mpsc,
 /// `blocking_send`). Call from `spawn_blocking` (console) or a drain task
-/// (CLI). Assumes the process CWD is the site's git repository (the worktree
-/// is created relative to the current `.git`).
+/// (CLI). Every git command is scoped to `repo_dir`; the worktree is a fresh
+/// UUID under the system temp dir.
 pub fn deploy_github_pages(
+    repo_dir: &Path,
     out_dir: &Path,
+    target: &GitHubPagesTarget,
+    manifest: &BuildManifest,
     tx: &mpsc::Sender<DeployEvent>,
-) -> Result<(), DeployError> {
-    if !out_dir.exists() {
-        return Err(DeployError::OutDirMissing(out_dir.display().to_string()));
+) -> Result<DeployOutcome, DeployError> {
+    target
+        .validate()
+        .map_err(|e| DeployError::InvalidTarget(e.to_string()))?;
+    if !out_dir.join("index.html").is_file() {
+        return Err(DeployError::OutDirMissing);
     }
-
-    // gh CLI availability
-    let _ = tx.blocking_send(DeployEvent::GhCheck);
-    let gh_check = Command::new("gh")
-        .arg("--version")
-        .output()
-        .map_err(|_| DeployError::GhNotFound)?;
-    if !gh_check.status.success() {
-        return Err(DeployError::GhUnavailable);
+    let expected = target.base_path();
+    if manifest.deployment_base != expected {
+        return Err(DeployError::ManifestBaseMismatch {
+            expected,
+            actual: manifest.deployment_base.clone(),
+        });
     }
+    let _ = tx.blocking_send(DeployEvent::PreflightStarted);
 
-    // gh auth status
-    let _ = tx.blocking_send(DeployEvent::AuthCheck);
-    let auth_check = Command::new("gh")
-        .args(["auth", "status"])
-        .output()
-        .map_err(|_| DeployError::NotAuthenticated)?;
-    if !auth_check.status.success() {
+    run(repo_dir, "gh", &["--version"], "gh version")?;
+    let _ = tx.blocking_send(DeployEvent::GhReady);
+    if run(repo_dir, "gh", &["auth", "status"], "gh auth").is_err() {
         return Err(DeployError::NotAuthenticated);
     }
+    let _ = tx.blocking_send(DeployEvent::AuthReady);
 
-    let worktree_dir = format!("/tmp/oxipage-deploy-{}", std::process::id());
-
-    // Does a gh-pages branch already exist?
-    let has_gh_pages = Command::new("git")
-        .args([
-            "--git-dir",
-            ".git",
-            "rev-parse",
-            "--verify",
-            "refs/heads/gh-pages",
-        ])
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false);
-
-    if !has_gh_pages {
-        // Create an orphan gh-pages branch via a detached worktree.
-        let status = Command::new("git")
-            .args(["worktree", "add", "--detach", &worktree_dir])
-            .output()?;
-        if !status.status.success() {
-            return Err(DeployError::WorktreeCreateFailed);
-        }
-        Command::new("git")
-            .args([
-                "--git-dir",
-                &format!("{worktree_dir}/.git"),
-                "symbolic-ref",
-                "HEAD",
-                "refs/heads/gh-pages",
-            ])
-            .output()?;
-        let _ = Command::new("rm")
-            .args([
-                "-rf",
-                &format!("{worktree_dir}/*"),
-                &format!("{worktree_dir}/.*"),
-            ])
-            .output();
-    } else {
-        let status = Command::new("git")
-            .args(["worktree", "add", &worktree_dir, "gh-pages"])
-            .output()?;
-        if !status.status.success() {
-            return Err(DeployError::WorktreeCheckoutFailed);
-        }
+    run(repo_dir, "git", &["rev-parse", "--is-inside-work-tree"], "repository")
+        .map_err(|_| DeployError::NotGitRepository)?;
+    let remote = run(repo_dir, "git", &["remote", "get-url", "origin"], "origin")?;
+    if !origin_matches(&String::from_utf8_lossy(&remote.stdout), target) {
+        return Err(DeployError::OriginMismatch);
     }
+    let _ = tx.blocking_send(DeployEvent::RepositoryReady);
+
+    let work = std::env::temp_dir().join(format!("oxipage-deploy-{}", uuid::Uuid::new_v4()));
+    let w = work.to_string_lossy().into_owned();
+    let remote_ref = format!("refs/remotes/origin/{}", target.branch);
+    let exists = Command::new("git")
+        .current_dir(repo_dir)
+        .args(["show-ref", "--verify", "--quiet", &remote_ref])
+        .status()
+        .is_ok_and(|s| s.success());
+    if exists {
+        run(repo_dir, "git", &["worktree", "add", "--detach", &w, &remote_ref], "worktree")?;
+    } else {
+        run(repo_dir, "git", &["worktree", "add", "--detach", &w], "worktree")?;
+    }
+    let cleanup = Cleanup {
+        repo: repo_dir.into(),
+        worktree: work.clone(),
+    };
     let _ = tx.blocking_send(DeployEvent::WorktreeReady);
 
-    // Copy built output into the worktree.
-    let count = count_files(out_dir);
-    let copy_status = Command::new("cp")
-        .args(["-rf", &format!("{}/.", out_dir.display()), &worktree_dir])
-        .output()?;
-    if !copy_status.status.success() {
-        return Err(DeployError::CopyFailed);
-    }
+    clear(&work)?;
+    let count = copy_tree(out_dir, &work)?;
     let _ = tx.blocking_send(DeployEvent::FilesCopied { count });
-
-    // Commit + push.
-    let _ = tx.blocking_send(DeployEvent::Pushing);
-    let url = remote_url().unwrap_or_else(|| "GitHub Pages".to_string());
-    let commit_status = Command::new("bash")
-        .args([
-            "-c",
-            &format!(
-                "cd {worktree_dir} && git add -A && git commit -m 'deploy: {}' && git push origin gh-pages",
-                timestamp()
-            ),
-        ])
-        .output()?;
-
-    // Clean up the worktree regardless of outcome.
-    let _ = Command::new("git")
-        .args(["worktree", "remove", &worktree_dir])
-        .output();
-
-    if commit_status.status.success() {
-        let _ = tx.blocking_send(DeployEvent::Deployed { url });
-        Ok(())
-    } else {
-        let stderr = String::from_utf8_lossy(&commit_status.stderr).to_string();
-        let _ = tx.blocking_send(DeployEvent::Failed {
-            error: stderr.clone(),
-        });
-        Err(DeployError::PushFailed(stderr))
+    run(&work, "git", &["add", "-A"], "add")?;
+    let changed = !Command::new("git")
+        .current_dir(&work)
+        .args(["diff", "--cached", "--quiet"])
+        .status()?
+        .success();
+    let url = target.pages_url();
+    if !changed {
+        let o = run(&work, "git", &["rev-parse", "HEAD"], "head")?;
+        let commit = String::from_utf8_lossy(&o.stdout).trim().to_string();
+        let result = DeployOutcome::Unchanged {
+            url: url.clone(),
+            commit: commit.clone(),
+        };
+        let _ = tx.blocking_send(DeployEvent::Unchanged { url, commit });
+        drop(cleanup);
+        return Ok(result);
     }
-}
 
-fn count_files(path: &Path) -> usize {
-    let mut n = 0;
-    if let Ok(entries) = std::fs::read_dir(path) {
-        for entry in entries.flatten() {
-            let p = entry.path();
-            if p.is_file() {
-                n += 1;
-            } else if p.is_dir() {
-                n += count_files(&p);
-            }
-        }
-    }
-    n
-}
-
-fn remote_url() -> Option<String> {
-    Command::new("git")
-        .args(["config", "--get", "remote.origin.url"])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-}
-
-fn timestamp() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs().to_string())
-        .unwrap_or_else(|_| "unknown".into())
+    let msg = format!("deploy: {}", manifest.build_id);
+    run(&work, "git", &["commit", "-m", &msg], "commit")?;
+    let o = run(&work, "git", &["rev-parse", "HEAD"], "head")?;
+    let commit = String::from_utf8_lossy(&o.stdout).trim().to_string();
+    let _ = tx.blocking_send(DeployEvent::CommitCreated {
+        commit: commit.clone(),
+    });
+    let push = format!("HEAD:refs/heads/{}", target.branch);
+    let _ = tx.blocking_send(DeployEvent::Pushing {
+        branch: target.branch.clone(),
+    });
+    run(&work, "git", &["push", "origin", &push], "push")?;
+    let result = DeployOutcome::Deployed {
+        url: url.clone(),
+        commit: commit.clone(),
+    };
+    let _ = tx.blocking_send(DeployEvent::Deployed { url, commit });
+    drop(cleanup);
+    Ok(result)
 }

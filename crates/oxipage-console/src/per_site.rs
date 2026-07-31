@@ -646,6 +646,31 @@ pub async fn deploy_post(
             Json(serde_json::json!({ "error": "no_build_output" })),
         ));
     }
+    // Repository-scoped deploy: target from live settings, manifest from the
+    // latest build. Both are snapshotted into the run so the lazy-started task
+    // sees a consistent view.
+    let target = ctx
+        .settings
+        .read()
+        .await
+        .deploy
+        .github_pages
+        .clone()
+        .ok_or((
+            StatusCode::PRECONDITION_FAILED,
+            Json(serde_json::json!({ "error": "deploy_not_configured" })),
+        ))?;
+    let manifest = oxipage_core::build_manifest::BuildManifest::read_from(&ctx.out_dir)
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+        })?
+        .ok_or((
+            StatusCode::FAILED_DEPENDENCY,
+            Json(serde_json::json!({ "error": "build_required" })),
+        ))?;
     let deploy_id = uuid::Uuid::new_v4().to_string();
     let (tx, _rx) = broadcast::channel::<DeployEvent>(32);
 
@@ -653,7 +678,10 @@ pub async fn deploy_post(
         id: deploy_id.clone(),
         tx,
         started: AtomicBool::new(false),
+        repo_dir: ctx.project_dir.clone(),
         out_dir,
+        target,
+        manifest,
         slug: ctx.slug.clone(),
     };
     if let Err(existing_id) = ctx.deploy_guard.try_start(&ctx.slug, run) {

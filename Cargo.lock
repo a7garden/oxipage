@@ -1792,9 +1792,12 @@ dependencies = [
 name = "oxipage-deploy"
 version = "0.7.0"
 dependencies = [
+ "oxipage-core",
  "serde",
+ "tempfile",
  "thiserror 2.0.19",
  "tokio",
+ "uuid",
 ]
 
 [[package]]

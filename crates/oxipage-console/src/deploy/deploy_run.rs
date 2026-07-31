@@ -10,6 +10,8 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
 use dashmap::DashMap;
+use oxipage_core::build_manifest::BuildManifest;
+use oxipage_core::site_paths::GitHubPagesTarget;
 use oxipage_deploy::DeployEvent;
 use tokio::sync::broadcast;
 
@@ -19,7 +21,10 @@ pub struct DeployRun {
     pub id: String,
     pub tx: broadcast::Sender<DeployEvent>,
     pub started: AtomicBool,
+    pub repo_dir: PathBuf,
     pub out_dir: PathBuf,
+    pub target: GitHubPagesTarget,
+    pub manifest: BuildManifest,
     pub slug: String,
 }
 
@@ -89,7 +94,10 @@ impl DeployGuard {
             return true;
         }
 
+        let repo_dir = run.repo_dir.clone();
         let out_dir = run.out_dir.clone();
+        let target = run.target.clone();
+        let manifest = run.manifest.clone();
         let bcast = run.tx.clone();
         let slug_owned = slug.to_string();
         drop(run);
@@ -97,19 +105,38 @@ impl DeployGuard {
         let (mpsc_tx, mut mpsc_rx) = tokio::sync::mpsc::channel::<DeployEvent>(32);
 
         // Relay mpsc (sync, from the deploy task) → broadcast (async, to SSE).
+        let relay_bcast = bcast.clone();
         tokio::spawn(async move {
             while let Some(ev) = mpsc_rx.recv().await {
-                let _ = bcast.send(ev);
+                let _ = relay_bcast.send(ev);
             }
         });
 
         let guard = self.clone();
         tokio::spawn(async move {
-            let _ = tokio::task::spawn_blocking(move || {
-                oxipage_deploy::deploy_github_pages(&out_dir, &mpsc_tx)
-            })
-            .await;
-            // deploy_github_pages emits the terminal Deployed/Failed event
+            let outcome: Result<oxipage_deploy::DeployOutcome, oxipage_deploy::DeployError> =
+                tokio::task::spawn_blocking(move || {
+                    oxipage_deploy::deploy_github_pages(
+                        &repo_dir,
+                        &out_dir,
+                        &target,
+                        &manifest,
+                        &mpsc_tx,
+                    )
+                })
+                .await
+                .map_err(|e| oxipage_deploy::DeployError::Io(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("deploy task panicked: {e}"),
+                )))
+                .and_then(|r| r);
+            if let Err(e) = &outcome {
+                let _ = bcast.send(DeployEvent::Failed {
+                    code: "deploy_failed".into(),
+                    error: e.to_string(),
+                });
+            }
+            // deploy_github_pages emits the terminal Deployed/Unchanged event
             // itself; just release the slot so the slug isn't stuck.
             guard.finish(&slug_owned);
         });
