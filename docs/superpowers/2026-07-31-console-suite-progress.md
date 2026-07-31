@@ -32,12 +32,14 @@
 
 ## 4. 남은 작업 / 후속 제안 (비차단)
 
+> **업데이트 (2026-07-31):** 항목 3–6은 `2026-07-31-console-followup-design.md` 스펙으로 해결 완료 (커밋 `acd8b50`, `81b6c90`, `bf73b94`, `113902c`). 항목 1–2만 남음.
+
 1. **T23 스모크(Profile first-write `expected_updated_at=""`)** — 코드는 완료(T11의 `is_empty()` 가드), 실제 브라우저 스모크만 미실행. `bun run dev`로 신규 사이트 Profile 탭 첫 저장 확인 필요.
 2. **배포 실측 스모크** — plan T9 Step 6(두 개 임시 사이트+리모트로 root/project Pages 배포 검증)은 git remote/gh 자격 증명 필요로 미실행. `deploy_github_pages` 단위 테스트(manifest mismatch, origin match)는 통과.
-3. **BooksTab 상태 enum** — 서버/탭 모두 `wishlist|reading|completed|dropped`로 정리 완료. 기존 `read`/`dnf` 값이 DB에 남아 있으면 표시 시 폴백 필요할 수 있음.
-4. **MoviesTab TMDB 검색** — `searchTmdb` 클라이언트 + UI 연결 완료. TMDB API 키(`OXIPAGE_TMDB_KEY`) 미설정 환경에서는 검색이 빈 결과 반환(설계대로).
-5. **빌드 경고** — `oxipage-ext-projects`/`oxipage-ext-books`의 unused variable `s` 경고 2건 (기존, 무해).
-6. **`/preview/{slug}/` 미등록 사이트 시 admin.html fallback** — 사이트 미등록 상태에서 preview URL이 SPA fallback(200)을 반환. 등록 사이트에서는 424/404/콘텐츠 정상(테스트 검증). 필요 시 fallback 전용 404 라우트 추가 가능.
+3. **BooksTab 상태 enum** — ✅ 해결: 읽기 시 서버 정규화(`read`→`completed`, `dnf`→`dropped`, repo 반환 5개 지점) + 단위/통합 테스트. DB 마이그레이션 없음.
+4. **MoviesTab TMDB 검색** — ✅ 해결: 키 미설정 시 `tmdb_disabled` 503을 감지해 인라인 힌트 + Settings 링크 표시. `ApiError.code` 보존 추가.
+5. **빌드 경고** — ✅ 해결: `if let Some(s)` → `if status.is_some()` 2건. 경고 0건 확인.
+6. **`/preview/{slug}/` 미등록 사이트 시 admin.html fallback** — ✅ 해결: top-level `/preview/{*rest}` 404 라우트 추가(`preview_missing`). canonical `/api/console/preview/...` 불변 테스트 확인.
 
 ## 5. 검증 명령
 
