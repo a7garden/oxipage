@@ -8,6 +8,7 @@ import { SitesPage } from "./sites/SitesPage";
 import { NewSiteWizardPage } from "./sites/NewSiteWizardPage";
 import { SetupGuard } from "../setup/SetupGuard";
 import { Skeleton } from "../shared/ui/skeleton";
+import { AdminErrorBoundary } from "./shared/ui/AdminErrorBoundary";
 
 const DashboardPage = lazy(() =>
   import("./dashboard/DashboardPage").then((m) => ({ default: m.DashboardPage })),
@@ -55,9 +56,10 @@ function ShellFallback() {
 export function AdminApp() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <ScrollToTop />
-        <Routes>
+      <AdminErrorBoundary>
+        <BrowserRouter>
+          <ScrollToTop />
+          <Routes>
           <Route
             path="/setup/*"
             element={
@@ -142,7 +144,8 @@ export function AdminApp() {
             />
           </Route>
         </Routes>
-      </BrowserRouter>
+        </BrowserRouter>
+      </AdminErrorBoundary>
     </QueryClientProvider>
   );
 }
