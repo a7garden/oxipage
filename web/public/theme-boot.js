@@ -1,0 +1,42 @@
+/* Oxipage early theme boot.
+   - Synchronous, no deps, executes before <link rel=stylesheet>.
+   - Reads <script data-context="..."> on this tag (set by admin.html / index.html).
+   - For "console": reads oxipage-console-appearance; resolves system | light | dark,
+     writes <html data-theme> and document.documentElement.style.setProperty('--accent-hue','160').
+   - For "public": reads <meta name="oxipage-theme" content="paper"> if present,
+     writes <html data-public-theme="...">, sets --accent-hue on root.
+*/
+(function () {
+  try {
+    var scripts = document.currentScript || document.scripts[document.scripts.length - 1];
+    var ctx = (scripts && scripts.getAttribute("data-context")) || "public";
+
+    function systemMode() {
+      return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light";
+    }
+
+    if (ctx === "console") {
+      var stored;
+      try {
+        stored = localStorage.getItem("oxipage-console-appearance");
+      } catch (e) {
+        stored = null;
+      }
+      var mode = stored === "light" || stored === "dark" ? stored : systemMode();
+      document.documentElement.dataset.theme = mode;
+      document.documentElement.style.setProperty("--accent-hue", "160");
+      return;
+    }
+
+    // public
+    var meta = document.querySelector('meta[name="oxipage-theme"]');
+    var themeId = (meta && meta.content) || "paper";
+    document.documentElement.dataset.publicTheme = themeId;
+    var hueByTheme = { paper: "160", midnight: "230", sepia: "70", forest: "155", neon: "290", canvas: "240" };
+    document.documentElement.style.setProperty("--accent-hue", hueByTheme[themeId] || "160");
+  } catch (e) {
+    document.documentElement.dataset.theme = "light";
+  }
+})();
