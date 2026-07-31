@@ -27,19 +27,58 @@ data_dir = "data"
     )
 }
 
-async fn site_router() -> (TempDir, SqlitePool, Router) {
+async fn site_router() -> (TempDir, SqlitePool, Arc<SiteRegistry>, Router) {
     let dir = TempDir::with_prefix("oxipage-deploy-").unwrap();
     std::fs::write(dir.path().join("oxipage.toml"), minimal_toml("Test")).unwrap();
     let mut sf = SitesFile::default();
     sf.add("blog".into(), dir.path().to_path_buf());
     sf.set_default("blog");
-    let registry = Arc::new(
-        SiteRegistry::new(sf, Default::default())
-            .await
-            .unwrap(),
-    );
+    let registry = Arc::new(SiteRegistry::new(sf, Default::default()).await.unwrap());
     let db = registry.ctx_for("blog").await.unwrap().db.clone();
-    (dir, db, build_console_router(registry))
+    let app = build_console_router(registry.clone());
+    (dir, db, registry, app)
+}
+
+async fn configured_site() -> (TempDir, SqlitePool, Arc<SiteRegistry>, Router) {
+    let dir = TempDir::with_prefix("oxipage-deploy-").unwrap();
+    std::fs::write(
+        dir.path().join("oxipage.toml"),
+        r#"[site]
+name="Test"
+base_url="https://o.github.io/r/"
+
+[server]
+host="127.0.0.1"
+port=8787
+data_dir="data"
+
+[deploy.github_pages]
+owner="o"
+repo="r"
+"#,
+    )
+    .unwrap();
+    let mut sf = SitesFile::default();
+    sf.add("blog".into(), dir.path().to_path_buf());
+    sf.set_default("blog");
+    let registry = Arc::new(SiteRegistry::new(sf, Default::default()).await.unwrap());
+    let db = registry.ctx_for("blog").await.unwrap().db.clone();
+    let app = build_console_router(registry.clone());
+    (dir, db, registry, app)
+}
+
+fn write_manifest(out_dir: &std::path::Path, base: &str, theme: &str) {
+    std::fs::create_dir_all(out_dir).unwrap();
+    std::fs::write(
+        out_dir.join(".oxipage-build.json"),
+        format!(
+            r#"{{"build_id":"b1","deployment_base":"{base}","theme_id":"{theme}","asset_revision":"a","built_at":"2026-07-31T00:00:00Z"}}"#
+        ),
+    )
+    .unwrap();
+    std::fs::write(out_dir.join("index.html"), "<html><head><base href=\"/\"></head></html>")
+        .unwrap();
+    std::fs::create_dir_all(out_dir.join("assets")).unwrap();
 }
 
 async fn get_json(app: Router, uri: &str) -> serde_json::Value {
@@ -88,7 +127,7 @@ async fn insert_deploy(db: &SqlitePool, run_id: &str, status: &str) {
 
 #[tokio::test]
 async fn deploys_are_newest_first_and_limited() {
-    let (_dir, db, app) = site_router().await;
+    let (_dir, db, _reg, app) = site_router().await;
     insert_deploy(&db, "r1", "deployed").await;
     insert_deploy(&db, "r2", "unchanged").await;
     let j = get_json(app, "/s/blog/deploys?limit=1").await;
@@ -98,19 +137,51 @@ async fn deploys_are_newest_first_and_limited() {
 
 #[tokio::test]
 async fn current_returns_common_run() {
-    let (_dir, _db, app) = site_router().await;
-    // Start a build operation on the site's shared guard via a direct handle.
-    // The registry's guard is reachable through the router state; simplest is
-    // to exercise the empty-registry path (no site → null).
+    let (_dir, _db, reg, app) = site_router().await;
+    reg.operation_guard
+        .try_start("blog", "b7", SiteOperationKind::Build)
+        .unwrap();
+    let j = get_json(app, "/s/blog/operations/current").await;
+    assert_eq!(j["data"]["run_id"], "b7");
+    assert_eq!(j["data"]["kind"], "build");
+}
+
+#[tokio::test]
+async fn preflight_reports_stale_base_and_theme() {
+    let (dir, _db, _reg, app) = configured_site().await;
+    let out_dir = dir.path().join("data").join("out");
+    write_manifest(&out_dir, "/wrong/", "midnight");
+    let j = get_json(app, "/s/blog/deploy/preflight").await;
+    let codes: Vec<&str> = j["data"]["problems"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["code"].as_str().unwrap())
+        .collect();
+    assert!(
+        codes.contains(&"stale_build_base"),
+        "expected stale_build_base, got {codes:?}"
+    );
+    assert!(
+        codes.contains(&"stale_build_theme"),
+        "expected stale_build_theme, got {codes:?}"
+    );
+}
+
+#[tokio::test]
+async fn deploy_post_rejects_preflight_failure_with_424() {
+    let (dir, _db, _reg, app) = configured_site().await;
+    let out_dir = dir.path().join("data").join("out");
+    write_manifest(&out_dir, "/wrong/", "paper");
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/s/blog/operations/current")
+                .method("POST")
+                .uri("/s/blog/deploy")
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
-    // Route may not exist yet (T6) — accept 404 for now, or 200 null.
-    assert!(resp.status() == StatusCode::OK || resp.status() == StatusCode::NOT_FOUND);
+    assert_eq!(resp.status(), StatusCode::FAILED_DEPENDENCY);
 }

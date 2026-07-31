@@ -380,6 +380,175 @@ pub async fn deploys_list(
     }
 }
 
+// ─── deploy preflight / current operation ──────────────────────────────────
+
+#[derive(Serialize)]
+struct PreflightProblem {
+    code: &'static str,
+    message: String,
+    action: Option<&'static str>,
+}
+
+#[derive(Serialize)]
+struct DeployPreflight {
+    configured: bool,
+    gh_installed: bool,
+    authenticated: bool,
+    git_repository: bool,
+    origin_matches: bool,
+    build_compatible: bool,
+    pages_url: Option<String>,
+    base_path: Option<String>,
+    problems: Vec<PreflightProblem>,
+}
+
+fn problem(code: &'static str, message: impl Into<String>, action: Option<&'static str>) -> PreflightProblem {
+    PreflightProblem {
+        code,
+        message: message.into(),
+        action,
+    }
+}
+
+/// Evaluate every deploy precondition without side effects. Uses only git/gh
+/// read commands scoped to the project dir; never mutates git state.
+async fn evaluate_preflight(ctx: &SiteContext) -> DeployPreflight {
+    let settings = ctx.settings.read().await.clone();
+    let target = settings
+        .deploy
+        .github_pages
+        .filter(|t| t.validate().is_ok());
+    let mut p: Vec<PreflightProblem> = Vec::new();
+
+    if target.is_none() {
+        p.push(problem(
+            "deploy_not_configured",
+            "Configure GitHub Pages",
+            Some("open_settings"),
+        ));
+    }
+    let gh = std::process::Command::new("gh")
+        .current_dir(&ctx.project_dir)
+        .arg("--version")
+        .output()
+        .is_ok_and(|o| o.status.success());
+    if !gh {
+        p.push(problem(
+            "gh_not_installed",
+            "Install GitHub CLI",
+            Some("install_gh"),
+        ));
+    }
+    let auth = gh
+        && std::process::Command::new("gh")
+            .current_dir(&ctx.project_dir)
+            .args(["auth", "status"])
+            .output()
+            .is_ok_and(|o| o.status.success());
+    if gh && !auth {
+        p.push(problem(
+            "gh_auth_required",
+            "Run gh auth login",
+            Some("authenticate_gh"),
+        ));
+    }
+    let git = std::process::Command::new("git")
+        .current_dir(&ctx.project_dir)
+        .args(["rev-parse", "--is-inside-work-tree"])
+        .output()
+        .is_ok_and(|o| o.status.success());
+    if !git {
+        p.push(problem(
+            "not_git_repository",
+            "Selected site is not a Git repository",
+            None,
+        ));
+    }
+    let origin = match (&target, git) {
+        (Some(t), true) => std::process::Command::new("git")
+            .current_dir(&ctx.project_dir)
+            .args(["remote", "get-url", "origin"])
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .is_some_and(|o| oxipage_deploy::origin_matches(&String::from_utf8_lossy(&o.stdout), t)),
+        _ => false,
+    };
+    if target.is_some() && git && !origin {
+        p.push(problem(
+            "origin_mismatch",
+            "Origin does not match configuration",
+            Some("open_settings"),
+        ));
+    }
+    let manifest = oxipage_core::build_manifest::BuildManifest::read_from(&ctx.out_dir)
+        .ok()
+        .flatten();
+    if manifest.is_none() {
+        p.push(problem("build_required", "Build the site", Some("build")));
+    }
+    let theme: String = sqlx::query_scalar("SELECT theme_id FROM theme_config WHERE id=1")
+        .fetch_optional(&ctx.db)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "paper".into());
+    if let (Some(t), Some(m)) = (&target, &manifest) {
+        if m.deployment_base != t.base_path() {
+            p.push(problem(
+                "stale_build_base",
+                "Rebuild for the Pages base",
+                Some("rebuild"),
+            ));
+        }
+        if m.theme_id != theme {
+            p.push(problem(
+                "stale_build_theme",
+                "Rebuild for the current theme",
+                Some("rebuild"),
+            ));
+        }
+    }
+    if !ctx.out_dir.join("index.html").is_file() {
+        p.push(problem(
+            "missing_index",
+            "Build index is missing",
+            Some("rebuild"),
+        ));
+    }
+    if manifest.is_some() && !ctx.out_dir.join("assets").is_dir() {
+        p.push(problem(
+            "missing_assets",
+            "Referenced assets are missing",
+            Some("rebuild"),
+        ));
+    }
+    let compatible = p.is_empty();
+    DeployPreflight {
+        configured: target.is_some(),
+        gh_installed: gh,
+        authenticated: auth,
+        git_repository: git,
+        origin_matches: origin,
+        build_compatible: compatible,
+        pages_url: target.as_ref().map(|t| t.pages_url()),
+        base_path: target.as_ref().map(|t| t.base_path()),
+        problems: p,
+    }
+}
+
+pub async fn deploy_preflight(
+    Extension(ctx): Extension<Arc<SiteContext>>,
+) -> Json<serde_json::Value> {
+    Json(serde_json::json!({ "data": evaluate_preflight(&ctx).await }))
+}
+
+pub async fn operation_current(
+    Extension(ctx): Extension<Arc<SiteContext>>,
+) -> Json<serde_json::Value> {
+    Json(serde_json::json!({ "data": ctx.operation_guard.current(&ctx.slug) }))
+}
+
 // ─── theme (GET/PUT) ────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
@@ -662,6 +831,17 @@ pub async fn deploy_post(
         return Err((
             StatusCode::FAILED_DEPENDENCY,
             Json(serde_json::json!({ "error": "no_build_output" })),
+        ));
+    }
+    // Preflight gate: refuse to start a deploy that cannot succeed.
+    let preflight = evaluate_preflight(&ctx).await;
+    if !preflight.build_compatible {
+        return Err((
+            StatusCode::FAILED_DEPENDENCY,
+            Json(serde_json::json!({
+                "error": "preflight_failed",
+                "problems": preflight.problems,
+            })),
         ));
     }
     // Repository-scoped deploy: target from live settings, manifest from the
@@ -955,6 +1135,8 @@ pub fn per_site_router() -> Router {
         .route("/config", get(config_get).put(config_put))
         .route("/builds", get(builds_list))
         .route("/deploys", get(deploys_list))
+        .route("/deploy/preflight", get(deploy_preflight))
+        .route("/operations/current", get(operation_current))
         .route("/build", post(build_post))
         .route("/build/{build_id}/stream", get(build_stream))
         .route("/deploy", post(deploy_post))
