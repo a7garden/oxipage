@@ -27,7 +27,7 @@ pub async fn create(pool: &SqlitePool, input: &BookInput) -> anyhow::Result<Book
     .bind(&input.finished_at)
     .fetch_one(pool)
     .await?;
-    Ok(row)
+    Ok(row.normalize_status())
 }
 
 pub async fn find_by_id(pool: &SqlitePool, id: i64) -> anyhow::Result<Option<Book>> {
@@ -35,7 +35,7 @@ pub async fn find_by_id(pool: &SqlitePool, id: i64) -> anyhow::Result<Option<Boo
         .bind(id)
         .fetch_optional(pool)
         .await?;
-    Ok(row)
+    Ok(row.map(Book::normalize_status))
 }
 
 /// `status=None` → 전체. `draft=true` → 미발행 행 포함. 기본은 발행본만.
@@ -78,7 +78,7 @@ pub async fn list(
         q = q.bind(s);
     }
     let rows = q.bind(limit).fetch_all(pool).await?;
-    Ok(rows)
+    Ok(rows.into_iter().map(Book::normalize_status).collect())
 }
 
 pub async fn update(pool: &SqlitePool, id: i64, patch: &BookPatch) -> anyhow::Result<Option<Book>> {
@@ -163,7 +163,7 @@ pub async fn update(pool: &SqlitePool, id: i64, patch: &BookPatch) -> anyhow::Re
         q = q.bind(v);
     }
     let row = q.bind(id).fetch_optional(pool).await?;
-    Ok(row)
+    Ok(row.map(Book::normalize_status))
 }
 
 pub async fn publish(pool: &SqlitePool, id: i64) -> anyhow::Result<Book> {
@@ -177,7 +177,7 @@ pub async fn publish(pool: &SqlitePool, id: i64) -> anyhow::Result<Book> {
     .bind(id)
     .fetch_one(pool)
     .await?;
-    Ok(row)
+    Ok(row.normalize_status())
 }
 
 pub async fn delete(pool: &SqlitePool, id: i64) -> anyhow::Result<bool> {
@@ -186,4 +186,43 @@ pub async fn delete(pool: &SqlitePool, id: i64) -> anyhow::Result<bool> {
         .execute(pool)
         .await?;
     Ok(res.rows_affected() > 0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use oxipage_core::extension::Extension;
+
+    /// CHECK 제약 우회가 필요한 레거시 행 삽입용 풀. 프로덕션 마이그레이션은
+    /// 4값만 허용하므로 PRAGMA로 우회한다 (max_connections=1이라 단일 커넥션 적용).
+    async fn test_pool() -> SqlitePool {
+        let pool = oxipage_core::db::connect_memory().await.unwrap();
+        sqlx::query("PRAGMA ignore_check_constraints = ON")
+            .execute(&pool)
+            .await
+            .unwrap();
+        for m in crate::BooksExtension.migrations() {
+            sqlx::query(&m.sql).execute(&pool).await.unwrap();
+        }
+        pool
+    }
+
+    #[tokio::test]
+    async fn list_normalizes_legacy_status() {
+        let pool = test_pool().await;
+        sqlx::query("INSERT INTO book_entry (title, status) VALUES ('Legacy Read', 'read')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO book_entry (title, status) VALUES ('Legacy Dnf', 'dnf')")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let books = list(&pool, None, 10, true).await.unwrap();
+        let read_book = books.iter().find(|b| b.title == "Legacy Read").unwrap();
+        let dnf_book = books.iter().find(|b| b.title == "Legacy Dnf").unwrap();
+        assert_eq!(read_book.status, "completed");
+        assert_eq!(dnf_book.status, "dropped");
+    }
 }

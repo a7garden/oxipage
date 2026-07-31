@@ -60,6 +60,24 @@ fn default_status() -> String {
     "wishlist".to_string()
 }
 
+/// 레거시 status 값 정규화 — 구 DB의 `read`/`dnf`를 현재 4값 체계로 매핑.
+/// (`ALLOWED_STATUSES` 참조) 쓰기 경로는 CHECK 제약이 이미 차단하므로 읽기 전용.
+pub fn normalize_status(s: &str) -> &str {
+    match s {
+        "read" => "completed",
+        "dnf" => "dropped",
+        other => other,
+    }
+}
+
+impl Book {
+    /// 읽기 경로 정규화: 레거시 status 값을 현재 4값 체계로 변환해 반환.
+    pub fn normalize_status(mut self) -> Self {
+        self.status = normalize_status(&self.status).to_string();
+        self
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct BookPatch {
     pub source: Option<String>,
@@ -101,4 +119,23 @@ pub fn validate_source(s: &str) -> bool {
 
 pub fn validate_status(s: &str) -> bool {
     ALLOWED_STATUSES.contains(&s)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_status_maps_legacy_values() {
+        assert_eq!(normalize_status("read"), "completed");
+        assert_eq!(normalize_status("dnf"), "dropped");
+    }
+
+    #[test]
+    fn normalize_status_keeps_current_values() {
+        for s in ["wishlist", "reading", "completed", "dropped"] {
+            assert_eq!(normalize_status(s), s);
+        }
+        assert_eq!(normalize_status("unknown"), "unknown");
+    }
 }
