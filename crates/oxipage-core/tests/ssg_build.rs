@@ -92,10 +92,15 @@ async fn build_site_runs_without_panic_and_writes_correct_layout() {
     // Root index.html must reference the real relativized hashed script
     // (Task 2: `/assets/...` → `assets/...` + a deployment `<base href>`).
     let root = std::fs::read_to_string(out_dir.join("index.html")).unwrap();
+    // Find the first `src="assets/...` (the relativized hashed chunk).
+    // Non-asset tags like `<script src="/theme-boot.js">` precede it and are
+    // intentionally left absolute, so search for the `assets/` reference.
     let root_ref = root
-        .split("src=\"")
-        .nth(1)
-        .and_then(|s| s.split('"').next())
+        .find("src=\"assets/")
+        .map(|i| {
+            let v = &root[i + 5..];
+            v.split('"').next().unwrap_or("")
+        })
         .unwrap_or("");
     assert!(
         root_ref.starts_with("assets/") && !root_ref.ends_with("/index.js"),

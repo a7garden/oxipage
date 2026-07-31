@@ -36,11 +36,11 @@ fn relative_assets_drop_leading_slash() {
 
     let html = std::fs::read_to_string(out.join("index.html")).unwrap();
     assert!(
-        !html.contains("/assets/index-"),
+        !html.contains("\"/assets/"),
         "raw /assets/ leaked: {html}"
     );
     assert!(
-        html.contains("assets/index-"),
+        html.contains("\"assets/"),
         "relative asset missing: {html}"
     );
     assert!(
