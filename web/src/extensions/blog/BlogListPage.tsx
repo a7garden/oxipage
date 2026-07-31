@@ -1,13 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router";
 
 import { fetchBlogPosts } from "../../shared/api";
 import { useLanguage } from "../../shared/language";
-import { Badge } from "../../shared/ui/badge";
-import { Card } from "../../shared/ui/card";
 import { EmptyState, EmptyStateDescription, EmptyStateIcon, EmptyStateTitle } from "../../shared/ui/empty-state";
 import { PageTitle } from "../../shared/ui/page-header";
 import { NotebookPen } from "lucide-react";
+import { BlogPostCard } from "./BlogPostCard";
 
 export function BlogListPage() {
   const { lang } = useLanguage();
@@ -43,24 +41,10 @@ export function BlogListPage() {
       <PageTitle>{lang === "ko" ? "블로그" : "Blog"}</PageTitle>
       <ul className="space-y-3">
         {posts.map((p) => (
-          <li key={p.slug}>
-            <Card className="transition-[border-color,box-shadow] duration-200 hover:border-primary/40 hover:shadow-md">
-              <Link to={`/blog/${p.slug}`} className="block p-5 text-foreground no-underline">
-                <h2 className="font-serif text-xl font-semibold tracking-tight">
-                  {p.title}
-                </h2>
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-subtle">
-                  <time>{(p.published_at ?? p.created_at).slice(0, 10)}</time>
-                  {p.tags.length > 0 &&
-                    p.tags.map((t) => (
-                      <Badge key={t} variant="secondary">
-                        {t}
-                      </Badge>
-                    ))}
-                </div>
-              </Link>
-            </Card>
-          </li>
+          <BlogPostCard
+            key={p.slug}
+            post={{ slug: p.slug, title: p.title, tags: p.tags, published_at: p.published_at }}
+          />
         ))}
       </ul>
     </article>
