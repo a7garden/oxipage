@@ -5,6 +5,8 @@ import { ContentTable } from "../shared/content-table";
 import { Button } from "../../shared/ui/button";
 import { Input } from "../../shared/ui/input";
 import { Textarea } from "../../shared/ui/textarea";
+import { ImageField } from "../shared/ui/ImageField";
+import { MarkdownEditor } from "../shared/ui/MarkdownEditor";
 import { Drawer, DrawerField } from "../../shared/ui/drawer";
 import { Pencil, Trash2, Send, Plus } from "lucide-react";
 import { useRowFilter } from "../shared/useRowFilter";
@@ -39,6 +41,7 @@ interface FormState {
   status: string;
   started_at: string;
   finished_at: string;
+  cover_image_url: string;
 }
 
 const EMPTY: FormState = {
@@ -48,9 +51,10 @@ const EMPTY: FormState = {
   rating: "7",
   review_ko: "",
   review_en: "",
-  status: "read",
+  status: "wishlist",
   started_at: "",
   finished_at: "",
+  cover_image_url: "",
 };
 
 function StarRating({ rating }: { rating: unknown }) {
@@ -121,6 +125,7 @@ export function BooksTab({ slug }: { slug: string }) {
       status: b.status,
       started_at: b.started_at ?? "",
       finished_at: b.finished_at ?? "",
+      cover_image_url: b.cover_image_url ?? "",
     });
     setError(null);
   };
@@ -231,11 +236,19 @@ export function BooksTab({ slug }: { slug: string }) {
             >
               <option value="wishlist">wishlist</option>
               <option value="reading">reading</option>
-              <option value="read">read</option>
-              <option value="dnf">dnf</option>
+              <option value="completed">completed</option>
+              <option value="dropped">dropped</option>
             </select>
           </DrawerField>
         </div>
+        <DrawerField label="Cover">
+          <ImageField
+            slug={slug}
+            extension="books"
+            value={form.cover_image_url}
+            onChange={(v) => setForm((f) => ({ ...f, cover_image_url: v ?? "" }))}
+          />
+        </DrawerField>
         <div className="grid grid-cols-2 gap-3">
           <DrawerField label="Started" hint="YYYY-MM-DD">
             <Input type="date" value={form.started_at} onChange={(e) => setForm((f) => ({ ...f, started_at: e.target.value }))} />
@@ -245,10 +258,10 @@ export function BooksTab({ slug }: { slug: string }) {
           </DrawerField>
         </div>
         <DrawerField label="Review (Korean)">
-          <Textarea value={form.review_ko} onChange={(e) => setForm((f) => ({ ...f, review_ko: e.target.value }))} rows={5} />
+          <MarkdownEditor value={form.review_ko} onChange={(v) => setForm((f) => ({ ...f, review_ko: v }))} rows={5} />
         </DrawerField>
         <DrawerField label="Review (English)">
-          <Textarea value={form.review_en} onChange={(e) => setForm((f) => ({ ...f, review_en: e.target.value }))} rows={5} />
+          <MarkdownEditor value={form.review_en} onChange={(v) => setForm((f) => ({ ...f, review_en: v }))} rows={5} />
         </DrawerField>
         {error && <p className="text-sm text-red-600">{error}</p>}
       </Drawer>

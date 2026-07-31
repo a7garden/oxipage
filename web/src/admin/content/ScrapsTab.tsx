@@ -6,6 +6,8 @@ import { Badge } from "../../shared/ui/badge";
 import { Button } from "../../shared/ui/button";
 import { Input } from "../../shared/ui/input";
 import { Textarea } from "../../shared/ui/textarea";
+import { ImageField } from "../shared/ui/ImageField";
+import { TagInput } from "../shared/ui/TagInput";
 import { MarkdownEditor } from "../shared/ui/MarkdownEditor";
 import { Drawer, DrawerField } from "../../shared/ui/drawer";
 import { Pencil, Trash2, Send, Plus } from "lucide-react";
@@ -33,10 +35,11 @@ interface FormState {
   title: string;
   note_ko: string;
   note_en: string;
-  tags: string;
+  tags: string[];
+  og_image_url: string;
 }
 
-const EMPTY: FormState = { source_url: "", title: "", note_ko: "", note_en: "", tags: "" };
+const EMPTY: FormState = { source_url: "", title: "", note_ko: "", note_en: "", tags: [], og_image_url: "" };
 
 export function ScrapsTab({ slug }: { slug: string }) {
   const qc = useQueryClient();
@@ -65,7 +68,8 @@ export function ScrapsTab({ slug }: { slug: string }) {
         title: form.title.trim(),
         note_ko: form.note_ko || null,
         note_en: form.note_en || null,
-        tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
+        tags: form.tags,
+        og_image_url: form.og_image_url || null,
       };
       if (editing === "new") return contentClient.create<ScrapItem>(slug, "scraps", payload);
       if (editing) return contentClient.update<ScrapItem>(slug, "scraps", String(editing.id), payload);
@@ -97,7 +101,8 @@ export function ScrapsTab({ slug }: { slug: string }) {
       title: s.title,
       note_ko: s.note_ko ?? "",
       note_en: s.note_en ?? "",
-      tags: (s.tags ?? []).join(", "),
+      tags: s.tags ?? [],
+      og_image_url: s.og_image_url ?? "",
     });
     setError(null);
   };
@@ -198,13 +203,21 @@ export function ScrapsTab({ slug }: { slug: string }) {
         }
       >
         <DrawerField label="Title" required>
-          <Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} autoFocus />
+          <Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} autoFocus disabled={editing !== "new"} />
         </DrawerField>
         <DrawerField label="Source URL" required>
-          <Input value={form.source_url} onChange={(e) => setForm((f) => ({ ...f, source_url: e.target.value }))} placeholder="https://..." type="url" />
+          <Input value={form.source_url} onChange={(e) => setForm((f) => ({ ...f, source_url: e.target.value }))} placeholder="https://..." type="url" disabled={editing !== "new"} />
         </DrawerField>
-        <DrawerField label="Tags" hint="Comma-separated">
-          <Input value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} />
+        <DrawerField label="Image override">
+          <ImageField
+            slug={slug}
+            extension="scraps"
+            value={form.og_image_url}
+            onChange={(v) => setForm((f) => ({ ...f, og_image_url: v ?? "" }))}
+          />
+        </DrawerField>
+        <DrawerField label="Tags">
+          <TagInput value={form.tags} onChange={(tags) => setForm((f) => ({ ...f, tags }))} />
         </DrawerField>
         <DrawerField label="Note (Korean)">
           <MarkdownEditor value={form.note_ko} onChange={(v) => setForm((f) => ({ ...f, note_ko: v }))} rows={5} />

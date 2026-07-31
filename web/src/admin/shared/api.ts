@@ -444,6 +444,45 @@ export interface NovelChapter {
   updated_at: string;
 }
 
+export async function reorderChapters(
+  slug: string,
+  novelSlug: string,
+  ids: number[],
+): Promise<NovelChapter[]> {
+  const res = await siteScopedFetch(slug, `/novels/${novelSlug}/chapters/order`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ chapter_ids: ids }),
+  });
+  return jsonOrThrow<{ data: NovelChapter[] }>(res).then((b) => b.data);
+}
+
+export async function reorderScreenshots(
+  slug: string,
+  projectSlug: string,
+  ids: number[],
+): Promise<Screenshot[]> {
+  const res = await siteScopedFetch(slug, `/projects/${projectSlug}/screenshots/order`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ screenshot_ids: ids }),
+  });
+  return jsonOrThrow<{ data: Screenshot[] }>(res).then((b) => b.data);
+}
+
+export interface TmdbSearchResult {
+  tmdb_id: number;
+  title: string;
+  media_type: "movie" | "tv";
+  poster_path: string | null;
+  release_year: number | null;
+}
+
+export async function searchTmdb(slug: string, q: string): Promise<TmdbSearchResult[]> {
+  const res = await siteScopedFetch(slug, `/movies/search?q=${encodeURIComponent(q)}`);
+  return jsonOrThrow<{ data: TmdbSearchResult[] }>(res).then((b) => b.data);
+}
+
 export async function listChapters(slug: string, novelSlug: string, draft = false): Promise<NovelChapter[]> {
   const path = draft ? `/novels/${novelSlug}/chapters/draft` : `/novels/${novelSlug}/chapters`;
   const res = await siteScopedFetch(slug, path);

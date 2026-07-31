@@ -6,12 +6,14 @@ import { Button } from "../../shared/ui/button";
 import { Badge } from "../../shared/ui/badge";
 import { Input } from "../../shared/ui/input";
 import { Textarea } from "../../shared/ui/textarea";
+import { ImageField } from "../shared/ui/ImageField";
+import { TagInput } from "../shared/ui/TagInput";
 import { MarkdownEditor } from "../shared/ui/MarkdownEditor";
 import { Drawer, DrawerField } from "../../shared/ui/drawer";
 import { Pencil, Trash2, Send, Plus, ChevronDown, ChevronUp } from "lucide-react";
 import { useRowFilter } from "../shared/useRowFilter";
 import {
-  listChapters, createChapter, updateChapter, deleteChapter, publishChapter,
+  listChapters, createChapter, updateChapter, deleteChapter, publishChapter, reorderChapters,
   type NovelChapter,
 } from "../shared/api";
 import { field, str } from "../shared/row-utils";
@@ -34,7 +36,7 @@ interface FormState {
   synopsis: string;
   cover_image: string;
   status: string;
-  tags: string;
+  tags: string[];
 }
 
 const EMPTY: FormState = {
@@ -42,7 +44,7 @@ const EMPTY: FormState = {
   synopsis: "",
   cover_image: "",
   status: "ongoing",
-  tags: "",
+  tags: [],
 };
 
 export function NovelsTab({ slug }: { slug: string }) {
@@ -69,7 +71,7 @@ export function NovelsTab({ slug }: { slug: string }) {
         synopsis: form.synopsis || null,
         cover_image: form.cover_image || null,
         status: form.status,
-        tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
+        tags: form.tags,
       };
       if (editing === "new") return contentClient.create<Novel>(slug, "novels", payload);
       if (editing) return contentClient.update<Novel>(slug, "novels", editing.slug, payload);
@@ -123,13 +125,22 @@ export function NovelsTab({ slug }: { slug: string }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["site", slug, "novels", novelSlug, "chapters"] }),
   });
 
+  const reorderChaptersMut = useMutation({
+    mutationFn: (ids: number[]) => reorderChapters(slug!, novelSlug!, ids),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["site", slug, "novels", novelSlug, "chapters"] }),
+  });
+
   const handleReorder = (order: number, direction: -1 | 1) => {
     const idx = chapters.findIndex((c) => c.chapter_order === order);
     if (idx === -1) return;
     const target = chapters[idx + direction];
     if (!target) return;
-    updateChapterMut.mutate({ order, patch: { chapter_order: target.chapter_order } });
-    updateChapterMut.mutate({ order: target.chapter_order, patch: { chapter_order: order } });
+    const ids = chapters.map((c) => c.id);
+    const tmp = ids[idx];
+    ids[idx] = ids[idx + direction];
+    ids[idx + direction] = tmp;
+    reorderChaptersMut.mutate(ids);
   };
 
   const openEdit = (n: Novel) => {
@@ -139,7 +150,7 @@ export function NovelsTab({ slug }: { slug: string }) {
       synopsis: n.synopsis ?? "",
       cover_image: n.cover_image ?? "",
       status: n.status,
-      tags: (n.tags ?? []).join(", "),
+      tags: n.tags ?? [],
     });
     setError(null);
   };
@@ -250,11 +261,16 @@ export function NovelsTab({ slug }: { slug: string }) {
             <option value="hiatus">hiatus</option>
           </select>
         </DrawerField>
-        <DrawerField label="Cover image URL">
-          <Input value={form.cover_image} onChange={(e) => setForm((f) => ({ ...f, cover_image: e.target.value }))} placeholder="https://..." />
+        <DrawerField label="Cover image">
+          <ImageField
+            slug={slug}
+            extension="novels"
+            value={form.cover_image}
+            onChange={(v) => setForm((f) => ({ ...f, cover_image: v ?? "" }))}
+          />
         </DrawerField>
-        <DrawerField label="Tags" hint="Comma-separated">
-          <Input value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} />
+        <DrawerField label="Tags">
+          <TagInput value={form.tags} onChange={(tags) => setForm((f) => ({ ...f, tags }))} />
         </DrawerField>
         <DrawerField label="Synopsis">
           <Textarea value={form.synopsis} onChange={(e) => setForm((f) => ({ ...f, synopsis: e.target.value }))} rows={8} />

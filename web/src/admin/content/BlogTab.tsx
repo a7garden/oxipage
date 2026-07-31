@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { contentClient } from "../shared/api";
+import { contentClient, getConfig } from "../shared/api";
 import { ContentTable } from "../shared/content-table";
 import { Badge } from "../../shared/ui/badge";
 import { Button } from "../../shared/ui/button";
 import { Input } from "../../shared/ui/input";
+import { TagInput } from "../shared/ui/TagInput";
 import { Textarea } from "../../shared/ui/textarea";
 import { MarkdownEditor } from "../shared/ui/MarkdownEditor";
 import { Drawer, DrawerField } from "../../shared/ui/drawer";
@@ -25,11 +26,11 @@ interface BlogPost {
   updated_at: string;
 }
 
-const EMPTY: { title: string; body: string; lang: string; tags: string } = {
+const EMPTY: { title: string; body: string; lang: string; tags: string[] } = {
   title: "",
   body: "",
   lang: "ko",
-  tags: "",
+  tags: [],
 };
 
 export function BlogTab({ slug }: { slug: string }) {
@@ -42,6 +43,11 @@ export function BlogTab({ slug }: { slug: string }) {
     queryKey: ["site", slug, "content", "blog"],
     queryFn: () => contentClient.list<BlogPost>(slug, "blog", { draft: true }),
   });
+  const { data: cfg } = useQuery({
+    queryKey: ["site", slug, "config"],
+    queryFn: () => getConfig(slug),
+  });
+  const enabledLangs = cfg?.site?.languages ?? ["ko", "en"];
 
   const [search, setSearch] = useState("");
   const filtered = useRowFilter(data ?? [], search, (row) => [row.title, row.slug]);
@@ -52,7 +58,7 @@ export function BlogTab({ slug }: { slug: string }) {
         title: form.title.trim(),
         body: form.body,
         lang: form.lang,
-        tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
+        tags: form.tags,
       };
       if (editing === "new") {
         return contentClient.create<BlogPost>(slug, "blog", payload);
@@ -93,7 +99,7 @@ export function BlogTab({ slug }: { slug: string }) {
       title: post.title,
       body: post.body ?? "",
       lang: post.lang,
-      tags: (post.tags ?? []).join(", "),
+      tags: post.tags ?? [],
     });
     setError(null);
   };
@@ -218,16 +224,13 @@ export function BlogTab({ slug }: { slug: string }) {
             onChange={(e) => setForm((f) => ({ ...f, lang: e.target.value }))}
             className="h-10 w-full rounded-md border border-line bg-canvas px-3 text-sm text-foreground"
           >
-            <option value="ko">ko</option>
-            <option value="en">en</option>
+            {enabledLangs.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
           </select>
         </DrawerField>
-        <DrawerField label="Tags" hint="Comma-separated, e.g. rust, web, weekly">
-          <Input
-            value={form.tags}
-            onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))}
-            placeholder="rust, web, ..."
-          />
+        <DrawerField label="Tags">
+          <TagInput value={form.tags} onChange={(tags) => setForm((f) => ({ ...f, tags }))} />
         </DrawerField>
         <DrawerField label="Body" hint="Markdown is supported">
           <MarkdownEditor value={form.body} onChange={(v) => setForm((f) => ({ ...f, body: v }))} rows={16} />

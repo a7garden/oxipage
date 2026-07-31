@@ -42,6 +42,24 @@ pub async fn create(
         )
     })?;
 
+    // release_year 4자리 + series_order 양수 검증.
+    if let Some(y) = input.release_year
+        && oxipage_core::validation::validate_year(y).is_none()
+    {
+        return Err(ApiError::validation(
+            "release_year",
+            "release_year must be a 4-digit year",
+        ));
+    }
+    if let Some(o) = input.series_order
+        && o <= 0
+    {
+        return Err(ApiError::validation(
+            "series_order",
+            "series_order must be positive",
+        ));
+    }
+
     // tmdb_id가 있고 키가 있으면 메타 1회 fetch. 클라이언트 명시 값이 있으면 그게 우선.
     let tmdb = TmdbClient::from_env();
     let fetched: Option<TmdbSearchResult> = if let Some(id) = input.tmdb_id

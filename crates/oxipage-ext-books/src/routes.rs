@@ -178,6 +178,24 @@ fn validate_create(input: &BookInput) -> Result<(), ApiError> {
         ));
     }
     Rating::new(input.rating).map_err(|e| ApiError::validation("rating", &e.to_string()))?;
+    if let Some(isbn) = &input.isbn13
+        && !isbn.is_empty()
+        && !oxipage_core::validation::validate_isbn13(isbn)
+    {
+        return Err(ApiError::validation(
+            "isbn13",
+            "isbn13 is not a valid ISBN-13",
+        ));
+    }
+    if !oxipage_core::validation::validate_date_order(
+        input.started_at.as_deref(),
+        input.finished_at.as_deref(),
+    ) {
+        return Err(ApiError::validation(
+            "finished_at",
+            "finished_at must not precede started_at",
+        ));
+    }
     Ok(())
 }
 
@@ -205,6 +223,24 @@ fn validate_patch(patch: &BookPatch) -> Result<(), ApiError> {
     }
     if let Some(r) = patch.rating {
         Rating::new(r).map_err(|e| ApiError::validation("rating", &e.to_string()))?;
+    }
+    if let Some(isbn) = &patch.isbn13
+        && !isbn.is_empty()
+        && !oxipage_core::validation::validate_isbn13(isbn)
+    {
+        return Err(ApiError::validation(
+            "isbn13",
+            "isbn13 is not a valid ISBN-13",
+        ));
+    }
+    if !oxipage_core::validation::validate_date_order(
+        patch.started_at.as_deref(),
+        patch.finished_at.as_deref(),
+    ) {
+        return Err(ApiError::validation(
+            "finished_at",
+            "finished_at must not precede started_at",
+        ));
     }
     Ok(())
 }

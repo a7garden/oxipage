@@ -147,6 +147,15 @@ fn validate_input(input: &ScrapInput) -> Result<(), ApiError> {
             "source must be hackernews|geeknews|manual",
         ));
     }
+    if let Some(og) = &input.og_image_url
+        && !og.is_empty()
+        && !oxipage_core::validation::is_image_value(og)
+    {
+        return Err(ApiError::validation(
+            "og_image_url",
+            "og_image_url must be an http(s) URL or site media path",
+        ));
+    }
     Ok(())
 }
 

@@ -6,6 +6,8 @@ import { Button } from "../../shared/ui/button";
 import { Input } from "../../shared/ui/input";
 import { Textarea } from "../../shared/ui/textarea";
 import { Drawer, DrawerField } from "../../shared/ui/drawer";
+import { ImageField } from "../shared/ui/ImageField";
+import { TagInput } from "../shared/ui/TagInput";
 import { Pencil, Trash2, Plus } from "lucide-react";
 import { useRowFilter } from "../shared/useRowFilter";
 import { field, str } from "../shared/row-utils";
@@ -30,7 +32,7 @@ interface FormState {
   description_ko: string;
   description_en: string;
   thumbnail_url: string;
-  tags: string;
+  tags: string[];
   display_order: string;
   featured: boolean;
 }
@@ -41,7 +43,7 @@ const EMPTY: FormState = {
   description_ko: "",
   description_en: "",
   thumbnail_url: "",
-  tags: "",
+  tags: [],
   display_order: "0",
   featured: false,
 };
@@ -68,7 +70,7 @@ export function LinksTab({ slug }: { slug: string }) {
         description_ko: form.description_ko || null,
         description_en: form.description_en || null,
         thumbnail_url: form.thumbnail_url || null,
-        tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
+        tags: form.tags,
         display_order: parseInt(form.display_order || "0", 10),
         featured: form.featured,
       };
@@ -98,7 +100,7 @@ export function LinksTab({ slug }: { slug: string }) {
       description_ko: l.description_ko ?? "",
       description_en: l.description_en ?? "",
       thumbnail_url: l.thumbnail_url ?? "",
-      tags: (l.tags ?? []).join(", "),
+      tags: l.tags ?? [],
       display_order: String(l.display_order),
       featured: l.featured,
     });
@@ -186,11 +188,16 @@ export function LinksTab({ slug }: { slug: string }) {
         <DrawerField label="URL" required>
           <Input value={form.url} onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))} placeholder="https://..." type="url" />
         </DrawerField>
-        <DrawerField label="Thumbnail URL">
-          <Input value={form.thumbnail_url} onChange={(e) => setForm((f) => ({ ...f, thumbnail_url: e.target.value }))} placeholder="https://..." />
+        <DrawerField label="Thumbnail">
+          <ImageField
+            slug={slug}
+            extension="links"
+            value={form.thumbnail_url}
+            onChange={(v) => setForm((f) => ({ ...f, thumbnail_url: v ?? "" }))}
+          />
         </DrawerField>
-        <DrawerField label="Tags" hint="Comma-separated">
-          <Input value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} />
+        <DrawerField label="Tags">
+          <TagInput value={form.tags} onChange={(tags) => setForm((f) => ({ ...f, tags }))} />
         </DrawerField>
         <DrawerField label="Display order">
           <Input

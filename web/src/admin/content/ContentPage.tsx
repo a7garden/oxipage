@@ -8,8 +8,10 @@ import { MoviesTab } from "./MoviesTab";
 import { BooksTab } from "./BooksTab";
 import { NovelsTab } from "./NovelsTab";
 import { ScrapsTab } from "./ScrapsTab";
+import { ProfileTab } from "./ProfileTab";
 
 const tabs = [
+  { id: "profile", label: "Profile" },
   { id: "blog", label: "Blog" },
   { id: "projects", label: "Projects" },
   { id: "links", label: "Links" },
@@ -20,6 +22,7 @@ const tabs = [
 ] as const;
 
 const tabComponents: Record<string, React.FC<{ slug: string }>> = {
+  profile: ProfileTab,
   blog: BlogTab,
   projects: ProjectsTab,
   links: LinksTab,
@@ -31,7 +34,7 @@ const tabComponents: Record<string, React.FC<{ slug: string }>> = {
 
 export function ContentPage() {
   const { slug } = useParams<{ slug: string }>()!;
-  const [activeTab, setActiveTab] = useState("blog");
+  const [activeTab, setActiveTab] = useState("profile");
   const TabComponent = tabComponents[activeTab];
 
   return (

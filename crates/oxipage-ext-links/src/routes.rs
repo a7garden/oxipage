@@ -23,6 +23,15 @@ pub async fn create(
     Json(input): Json<LinkCardInput>,
 ) -> Result<Json<DataEnvelope<crate::model::LinkCard>>, ApiError> {
     validate(&input.title, &input.url)?;
+    if let Some(t) = &input.thumbnail_url
+        && !t.is_empty()
+        && !oxipage_core::validation::is_image_value(t)
+    {
+        return Err(ApiError::validation(
+            "thumbnail_url",
+            "thumbnail_url must be an http(s) URL or site media path",
+        ));
+    }
     let card = repo::create(&pool.db, &input)
         .await
         .map_err(ApiError::internal)?;

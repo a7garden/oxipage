@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { contentClient } from "../shared/api";
+import { contentClient, searchTmdb, type TmdbSearchResult } from "../shared/api";
+import { ImageField } from "../shared/ui/ImageField";
 import { ContentTable } from "../shared/content-table";
 import { Button } from "../../shared/ui/button";
 import { Input } from "../../shared/ui/input";
@@ -40,6 +41,7 @@ interface FormState {
   title: string;
   media_type: string;
   release_year: string;
+  poster_path: string;
   watched_at: string;
   rating: string;
   review_ko: string;
@@ -53,6 +55,7 @@ const EMPTY: FormState = {
   title: "",
   media_type: "movie",
   release_year: "",
+  poster_path: "",
   watched_at: "",
   rating: "7",
   review_ko: "",
@@ -126,6 +129,7 @@ export function MoviesTab({ slug }: { slug: string }) {
       title: m.title,
       media_type: m.media_type,
       release_year: m.release_year ? String(m.release_year) : "",
+      poster_path: m.poster_path ?? "",
       watched_at: m.watched_at ?? "",
       rating: String(m.rating),
       review_ko: m.review_ko ?? "",
@@ -211,7 +215,20 @@ export function MoviesTab({ slug }: { slug: string }) {
       ) : (
         <>
       <div className="flex items-center justify-between mb-3">
-        <Input placeholder="Search movies..." className="w-60" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <div className="flex gap-2">
+          <Input placeholder="Search movies..." className="w-60" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <TmdbSearchRow slug={slug} onPick={(r) => {
+            setForm((f) => ({
+              ...f,
+              title: r.title,
+              media_type: r.media_type,
+              release_year: r.release_year != null ? String(r.release_year) : "",
+              poster_path: r.poster_path ? `https://image.tmdb.org/t/p/w500${r.poster_path}` : "",
+            }));
+            setEditing("new");
+            setError(null);
+          }} />
+        </div>
         <Button size="sm" onClick={() => { setEditing("new"); setForm(EMPTY); setError(null); }}>
           <Plus size={14} className="mr-1" /> Add Review
         </Button>
@@ -241,6 +258,14 @@ export function MoviesTab({ slug }: { slug: string }) {
       >
         <DrawerField label="Title" required>
           <Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} autoFocus />
+        </DrawerField>
+        <DrawerField label="Poster">
+          <ImageField
+            slug={slug}
+            extension="movies"
+            value={form.poster_path}
+            onChange={(v) => setForm((f) => ({ ...f, poster_path: v ?? "" }))}
+          />
         </DrawerField>
         <div className="grid grid-cols-2 gap-3">
           <DrawerField label="Type">
@@ -458,6 +483,44 @@ function SeriesView({ slug }: { slug: string }) {
           <Input value={seriesForm.title_en} onChange={(e) => setSeriesForm((f) => ({ ...f, title_en: e.target.value }))} />
         </DrawerField>
       </Drawer>
+    </div>
+  );
+}
+
+function TmdbSearchRow({ slug, onPick }: { slug: string; onPick: (r: TmdbSearchResult) => void }) {
+  const [q, setQ] = useState("");
+  const search = useQuery({
+    queryKey: ["site", slug, "movies", "tmdb", q],
+    queryFn: () => searchTmdb(slug, q),
+    enabled: q.trim().length > 1,
+  });
+  return (
+    <div className="relative">
+      <Input
+        placeholder="Search TMDB…"
+        className="w-56"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
+      {search.data && search.data.length > 0 && (
+        <div className="absolute z-10 mt-1 w-64 max-h-64 overflow-auto rounded-md border border-line bg-surface shadow-lg">
+          {search.data.map((r) => (
+            <button
+              key={r.tmdb_id}
+              className="block w-full text-left px-3 py-2 text-sm hover:bg-surface/60"
+              onClick={() => {
+                onPick(r);
+                setQ("");
+              }}
+            >
+              <div className="font-medium">{r.title}</div>
+              <div className="text-xs text-muted">
+                {r.media_type} · {r.release_year ?? "—"}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

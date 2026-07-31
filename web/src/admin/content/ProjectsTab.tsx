@@ -6,6 +6,7 @@ import { Badge } from "../../shared/ui/badge";
 import { Button } from "../../shared/ui/button";
 import { Input } from "../../shared/ui/input";
 import { Textarea } from "../../shared/ui/textarea";
+import { ImageField } from "../shared/ui/ImageField";
 import { Drawer, DrawerField } from "../../shared/ui/drawer";
 import { Pencil, Trash2, Send, Plus, ChevronDown, ChevronUp } from "lucide-react";
 import { useRowFilter } from "../shared/useRowFilter";
@@ -39,6 +40,8 @@ interface FormState {
   description_en: string;
   tech_stack: string;
   status: string;
+  started_at: string;
+  ended_at: string;
   featured: boolean;
 }
 
@@ -49,6 +52,8 @@ const EMPTY: FormState = {
   description_en: "",
   tech_stack: "",
   status: "wip",
+  started_at: "",
+  ended_at: "",
   featured: false,
 };
 
@@ -75,6 +80,8 @@ export function ProjectsTab({ slug }: { slug: string }) {
         description_en: form.description_en || null,
         tech_stack: form.tech_stack.split(",").map((t) => t.trim()).filter(Boolean),
         status: form.status,
+        started_at: form.started_at || null,
+        ended_at: form.ended_at || null,
         featured: form.featured,
       };
       if (editing === "new") return contentClient.create<Project>(slug, "projects", payload);
@@ -138,6 +145,8 @@ export function ProjectsTab({ slug }: { slug: string }) {
       description_en: p.description_en ?? "",
       tech_stack: (p.tech_stack ?? []).join(", "),
       status: p.status,
+      started_at: p.started_at ?? "",
+      ended_at: p.ended_at ?? "",
       featured: p.featured,
     });
     setError(null);
@@ -271,6 +280,14 @@ export function ProjectsTab({ slug }: { slug: string }) {
             <option value="archived">archived</option>
           </select>
         </DrawerField>
+        <div className="grid grid-cols-2 gap-3">
+          <DrawerField label="Started" hint="YYYY-MM-DD">
+            <Input type="date" value={form.started_at} onChange={(e) => setForm((f) => ({ ...f, started_at: e.target.value }))} />
+          </DrawerField>
+          <DrawerField label="Ended" hint="YYYY-MM-DD">
+            <Input type="date" value={form.ended_at} onChange={(e) => setForm((f) => ({ ...f, ended_at: e.target.value }))} />
+          </DrawerField>
+        </div>
         <DrawerField label="Description (Korean)">
           <Textarea value={form.description_ko} onChange={(e) => setForm((f) => ({ ...f, description_ko: e.target.value }))} rows={4} />
         </DrawerField>
@@ -328,10 +345,11 @@ export function ProjectsTab({ slug }: { slug: string }) {
             </button>
             {addingScreenshot && (
               <div className="border border-line rounded p-3 mt-2 space-y-2 bg-surface/30">
-                <Input
-                  placeholder="Image URL"
+                <ImageField
+                  slug={slug}
+                  extension="projects"
                   value={addShotForm.url}
-                  onChange={(e) => setAddShotForm((f) => ({ ...f, url: e.target.value }))}
+                  onChange={(v) => setAddShotForm((f) => ({ ...f, url: v ?? "" }))}
                 />
                 <Input
                   placeholder="Alt text (Korean)"
