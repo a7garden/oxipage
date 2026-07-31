@@ -55,34 +55,18 @@ async fn admin_html_has_no_cache_header() {
 #[tokio::test]
 async fn hashed_asset_has_immutable_cache() {
     let app = build_test_app().await;
-    // Extract the hashed JS asset URI from the served /admin.html body so
-    // the test is robust to hash changes across builds and reads the Admin
-    // entry HTML (not the Lobby index.html, which uses shorter Vite hashes).
-    let admin_resp = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .uri("/admin.html")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(admin_resp.status(), StatusCode::OK);
-    let bytes = axum::body::to_bytes(admin_resp.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let html = String::from_utf8(bytes.to_vec()).unwrap();
+    // Extract the hashed JS asset URI from the embedded admin.html so the
+    // test is robust to hash changes across builds.
+    let html = oxipage_core::http::spa_index_html().unwrap_or_default();
     let asset = html
         .split("src=\"")
         .nth(1)
         .and_then(|s| s.split('\"').next())
-        .expect("admin.html must reference a script")
-        .to_owned();
+        .expect("admin.html must reference a script");
     let resp = app
         .oneshot(
             Request::builder()
-                .uri(asset.as_str())
+                .uri(asset)
                 .body(Body::empty())
                 .unwrap(),
         )

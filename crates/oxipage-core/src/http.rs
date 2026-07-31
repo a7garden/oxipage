@@ -406,11 +406,15 @@ fn is_html_entry(path: &str) -> bool {
 }
 
 fn has_hash_suffix(path: &str) -> bool {
-    // Vite emits assets/<name>-<hash>.<ext>. Check for the dash-hash pattern.
+    // Vite emits assets/<name>-<hash>.<ext>. The first dash is the
+    // name/hash separator; the hash itself is base64url and may contain
+    // `-` (e.g. `main-za-BpeA9.js`, `global-GVxw7SR-.js`), so `rfind` would
+    // land inside the hash and miss the separator. Use `find` and require
+    // the post-separator segment to be ≥ 6 chars.
     let stem = path.strip_prefix("assets/").unwrap_or(path);
     let dot = stem.rfind('.').unwrap_or(stem.len());
     let name = &stem[..dot];
-    name.contains('-') && name.rfind('-').map(|i| &name[i + 1..]).map_or(false, |h| h.len() >= 6)
+    name.find('-').map(|i| &name[i + 1..]).map_or(false, |h| h.len() >= 6)
 }
 
 fn spa_revision() -> &'static str {
