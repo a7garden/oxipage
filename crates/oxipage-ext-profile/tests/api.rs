@@ -55,6 +55,7 @@ async fn get_profile_returns_seeded_singleton() {
 async fn put_roundtrip_updates_profile() {
     let app = test_app(Some("tok")).await;
     let payload = r#"{
+        "expected_updated_at": "",
         "display_name": "김개발",
         "tagline_ko": "밤에 코드를 짜는 사람",
         "tagline_en": "codes at night",
@@ -104,7 +105,7 @@ async fn put_with_empty_display_name_is_422() {
             Request::put("/api/console/profile")
                 .header("content-type", "application/json")
                 .header("authorization", "Bearer tok")
-                .body(Body::from(r#"{"display_name":"  "}"#))
+                .body(Body::from(r#"{"expected_updated_at":"","display_name":"  "}"#))
                 .unwrap(),
         )
         .await

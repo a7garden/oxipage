@@ -5,6 +5,11 @@ use axum::response::{IntoResponse, Response};
 #[derive(Debug, serde::Serialize)]
 pub struct ErrorBody {
     pub error: ErrorDetail,
+    /// Optional payload attached to non-2xx responses that need to convey
+    /// state alongside the error (e.g. the current remote row on 409).
+    /// Skipped when `None` so existing handlers are unaffected.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub data: Option<serde_json::Value>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -31,6 +36,7 @@ impl ApiError {
                     message: message.to_string(),
                     field: None,
                 },
+                data: None,
             },
         }
     }
@@ -43,6 +49,31 @@ impl ApiError {
         );
         err.body.error.field = Some(field.to_string());
         err
+    }
+
+    /// Build an error response that also carries `data` (any `Serialize`).
+    /// The JSON body becomes `{ error: {...}, data: <value> }`.
+    pub fn with_data<T: serde::Serialize>(
+        status: StatusCode,
+        code: &str,
+        message: &str,
+        data: &T,
+    ) -> Self {
+        let value = match serde_json::to_value(data) {
+            Ok(v) => Some(v),
+            Err(_) => None,
+        };
+        ApiError {
+            status,
+            body: ErrorBody {
+                error: ErrorDetail {
+                    code: code.to_string(),
+                    message: message.to_string(),
+                    field: None,
+                },
+                data: value,
+            },
+        }
     }
 
     pub fn internal(err: anyhow::Error) -> Self {
