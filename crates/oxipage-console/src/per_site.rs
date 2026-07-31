@@ -341,6 +341,45 @@ pub async fn builds_list(
     Ok(Json(BuildsResponse { data: records }))
 }
 
+// ─── deploys (GET history) ─────────────────────────────────────────────────
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct DeployRecord {
+    pub id: i64,
+    pub run_id: String,
+    pub build_id: String,
+    pub target: String,
+    pub owner: String,
+    pub repo: String,
+    pub branch: String,
+    pub base_path: String,
+    pub status: String,
+    pub url: Option<String>,
+    pub commit_sha: Option<String>,
+    pub error_code: Option<String>,
+    pub error: Option<String>,
+    pub started_at: String,
+    pub finished_at: Option<String>,
+}
+
+/// Read deploy history from the per-site DB (`deploy_log` table). Returns an
+/// empty list if no table exists yet (no deploys have run).
+pub async fn deploys_list(
+    Extension(ctx): Extension<Arc<SiteContext>>,
+    Query(q): Query<RecentQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let rows: Result<Vec<DeployRecord>, _> = sqlx::query_as::<_, DeployRecord>(
+        "SELECT * FROM deploy_log ORDER BY id DESC LIMIT ?1",
+    )
+    .bind(q.limit.unwrap_or(50).clamp(1, 100))
+    .fetch_all(&ctx.db)
+    .await;
+    match rows {
+        Ok(rs) => Ok(Json(serde_json::json!({ "data": rs }))),
+        Err(_) => Ok(Json(serde_json::json!({ "data": [] }))),
+    }
+}
+
 // ─── theme (GET/PUT) ────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
@@ -915,6 +954,7 @@ pub fn per_site_router() -> Router {
     Router::new()
         .route("/config", get(config_get).put(config_put))
         .route("/builds", get(builds_list))
+        .route("/deploys", get(deploys_list))
         .route("/build", post(build_post))
         .route("/build/{build_id}/stream", get(build_stream))
         .route("/deploy", post(deploy_post))
