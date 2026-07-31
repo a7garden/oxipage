@@ -84,10 +84,25 @@ async fn admin_html_has_revision_meta_and_header() {
         .oneshot(Request::builder().uri("/sites").body(Body::empty()).unwrap())
         .await
         .unwrap();
-    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-    let body = String::from_utf8(bytes.to_vec()).unwrap();
-    assert!(
-        body.contains("oxipage-spa-revision"),
-        "admin.html must carry the revision meta tag"
+    // Capture the header BEFORE consuming the body — `into_body()` moves the
+    // response and drops the headers.
+    let header_rev = resp
+        .headers()
+        .get("X-Oxipage-SPA-Revision")
+        .expect("X-Oxipage-SPA-Revision header must be set on admin.html")
+        .to_str()
+        .expect("X-Oxipage-SPA-Revision must be ASCII")
+        .to_owned();
+    assert!(!header_rev.is_empty(), "X-Oxipage-SPA-Revision must be non-empty");
+    let body_bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let body = String::from_utf8(body_bytes.to_vec()).unwrap();
+    let meta_rev = body
+        .split("name=\"oxipage-spa-revision\" content=\"")
+        .nth(1)
+        .and_then(|s| s.split('\"').next())
+        .expect("admin.html must carry the oxipage-spa-revision meta tag");
+    assert_eq!(
+        meta_rev, header_rev,
+        "meta tag content and X-Oxipage-SPA-Revision header must agree"
     );
 }
