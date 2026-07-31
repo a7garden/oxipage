@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.8.0] - 2026-07-31
+
+### Added
+- **Theme system.** A single `ThemeDefinition` catalog (`paper`, `midnight`, `sepia`, `forest`, `neon`, `canvas`) lives in `oxipage-core`; the per-site `/theme` API returns the full definition; the console's Appearance section exposes a three-state toggle (system / light / dark) backed by a shared `theme-boot.js` that replaces the duplicated inline FOUC scripts.
+- **Materialization.** The SSG build now emits relative asset tags plus a deployment `<base href>`, writes a `BuildManifest` (`deployment_base`, `theme_id`, `asset_revision`, `build_id`) via `derive_deployment_base` from `site.base_url`, and computes a deterministic SHA-256 asset revision over `web/dist` (baked into embedded crates as `OXIPAGE_SPA_REVISION`).
+- **Console media upload.** `POST /api/console/.../media` accepts multipart uploads validated by magic bytes; uploaded media is served live from the site's media dir.
+- **Console preview.** Preview is prefix-aware, rewrites `<base>` for project-page deploys, and returns `424 Build Required` when the site hasn't been built yet.
+- **Console deploy surface.** GitHub Pages settings are now mutable (`PATCH`), deploy history is persisted per site, preflight + reconnect APIs were added, and build/deploy operations are serialized per site with an atomic `config_write_lock` (`MutableSiteSettings`).
+- **Authoring improvements.** ProfileTab, atomic reorders with shared validators, and blog server-side validation.
+- **Admin editor UX.** `EditorPreviewDrawer` (2-pane desktop / mobile tabs), `DraftPreviewPane` (distinct from Preview Site), `ImageField` + `AssetResolver` + `uploadImage` + Preview Site button, `TagInput` chip editor, field-level validation helpers surfaced in `jsonOrThrow`, and an `ErrorBoundary` with stale-chunk recovery.
+- **Profile optimistic concurrency.** `PUT` carries `expected_updated_at`; conflicts are rejected instead of silently overwriting.
+- **Repository-scoped GitHub Pages deployment.** `oxipage-core` gained validated GitHub Pages target config; deploy is scoped to the target repository.
+
+### Changed
+- **GitHub Pages deployment is repository-scoped** (`DeployTarget` instead of repo-inferred); the legacy top-level console build/deploy routes were removed in favor of the site-scoped ones.
+- `SiteContext` resolves absolute paths for `project_dir` / `data_dir` / `out_dir` / `media_dir`.
+- Shared presentation components extracted (`*Card`, `ProjectView`, `ProfileView`, `BlogPostView`, `BlogPostCard`); sidebar uses semantic theme tokens; console appearance is decoupled from the public site theme.
+- Docs/plan references migrated from `a7garden/oxipage` to `project-oxi/oxipage`.
+
+### Fixed
+- `/preview/*` non-API paths return 404 instead of the SPA fallback.
+- Movies search surfaces a TMDB-disabled hint; books normalize legacy `read` / `dnf` status on read.
+- `oxipage deploy` honors the registered site; dead `/vite.svg` favicon replaced with an inline data URI.
+- Workspace `cargo fmt` + clippy 1.96 lint cleanup (`unnecessary_map_or`, `manual_ok_err`, `needless_borrow`, `io_other_error`, `result_unit_err`, `type_complexity`, `collapsible_if`, `useless_format`, unused imports).
+- CI: `ci.yml` / `release.yml` now run `bun run build:static` — `oxipage-core`'s build.rs requires `web/dist-static` for the materialized static SPA; two tests were decoupled from stale SPA chunk naming.
+
+### Security
+- Unchanged from v0.7.0: 17 outstanding `wasmtime 33.0.2` advisories (RUSTSEC-2026-0095 not applicable, RUSTSEC-2026-0096 conditional/mitigated). wasmtime 33.x is EOL; a bump to 36/42/43 cascades through `oxipage-wasm`'s API surface and is tracked separately.
+
 ## [0.7.0] - 2026-07-30
 
 ### Added
@@ -84,7 +115,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Continuation of the v0.3.0 line; the v0.3.0 Git tag was applied to a partial-publish state (4 crates were never released: `oxipage-ext-scraps`, `oxipage-ext-projects`, `oxipage-console`, `oxipage`). Those crates are not in 0.4.0 — they remain unpublished at 0.2.0 / absent from the registry; future cleanup is a separate concern.
 
 
-[Unreleased]: https://github.com/a7garden/oxipage/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/a7garden/oxipage/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/a7garden/oxipage/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/a7garden/oxipage/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/a7garden/oxipage/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/a7garden/oxipage/compare/v0.4.0...v0.5.0

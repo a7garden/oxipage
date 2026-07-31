@@ -1,12 +1,12 @@
 [package]
 name = "oxipage-deploy"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2024"
 license.workspace = true
 description = "Shared deploy pipeline (GitHub Pages) for oxipage CLI + console"
 
 [dependencies]
-oxipage-core = { version = "0.7.0", path = "../oxipage-core" }
+oxipage-core = { version = "0.8.0", path = "../oxipage-core" }
 serde.workspace = true
 thiserror.workspace = true
 tokio.workspace = true

@@ -1,6 +1,6 @@
 [package]
 name = "oxipage"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2024"
 license.workspace = true
 description = "Oxipage CLI — 블로그/프로젝트/링크/사이트 관리 커맨드라인 도구 (doc/04)"
@@ -14,12 +14,12 @@ anyhow.workspace = true
 axum.workspace = true
 clap.workspace = true
 directories.workspace = true
-oxipage-core = { version = "0.7.0", path = "../oxipage-core" }
-oxipage-console = { version = "0.7.0", path = "../oxipage-console" }
-oxipage-deploy = { version = "0.7.0", path = "../oxipage-deploy" }
-oxipage-ext-blog = { version = "0.7.0", path = "../oxipage-ext-blog" }
-oxipage-ext-projects = { version = "0.7.0", path = "../oxipage-ext-projects" }
-oxipage-ext-links = { version = "0.7.0", path = "../oxipage-ext-links" }
+oxipage-core = { version = "0.8.0", path = "../oxipage-core" }
+oxipage-console = { version = "0.8.0", path = "../oxipage-console" }
+oxipage-deploy = { version = "0.8.0", path = "../oxipage-deploy" }
+oxipage-ext-blog = { version = "0.8.0", path = "../oxipage-ext-blog" }
+oxipage-ext-projects = { version = "0.8.0", path = "../oxipage-ext-projects" }
+oxipage-ext-links = { version = "0.8.0", path = "../oxipage-ext-links" }
 rusqlite = { version = "0.32", features = ["serde_json"] }
 reqwest.workspace = true
 serde.workspace = true
