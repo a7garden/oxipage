@@ -82,10 +82,17 @@ rm -rf crates/oxipage-console/embedded-spa/
 Run: `cargo build --workspace`
 Expected: success — the console binary compiles without its build script
 
-- [ ] **Step 4: Verify the console binary still serves admin.html**
+- [ ] **Step 4: Verify the console unit tests still pass**
 
-Run: `cargo test -p oxipage-console --test site_routes`
-Expected: existing tests pass (they use the core embed via `build_console_router`)
+Run: `cargo test -p oxipage-console --lib`
+Expected: 4/4 unit tests pass
+
+Note: `cargo test -p oxipage-console` (integration tests) currently FAILS to
+compile due to a pre-existing `SiteRegistry::new` arity drift — the four
+integration test files call `SiteRegistry::new(sf)` with one argument, but
+the signature requires three. This predates Task 1. Task 5 fixes the arity
+in those test files; until then, integration-test verification in this plan
+uses `--lib` or `--test <specific>` only after Task 5.
 
 - [ ] **Step 5: Commit**
 
@@ -123,17 +130,20 @@ include = [
 ]
 ```
 
-- [ ] **Step 2: Rewrite build.rs with dual-mode validation**
+- [ ] **Step 2: Rewrite build.rs with dual-mode validation and revision marker**
 
 Replace the entire contents of `crates/oxipage-core/build.rs`:
 
 ```rust
+use std::collections::BTreeMap;
+use std::path::Path;
+
 fn main() {
     println!("cargo:rerun-if-changed=../../web/dist");
     println!("cargo:rerun-if-changed=../../web/dist-static");
 
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-    let root = std::path::Path::new(&manifest_dir);
+    let root = Path::new(&manifest_dir);
     let web_dist = root.join("../../web/dist");
     let web_dist_static = root.join("../../web/dist-static");
 
@@ -146,10 +156,22 @@ fn main() {
             "index.html",
             "web/dist-static",
         );
+        // Revision is the SHA-256 over the live Admin embed source (web_dist),
+        // NOT the copied dir — hashing the copy would include the marker file
+        // itself and break determinism. See compute_revision below.
+        let revision = compute_revision(&web_dist);
+        std::fs::write(root.join("embedded-spa/.build-revision"), &revision)
+            .expect("write embedded-spa/.build-revision");
+        println!("cargo:rustc-env=OXIPAGE_SPA_REVISION={revision}");
     } else if root.join("embedded-spa").exists() || root.join("embedded-spa-static").exists() {
         // Mode 2: Published crate — packaged embeds must already be populated.
         require_packaged(root.join("embedded-spa"), "admin.html");
         require_packaged(root.join("embedded-spa-static"), "index.html");
+        let rev_path = root.join("embedded-spa/.build-revision");
+        let revision = std::fs::read_to_string(&rev_path)
+            .unwrap_or_else(|_| panic!("packaged embed is missing {}", rev_path.display()));
+        let revision = revision.trim();
+        println!("cargo:rustc-env=OXIPAGE_SPA_REVISION={revision}");
     } else {
         // Fresh development clone: no web build and no packaged embeds yet.
         // Fail with the exact command that produces the required output.
@@ -167,9 +189,8 @@ fn main() {
     );
 }
 
-fn validate_and_copy(src: &std::path::Path, dst: &std::path::Path, required: &str, label: &str) {
+fn validate_and_copy(src: &Path, dst: &Path, required: &str, label: &str) {
     if !src.exists() {
-        // If the sibling dist exists but this one doesn't, that's a partial workspace build.
         panic!(
             "{label} not found at {}. Run: cd web && bun run build && bun run build:static",
             src.display()
@@ -184,10 +205,11 @@ fn validate_and_copy(src: &std::path::Path, dst: &std::path::Path, required: &st
     if dst.exists() {
         let _ = std::fs::remove_dir_all(dst);
     }
-    copy_dir(src, dst).unwrap_or_else(|e| panic!("failed to copy {label} to {}: {e}", dst.display()));
+    copy_dir(src, dst)
+        .unwrap_or_else(|e| panic!("failed to copy {label} to {}: {e}", dst.display()));
 }
 
-fn require_packaged(dir: &std::path::Path, required: &str) {
+fn require_packaged(dir: &Path, required: &str) {
     if !dir.join(required).exists() {
         panic!(
             "packaged embed at {} is missing {}. The crate package is incomplete.",
@@ -197,7 +219,7 @@ fn require_packaged(dir: &std::path::Path, required: &str) {
     }
 }
 
-fn copy_or_stub(dst: &std::path::Path, src: &std::path::Path, empty: &[u8]) {
+fn copy_or_stub(dst: &Path, src: &Path, empty: &[u8]) {
     if src.exists() {
         std::fs::copy(src, dst).unwrap_or_else(|e| panic!("failed to copy {}: {e}", src.display()));
     } else if !dst.exists() {
@@ -205,7 +227,7 @@ fn copy_or_stub(dst: &std::path::Path, src: &std::path::Path, empty: &[u8]) {
     }
 }
 
-fn copy_dir(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+fn copy_dir(src: &Path, dst: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(dst)?;
     for entry in std::fs::read_dir(src)? {
         let entry = entry?;
@@ -220,6 +242,61 @@ fn copy_dir(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()>
     }
     Ok(())
 }
+
+/// Deterministic SHA-256 over relative filenames plus file bytes, walked in
+/// sorted order at every directory level. Uses `\0` separators between name
+/// and bytes so distinct file sets cannot collide (["a","bc"] vs ["ab","c"]).
+fn compute_revision(dir: &Path) -> String {
+    let mut entries: Vec<std::fs::DirEntry> = Vec::new();
+    collect_sorted_files(dir, &mut entries);
+    let mut hasher = sha2::Sha256::new();
+    for entry in &entries {
+        let path = entry.path();
+        let rel = path
+            .strip_prefix(dir)
+            .expect("entry under root")
+            .to_string_lossy()
+            .replace('\\', "/");
+        let bytes = std::fs::read(&path).expect("read embed file");
+        hasher.update(rel.as_bytes());
+        hasher.update(b"\0");
+        hasher.update(&bytes);
+        hasher.update(b"\0");
+    }
+    let digest = hasher.finalize();
+    let mut out = String::with_capacity(64);
+    for byte in digest {
+        use std::fmt::Write;
+        let _ = write!(&mut out, "{byte:02x}");
+    }
+    out
+}
+
+fn collect_sorted_files(base: &Path, out: &mut Vec<std::fs::DirEntry>) {
+    let mut entries: Vec<std::fs::DirEntry> = std::fs::read_dir(base)
+        .expect("read embed dir")
+        .map(|e| e.expect("embed entry"))
+        .collect();
+    entries.sort_by_key(|e| e.file_name());
+    for entry in entries {
+        let path = entry.path();
+        let ty = entry.file_type().expect("entry type");
+        if ty.is_dir() {
+            collect_sorted_files(&path, out);
+        } else if ty.is_file() {
+            out.push(entry);
+        }
+    }
+}
+```
+
+- [ ] **Step 2b: Add sha2 as a build-dependency**
+
+In `crates/oxipage-core/Cargo.toml`, add a `[build-dependencies]` section (it is used by build.rs only, so NOT `[dependencies]`):
+
+```toml
+[build-dependencies]
+sha2.workspace = true
 ```
 
 - [ ] **Step 3: Build and verify**
@@ -420,7 +497,8 @@ fn has_hash_suffix(path: &str) -> bool {
 }
 
 fn spa_revision() -> &'static str {
-    // Compiled-in from build.rs; read .build-revision at build time.
+    // Compiled-in from build.rs (Task 2): the SHA-256 over the live Admin
+    // embed, emitted as cargo:rustc-env=OXIPAGE_SPA_REVISION.
     option_env!("OXIPAGE_SPA_REVISION").unwrap_or("unknown")
 }
 
@@ -432,47 +510,15 @@ fn content_hash(data: &[u8]) -> String {
 }
 ```
 
-Also add to `build.rs` (in the `validate_and_copy` for the live embed):
+`sha2` is already a `[build-dependencies]` entry from Task 2 (for build.rs).
+Because `content_hash()` in `src/http.rs` also imports sha2 at runtime,
+Task 3 adds it to the regular `[dependencies]` too:
 
-```rust
-// Compute revision and set it as an env var for compilation.
-let revision = compute_revision(&root.join("embedded-spa"));
-println!("cargo:rustc-env=OXIPAGE_SPA_REVISION={revision}");
-```
-
-```rust
-fn compute_revision(dir: &std::path::Path) -> String {
-    use std::collections::BTreeMap;
-    let mut entries: BTreeMap<String, Vec<u8>> = BTreeMap::new();
-    collect_files(dir, "", &mut entries);
-    let mut hasher = sha2::Sha256::new();
-    for (name, data) in &entries {
-        hasher.update(name.as_bytes());
-        hasher.update(data);
-    }
-    format!("{:x}", hasher.finalize())
-}
-
-fn collect_files(base: &std::path::Path, rel: &str, out: &mut std::collections::BTreeMap<String, Vec<u8>>) {
-    let dir = if rel.is_empty() { base } else { &base.join(rel) };
-    if let Ok(rd) = std::fs::read_dir(dir) {
-        for entry in rd.flatten() {
-            let name = entry.file_name().to_string_lossy().to_string();
-            let rel_path = if rel.is_empty() { name.clone() } else { format!("{rel}/{name}") };
-            if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                collect_files(base, &rel_path, out);
-            } else if let Ok(data) = std::fs::read(entry.path()) {
-                out.insert(rel_path, data);
-            }
-        }
-    }
-}
-```
-
-Add `sha2` to `crates/oxipage-core/Cargo.toml` `[dependencies]`:
 ```toml
 sha2.workspace = true
 ```
+
+Verify the addition compiles: `cargo build -p oxipage-core`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -770,7 +816,7 @@ pub async fn load(slug: String, path: PathBuf, build_guard: Arc<BuildGuard>, dep
 }
 ```
 
-- [ ] **Step 4: Migrate all `ctx.path` references to `ctx.project_dir`/`ctx.data_dir`/`ctx.out_dir`/`ctx.media_dir`**
+- [ ] **Step 4: Migrate all `ctx.path` references to resolved path fields**
 
 Search and replace across `crates/oxipage-console/src/`:
 
@@ -783,6 +829,25 @@ Replace each:
 
 Do NOT migrate `ctx.config` references yet — `settings` does not exist until Task 6.
 The `config: Arc<Config>` field stays so the crate compiles after this task.
+
+- [ ] **Step 4b: Fix pre-existing integration-test `SiteRegistry::new` arity**
+
+The four integration test files `tests/site_routes.rs`, `tests/sites_registry.rs`,
+`tests/create_site.rs`, and `tests/build_deploy_preview.rs` call
+`SiteRegistry::new(sf)` with one argument, but the signature is
+`SiteRegistry::new(sites_file: SitesFile, build_guard: Arc<BuildGuard>,
+deploy_guard: Arc<DeployGuard>)`. Both guards implement `Default`, so update
+each call site to:
+
+```rust
+let registry = Arc::new(SiteRegistry::new(sf, Default::default(), Default::default()).await.unwrap());
+```
+
+Check each file's exact call shape and adjust imports if needed (the guard
+types are console-crate types; `Default::default()` avoids importing them).
+
+Run: `cargo test -p oxipage-console`
+Expected: all integration tests compile and pass
 - [ ] **Step 5: Run test to verify it passes**
 
 Run: `cargo test -p oxipage-console --test site_paths`
