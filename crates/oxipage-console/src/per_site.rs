@@ -15,6 +15,8 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::routing::{get, post};
 use axum::{Router, http::StatusCode};
 use oxipage_core::build::BuildEvent;
+use oxipage_core::config::ServerConfig;
+use oxipage_core::site_paths::{GitHubPagesTarget, MutableSiteSettings};
 use oxipage_deploy::DeployEvent;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -36,38 +38,59 @@ pub async fn config_get(
 ) -> Result<Json<ConfigResponse>, (StatusCode, String)> {
     let s = ctx.settings.read().await;
     Ok(Json(ConfigResponse {
-        data: serde_json::json!({
-            "site": {
-                "name": s.site.name,
-                "base_url": s.site.base_url,
-                "default_lang": s.site.default_lang,
-                "languages": s.site.languages,
-            },
-            "server": {
-                "host": ctx.startup_server.host,
-                "port": ctx.startup_server.port,
-                "data_dir": ctx.data_dir.to_string_lossy(),
-            },
-            "lobby": {
-                "default_mode": s.lobby.default_mode,
-            },
-            "extensions": {
-                "enabled": s.extensions.enabled,
-            },
-            "integrations": {
-                "github_username": s.integrations.github_username,
-                "tmdb_api_key_env": s.integrations.tmdb_api_key_env,
-                "aladin_ttbkey_env": s.integrations.aladin_ttbkey_env,
-            },
-        }),
+        data: config_json(&s, &ctx.startup_server),
     }))
 }
 
+/// Serialize the current mutable settings + startup-immutable server section
+/// into the JSON shape consumed by the admin UI. `deploy.github_pages` is
+/// inline so the UI can render the same DTO it received on PUT without a
+/// second fetch.
+fn config_json(settings: &MutableSiteSettings, server: &ServerConfig) -> serde_json::Value {
+    let target = settings.deploy.github_pages.as_ref();
+    serde_json::json!({
+        "site": {
+            "name": settings.site.name,
+            "base_url": settings.site.base_url,
+            "default_lang": settings.site.default_lang,
+            "languages": settings.site.languages,
+        },
+        "server": {
+            "host": server.host,
+            "port": server.port,
+            "data_dir": server.data_dir.to_string_lossy(),
+        },
+        "lobby": {
+            "default_mode": settings.lobby.default_mode,
+        },
+        "extensions": {
+            "enabled": settings.extensions.enabled,
+        },
+        "integrations": {
+            "github_username": settings.integrations.github_username,
+            "tmdb_api_key_env": settings.integrations.tmdb_api_key_env,
+            "aladin_ttbkey_env": settings.integrations.aladin_ttbkey_env,
+        },
+        "deploy": {
+            "github_pages": target.map(|t| serde_json::json!({
+                "owner": t.owner,
+                "repo": t.repo,
+                "branch": t.branch,
+                "pages_url": t.pages_url(),
+                "base_path": t.base_path(),
+            })),
+        },
+    })
+}
+
+
 #[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct ConfigUpdate {
     pub site: Option<SiteUpdate>,
     pub lobby: Option<LobbyUpdate>,
     pub integrations: Option<IntegrationsUpdate>,
+    pub deploy: Option<DeployUpdate>,
 }
 
 #[derive(Deserialize, Default)]
@@ -84,10 +107,55 @@ pub struct LobbyUpdate {
 }
 
 #[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct IntegrationsUpdate {
     pub github_username: Option<String>,
     pub tmdb_api_key_env: Option<String>,
     pub aladin_ttbkey_env: Option<String>,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct DeployUpdate {
+    pub github_pages: Option<GitHubPagesTarget>,
+}
+
+/// Apply the allowlisted `[deploy]` patch to the in-memory TOML doc.
+/// Validates the target first; an invalid target rejects the whole PUT
+/// (nothing is persisted). Passing `None` for `github_pages` removes the
+/// existing target (explicit unset).
+fn apply_deploy_patch(
+    doc: &mut toml::Value,
+    patch: Option<DeployUpdate>,
+) -> Result<(), (StatusCode, String)> {
+    let Some(patch) = patch else {
+        return Ok(());
+    };
+    if let Some(target) = &patch.github_pages {
+        target
+            .validate()
+            .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    }
+    let root = doc
+        .as_table_mut()
+        .ok_or((StatusCode::INTERNAL_SERVER_ERROR, "root TOML is not a table".into()))?;
+    let deploy = root
+        .entry("deploy")
+        .or_insert_with(|| toml::Value::Table(toml::Table::new()))
+        .as_table_mut()
+        .ok_or((StatusCode::BAD_REQUEST, "deploy must be a table".into()))?;
+    match patch.github_pages {
+        Some(t) => {
+            deploy.insert(
+                "github_pages".into(),
+                toml::Value::try_from(t).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?,
+            );
+        }
+        None => {
+            deploy.remove("github_pages");
+        }
+    };
+    Ok(())
 }
 
 pub async fn config_put(
@@ -192,12 +260,25 @@ pub async fn config_put(
         }
     }
 
+    // Deploy target patch (validated inside; rejects the whole PUT on error).
+    apply_deploy_patch(&mut doc, update.deploy)?;
+
     let serialized = toml::to_string_pretty(&doc).map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("serialize toml: {e}"),
         )
     })?;
+
+    // Validate the fully-patched config before persisting — an invalid target
+    // must never reach disk.
+    let parsed = oxipage_core::config::Config::from_toml_str(&serialized)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    if let Some(target) = &parsed.deploy.github_pages {
+        target
+            .validate()
+            .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    }
 
     // Atomic write: temp file in the same directory, then rename.
     let tmp = toml_path.with_extension("toml.tmp");
@@ -217,30 +298,7 @@ pub async fn config_put(
 
     let s = ctx.settings.read().await;
     Ok(Json(ConfigResponse {
-        data: serde_json::json!({
-            "site": {
-                "name": s.site.name,
-                "base_url": s.site.base_url,
-                "default_lang": s.site.default_lang,
-                "languages": s.site.languages,
-            },
-            "server": {
-                "host": ctx.startup_server.host,
-                "port": ctx.startup_server.port,
-                "data_dir": ctx.data_dir.to_string_lossy(),
-            },
-            "lobby": {
-                "default_mode": s.lobby.default_mode,
-            },
-            "extensions": {
-                "enabled": s.extensions.enabled,
-            },
-            "integrations": {
-                "github_username": s.integrations.github_username,
-                "tmdb_api_key_env": s.integrations.tmdb_api_key_env,
-                "aladin_ttbkey_env": s.integrations.aladin_ttbkey_env,
-            },
-        }),
+        data: config_json(&s, &ctx.startup_server),
     }))
 }
 
