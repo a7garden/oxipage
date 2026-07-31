@@ -48,13 +48,7 @@
   /* Layout */
   --content-max-width: 64rem;
   --space-page-x: clamp(1rem, 4vw, 3rem);
-  /* Console sidebar — always dark, theme-agnostic (never toggled by data-theme) */
-  --console-sidebar-bg: #1a1e24;
-  --console-sidebar-text: #9ca3af;
-  --console-sidebar-text-active: #4ade80;
-  --console-sidebar-border-active: #22c55e;
-  --console-sidebar-hover-bg: rgba(255, 255, 255, 0.04);
-  --console-sidebar-label: #6b7280;
+  /* Sidebar tokens live under [data-theme=...] scopes (Task 12). */
 }
 
 /* --- Semantic: light --- */
@@ -77,6 +71,17 @@
   --elevation-sm: 0 1px 3px oklch(0% 0 0 / 0.07), 0 1px 2px oklch(0% 0 0 / 0.04);
   --elevation-md: 0 4px 8px oklch(0% 0 0 / 0.08), 0 2px 4px oklch(0% 0 0 / 0.04);
   --elevation-lg: 0 12px 24px oklch(0% 0 0 / 0.10), 0 4px 8px oklch(0% 0 0 / 0.06);
+
+  /* Console sidebar — light scrim */
+  --console-sidebar-bg:           var(--p-neutral-50);
+  --console-sidebar-text:         var(--p-neutral-700);
+  --console-sidebar-text-hover:   var(--p-neutral-900);
+  --console-sidebar-text-active:  var(--p-accent-700);
+  --console-sidebar-border-active:var(--p-accent-600);
+  --console-sidebar-hover-bg:     color-mix(in srgb, var(--p-neutral-900) 6%, transparent);
+  --console-sidebar-active-bg:    color-mix(in srgb, var(--p-accent-600) 12%, transparent);
+  --console-sidebar-border:       var(--p-neutral-100);
+  --console-sidebar-label:        var(--p-neutral-500);
 }
 
 /* --- Semantic: dark --- */
@@ -99,6 +104,32 @@
   --elevation-sm: 0 1px 3px oklch(0% 0 0 / 0.40), 0 1px 2px oklch(0% 0 0 / 0.30);
   --elevation-md: 0 4px 8px oklch(0% 0 0 / 0.45), 0 2px 4px oklch(0% 0 0 / 0.35);
   --elevation-lg: 0 12px 24px oklch(0% 0 0 / 0.50), 0 4px 8px oklch(0% 0 0 / 0.40);
+
+  /* Console sidebar — dark scrim */
+  --console-sidebar-bg:           #1a1e24;
+  --console-sidebar-text:         #9ca3af;
+  --console-sidebar-text-hover:   #e5e7eb;
+  --console-sidebar-text-active:  #4ade80;
+  --console-sidebar-border-active:#22c55e;
+  --console-sidebar-hover-bg:     rgba(255, 255, 255, 0.04);
+  --console-sidebar-active-bg:    color-mix(in srgb, #22c55e 10%, transparent);
+  --console-sidebar-border:       rgba(255, 255, 255, 0.06);
+  --console-sidebar-label:        #6b7280;
+}
+
+/* Public theme accent primitives — consume --accent-hue set by applyServerTheme.
+   These scopes are independent of console data-theme so a public theme swap
+   inside DraftPreviewPane doesn't repaint the Admin shell. */
+[data-public-theme="paper"],
+[data-public-theme="midnight"],
+[data-public-theme="sepia"],
+[data-public-theme="forest"],
+[data-public-theme="neon"],
+[data-public-theme="canvas"] {
+  --public-accent-400: oklch(78% 0.12 var(--accent-hue));
+  --public-accent-500: oklch(62% 0.14 var(--accent-hue));
+  --public-accent-600: oklch(50% 0.14 var(--accent-hue));
+  --public-accent-700: oklch(40% 0.12 var(--accent-hue));
 }
 
 /* ============================================================
