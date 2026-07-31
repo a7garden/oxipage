@@ -53,10 +53,32 @@ export async function siteScopedFetch(slug: string, path: string, init?: Request
   return fetch(`${CONSOLE_BASE}/s/${slug}${path}`, init);
 }
 
+/// Server validation errors surface as `ApiValidationError`. Carries the
+/// offending field so Admin forms can attach the message to the matching
+/// DrawerField. Other failures (network, 500) keep their plain Error shape.
+export class ApiValidationError extends Error {
+  code: string;
+  field: string;
+  constructor(code: string, field: string, message: string) {
+    super(message);
+    this.name = "ApiValidationError";
+    this.code = code;
+    this.field = field;
+  }
+}
+
 export async function jsonOrThrow<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    const msg = body?.error?.message ?? body?.error ?? `HTTP ${res.status}`;
+    const detail = body?.error;
+    if (detail?.field) {
+      throw new ApiValidationError(
+        detail.code ?? "validation_error",
+        detail.field,
+        detail.message ?? "Validation failed",
+      );
+    }
+    const msg = detail?.message ?? detail ?? `HTTP ${res.status}`;
     throw new Error(msg);
   }
   return res.json();
