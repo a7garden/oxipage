@@ -42,7 +42,7 @@ async fn registry_loads_each_valid_site_and_lookups_db() {
     sf.add("b".into(), path_b);
     sf.set_default("a");
 
-    let reg = SiteRegistry::new(sf).await.unwrap();
+    let reg = SiteRegistry::new(sf, Default::default(), Default::default()).await.unwrap();
     assert!(
         reg.db_for("a").await.is_some(),
         "site 'a' should have a DB pool"
@@ -68,7 +68,7 @@ async fn registry_skips_missing_path() {
         PathBuf::from("/tmp/oxipage/nonexistent-XXXXXX"),
     );
 
-    let reg = SiteRegistry::new(sf).await.unwrap();
+    let reg = SiteRegistry::new(sf, Default::default(), Default::default()).await.unwrap();
     assert!(reg.db_for("ghost").await.is_none());
     assert_eq!(reg.len(), 0);
 }
@@ -84,7 +84,7 @@ async fn registry_default_slug_falls_back_to_first_site() {
     // No default_site set — should fall back to first alphabetically
     assert_eq!(sf.default_site, None);
 
-    let reg = SiteRegistry::new(sf).await.unwrap();
+    let reg = SiteRegistry::new(sf, Default::default(), Default::default()).await.unwrap();
     let default = reg.default_slug().await;
     assert!(default.is_some(), "should fall back to first site");
 }

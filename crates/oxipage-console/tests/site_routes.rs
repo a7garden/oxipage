@@ -41,7 +41,7 @@ async fn build_test_app() -> Router {
     let (_dir, path) = create_site_dir("TestSite");
     let mut sf = SitesFile::default();
     sf.add("blog".into(), path);
-    let registry = Arc::new(SiteRegistry::new(sf).await.unwrap());
+    let registry = Arc::new(SiteRegistry::new(sf, Default::default(), Default::default()).await.unwrap());
     build_console_router(registry)
 }
 

@@ -19,7 +19,7 @@ async fn create_site_handler_seeds_toml_and_returns_slug() {
     let tmp = TempDir::with_prefix("oxipage-create-").unwrap();
     let target = tmp.path().join("blog");
 
-    let registry = Arc::new(SiteRegistry::new(SitesFile::default()).await.unwrap());
+    let registry = Arc::new(SiteRegistry::new(SitesFile::default(), Default::default(), Default::default()).await.unwrap());
     let app = build_console_router(registry);
 
     let body = serde_json::json!({ "path": target.to_str().unwrap() });
