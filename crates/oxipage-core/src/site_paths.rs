@@ -49,18 +49,95 @@ pub struct MutableExtensionsConfig {
     pub enabled: Vec<String>,
 }
 
-/// Deploy target configuration. Consumed by the GitHub Pages deploy subproject.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+/// Live-reloadable deploy target. The console UI exposes this; the deploy
+/// subproject reads it from the in-memory snapshot.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct DeployConfig {
     #[serde(default)]
     pub github_pages: Option<GitHubPagesTarget>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// GitHub Pages target. `owner` and `repo` accept a permissive allowlist
+/// (ASCII alphanumeric + `-`, `_`, `.`). `branch` defaults to `gh-pages`
+/// and supports nested refs (e.g. `pages/v1`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct GitHubPagesTarget {
     pub owner: String,
     pub repo: String,
+    #[serde(default = "default_pages_branch")]
     pub branch: String,
+}
+
+fn default_pages_branch() -> String {
+    "gh-pages".into()
+}
+
+/// Per-field validation result for [`GitHubPagesTarget`]. Surfaced
+/// verbatim to the user so they can fix the offending component.
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum TargetValidationError {
+    #[error("invalid GitHub owner")]
+    Owner,
+    #[error("invalid GitHub repository")]
+    Repo,
+    #[error("invalid Git branch")]
+    Branch,
+}
+
+impl GitHubPagesTarget {
+    /// Validate each component against the shared allowlist. `owner`/`repo`
+    /// accept non-empty ASCII alphanumeric, `-`, `_`, `.`. `branch` accepts
+    /// the same plus `/`, rejects `..`, and rejects leading/trailing `/` so
+    /// the path can never escape the branch namespace.
+    pub fn validate(&self) -> Result<(), TargetValidationError> {
+        let component = |v: &str| {
+            !v.is_empty()
+                && v.bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
+        };
+        if !component(&self.owner) {
+            return Err(TargetValidationError::Owner);
+        }
+        if !component(&self.repo) {
+            return Err(TargetValidationError::Repo);
+        }
+        let branch_ok = !self.branch.is_empty()
+            && !self.branch.contains("..")
+            && !self.branch.starts_with('/')
+            && !self.branch.ends_with('/')
+            && self.branch.bytes().all(|b| {
+                b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'/' | b'-')
+            });
+        if !branch_ok {
+            return Err(TargetValidationError::Branch);
+        }
+        Ok(())
+    }
+
+    /// Public Pages URL for this target. Root repos (`<owner>.github.io`) are
+    /// served at the apex; project repos at `/<repo>/`.
+    pub fn pages_url(&self) -> String {
+        if self
+            .repo
+            .eq_ignore_ascii_case(&format!("{}.github.io", self.owner))
+        {
+            format!("https://{}.github.io/", self.owner)
+        } else {
+            format!("https://{}.github.io/{}/", self.owner, self.repo)
+        }
+    }
+
+    /// Serve base path for this target. Root repos → `/`; project repos → `/<repo>/`.
+    pub fn base_path(&self) -> String {
+        if self
+            .repo
+            .eq_ignore_ascii_case(&format!("{}.github.io", self.owner))
+        {
+            "/".into()
+        } else {
+            format!("/{}/", self.repo)
+        }
+    }
 }
 
 impl MutableSiteSettings {
@@ -84,7 +161,7 @@ impl MutableSiteSettings {
             extensions: MutableExtensionsConfig {
                 enabled: cfg.extensions.enabled.clone(),
             },
-            deploy: DeployConfig::default(),
+            deploy: cfg.deploy.clone(),
         }
     }
 
@@ -112,6 +189,7 @@ impl MutableSiteSettings {
             lobby: LobbySection {
                 default_mode: self.lobby.default_mode.clone(),
             },
+            deploy: self.deploy.clone(),
         }
     }
 }
@@ -154,5 +232,19 @@ mod tests {
         // Server section is passed through unchanged.
         assert_eq!(rebuilt.server.host, cfg.server.host);
         assert_eq!(rebuilt.server.port, cfg.server.port);
+    }
+
+    #[test]
+    fn deploy_target_round_trips() {
+        let mut cfg = Config::default();
+        cfg.deploy.github_pages = Some(GitHubPagesTarget {
+            owner: "a7garden".into(),
+            repo: "notes".into(),
+            branch: "pages/v1".into(),
+        });
+        let settings = MutableSiteSettings::from_config(&cfg);
+        assert_eq!(settings.deploy.github_pages, cfg.deploy.github_pages);
+        let rebuilt = settings.to_config(&cfg.server);
+        assert_eq!(rebuilt.deploy.github_pages, cfg.deploy.github_pages);
     }
 }

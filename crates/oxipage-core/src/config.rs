@@ -12,6 +12,8 @@ pub struct Config {
     pub integrations: IntegrationsConfig,
     #[serde(default)]
     pub lobby: LobbySection,
+    #[serde(default)]
+    pub deploy: crate::site_paths::DeployConfig,
 }
 
 impl Default for Config {
@@ -27,6 +29,7 @@ impl Default for Config {
             extensions: ExtensionsConfig::default(),
             integrations: IntegrationsConfig::default(),
             lobby: LobbySection::default(),
+            deploy: crate::site_paths::DeployConfig::default(),
         }
     }
 }
