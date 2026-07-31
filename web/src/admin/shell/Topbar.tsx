@@ -1,27 +1,10 @@
 import { useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
 import { SiteSelector } from "./SiteSelector";
 import { listSites } from "../shared/api";
-import { Sun, Moon, Settings } from "lucide-react";
+import { Settings } from "lucide-react";
+import { ThemeToggle } from "../../shared/ThemeToggle";
 
-function ThemeToggle() {
-  const [dark, setDark] = useState(() => document.documentElement.dataset.theme === "dark");
-  useEffect(() => {
-    const theme = dark ? "dark" : "light";
-    document.documentElement.dataset.theme = theme;
-    try { localStorage.setItem("oxipage-theme", theme); } catch { /* noop */ }
-  }, [dark]);
-  return (
-    <button
-      onClick={() => setDark((d) => !d)}
-      className="inline-flex items-center justify-center size-8 rounded-md text-muted hover:text-foreground hover:bg-surface/50 transition-colors shrink-0"
-      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-    >
-      {dark ? <Sun size={16} /> : <Moon size={16} />}
-    </button>
-  );
-}
 
 function SiteContextInfo() {
   const { slug } = useParams();
