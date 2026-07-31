@@ -7,6 +7,8 @@
 
 use crate::console_state::ConsoleState;
 use crate::sites_runtime::SiteRegistry;
+use axum::http::StatusCode;
+use axum::routing::get;
 use oxipage_core::builder::BuildExt;
 use oxipage_core::config::Config;
 use oxipage_core::extension::Extension;
@@ -48,6 +50,25 @@ pub fn all_builders() -> Vec<Box<dyn BuildExt>> {
         Box::new(oxipage_ext_scraps::ScrapsExtension),
         Box::new(oxipage_ext_activity::ActivityExtension),
     ]
+}
+
+/// 전체 콘솔 앱 조립: core 앱 + /api/console nest + 비-API /preview/* 404 가드.
+pub fn build_console_app(
+    state: AppState,
+    registry: Arc<SiteRegistry>,
+) -> axum::Router {
+    let console = crate::router::build_console_router(registry);
+    let mut app = oxipage_core::http::build_app(state);
+    app = app.nest("/api/console", console);
+    // canonical 경로는 /api/console/preview/{slug}/. 비-API /preview/* 는
+    // SPA fallback(admin.html 200) 대신 명시적 404를 반환한다 (design §6).
+    app = app.route("/preview/{*rest}", get(preview_legacy_404));
+    app
+}
+
+/// stateless 404 — Router<AppState>와 호환. axum 라우트는 fallback보다 우선.
+async fn preview_legacy_404() -> (StatusCode, &'static str) {
+    (StatusCode::NOT_FOUND, "preview_missing")
 }
 
 pub async fn run_console() -> anyhow::Result<()> {
@@ -171,9 +192,7 @@ pub async fn run_console_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow
     };
     let operation_guard = Arc::new(crate::operations::SiteOperationGuard::new());
     let site_registry = Arc::new(SiteRegistry::new(sites_file, operation_guard).await?);
-    let console = crate::router::build_console_router(site_registry.clone());
-    let mut app = oxipage_core::http::build_app(state);
-    app = app.nest("/api/console", console);
+    let app = build_console_app(state, site_registry);
     let addr = SocketAddr::new(config.server.host.parse()?, config.server.port);
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!("oxipage listening on http://{addr}");
