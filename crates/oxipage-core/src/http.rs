@@ -121,7 +121,9 @@ async fn build_handler(State(state): State<AppState>) -> Result<Json<serde_json:
     let output = build_site(&state.db, &state.builders)
         .map_err(|e| ApiError::internal(anyhow::anyhow!("{}", e)))?;
 
-    write_build_output(&output, &out_dir, &media_dir)
+    let theme_id = crate::theme::active_theme_id(&state.db).await;
+    let inputs = crate::builder::BuildInputs::new(&config.site.base_url, theme_id, "oxipage");
+    write_build_output(&output, &out_dir, &media_dir, &inputs)
         .map_err(|e| ApiError::internal(anyhow::anyhow!("{}", e)))?;
 
     Ok(Json(serde_json::json!({

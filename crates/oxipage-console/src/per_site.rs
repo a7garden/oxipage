@@ -483,6 +483,12 @@ pub async fn build_post(
     let build_id = uuid::Uuid::new_v4().to_string();
     let (tx, _rx) = broadcast::channel::<BuildEvent>(64);
 
+    // Snapshot the mutable inputs the build writer needs (base_url drives
+    // deployment_base; theme_id is recorded in the manifest). Read once so the
+    // lazy-started build task sees a consistent value.
+    let site_base_url = ctx.settings.read().await.site.base_url.clone();
+    let theme_id = oxipage_core::theme::active_theme_id(&ctx.db).await;
+
     let run = BuildRun {
         id: build_id.clone(),
         tx,
@@ -493,6 +499,8 @@ pub async fn build_post(
         out_dir,
         media_dir,
         slug: ctx.slug.clone(),
+        site_base_url,
+        theme_id,
     };
     if let Err(existing_id) = ctx.build_guard.try_start(&ctx.slug, run) {
         return Err((

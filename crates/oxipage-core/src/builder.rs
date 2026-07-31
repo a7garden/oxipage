@@ -107,3 +107,34 @@ impl BuildOutput {
         }
     }
 }
+
+/// Inputs to the build writer that aren't part of the per-extension output.
+///
+/// `deployment_base` is NOT passed here. It is derived from `site_base_url`
+/// inside `write_build_output` via `BuildManifest::from_site_base` so the
+/// single derivation rule is enforced at exactly one site.
+#[derive(Debug, Clone)]
+pub struct BuildInputs {
+    /// Full site URL from `MutableSiteSettings::site.base_url`. Used to derive
+    /// `deployment_base` (e.g. `https://a7garden.github.io/blog/` → `/blog/`).
+    pub site_base_url: String,
+    /// Theme id active at build time.
+    pub theme_id: String,
+    /// Caller-supplied seed for the asset revision. The build writer hashes
+    /// it with the materialized file list to produce a stable revision.
+    pub asset_revision_seed: String,
+}
+
+impl BuildInputs {
+    pub fn new(
+        site_base_url: impl Into<String>,
+        theme_id: impl Into<String>,
+        asset_revision_seed: impl Into<String>,
+    ) -> Self {
+        Self {
+            site_base_url: site_base_url.into(),
+            theme_id: theme_id.into(),
+            asset_revision_seed: asset_revision_seed.into(),
+        }
+    }
+}

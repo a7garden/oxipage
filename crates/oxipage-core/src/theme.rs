@@ -106,3 +106,15 @@ pub fn find_theme(id: &str) -> Option<&'static ThemeDefinition> {
 pub fn is_known_theme(id: &str) -> bool {
     find_theme(id).is_some()
 }
+
+/// Read the active theme id for a site from its per-site DB
+/// (`theme_config.theme_id` singleton row id=1). Returns `"paper"` if the
+/// table/row is absent or the read fails — never blocks a build.
+pub async fn active_theme_id(db: &sqlx::SqlitePool) -> String {
+    sqlx::query_scalar("SELECT theme_id FROM theme_config WHERE id = 1")
+        .fetch_optional(db)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "paper".into())
+}

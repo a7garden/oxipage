@@ -58,11 +58,14 @@ async fn hashed_asset_has_immutable_cache() {
     // Extract the hashed JS asset URI from the embedded admin.html so the
     // test is robust to hash changes across builds.
     let html = oxipage_core::http::spa_index_html().unwrap_or_default();
+    // Find the hashed `/assets/<name>-<hash>.js` script specifically; the
+    // console entry also carries non-hashed boot scripts (theme-boot.js) that
+    // are intentionally `no-cache` and must not be selected here.
     let asset = html
         .split("src=\"")
-        .nth(1)
-        .and_then(|s| s.split('\"').next())
-        .expect("admin.html must reference a script");
+        .map(|s| s.split('"').next().unwrap_or(""))
+        .find(|u| u.starts_with("/assets/") && u.ends_with(".js"))
+        .expect("admin.html must reference a hashed /assets/ script");
     let resp = app
         .oneshot(
             Request::builder()

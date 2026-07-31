@@ -39,17 +39,11 @@ pub(crate) async fn build(c: BuildCommand) -> anyhow::Result<()> {
     // 4. Run build pipeline
     let output = oxipage_core::build::build_site(&pool, &builder_refs)
         .map_err(|e| anyhow::anyhow!("{}", e))?;
-
-    // 5. Write output (sources SPA bundle from the embedded binary, not CWD)
+    // 5. Write output (sources SPA bundle from the embedded binary, not CWD).
+    //    BuildInputs carries site.base_url (drives deployment_base) + theme_id.
     let out_path = custom_out
         .map(PathBuf::from)
         .unwrap_or_else(|| data_dir.join("out"));
-    oxipage_core::build_writer::write_build_output(&output, &out_path, &media_dir)
-        .map_err(|e| anyhow::anyhow!("{}", e))?;
-
-    // Emit the lobby manifest as static JSON so `fetchManifest()` resolves in static mode
-    // (`pathToStaticFile('/lobby/manifest')` → `/data/lobby.json`). Uses the same assembly as
-    // the live `/api/console/lobby/manifest` handler — one shape, no drift.
     let config_path = std::env::var("OXIPAGE_CONFIG")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from("oxipage.toml"));
@@ -58,6 +52,19 @@ pub(crate) async fn build(c: BuildCommand) -> anyhow::Result<()> {
     } else {
         oxipage_core::config::Config::default()
     };
+    let theme_id = oxipage_core::theme::active_theme_id(&pool).await;
+    let inputs = oxipage_core::builder::BuildInputs::new(
+        &config.site.base_url,
+        theme_id,
+        "oxipage",
+    );
+    oxipage_core::build_writer::write_build_output(&output, &out_path, &media_dir, &inputs)
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+    // Emit the lobby manifest as static JSON so `fetchManifest()` resolves in static mode
+    // (`pathToStaticFile('/lobby/manifest')` → `/data/lobby.json`). Uses the same assembly as
+    // the live `/api/console/lobby/manifest` handler — one shape, no drift.
+    // (config already loaded above for BuildInputs; reused here.)
     let extensions = oxipage_console::all_extensions();
     let manifest = oxipage_core::manifest::assemble(
         &pool,

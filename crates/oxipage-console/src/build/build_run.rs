@@ -37,6 +37,10 @@ pub struct BuildRun {
     pub out_dir: PathBuf,
     pub media_dir: PathBuf,
     pub slug: String,
+    /// Site base URL from settings — drives `deployment_base` at write time.
+    pub site_base_url: String,
+    /// Theme id active at build start.
+    pub theme_id: String,
 }
 
 /// Registry-level singleton tracking the single in-flight build per site.
@@ -115,6 +119,8 @@ impl BuildGuard {
         let started_at = run.started_at.clone();
         let bcast = run.tx.clone();
         let slug_owned = slug.to_string();
+        let site_base_url = run.site_base_url.clone();
+        let theme_id = run.theme_id.clone();
         drop(run);
 
         let rt = tokio::runtime::Handle::current();
@@ -135,10 +141,16 @@ impl BuildGuard {
                 match oxipage_core::build::build_site_with_progress(&db, &builders, &rt, &mpsc_tx)
                 {
                     Ok(output) => {
+                        let inputs = oxipage_core::builder::BuildInputs::new(
+                            &site_base_url,
+                            &theme_id,
+                            "oxipage",
+                        );
                         if let Err(e) = oxipage_core::build_writer::write_build_output(
                             &output,
                             &out_dir,
                             &media_dir,
+                            &inputs,
                         ) {
                             return Err(format!("write_build_output: {e}"));
                         }

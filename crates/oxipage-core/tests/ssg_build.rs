@@ -63,7 +63,12 @@ async fn build_site_runs_without_panic_and_writes_correct_layout() {
 
     // 4. Write to a fresh out dir and assert the layout.
     let out_dir = tmp_root.join("out");
-    write_build_output(&output, &out_dir, &media_dir).expect("write_build_output");
+    let inputs = oxipage_core::builder::BuildInputs::new(
+        "https://127.0.0.1:8787/",
+        "paper",
+        "test",
+    );
+    write_build_output(&output, &out_dir, &media_dir, &inputs).expect("write_build_output");
 
     // Root SPA entry (lobby).
     assert!(
@@ -87,7 +92,8 @@ async fn build_site_runs_without_panic_and_writes_correct_layout() {
         "embedded SPA must contain at least one JS chunk"
     );
 
-    // Root index.html must reference the real hashed script (the bug fixed by P0-2).
+    // Root index.html must reference the real relativized hashed script
+    // (Task 2: `/assets/...` → `assets/...` + a deployment `<base href>`).
     let root = std::fs::read_to_string(out_dir.join("index.html")).unwrap();
     let root_ref = root
         .split("src=\"")
@@ -95,8 +101,12 @@ async fn build_site_runs_without_panic_and_writes_correct_layout() {
         .and_then(|s| s.split('"').next())
         .unwrap_or("");
     assert!(
-        root_ref.starts_with("/assets/") && !root_ref.ends_with("/index.js"),
-        "root index.html must reference a hashed asset, got: {root_ref}"
+        root_ref.starts_with("assets/") && !root_ref.ends_with("/index.js"),
+        "root index.html must reference a relativized hashed asset, got: {root_ref}"
+    );
+    assert!(
+        root.contains("<base href=\"/\">"),
+        "root index.html must carry the deployment base href"
     );
 }
 
