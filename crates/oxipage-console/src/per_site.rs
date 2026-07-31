@@ -521,9 +521,31 @@ pub async fn build_post(
         guard.ensure_build_started(&slug);
     });
 
+    // Informational summary of the most recent completed build (if any). The
+    // freshly-queued build hasn't produced output yet, so this reflects the
+    // previous build's manifest when present.
+    let manifest_preview = oxipage_core::build_manifest::BuildManifest::read_from(&ctx.out_dir)
+        .ok()
+        .flatten()
+        .map(|m| {
+            serde_json::json!({
+                "build_id": m.build_id,
+                "theme_id": m.theme_id,
+                "deployment_base": m.deployment_base,
+                "asset_revision": m.asset_revision,
+                "ready": true,
+            })
+        });
+
     Ok((
         StatusCode::ACCEPTED,
-        Json(serde_json::json!({ "data": { "build_id": build_id, "status": "queued" } })),
+        Json(serde_json::json!({
+            "data": {
+                "build_id": build_id,
+                "status": "queued",
+                "manifest_preview": manifest_preview,
+            }
+        })),
     ))
 }
 

@@ -509,3 +509,41 @@ export async function installExtension(name: string): Promise<{ name: string; ac
   });
   return jsonOrThrow<{ data: { name: string; activated: boolean; note?: string } }>(res).then((j) => j.data);
 }
+
+// ─── Media upload ─────────────────────────────────────────────────────────
+
+export interface UploadedMedia {
+  path: string;
+  mime: string;
+  bytes: number;
+}
+
+export interface UploadResponse {
+  data: UploadedMedia;
+}
+
+/**
+ * POST a single image file to the site media endpoint. The path component
+ * specifies a logical extension namespace (e.g. "profile", "novels"). The
+ * server validates by magic bytes and returns a logical path like
+ * `media/profile/<uuid>.png` — store that in the content row.
+ */
+export async function uploadImage(
+  slug: string,
+  extension: string,
+  file: File,
+): Promise<UploadedMedia> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(
+    `${CONSOLE_BASE}/s/${slug}/media/${extension}`,
+    { method: "POST", body: form },
+  );
+  const body = await jsonOrThrow<UploadResponse>(res);
+  return body.data;
+}
+
+/** Prefix-aware URL for the preview iframe. Opens at the deployed base. */
+export function previewUrl(slug: string): string {
+  return `${CONSOLE_BASE}/preview/${slug}/`;
+}

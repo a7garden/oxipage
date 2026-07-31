@@ -7,6 +7,7 @@ import {
   triggerDeploy,
   buildStreamUrl,
   deployStreamUrl,
+  previewUrl,
   OperationConflictError,
   type BuildRecord,
 } from "../shared/api";
@@ -176,6 +177,20 @@ export function DeployPage() {
           <Button variant="outline" onClick={onBuild} disabled={busy}>
             {busy && op === "build" ? "Building…" : "↧ Build"}
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => window.open(previewUrl(slug!), "_blank", "noopener,noreferrer")}
+            disabled={!last || last.status !== "built"}
+            title={
+              !last
+                ? "Run a build to enable preview"
+                : last.status !== "built"
+                  ? "Last build did not succeed"
+                  : "Open the built site in a new tab"
+            }
+          >
+            Preview Site ↗
+          </Button>
           <Button onClick={onDeploy} disabled={busy}>
             {busy && op === "deploy" ? "Deploying…" : "⇧ Deploy"}
           </Button>
@@ -243,6 +258,27 @@ export function DeployPage() {
       ) : (
         <div className="border border-line rounded-lg p-8 text-center text-muted text-sm mb-6">
           No builds yet. Trigger your first build.
+        </div>
+      )}
+
+      {last && (
+        <div className="grid grid-cols-4 gap-3 text-xs mb-6">
+          <div>
+            <div className="text-muted">Build ID</div>
+            <div className="font-mono">{(last as any).build_id ?? "—"}</div>
+          </div>
+          <div>
+            <div className="text-muted">Theme</div>
+            <div>{(last as any).theme_id ?? "—"}</div>
+          </div>
+          <div>
+            <div className="text-muted">Deployment base</div>
+            <div className="font-mono">{(last as any).deployment_base ?? "/"}</div>
+          </div>
+          <div>
+            <div className="text-muted">Asset rev</div>
+            <div className="font-mono">{(last as any).asset_revision ?? "—"}</div>
+          </div>
         </div>
       )}
 
