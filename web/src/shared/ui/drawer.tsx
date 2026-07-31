@@ -77,10 +77,11 @@ interface DrawerFieldProps {
   label: string;
   hint?: string;
   required?: boolean;
+  error?: string;
   children: React.ReactNode;
 }
 
-export function DrawerField({ label, hint, required, children }: DrawerFieldProps) {
+export function DrawerField({ label, hint, required, error, children }: DrawerFieldProps) {
   return (
     <div className="mb-4">
       <label className="block text-xs font-semibold text-foreground mb-1.5">
@@ -88,7 +89,8 @@ export function DrawerField({ label, hint, required, children }: DrawerFieldProp
         {required && <span className="text-red-500 ml-1">*</span>}
       </label>
       {children}
-      {hint && <p className="text-xs text-muted mt-1">{hint}</p>}
+      {hint && !error && <p className="text-xs text-muted mt-1">{hint}</p>}
+      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
     </div>
   );
 }
