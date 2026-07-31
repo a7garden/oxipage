@@ -7,13 +7,14 @@ use crate::extension::{
 use crate::search::SearchHit;
 use crate::setup;
 use crate::state::AppState;
-use axum::extract::{Path, Query, Request, State};
+use axum::body::Body;
 use axum::http::StatusCode;
 use axum::http::{Uri, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
+use axum::extract::{Path, Query, Request, State};
 use rust_embed::RustEmbed;
 use std::sync::Arc;
 use tower_http::trace::TraceLayer;
@@ -359,9 +360,70 @@ async fn static_handler(uri: Uri) -> Response {
 
 fn serve_asset(path: &str) -> Option<Response> {
     Assets::get(path).map(|content| {
+        let mut bytes = content.data.into_owned();
+
+        // Expose the compiled SPA revision to the browser on the console entry
+        // HTML (both the exact match and the fallback path). The ErrorBoundary
+        // reads this meta tag; the header is for debugging.
+        if path == "admin.html" {
+            let meta = format!(
+                "<meta name=\"oxipage-spa-revision\" content=\"{}\">",
+                spa_revision()
+            );
+            let html = String::from_utf8_lossy(&bytes);
+            bytes = html.replace("</head>", &format!("{meta}</head>")).into_bytes();
+        }
+
         let mime = mime_guess::from_path(path).first_or_octet_stream();
-        ([(header::CONTENT_TYPE, mime.as_ref())], content.data).into_response()
+        let cache_control = cache_policy_for(path);
+        let etag = format!("\"{}\"", content_hash(&bytes));
+
+        let mut builder = Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, mime.as_ref())
+            .header(header::CACHE_CONTROL, cache_control)
+            .header(header::ETAG, etag);
+
+        if is_html_entry(path) {
+            builder = builder.header("X-Oxipage-SPA-Revision", spa_revision());
+        }
+        builder.body(Body::from(bytes)).unwrap()
     })
+}
+
+fn cache_policy_for(path: &str) -> &'static str {
+    if is_html_entry(path) {
+        "no-cache"
+    } else if path.starts_with("assets/") && has_hash_suffix(path) {
+        "public, max-age=31536000, immutable"
+    } else {
+        "no-cache"
+    }
+}
+
+fn is_html_entry(path: &str) -> bool {
+    path == "admin.html" || path == "index.html" || path.ends_with(".html")
+}
+
+fn has_hash_suffix(path: &str) -> bool {
+    // Vite emits assets/<name>-<hash>.<ext>. Check for the dash-hash pattern.
+    let stem = path.strip_prefix("assets/").unwrap_or(path);
+    let dot = stem.rfind('.').unwrap_or(stem.len());
+    let name = &stem[..dot];
+    name.contains('-') && name.rfind('-').map(|i| &name[i + 1..]).map_or(false, |h| h.len() >= 6)
+}
+
+fn spa_revision() -> &'static str {
+    // Compiled-in from build.rs (Task 2): the SHA-256 over the live Admin
+    // embed, emitted as cargo:rustc-env=OXIPAGE_SPA_REVISION.
+    option_env!("OXIPAGE_SPA_REVISION").unwrap_or("unknown")
+}
+
+fn content_hash(data: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    format!("{:x}", hasher.finalize())
 }
 
 /// SSR 스냅샷용 — `web/dist/index.html`의 UTF-8 본문을 반환한다.
