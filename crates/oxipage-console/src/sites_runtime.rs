@@ -28,10 +28,12 @@ pub struct SiteContext {
     pub data_dir: PathBuf,
     pub out_dir: PathBuf,
     pub media_dir: PathBuf,
+    /// Startup-immutable server section (host/port/data_dir). Set once at load.
     pub startup_server: oxipage_core::config::ServerConfig,
-    // config: Arc<Config> is KEPT for now. Task 6 adds `settings`,
-    // migrates all readers, THEN removes this field.
-    pub config: Arc<oxipage_core::config::Config>,
+    /// Live-reloadable site settings. Reloaded atomically on config PUT.
+    pub settings: Arc<RwLock<oxipage_core::site_paths::MutableSiteSettings>>,
+    /// Serializes concurrent config-write requests for this site.
+    pub config_write_lock: Arc<tokio::sync::Mutex<()>>,
     pub db: SqlitePool,
     pub registry: Arc<ExtensionRegistry>,
     pub builders: Arc<Vec<Box<dyn BuildExt>>>,

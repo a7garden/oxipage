@@ -11,6 +11,7 @@ use oxipage_core::extension::WasmLoader;
 use oxipage_core::registry::ExtensionRegistry;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
 pub struct SiteLoader;
 
@@ -45,6 +46,10 @@ impl SiteLoader {
         let registry = Arc::new(ExtensionRegistry::new(extensions));
         registry.run_migrations(&db, &toml_enabled).await?;
         let wasm_loader: Option<Arc<dyn WasmLoader>> = None;
+        let settings = Arc::new(RwLock::new(
+            oxipage_core::site_paths::MutableSiteSettings::from_config(&cfg),
+        ));
+        let config_write_lock = Arc::new(tokio::sync::Mutex::new(()));
         Ok(SiteContext {
             slug,
             project_dir,
@@ -52,7 +57,8 @@ impl SiteLoader {
             out_dir,
             media_dir,
             startup_server: cfg.server.clone(),
-            config: Arc::new(cfg),
+            settings,
+            config_write_lock,
             db,
             registry,
             builders: Arc::new(crate::all_builders()),

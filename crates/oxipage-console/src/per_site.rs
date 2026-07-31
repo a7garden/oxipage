@@ -34,30 +34,30 @@ pub struct ConfigResponse {
 pub async fn config_get(
     Extension(ctx): Extension<Arc<SiteContext>>,
 ) -> Result<Json<ConfigResponse>, (StatusCode, String)> {
-    let cfg = &ctx.config;
+    let s = ctx.settings.read().await;
     Ok(Json(ConfigResponse {
         data: serde_json::json!({
             "site": {
-                "name": cfg.site.name,
-                "base_url": cfg.site.base_url,
-                "default_lang": cfg.site.default_lang,
-                "languages": cfg.site.languages,
+                "name": s.site.name,
+                "base_url": s.site.base_url,
+                "default_lang": s.site.default_lang,
+                "languages": s.site.languages,
             },
             "server": {
-                "host": cfg.server.host,
-                "port": cfg.server.port,
-                "data_dir": cfg.server.data_dir.to_string_lossy(),
+                "host": ctx.startup_server.host,
+                "port": ctx.startup_server.port,
+                "data_dir": ctx.data_dir.to_string_lossy(),
             },
             "lobby": {
-                "default_mode": cfg.lobby.default_mode,
+                "default_mode": s.lobby.default_mode,
             },
             "extensions": {
-                "enabled": cfg.extensions.enabled,
+                "enabled": s.extensions.enabled,
             },
             "integrations": {
-                "github_username": cfg.integrations.github_username,
-                "tmdb_api_key_env": cfg.integrations.tmdb_api_key_env,
-                "aladin_ttbkey_env": cfg.integrations.aladin_ttbkey_env,
+                "github_username": s.integrations.github_username,
+                "tmdb_api_key_env": s.integrations.tmdb_api_key_env,
+                "aladin_ttbkey_env": s.integrations.aladin_ttbkey_env,
             },
         }),
     }))
@@ -95,6 +95,12 @@ pub async fn config_put(
     Json(update): Json<ConfigUpdate>,
 ) -> Result<Json<ConfigResponse>, (StatusCode, String)> {
     let toml_path = ctx.project_dir.join("oxipage.toml");
+
+    // Serialize concurrent config writes for this site. Held across the full
+    // read-modify-write so two PUTs cannot clobber each other.
+    let _guard = ctx.config_write_lock.lock().await;
+
+    // Reread current TOML (preserves [server] and any unknown sections).
     let raw = tokio::fs::read_to_string(&toml_path)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("read toml: {e}")))?;
@@ -192,41 +198,47 @@ pub async fn config_put(
             format!("serialize toml: {e}"),
         )
     })?;
-    tokio::fs::write(&toml_path, serialized)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("write toml: {e}"),
-            )
-        })?;
 
-    // Reload config from disk so the response reflects what was actually saved.
+    // Atomic write: temp file in the same directory, then rename.
+    let tmp = toml_path.with_extension("toml.tmp");
+    tokio::fs::write(&tmp, &serialized)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("write tmp: {e}")))?;
+    tokio::fs::rename(&tmp, &toml_path)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("rename: {e}")))?;
+
+    // Reload config from disk and replace the in-memory settings snapshot so
+    // subsequent reads reflect what was actually persisted.
     let new_cfg = oxipage_core::config::Config::load(&toml_path)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("reload: {e}")))?;
+    *ctx.settings.write().await =
+        oxipage_core::site_paths::MutableSiteSettings::from_config(&new_cfg);
+
+    let s = ctx.settings.read().await;
     Ok(Json(ConfigResponse {
         data: serde_json::json!({
             "site": {
-                "name": new_cfg.site.name,
-                "base_url": new_cfg.site.base_url,
-                "default_lang": new_cfg.site.default_lang,
-                "languages": new_cfg.site.languages,
+                "name": s.site.name,
+                "base_url": s.site.base_url,
+                "default_lang": s.site.default_lang,
+                "languages": s.site.languages,
             },
             "server": {
-                "host": new_cfg.server.host,
-                "port": new_cfg.server.port,
-                "data_dir": new_cfg.server.data_dir.to_string_lossy(),
+                "host": ctx.startup_server.host,
+                "port": ctx.startup_server.port,
+                "data_dir": ctx.data_dir.to_string_lossy(),
             },
             "lobby": {
-                "default_mode": new_cfg.lobby.default_mode,
+                "default_mode": s.lobby.default_mode,
             },
             "extensions": {
-                "enabled": new_cfg.extensions.enabled,
+                "enabled": s.extensions.enabled,
             },
             "integrations": {
-                "github_username": new_cfg.integrations.github_username,
-                "tmdb_api_key_env": new_cfg.integrations.tmdb_api_key_env,
-                "aladin_ttbkey_env": new_cfg.integrations.aladin_ttbkey_env,
+                "github_username": s.integrations.github_username,
+                "tmdb_api_key_env": s.integrations.tmdb_api_key_env,
+                "aladin_ttbkey_env": s.integrations.aladin_ttbkey_env,
             },
         }),
     }))
@@ -395,10 +407,12 @@ async fn set_extension_enabled(
     if enabled && (!was_enabled || was_purged) {
         // Build a minimal AppState for the lifecycle hook. The console
         // process owns the real one for the default site; per-site the
-        // hook only needs db + config + registry.
+        // hook only needs db + a config reconstructed from the live
+        // settings snapshot + startup-immutable server section.
+        let cfg = ctx.settings.read().await.to_config(&ctx.startup_server);
         let state = oxipage_core::state::AppState {
             db: ctx.db.clone(),
-            config: ctx.config.clone(),
+            config: Arc::new(cfg),
             registry: ctx.registry.clone(),
             wasm_loader: ctx.wasm_loader.clone(),
             site_override: Arc::new(RwLock::new(None)),
