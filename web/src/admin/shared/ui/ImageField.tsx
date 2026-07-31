@@ -18,6 +18,8 @@ interface ImageFieldProps {
   label?: string;
   /** Disabled state propagates to input + upload + clear. */
   disabled?: boolean;
+  /** Field-level error from the server (e.g. ApiValidationError). */
+  error?: string;
 }
 
 export function ImageField({
@@ -28,16 +30,18 @@ export function ImageField({
   accept = "image/png,image/jpeg,image/webp,image/gif",
   label,
   disabled,
+  error: fieldError,
 }: ImageFieldProps) {
   const [urlInput, setUrlInput] = useState(value ?? "");
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const error = fieldError ?? uploadError;
   const fileRef = useRef<HTMLInputElement>(null);
   const resolver = adminAssetResolver(slug);
   const previewSrc = resolver.resolve(value);
 
   function apply(next: string | null) {
-    setError(null);
+    setUploadError(null);
     onChange(next);
     if (next === null) setUrlInput("");
   }
@@ -46,12 +50,12 @@ export function ImageField({
     const file = e.target.files?.[0];
     if (!file) return;
     setPending(true);
-    setError(null);
+    setUploadError(null);
     try {
       const media = await uploadImage(slug, extension, file);
       apply(media.path);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setPending(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -81,7 +85,7 @@ export function ImageField({
               src={previewSrc}
               alt=""
               className="w-full h-full object-cover"
-              onError={() => setError("Image failed to load")}
+              onError={() => setUploadError("Image failed to load")}
             />
           ) : (
             <span className="text-xs text-muted">No image</span>
