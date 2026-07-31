@@ -32,7 +32,7 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
             settings: std::sync::Arc::new(tokio::sync::RwLock::new(
                 oxipage_core::site_paths::MutableSiteSettings::from_config(
                     &oxipage_core::config::Config::default(),
-                )
+                ),
             )),
         }))
 }
@@ -112,7 +112,9 @@ async fn put_with_empty_display_name_is_422() {
             Request::put("/api/console/profile")
                 .header("content-type", "application/json")
                 .header("authorization", "Bearer tok")
-                .body(Body::from(r#"{"expected_updated_at":"","display_name":"  "}"#))
+                .body(Body::from(
+                    r#"{"expected_updated_at":"","display_name":"  "}"#,
+                ))
                 .unwrap(),
         )
         .await

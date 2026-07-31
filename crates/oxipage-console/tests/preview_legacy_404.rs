@@ -61,7 +61,11 @@ async fn build_console_app() -> axum::Router {
 #[tokio::test]
 async fn non_api_preview_paths_return_404_not_admin_html() {
     let app = build_console_app().await;
-    for uri in ["/preview/nope/", "/preview/nope", "/preview/blog/whatever/x"] {
+    for uri in [
+        "/preview/nope/",
+        "/preview/nope",
+        "/preview/blog/whatever/x",
+    ] {
         let resp = app
             .clone()
             .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
@@ -70,7 +74,10 @@ async fn non_api_preview_paths_return_404_not_admin_html() {
         assert_eq!(resp.status(), StatusCode::NOT_FOUND, "uri={uri}");
         let bytes = to_bytes(resp.into_body(), 4096).await.unwrap();
         let text = String::from_utf8_lossy(&bytes);
-        assert!(!text.contains("admin"), "uri={uri} must not serve admin.html: {text}");
+        assert!(
+            !text.contains("admin"),
+            "uri={uri} must not serve admin.html: {text}"
+        );
     }
 }
 

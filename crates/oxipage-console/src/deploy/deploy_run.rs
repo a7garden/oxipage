@@ -74,7 +74,12 @@ pub async fn ensure_deploy_started(
         let relay_guard = guard.clone();
         tokio::spawn(async move {
             while let Some(ev) = mpsc_rx.recv().await {
-                let terminal = matches!(ev, DeployEvent::Deployed { .. } | DeployEvent::Unchanged { .. } | DeployEvent::Failed { .. });
+                let terminal = matches!(
+                    ev,
+                    DeployEvent::Deployed { .. }
+                        | DeployEvent::Unchanged { .. }
+                        | DeployEvent::Failed { .. }
+                );
                 let _ = relay_guard.publish(
                     &relay_slug,
                     OperationEvent {
@@ -89,11 +94,7 @@ pub async fn ensure_deploy_started(
         let outcome: Result<oxipage_deploy::DeployOutcome, oxipage_deploy::DeployError> =
             tokio::task::spawn_blocking(move || {
                 oxipage_deploy::deploy_github_pages(
-                    &repo_dir,
-                    &out_dir,
-                    &target,
-                    &manifest,
-                    &mpsc_tx,
+                    &repo_dir, &out_dir, &target, &manifest, &mpsc_tx,
                 )
             })
             .await
@@ -107,12 +108,20 @@ pub async fn ensure_deploy_started(
 
         // Terminal DB row + snapshot, then release the slot.
         let (status, url, commit, code, error) = match &outcome {
-            Ok(oxipage_deploy::DeployOutcome::Deployed { url, commit }) => {
-                ("deployed", Some(url.clone()), Some(commit.clone()), None, None)
-            }
-            Ok(oxipage_deploy::DeployOutcome::Unchanged { url, commit }) => {
-                ("unchanged", Some(url.clone()), Some(commit.clone()), None, None)
-            }
+            Ok(oxipage_deploy::DeployOutcome::Deployed { url, commit }) => (
+                "deployed",
+                Some(url.clone()),
+                Some(commit.clone()),
+                None,
+                None,
+            ),
+            Ok(oxipage_deploy::DeployOutcome::Unchanged { url, commit }) => (
+                "unchanged",
+                Some(url.clone()),
+                Some(commit.clone()),
+                None,
+                None,
+            ),
             Err(e) => {
                 let (c, m) = normalize(e);
                 ("failed", None, None, Some(c), Some(m))
@@ -168,8 +177,12 @@ fn normalize(e: &DeployError) -> (&'static str, &'static str) {
     match e {
         DeployError::GhNotFound => ("gh_not_installed", "Install GitHub CLI"),
         DeployError::NotAuthenticated => ("gh_auth_required", "Run gh auth login"),
-        DeployError::OriginMismatch => ("origin_mismatch", "Git origin does not match configuration"),
-        DeployError::ManifestBaseMismatch { .. } => ("stale_build_base", "Rebuild for this Pages base"),
+        DeployError::OriginMismatch => {
+            ("origin_mismatch", "Git origin does not match configuration")
+        }
+        DeployError::ManifestBaseMismatch { .. } => {
+            ("stale_build_base", "Rebuild for this Pages base")
+        }
         DeployError::OutDirMissing => ("build_required", "Build before deploying"),
         _ => ("deploy_failed", "Deployment failed; inspect the live log"),
     }

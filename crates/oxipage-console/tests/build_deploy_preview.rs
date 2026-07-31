@@ -41,11 +41,7 @@ async fn build_test_app() -> Router {
     let mut sf = SitesFile::default();
     sf.add("blog".into(), path);
     sf.set_default("blog");
-    let registry = Arc::new(
-        SiteRegistry::new(sf, Default::default())
-            .await
-            .unwrap(),
-    );
+    let registry = Arc::new(SiteRegistry::new(sf, Default::default()).await.unwrap());
     build_console_router(registry)
 }
 
@@ -69,11 +65,7 @@ async fn build_test_app_with_out() -> (TempDir, Router) {
     let mut sf = SitesFile::default();
     sf.add("blog".into(), path);
     sf.set_default("blog");
-    let registry = Arc::new(
-        SiteRegistry::new(sf, Default::default())
-            .await
-            .unwrap(),
-    );
+    let registry = Arc::new(SiteRegistry::new(sf, Default::default()).await.unwrap());
     (dir, build_console_router(registry))
 }
 

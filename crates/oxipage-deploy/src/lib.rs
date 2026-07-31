@@ -15,14 +15,8 @@ use tokio::sync::mpsc;
 /// Result of a deploy run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DeployOutcome {
-    Deployed {
-        url: String,
-        commit: String,
-    },
-    Unchanged {
-        url: String,
-        commit: String,
-    },
+    Deployed { url: String, commit: String },
+    Unchanged { url: String, commit: String },
 }
 
 /// Errors from a deploy run.
@@ -133,7 +127,12 @@ impl Drop for Cleanup {
 
 /// Run a subprocess with an explicit CWD and argument list (no shell
 /// interpolation). A missing `gh` binary maps to [`DeployError::GhNotFound`].
-fn run(cwd: &Path, program: &str, args: &[&str], step: &'static str) -> Result<Output, DeployError> {
+fn run(
+    cwd: &Path,
+    program: &str,
+    args: &[&str],
+    step: &'static str,
+) -> Result<Output, DeployError> {
     let o = Command::new(program)
         .current_dir(cwd)
         .args(args)
@@ -187,8 +186,13 @@ pub fn deploy_github_pages(
     }
     let _ = tx.blocking_send(DeployEvent::AuthReady);
 
-    run(repo_dir, "git", &["rev-parse", "--is-inside-work-tree"], "repository")
-        .map_err(|_| DeployError::NotGitRepository)?;
+    run(
+        repo_dir,
+        "git",
+        &["rev-parse", "--is-inside-work-tree"],
+        "repository",
+    )
+    .map_err(|_| DeployError::NotGitRepository)?;
     let remote = run(repo_dir, "git", &["remote", "get-url", "origin"], "origin")?;
     if !origin_matches(&String::from_utf8_lossy(&remote.stdout), target) {
         return Err(DeployError::OriginMismatch);
@@ -204,9 +208,19 @@ pub fn deploy_github_pages(
         .status()
         .is_ok_and(|s| s.success());
     if exists {
-        run(repo_dir, "git", &["worktree", "add", "--detach", &w, &remote_ref], "worktree")?;
+        run(
+            repo_dir,
+            "git",
+            &["worktree", "add", "--detach", &w, &remote_ref],
+            "worktree",
+        )?;
     } else {
-        run(repo_dir, "git", &["worktree", "add", "--detach", &w], "worktree")?;
+        run(
+            repo_dir,
+            "git",
+            &["worktree", "add", "--detach", &w],
+            "worktree",
+        )?;
     }
     let cleanup = Cleanup {
         repo: repo_dir.into(),

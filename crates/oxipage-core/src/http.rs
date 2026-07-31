@@ -10,13 +10,13 @@ use crate::state::AppState;
 use crate::theme;
 
 use axum::body::Body;
+use axum::extract::{Path, Query, Request, State};
 use axum::http::StatusCode;
 use axum::http::{Uri, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
-use axum::extract::{Path, Query, Request, State};
 use rust_embed::RustEmbed;
 use std::sync::Arc;
 use tower_http::trace::TraceLayer;
@@ -71,7 +71,6 @@ pub fn build_app(state: AppState) -> Router {
             axum::routing::post(cli_exec_handler),
         )
         .route("/themes", get(theme_catalog))
-
         .route("/build", axum::routing::post(build_handler))
         .route("/cache/refresh", axum::routing::post(cache_refresh_handler));
 
@@ -358,8 +357,7 @@ async fn static_handler(uri: Uri) -> Response {
         return response;
     }
     // Everything else → admin SPA for client-side routing
-    serve_asset("admin.html")
-        .unwrap_or_else(|| StatusCode::NOT_FOUND.into_response())
+    serve_asset("admin.html").unwrap_or_else(|| StatusCode::NOT_FOUND.into_response())
 }
 
 fn serve_asset(path: &str) -> Option<Response> {
@@ -375,7 +373,9 @@ fn serve_asset(path: &str) -> Option<Response> {
                 spa_revision()
             );
             let html = String::from_utf8_lossy(&bytes);
-            bytes = html.replace("</head>", &format!("{meta}</head>")).into_bytes();
+            bytes = html
+                .replace("</head>", &format!("{meta}</head>"))
+                .into_bytes();
         }
 
         let mime = mime_guess::from_path(path).first_or_octet_stream();
@@ -418,7 +418,9 @@ fn has_hash_suffix(path: &str) -> bool {
     let stem = path.strip_prefix("assets/").unwrap_or(path);
     let dot = stem.rfind('.').unwrap_or(stem.len());
     let name = &stem[..dot];
-    name.find('-').map(|i| &name[i + 1..]).map_or(false, |h| h.len() >= 6)
+    name.find('-')
+        .map(|i| &name[i + 1..])
+        .map_or(false, |h| h.len() >= 6)
 }
 
 fn spa_revision() -> &'static str {
@@ -681,10 +683,19 @@ async fn registry_list(
         .extensions
         .into_iter()
         .filter(|e| e.runtime_loadable)
-                .map(|e| {
+        .map(|e| {
             let installed = state.registry.find(&e.name).is_some();
-            let source = if e.name == "wasm-demo" { "embedded" } else { "remote" };
-            RegistryEntryPub { name: e.name, runtime_loadable: true, installed, source }
+            let source = if e.name == "wasm-demo" {
+                "embedded"
+            } else {
+                "remote"
+            };
+            RegistryEntryPub {
+                name: e.name,
+                runtime_loadable: true,
+                installed,
+                source,
+            }
         })
         .collect();
     Ok(Json(DataEnvelope { data: entries }))
@@ -1052,8 +1063,7 @@ async fn cli_exec_handler(
 /// (`{ id, name_ko, name_en, mode, accent_hue, preview_colors,
 /// description_ko, description_en }`). The browser `ThemeDefinition`
 /// type matches all three endpoints, so no shape translation is needed.
-async fn theme_catalog(
-) -> Json<DataEnvelope<Vec<theme::ThemeDefinition>>> {
+async fn theme_catalog() -> Json<DataEnvelope<Vec<theme::ThemeDefinition>>> {
     Json(DataEnvelope {
         data: theme::ALL_THEMES.to_vec(),
     })

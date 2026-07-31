@@ -1,7 +1,7 @@
 pub mod backup;
 pub mod build;
 pub mod build_manifest;
- pub mod build_writer;
+pub mod build_writer;
 pub mod builder;
 pub mod client;
 pub mod config;
@@ -23,4 +23,3 @@ pub mod sites;
 pub mod state;
 pub mod theme;
 pub mod validation;
-

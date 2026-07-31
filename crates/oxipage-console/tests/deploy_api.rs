@@ -76,8 +76,11 @@ fn write_manifest(out_dir: &std::path::Path, base: &str, theme: &str) {
         ),
     )
     .unwrap();
-    std::fs::write(out_dir.join("index.html"), "<html><head><base href=\"/\"></head></html>")
-        .unwrap();
+    std::fs::write(
+        out_dir.join("index.html"),
+        "<html><head><base href=\"/\"></head></html>",
+    )
+    .unwrap();
     std::fs::create_dir_all(out_dir.join("assets")).unwrap();
 }
 

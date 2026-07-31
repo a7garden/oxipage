@@ -53,10 +53,7 @@ pub fn all_builders() -> Vec<Box<dyn BuildExt>> {
 }
 
 /// 전체 콘솔 앱 조립: core 앱 + /api/console nest + 비-API /preview/* 404 가드.
-pub fn build_console_app(
-    state: AppState,
-    registry: Arc<SiteRegistry>,
-) -> axum::Router {
+pub fn build_console_app(state: AppState, registry: Arc<SiteRegistry>) -> axum::Router {
     let console = crate::router::build_console_router(registry);
     let mut app = oxipage_core::http::build_app(state);
     app = app.nest("/api/console", console);

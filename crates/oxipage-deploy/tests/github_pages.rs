@@ -2,7 +2,7 @@
 
 use oxipage_core::build_manifest::BuildManifest;
 use oxipage_core::site_paths::GitHubPagesTarget;
-use oxipage_deploy::{deploy_github_pages, origin_matches, DeployError};
+use oxipage_deploy::{DeployError, deploy_github_pages, origin_matches};
 use tempfile::TempDir;
 
 #[test]

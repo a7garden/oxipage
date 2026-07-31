@@ -62,18 +62,18 @@ pub async fn upsert_if_unchanged(
     input: &ProfileInput,
 ) -> Result<Profile, UpsertError> {
     let mut tx = pool.begin().await.map_err(map_sqlx)?;
-    let current: Option<(String,)> =
-        sqlx::query_as("SELECT updated_at FROM profile WHERE id = 1")
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(map_sqlx)?;
+    let current: Option<(String,)> = sqlx::query_as("SELECT updated_at FROM profile WHERE id = 1")
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(map_sqlx)?;
     let current_updated_at = current.as_ref().map(|(s,)| s.clone()).unwrap_or_default();
     if !input.expected_updated_at.is_empty() && current_updated_at != input.expected_updated_at {
         return Err(UpsertError::Stale {
             expected: input.expected_updated_at.clone(),
         });
     }
-    let education = serde_json::to_string(&input.education).map_err(|e| UpsertError::Db(e.into()))?;
+    let education =
+        serde_json::to_string(&input.education).map_err(|e| UpsertError::Db(e.into()))?;
     let custom_links =
         serde_json::to_string(&input.custom_links).map_err(|e| UpsertError::Db(e.into()))?;
     let profile = sqlx::query_as::<_, Profile>(&format!(

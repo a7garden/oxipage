@@ -21,7 +21,11 @@ pub(crate) async fn deploy(c: DeployArgs, out: &Output) -> anyhow::Result<()> {
     let sites = crate::sites::load_sites();
     let legacy = std::env::var_os("OXIPAGE_CONFIG")
         .map(PathBuf::from)
-        .or_else(|| Path::new("oxipage.toml").exists().then(|| PathBuf::from("oxipage.toml")));
+        .or_else(|| {
+            Path::new("oxipage.toml")
+                .exists()
+                .then(|| PathBuf::from("oxipage.toml"))
+        });
     let project = resolve_deploy_project(c.site.as_deref(), &sites, legacy.as_deref())?;
     let cfg = oxipage_core::config::Config::load(&project.join("oxipage.toml"))?;
     let data_dir = if cfg.server.data_dir.is_absolute() {
@@ -61,13 +65,7 @@ pub(crate) async fn deploy(c: DeployArgs, out: &Output) -> anyhow::Result<()> {
             let out_dir_owned = out_dir.clone();
             let target2 = target.clone();
             let handle = tokio::task::spawn_blocking(move || {
-                oxipage_deploy::deploy_github_pages(
-                    &repo,
-                    &out_dir_owned,
-                    &target2,
-                    &manifest,
-                    &tx,
-                )
+                oxipage_deploy::deploy_github_pages(&repo, &out_dir_owned, &target2, &manifest, &tx)
             });
             while let Some(ev) = rx.recv().await {
                 let _ = out.ok(deploy_event_label(&ev));
@@ -141,7 +139,6 @@ fn deploy_event_label(ev: &oxipage_deploy::DeployEvent) -> String {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::resolve_deploy_project;
@@ -175,8 +172,12 @@ mod tests {
     #[test]
     fn legacy_only_without_registry() {
         assert_eq!(
-            resolve_deploy_project(None, &SitesFile::default(), Some(Path::new("/legacy/oxipage.toml")))
-                .unwrap(),
+            resolve_deploy_project(
+                None,
+                &SitesFile::default(),
+                Some(Path::new("/legacy/oxipage.toml"))
+            )
+            .unwrap(),
             PathBuf::from("/legacy")
         );
         assert!(

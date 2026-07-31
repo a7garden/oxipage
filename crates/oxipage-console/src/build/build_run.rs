@@ -57,7 +57,10 @@ pub async fn ensure_build_started(
         let relay_guard = guard.clone();
         tokio::spawn(async move {
             while let Some(ev) = mpsc_rx.recv().await {
-                let terminal = matches!(ev, BuildEvent::BuildComplete { .. } | BuildEvent::BuildFailed { .. });
+                let terminal = matches!(
+                    ev,
+                    BuildEvent::BuildComplete { .. } | BuildEvent::BuildFailed { .. }
+                );
                 let _ = relay_guard.publish(
                     &relay_slug,
                     OperationEvent {
@@ -122,10 +125,7 @@ pub async fn ensure_build_started(
             Err(e) => {
                 let _ = guard.publish(
                     &slug,
-                    OperationEvent::terminal(
-                        "build_failed",
-                        serde_json::json!({ "error": e }),
-                    ),
+                    OperationEvent::terminal("build_failed", serde_json::json!({ "error": e })),
                 );
             }
         }

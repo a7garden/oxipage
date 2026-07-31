@@ -1,4 +1,6 @@
-use crate::model::{ListQuery, ProjectDetail, ProjectInput, ProjectPatch, ScreenshotInput, ScreenshotPatch};
+use crate::model::{
+    ListQuery, ProjectDetail, ProjectInput, ProjectPatch, ScreenshotInput, ScreenshotPatch,
+};
 use crate::repo;
 use axum::Json;
 use axum::extract::{Extension, Path, Query};

@@ -56,11 +56,7 @@ async fn site_router_with_toml(toml_text: &str) -> (TempDir, PathBuf, Router) {
     let mut sf = SitesFile::default();
     sf.add("blog".into(), path.clone());
     sf.set_default("blog");
-    let registry = Arc::new(
-        SiteRegistry::new(sf, Default::default())
-            .await
-            .unwrap(),
-    );
+    let registry = Arc::new(SiteRegistry::new(sf, Default::default()).await.unwrap());
     (dir, path, build_console_router(registry))
 }
 
@@ -110,7 +106,8 @@ async fn deploy_patch_preserves_server_and_unknown_keys() {
     .await;
     assert_eq!(response.status(), StatusCode::OK);
     let saved: toml::Value =
-        toml::from_str(&std::fs::read_to_string(project_dir.join("oxipage.toml")).unwrap()).unwrap();
+        toml::from_str(&std::fs::read_to_string(project_dir.join("oxipage.toml")).unwrap())
+            .unwrap();
     assert_eq!(saved["server"]["port"].as_integer(), Some(9123));
     assert_eq!(saved["custom"]["keep"].as_str(), Some("yes"));
     assert_eq!(

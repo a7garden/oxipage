@@ -63,11 +63,8 @@ async fn build_site_runs_without_panic_and_writes_correct_layout() {
 
     // 4. Write to a fresh out dir and assert the layout.
     let out_dir = tmp_root.join("out");
-    let inputs = oxipage_core::builder::BuildInputs::new(
-        "https://127.0.0.1:8787/",
-        "paper",
-        "test",
-    );
+    let inputs =
+        oxipage_core::builder::BuildInputs::new("https://127.0.0.1:8787/", "paper", "test");
     write_build_output(&output, &out_dir, &media_dir, &inputs).expect("write_build_output");
 
     // Root SPA entry (lobby).

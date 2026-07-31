@@ -11,7 +11,12 @@ async fn get_default_theme_with_no_registered_site_returns_paper() {
     let app = build_console_router(registry);
 
     let resp = app
-        .oneshot(Request::builder().uri("/theme").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/theme")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 

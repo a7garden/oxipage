@@ -1,4 +1,6 @@
-use crate::model::{ChapterInput, ChapterOrderInput, ChapterPatch, ListQuery, Novel, NovelChapter, NovelInput};
+use crate::model::{
+    ChapterInput, ChapterOrderInput, ChapterPatch, ListQuery, Novel, NovelChapter, NovelInput,
+};
 use crate::repo;
 use axum::Json;
 use axum::extract::{Extension, Path, Query};
@@ -252,8 +254,9 @@ pub async fn reorder_chapters(
             "chapter_ids contains duplicates",
         ));
     }
-    let chapters = repo::reorder_chapters(&pool.db, &slug, &input.chapter_ids).await.map_err(
-        |e| {
+    let chapters = repo::reorder_chapters(&pool.db, &slug, &input.chapter_ids)
+        .await
+        .map_err(|e| {
             let msg = e.to_string();
             if msg.starts_with("stale_order") {
                 ApiError::new(
@@ -264,7 +267,6 @@ pub async fn reorder_chapters(
             } else {
                 ApiError::internal(e)
             }
-        },
-    )?;
+        })?;
     Ok(Json(DataEnvelope { data: chapters }))
 }

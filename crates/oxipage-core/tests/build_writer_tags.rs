@@ -1,8 +1,8 @@
 //! Tests for build_writer tag transformations and manifest derivation.
 
 use oxipage_core::build_manifest::BuildManifest;
-use oxipage_core::builder::{BuildInputs, BuildOutput, StaticPage};
 use oxipage_core::build_writer::write_build_output;
+use oxipage_core::builder::{BuildInputs, BuildOutput, StaticPage};
 use tempfile::TempDir;
 
 fn page(rel: &str, body: &str) -> StaticPage {
@@ -35,7 +35,10 @@ fn relative_assets_drop_leading_slash() {
     write_build_output(&out_struct, &out, &media, &inputs).unwrap();
 
     let html = std::fs::read_to_string(out.join("index.html")).unwrap();
-    assert!(!html.contains("/assets/index-"), "raw /assets/ leaked: {html}");
+    assert!(
+        !html.contains("/assets/index-"),
+        "raw /assets/ leaked: {html}"
+    );
     assert!(
         html.contains("assets/index-"),
         "relative asset missing: {html}"
@@ -62,7 +65,10 @@ fn apex_base_url_emits_root_base() {
     write_build_output(&out_struct, &out, &media, &inputs).unwrap();
 
     let html = std::fs::read_to_string(out.join("index.html")).unwrap();
-    assert!(html.contains("<base href=\"/\">"), "expected `/` base: {html}");
+    assert!(
+        html.contains("<base href=\"/\">"),
+        "expected `/` base: {html}"
+    );
 }
 
 #[test]
@@ -72,12 +78,13 @@ fn manifest_reflects_derived_deployment_base() {
     let media = tmp.path().join("media");
     std::fs::create_dir_all(&media).unwrap();
 
-    let out_struct =
-        empty_output_with(vec![page("index.html", "<!DOCTYPE html><html></html>")]);
+    let out_struct = empty_output_with(vec![page("index.html", "<!DOCTYPE html><html></html>")]);
     let inputs = BuildInputs::new("https://example.com/repo/", "paper", "seed");
     write_build_output(&out_struct, &out, &media, &inputs).unwrap();
 
-    let m = BuildManifest::read_from(&out).unwrap().expect("manifest exists");
+    let m = BuildManifest::read_from(&out)
+        .unwrap()
+        .expect("manifest exists");
     assert_eq!(m.deployment_base, "/repo/");
     assert_eq!(m.theme_id, "paper");
     assert!(!m.asset_revision.is_empty());

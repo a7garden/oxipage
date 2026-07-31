@@ -33,7 +33,7 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
             settings: std::sync::Arc::new(tokio::sync::RwLock::new(
                 oxipage_core::site_paths::MutableSiteSettings::from_config(
                     &oxipage_core::config::Config::default(),
-                )
+                ),
             )),
         }))
 }

@@ -102,9 +102,12 @@ pub async fn upload_handler(
     let uuid = Uuid::new_v4();
     let uuid_str = uuid.hyphenated().to_string();
     let tmp_path = dest_dir.join(format!("{uuid_str}.tmp"));
-    let mut tmp = tokio::fs::File::create(&tmp_path)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("tmp create: {e}")))?;
+    let mut tmp = tokio::fs::File::create(&tmp_path).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("tmp create: {e}"),
+        )
+    })?;
 
     let mut head: Vec<u8> = Vec::with_capacity(16);
     let mut total: u64 = 0;

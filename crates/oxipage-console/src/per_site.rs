@@ -77,7 +77,6 @@ fn config_json(settings: &MutableSiteSettings, server: &ServerConfig) -> serde_j
     })
 }
 
-
 #[derive(Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct ConfigUpdate {
@@ -130,9 +129,10 @@ fn apply_deploy_patch(
             .validate()
             .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     }
-    let root = doc
-        .as_table_mut()
-        .ok_or((StatusCode::INTERNAL_SERVER_ERROR, "root TOML is not a table".into()))?;
+    let root = doc.as_table_mut().ok_or((
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "root TOML is not a table".into(),
+    ))?;
     let deploy = root
         .entry("deploy")
         .or_insert_with(|| toml::Value::Table(toml::Table::new()))
@@ -368,12 +368,11 @@ pub async fn deploys_list(
     Extension(ctx): Extension<Arc<SiteContext>>,
     Query(q): Query<RecentQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let rows: Result<Vec<DeployRecord>, _> = sqlx::query_as::<_, DeployRecord>(
-        "SELECT * FROM deploy_log ORDER BY id DESC LIMIT ?1",
-    )
-    .bind(q.limit.unwrap_or(50).clamp(1, 100))
-    .fetch_all(&ctx.db)
-    .await;
+    let rows: Result<Vec<DeployRecord>, _> =
+        sqlx::query_as::<_, DeployRecord>("SELECT * FROM deploy_log ORDER BY id DESC LIMIT ?1")
+            .bind(q.limit.unwrap_or(50).clamp(1, 100))
+            .fetch_all(&ctx.db)
+            .await;
     match rows {
         Ok(rs) => Ok(Json(serde_json::json!({ "data": rs }))),
         Err(_) => Ok(Json(serde_json::json!({ "data": [] }))),
@@ -402,7 +401,11 @@ struct DeployPreflight {
     problems: Vec<PreflightProblem>,
 }
 
-fn problem(code: &'static str, message: impl Into<String>, action: Option<&'static str>) -> PreflightProblem {
+fn problem(
+    code: &'static str,
+    message: impl Into<String>,
+    action: Option<&'static str>,
+) -> PreflightProblem {
     PreflightProblem {
         code,
         message: message.into(),
@@ -471,7 +474,9 @@ async fn evaluate_preflight(ctx: &SiteContext) -> DeployPreflight {
             .output()
             .ok()
             .filter(|o| o.status.success())
-            .is_some_and(|o| oxipage_deploy::origin_matches(&String::from_utf8_lossy(&o.stdout), t)),
+            .is_some_and(|o| {
+                oxipage_deploy::origin_matches(&String::from_utf8_lossy(&o.stdout), t)
+            }),
         _ => false,
     };
     if target.is_some() && git && !origin {
@@ -559,7 +564,7 @@ pub struct ThemeResponse {
 pub async fn theme_get(
     Extension(ctx): Extension<Arc<SiteContext>>,
 ) -> Result<Json<ThemeResponse>, (StatusCode, String)> {
-    use oxipage_core::theme::{find_theme, ALL_THEMES};
+    use oxipage_core::theme::{ALL_THEMES, find_theme};
 
     let row: Option<(String,)> = sqlx::query_as("SELECT theme_id FROM theme_config WHERE id = 1")
         .fetch_optional(&ctx.db)
@@ -606,8 +611,7 @@ pub async fn theme_put(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("db: {e}")))?;
 
-    let def = find_theme(&input.theme_id)
-        .expect("validation above guarantees presence");
+    let def = find_theme(&input.theme_id).expect("validation above guarantees presence");
     Ok(Json(ThemeResponse {
         data: serde_json::json!({
             "theme_id": def.id,
@@ -738,10 +742,11 @@ pub async fn build_post(
     let build_id = uuid::Uuid::new_v4().to_string();
 
     // One build/deploy slot per site — conflict if another operation runs.
-    let conflict = match ctx
-        .operation_guard
-        .try_start(&ctx.slug, &build_id, crate::operations::SiteOperationKind::Build)
-    {
+    let conflict = match ctx.operation_guard.try_start(
+        &ctx.slug,
+        &build_id,
+        crate::operations::SiteOperationKind::Build,
+    ) {
         Ok(()) => None,
         Err(c) => Some(c),
     };
@@ -873,10 +878,11 @@ pub async fn deploy_post(
     let deploy_id = uuid::Uuid::new_v4().to_string();
 
     // One build/deploy slot per site — conflict if another operation runs.
-    if let Err(c) = ctx
-        .operation_guard
-        .try_start(&ctx.slug, &deploy_id, crate::operations::SiteOperationKind::Deploy)
-    {
+    if let Err(c) = ctx.operation_guard.try_start(
+        &ctx.slug,
+        &deploy_id,
+        crate::operations::SiteOperationKind::Deploy,
+    ) {
         return Err((
             StatusCode::CONFLICT,
             Json(serde_json::json!({
@@ -925,9 +931,17 @@ pub async fn deploy_stream(
         .deploy
         .github_pages
         .clone()
-        .ok_or((StatusCode::PRECONDITION_FAILED, "deploy_not_configured".to_string()))?;
-    crate::deploy::deploy_run::ensure_deploy_started(&ctx.operation_guard, &ctx, &deploy_id, &target)
-        .await;
+        .ok_or((
+            StatusCode::PRECONDITION_FAILED,
+            "deploy_not_configured".to_string(),
+        ))?;
+    crate::deploy::deploy_run::ensure_deploy_started(
+        &ctx.operation_guard,
+        &ctx,
+        &deploy_id,
+        &target,
+    )
+    .await;
 
     let stream = BroadcastStream::new(rx).map(|res| {
         Ok::<_, std::io::Error>(match res {
@@ -1093,12 +1107,11 @@ pub async fn stats_get(
     });
 
     // Last deploy: most recent deploy_log entry (may not exist yet).
-    let last_deploy: Option<DeployRecord> = sqlx::query_as::<_, DeployRecord>(
-        "SELECT * FROM deploy_log ORDER BY id DESC LIMIT 1",
-    )
-    .fetch_optional(&ctx.db)
-    .await
-    .unwrap_or(None);
+    let last_deploy: Option<DeployRecord> =
+        sqlx::query_as::<_, DeployRecord>("SELECT * FROM deploy_log ORDER BY id DESC LIMIT 1")
+            .fetch_optional(&ctx.db)
+            .await
+            .unwrap_or(None);
 
     Ok(Json(ConfigResponse {
         data: serde_json::json!({

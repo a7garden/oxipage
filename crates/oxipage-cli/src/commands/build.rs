@@ -53,11 +53,8 @@ pub(crate) async fn build(c: BuildCommand) -> anyhow::Result<()> {
         oxipage_core::config::Config::default()
     };
     let theme_id = oxipage_core::theme::active_theme_id(&pool).await;
-    let inputs = oxipage_core::builder::BuildInputs::new(
-        &config.site.base_url,
-        theme_id,
-        "oxipage",
-    );
+    let inputs =
+        oxipage_core::builder::BuildInputs::new(&config.site.base_url, theme_id, "oxipage");
     oxipage_core::build_writer::write_build_output(&output, &out_path, &media_dir, &inputs)
         .map_err(|e| anyhow::anyhow!("{}", e))?;
 

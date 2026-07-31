@@ -21,7 +21,6 @@ use std::net::SocketAddr;
 // Setup's theme list is now sourced from the shared `oxipage_core::theme`
 // catalog (see crate::theme::ALL_THEMES). No local redefinition.
 
-
 // ─── Input / Output types ───
 
 #[derive(Deserialize)]
@@ -77,8 +76,6 @@ pub struct ExtensionWizardInfo {
     pub display_name: ExtDisplayName,
     pub steps: Vec<ExtensionStepInfo>,
 }
-
-
 
 #[derive(Serialize)]
 pub struct SimpleOk {

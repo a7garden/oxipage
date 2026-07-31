@@ -137,8 +137,8 @@ async fn serve_preview(
         return Err((StatusCode::BAD_REQUEST, "path_traversal".into()));
     }
 
-    let bytes = std::fs::read(&resolved)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let bytes =
+        std::fs::read(&resolved).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let mime = mime_guess::from_path(&resolved).first_or_octet_stream();
     let is_html =

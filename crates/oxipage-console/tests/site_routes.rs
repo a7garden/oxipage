@@ -63,7 +63,6 @@ async fn unknown_slug_returns_404() {
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
-
 #[tokio::test]
 async fn sites_list_returns_json() {
     let app = build_test_app().await;

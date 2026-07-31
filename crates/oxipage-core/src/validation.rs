@@ -18,10 +18,18 @@ pub fn is_media_path(s: &str) -> bool {
     let file = parts.next();
     let valid_kind = matches!(kind, Some("media"));
     let valid_ext = ext
-        .map(|e| !e.is_empty() && e.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'))
+        .map(|e| {
+            !e.is_empty()
+                && e.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        })
         .unwrap_or(false);
     let valid_file = file
-        .map(|f| !f.is_empty() && f.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.'))
+        .map(|f| {
+            !f.is_empty()
+                && f.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.')
+        })
         .unwrap_or(false);
     valid_kind && valid_ext && valid_file
 }
@@ -31,11 +39,7 @@ pub fn is_image_value(s: &str) -> bool {
 }
 
 pub fn clamp_rating(v: i8) -> Option<i8> {
-    if (0..=10).contains(&v) {
-        Some(v)
-    } else {
-        None
-    }
+    if (0..=10).contains(&v) { Some(v) } else { None }
 }
 
 pub fn validate_year(v: i32) -> Option<i32> {

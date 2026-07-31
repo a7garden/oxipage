@@ -199,8 +199,6 @@ pub(super) fn resolve_data_dir() -> anyhow::Result<std::path::PathBuf> {
     Ok(std::path::PathBuf::from("data"))
 }
 
-
-
 // ──────────────────── 동적 명령 디스패치 (doc/11) ────────────────────
 
 /// Dynamic args를 받아 확장 레지스트리에서 명령을 조회하고 실행한다.

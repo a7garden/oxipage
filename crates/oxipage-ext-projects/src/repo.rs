@@ -94,7 +94,11 @@ pub async fn list(
     draft: bool,
 ) -> anyhow::Result<Vec<Project>> {
     let limit = limit.clamp(1, 200);
-    let published_clause = if draft { "" } else { "published_at IS NOT NULL" };
+    let published_clause = if draft {
+        ""
+    } else {
+        "published_at IS NOT NULL"
+    };
     let sql = if status.is_some() {
         if draft {
             format!(
@@ -311,9 +315,15 @@ pub async fn update_screenshot(
     patch: &ScreenshotPatch,
 ) -> anyhow::Result<Option<Screenshot>> {
     let mut sets: Vec<&str> = Vec::new();
-    if patch.alt_ko.is_some() { sets.push("alt_ko = ?"); }
-    if patch.alt_en.is_some() { sets.push("alt_en = ?"); }
-    if patch.display_order.is_some() { sets.push("display_order = ?"); }
+    if patch.alt_ko.is_some() {
+        sets.push("alt_ko = ?");
+    }
+    if patch.alt_en.is_some() {
+        sets.push("alt_en = ?");
+    }
+    if patch.display_order.is_some() {
+        sets.push("display_order = ?");
+    }
     if sets.is_empty() {
         let shots = sqlx::query_as::<_, Screenshot>(&format!(
             "SELECT {SCREENSHOT_COLUMNS} FROM screenshot WHERE id = ?"
@@ -328,9 +338,15 @@ pub async fn update_screenshot(
         "UPDATE screenshot SET {set_clause} WHERE id = ?          AND project_id = (SELECT id FROM project WHERE slug = ?)          RETURNING {SCREENSHOT_COLUMNS}"
     );
     let mut q = sqlx::query_as::<_, Screenshot>(&sql);
-    if let Some(v) = &patch.alt_ko { q = q.bind(v); }
-    if let Some(v) = &patch.alt_en { q = q.bind(v); }
-    if let Some(v) = patch.display_order { q = q.bind(v); }
+    if let Some(v) = &patch.alt_ko {
+        q = q.bind(v);
+    }
+    if let Some(v) = &patch.alt_en {
+        q = q.bind(v);
+    }
+    if let Some(v) = patch.display_order {
+        q = q.bind(v);
+    }
     let shot = q.bind(sid).bind(project_slug).fetch_optional(pool).await?;
     Ok(shot)
 }

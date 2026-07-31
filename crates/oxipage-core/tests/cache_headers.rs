@@ -15,15 +15,28 @@ async fn build_test_app() -> axum::Router {
     struct DummyExt;
     #[async_trait::async_trait]
     impl Extension for DummyExt {
-        fn id(&self) -> &'static str { "dummy" }
-        fn display_name(&self, l: Lang) -> String { "Dummy".into() }
-        fn migrations(&self) -> Vec<Migration> {
-            vec![Migration { version: 1, name: "init",
-                sql: "CREATE TABLE IF NOT EXISTS dummy_t (id INTEGER PRIMARY KEY)" }]
+        fn id(&self) -> &'static str {
+            "dummy"
         }
-        fn table_names(&self) -> Vec<&'static str> { vec!["dummy_t"] }
-        fn routes(&self) -> axum::Router { axum::Router::new() }
-        async fn lobby_summary(&self, _ctx: &AppState) -> Option<LobbyCard> { None }
+        fn display_name(&self, l: Lang) -> String {
+            "Dummy".into()
+        }
+        fn migrations(&self) -> Vec<Migration> {
+            vec![Migration {
+                version: 1,
+                name: "init",
+                sql: "CREATE TABLE IF NOT EXISTS dummy_t (id INTEGER PRIMARY KEY)",
+            }]
+        }
+        fn table_names(&self) -> Vec<&'static str> {
+            vec!["dummy_t"]
+        }
+        fn routes(&self) -> axum::Router {
+            axum::Router::new()
+        }
+        async fn lobby_summary(&self, _ctx: &AppState) -> Option<LobbyCard> {
+            None
+        }
     }
 
     let pool = oxipage_core::db::connect_memory().await.unwrap();
@@ -44,11 +57,21 @@ async fn build_test_app() -> axum::Router {
 async fn admin_html_has_no_cache_header() {
     let app = build_test_app().await;
     let resp = app
-        .oneshot(Request::builder().uri("/sites").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/sites")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
-    let cc = resp.headers().get("cache-control").unwrap().to_str().unwrap();
+    let cc = resp
+        .headers()
+        .get("cache-control")
+        .unwrap()
+        .to_str()
+        .unwrap();
     assert!(cc.contains("no-cache"), "cache-control was: {cc}");
 }
 
@@ -67,16 +90,16 @@ async fn hashed_asset_has_immutable_cache() {
         .find(|u| u.starts_with("/assets/") && u.ends_with(".js"))
         .expect("admin.html must reference a hashed /assets/ script");
     let resp = app
-        .oneshot(
-            Request::builder()
-                .uri(asset)
-                .body(Body::empty())
-                .unwrap(),
-        )
+        .oneshot(Request::builder().uri(asset).body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK, "asset {asset} not found");
-    let cc = resp.headers().get("cache-control").unwrap().to_str().unwrap();
+    let cc = resp
+        .headers()
+        .get("cache-control")
+        .unwrap()
+        .to_str()
+        .unwrap();
     assert!(cc.contains("immutable"), "cache-control was: {cc}");
 }
 
@@ -84,7 +107,12 @@ async fn hashed_asset_has_immutable_cache() {
 async fn admin_html_has_revision_meta_and_header() {
     let app = build_test_app().await;
     let resp = app
-        .oneshot(Request::builder().uri("/sites").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/sites")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     // Capture the header BEFORE consuming the body — `into_body()` moves the
@@ -96,8 +124,13 @@ async fn admin_html_has_revision_meta_and_header() {
         .to_str()
         .expect("X-Oxipage-SPA-Revision must be ASCII")
         .to_owned();
-    assert!(!header_rev.is_empty(), "X-Oxipage-SPA-Revision must be non-empty");
-    let body_bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    assert!(
+        !header_rev.is_empty(),
+        "X-Oxipage-SPA-Revision must be non-empty"
+    );
+    let body_bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let body = String::from_utf8(body_bytes.to_vec()).unwrap();
     let meta_rev = body
         .split("name=\"oxipage-spa-revision\" content=\"")

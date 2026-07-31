@@ -106,7 +106,9 @@ async fn set_default(
         .set_default(&input.default_site)
         .await
         .map_err(|e| (StatusCode::NOT_FOUND, e.to_string()))?;
-    Ok(Json(serde_json::json!({ "data": { "default_site": input.default_site } })))
+    Ok(Json(
+        serde_json::json!({ "data": { "default_site": input.default_site } }),
+    ))
 }
 
 async fn create_site_handler(
@@ -126,8 +128,12 @@ async fn create_site_handler(
             ));
         }
     } else {
-        std::fs::create_dir_all(&path)
-            .map_err(|e| (StatusCode::BAD_REQUEST, format!("cannot create directory: {e}")))?;
+        std::fs::create_dir_all(&path).map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("cannot create directory: {e}"),
+            )
+        })?;
     }
 
     // Seed oxipage.toml if not present
@@ -145,8 +151,12 @@ data_dir = "data"
 [extensions]
 enabled = ["profile", "blog"]
 "#;
-        std::fs::write(path.join("oxipage.toml"), toml_content)
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("cannot write oxipage.toml: {e}")))?;
+        std::fs::write(path.join("oxipage.toml"), toml_content).map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("cannot write oxipage.toml: {e}"),
+            )
+        })?;
     }
 
     // Derive slug from directory name
@@ -194,10 +204,14 @@ async fn delete_site_handler(
     Path(slug): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     registry.remove_site(&slug).await.map_err(|e| {
-        (StatusCode::INTERNAL_SERVER_ERROR, format!("delete site: {e}"))
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("delete site: {e}"),
+        )
     })?;
-    Ok(Json(serde_json::json!({"data": {"slug": slug, "removed": true}})))
-
+    Ok(Json(
+        serde_json::json!({"data": {"slug": slug, "removed": true}}),
+    ))
 }
 
 /// `GET /api/console/theme` — current default site's theme definition.
@@ -209,7 +223,7 @@ async fn delete_site_handler(
 async fn get_default_theme(
     State(registry): State<Arc<SiteRegistry>>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use oxipage_core::theme::{find_theme, ALL_THEMES};
+    use oxipage_core::theme::{ALL_THEMES, find_theme};
 
     let slug = match registry.default_slug().await {
         Some(s) => s,
@@ -226,10 +240,12 @@ async fn get_default_theme(
         }
     };
 
-    let ctx = registry
-        .ctx_for(&slug)
-        .await
-        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("default site '{slug}' not loaded")))?;
+    let ctx = registry.ctx_for(&slug).await.ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            format!("default site '{slug}' not loaded"),
+        )
+    })?;
 
     let row: Option<(String,)> = sqlx::query_as("SELECT theme_id FROM theme_config WHERE id = 1")
         .fetch_optional(&ctx.db)
@@ -237,9 +253,8 @@ async fn get_default_theme(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("db: {e}")))?;
 
     let theme_id = row.map(|r| r.0).unwrap_or_else(|| "paper".to_string());
-    let def = find_theme(&theme_id).unwrap_or_else(|| {
-        ALL_THEMES.first().expect("paper always present")
-    });
+    let def =
+        find_theme(&theme_id).unwrap_or_else(|| ALL_THEMES.first().expect("paper always present"));
 
     Ok(Json(serde_json::json!({
         "data": {

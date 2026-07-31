@@ -18,8 +18,10 @@ pub async fn inject_site_context(
     mut req: Request,
     next: Next,
 ) -> Response {
-    req.extensions_mut()
-        .insert(SiteScopedDb { db: ctx.db.clone(), settings: ctx.settings.clone() });
+    req.extensions_mut().insert(SiteScopedDb {
+        db: ctx.db.clone(),
+        settings: ctx.settings.clone(),
+    });
     req.extensions_mut().insert(ctx);
     next.run(req).await
 }

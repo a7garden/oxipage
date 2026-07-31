@@ -105,9 +105,10 @@ impl GitHubPagesTarget {
             && !self.branch.contains("..")
             && !self.branch.starts_with('/')
             && !self.branch.ends_with('/')
-            && self.branch.bytes().all(|b| {
-                b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'/' | b'-')
-            });
+            && self
+                .branch
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'/' | b'-'));
         if !branch_ok {
             return Err(TargetValidationError::Branch);
         }
@@ -223,8 +224,14 @@ mod tests {
         assert_eq!(rebuilt.site.languages, vec!["en", "ko"]);
         assert_eq!(rebuilt.lobby.default_mode, "list");
         assert_eq!(rebuilt.extensions.enabled, vec!["blog"]);
-        assert_eq!(rebuilt.integrations.github_username.as_deref(), Some("octocat"));
-        assert_eq!(rebuilt.integrations.tmdb_api_key_env.as_deref(), Some("OXIPAGE_TMDB_KEY"));
+        assert_eq!(
+            rebuilt.integrations.github_username.as_deref(),
+            Some("octocat")
+        );
+        assert_eq!(
+            rebuilt.integrations.tmdb_api_key_env.as_deref(),
+            Some("OXIPAGE_TMDB_KEY")
+        );
         assert_eq!(
             rebuilt.integrations.aladin_ttbkey_env.as_deref(),
             Some("OXIPAGE_ALADIN_TTBKEY")

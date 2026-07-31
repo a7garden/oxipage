@@ -9,7 +9,12 @@ fn main() {
 
     // Mode 1: Workspace development — web/dist exists, require complete output.
     if web_dist.exists() || web_dist_static.exists() {
-        validate_and_copy(&web_dist, &root.join("embedded-spa"), "admin.html", "web/dist");
+        validate_and_copy(
+            &web_dist,
+            &root.join("embedded-spa"),
+            "admin.html",
+            "web/dist",
+        );
         validate_and_copy(
             &web_dist_static,
             &root.join("embedded-spa-static"),
@@ -36,13 +41,15 @@ fn main() {
     } else {
         // Fresh development clone: no web build and no packaged embeds yet.
         // Fail with the exact command that produces the required output.
-        panic!(
-            "no SPA bundle found. Run first: cd web && bun run build && bun run build:static"
-        );
+        panic!("no SPA bundle found. Run first: cd web && bun run build && bun run build:static");
     }
 
     // Registry + WASM (unchanged from existing logic).
-    copy_or_stub(&root.join("_registry.json"), &root.join("../../../registry/index.json"), b"[]");
+    copy_or_stub(
+        &root.join("_registry.json"),
+        &root.join("../../../registry/index.json"),
+        b"[]",
+    );
     copy_or_stub(
         &root.join("_wasm-demo.wasm"),
         &root.join("../../../crates/oxipage-ext-wasm-demo/artifacts/wasm-demo.wasm"),
@@ -67,7 +74,8 @@ fn validate_and_copy(src: &std::path::Path, dst: &std::path::Path, required: &st
     if dst.exists() {
         let _ = std::fs::remove_dir_all(dst);
     }
-    copy_dir(src, dst).unwrap_or_else(|e| panic!("failed to copy {label} to {}: {e}", dst.display()));
+    copy_dir(src, dst)
+        .unwrap_or_else(|e| panic!("failed to copy {label} to {}: {e}", dst.display()));
 }
 
 fn require_packaged(dir: &std::path::Path, required: &str) {

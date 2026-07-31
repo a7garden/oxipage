@@ -134,7 +134,12 @@ impl Extension for MoviesExtension {
                 "/series",
                 get(routes::list_groups).post(routes::create_group),
             )
-            .route("/series/{slug}", get(routes::show_group).patch(routes::update_group).delete(routes::delete_group))
+            .route(
+                "/series/{slug}",
+                get(routes::show_group)
+                    .patch(routes::update_group)
+                    .delete(routes::delete_group),
+            )
     }
 
     async fn lobby_summary(&self, ctx: &AppState) -> Option<LobbyCard> {

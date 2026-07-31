@@ -40,7 +40,10 @@ pub async fn put_profile(
         && !email.is_empty()
         && !crate::model::validate_email(email)
     {
-        return Err(ApiError::validation("email", "email is not a valid address"));
+        return Err(ApiError::validation(
+            "email",
+            "email is not a valid address",
+        ));
     }
     for e in &input.education {
         if !crate::model::validate_year_range(e.start_year, e.end_year) {
@@ -60,7 +63,7 @@ pub async fn put_profile(
                 _ => {
                     return Err(ApiError::internal(anyhow::anyhow!(
                         "profile vanished during stale write"
-                    )))
+                    )));
                 }
             };
             return Err(ApiError::with_data(

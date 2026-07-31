@@ -42,3 +42,6 @@ _wasm-demo.wasm
 # auto-release-prep / OMP scratch artifacts (regen each session)
 /.release-prep-status.md
 /local:/
+
+# OMP harness session state
+.omp/

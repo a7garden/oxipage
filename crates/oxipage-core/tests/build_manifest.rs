@@ -1,6 +1,6 @@
 //! Tests for BuildManifest serialization and deployment_base derivation.
 
-use oxipage_core::build_manifest::{derive_deployment_base, BuildManifest, MAG_FILENAME};
+use oxipage_core::build_manifest::{BuildManifest, MAG_FILENAME, derive_deployment_base};
 use tempfile::TempDir;
 
 #[test]
@@ -14,7 +14,9 @@ fn round_trip_preserves_fields() {
         built_at: "2026-07-31T10:00:00Z".to_string(),
     };
     m.write_to(dir.path()).unwrap();
-    let m2 = BuildManifest::read_from(dir.path()).unwrap().expect("manifest written");
+    let m2 = BuildManifest::read_from(dir.path())
+        .unwrap()
+        .expect("manifest written");
     assert_eq!(m.build_id, m2.build_id);
     assert_eq!(m.deployment_base, m2.deployment_base);
     assert_eq!(m.theme_id, m2.theme_id);
@@ -50,15 +52,9 @@ fn derive_deployment_base_handles_apex_and_project_pages() {
         derive_deployment_base("https://example.com/deep/nested/"),
         "/deep/nested/"
     );
-    assert_eq!(
-        derive_deployment_base("http://127.0.0.1:8787/"),
-        "/"
-    );
+    assert_eq!(derive_deployment_base("http://127.0.0.1:8787/"), "/");
     // No trailing slash on the input — still produces a trailing slash on output.
-    assert_eq!(
-        derive_deployment_base("https://example.com/blog"),
-        "/blog/"
-    );
+    assert_eq!(derive_deployment_base("https://example.com/blog"), "/blog/");
 }
 
 #[test]

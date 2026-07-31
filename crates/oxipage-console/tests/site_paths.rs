@@ -27,11 +27,7 @@ data_dir = "data"
     sf.add("test".into(), dir.path().to_path_buf());
     sf.set_default("test");
 
-    let registry = Arc::new(
-        SiteRegistry::new(sf, Default::default())
-            .await
-            .unwrap(),
-    );
+    let registry = Arc::new(SiteRegistry::new(sf, Default::default()).await.unwrap());
     let ctx = registry.ctx_for("test").await.unwrap();
 
     // data_dir should be project_dir/data (relative resolved against project_dir).

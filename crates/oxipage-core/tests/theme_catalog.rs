@@ -1,4 +1,4 @@
-use oxipage_core::theme::{ALL_THEMES, is_known_theme, find_theme};
+use oxipage_core::theme::{ALL_THEMES, find_theme, is_known_theme};
 
 #[test]
 fn catalog_has_six_themes() {
