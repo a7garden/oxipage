@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router";
+import { useParams, useNavigate, Link } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getConfig, updateConfig, removeSite, listSites, getDefaultSite, setDefaultSite, type ConfigResponse } from "../shared/api";
+import { getConfig, updateConfig, removeSite, listSites, getDefaultSite, setDefaultSite, getTheme, type ConfigResponse } from "../shared/api";
 import { Button } from "../../shared/ui/button";
 import { Input } from "../../shared/ui/input";
 import { Skeleton } from "../../shared/ui/skeleton";
 import { Trash2, X } from "lucide-react";
+import { ThemeToggle } from "../../shared/ThemeToggle";
 
 function SettingsField({
   label,
@@ -83,6 +84,11 @@ export function SettingsPage() {
   const sites = sitesData?.data ?? [];
   const currentDefault = defaultData?.data.default_site ?? null;
   const [defaultSiteSel, setDefaultSiteSel] = useState("");
+  const { data: themeData } = useQuery({
+    queryKey: ["site", slug, "theme"],
+    queryFn: () => getTheme(slug!),
+    enabled: !!slug,
+  });
   const setDefault = useMutation({
     mutationFn: setDefaultSite,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["default-site"] }),
@@ -277,6 +283,26 @@ export function SettingsPage() {
             {setDefault.isSuccess && (
               <span className="text-xs text-[#16a34a]">Updated</span>
             )}
+          </div>
+        </div>
+
+        <div className="border border-line rounded-lg p-5">
+          <h3 className="text-sm font-semibold mb-4">Appearance</h3>
+          <div className="flex items-center gap-3 mb-3">
+            <div className="text-xs text-muted w-32">Console appearance</div>
+            <ThemeToggle />
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="text-xs text-muted w-32">Public site theme</div>
+            <div className="text-sm font-medium" data-testid="public-theme-name">
+              {themeData?.definition?.name_en ?? "—"}
+            </div>
+            <Link
+              to={`/s/${slug}/themes`}
+              className="ml-auto text-xs text-primary hover:underline"
+            >
+              Open full theme editor →
+            </Link>
           </div>
         </div>
 
