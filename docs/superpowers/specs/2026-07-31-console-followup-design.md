@@ -157,7 +157,7 @@ let sql = if status.is_some() {
 pub fn build_console_app(
     state: oxipage_core::state::AppState,
     registry: Arc<SiteRegistry>,
-) -> axum::Router<oxipage_core::state::AppState> {
+) -> axum::Router {
     let console = crate::router::build_console_router(registry);
     let mut app = oxipage_core::http::build_app(state);
     app = app.nest("/api/console", console);
@@ -174,6 +174,7 @@ async fn preview_legacy_404() -> (StatusCode, &'static str) {
 ```
 
 - `run_console_with_extensions`(현재 173-176행 인라인 조립)는 `build_console_app(state, site_registry)` 호출로 교체.
+- 반환 타입은 `axum::Router`(= `Router<()>`) — `build_app`이 내부에서 `.with_state`를 적용해 `Router<()>`를 반환하므로 (구현 중 확인, 커밋 `113902c`).
 - axum 라우트는 fallback보다 우선하므로 `/preview/...`는 404, 그 외 비-API 경로는 기존 SPA fallback 유지. `/preview`(bare)도 `{*rest}`가 빈 경로를 매치해 404.
 
 ### 테스트
