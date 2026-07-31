@@ -67,6 +67,16 @@ export class ApiValidationError extends Error {
   }
 }
 
+/// field 없는 API 에러도 code를 보존 (ApiValidationError는 field 검증 전용 유지).
+export class ApiError extends Error {
+  code: string;
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.code = code;
+  }
+}
+
 export async function jsonOrThrow<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => null);
@@ -79,6 +89,9 @@ export async function jsonOrThrow<T>(res: Response): Promise<T> {
       );
     }
     const msg = detail?.message ?? detail ?? `HTTP ${res.status}`;
+    if (detail?.code) {
+      throw new ApiError(detail.code, msg);
+    }
     throw new Error(msg);
   }
   return res.json();

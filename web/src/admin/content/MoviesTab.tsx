@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { contentClient, searchTmdb, type TmdbSearchResult } from "../shared/api";
+import { ApiError, contentClient, searchTmdb, type TmdbSearchResult } from "../shared/api";
 import { ImageField } from "../shared/ui/ImageField";
 import { ContentTable } from "../shared/content-table";
 import { Button } from "../../shared/ui/button";
@@ -16,6 +16,7 @@ import {
   type SeriesGroup, type SeriesGroupDetail,
 } from "../shared/api";
 import { Badge } from "../../shared/ui/badge";
+import { Link } from "react-router";
 
 interface MovieEntry {
   id: number;
@@ -502,6 +503,14 @@ function TmdbSearchRow({ slug, onPick }: { slug: string; onPick: (r: TmdbSearchR
         value={q}
         onChange={(e) => setQ(e.target.value)}
       />
+      {search.isError && (search.error as ApiError)?.code === "tmdb_disabled" && (
+        <p className="mt-1 text-xs text-muted max-w-56">
+          TMDB 검색 비활성 —{" "}
+          <Link className="underline" to={`/s/${slug}/settings`}>Settings</Link>
+          에서 TMDB Key Env를 확인하거나 <code>OXIPAGE_TMDB_KEY</code> 환경변수를
+          설정하세요. 제목/포스터는 수동 입력할 수 있습니다.
+        </p>
+      )}
       {search.data && search.data.length > 0 && (
         <div className="absolute z-10 mt-1 w-64 max-h-64 overflow-auto rounded-md border border-line bg-surface shadow-lg">
           {search.data.map((r) => (
