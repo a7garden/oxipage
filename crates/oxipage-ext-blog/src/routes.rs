@@ -23,6 +23,26 @@ pub async fn create(
     Extension(pool): Extension<SiteScopedDb>,
     Json(input): Json<BlogPostInput>,
 ) -> Result<Json<DataEnvelope<BlogPost>>, ApiError> {
+    // Server-authoritative validation: title required, lang must be enabled
+    // for the site (reads the live settings snapshot, not a hardcoded list).
+    if input.title.trim().is_empty() {
+        return Err(ApiError::validation("title", "title must not be empty"));
+    }
+    let enabled: std::collections::BTreeSet<String> = pool
+        .settings
+        .read()
+        .await
+        .site
+        .languages
+        .iter()
+        .cloned()
+        .collect();
+    if !enabled.contains(&input.lang) {
+        return Err(ApiError::validation(
+            "lang",
+            "lang is not enabled for this site",
+        ));
+    }
     validate_input(&input)?;
     let base_slug = input
         .slug

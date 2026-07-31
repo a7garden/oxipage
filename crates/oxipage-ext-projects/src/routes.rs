@@ -256,3 +256,32 @@ fn not_found(slug: &str) -> ApiError {
         &format!("project '{slug}' not found"),
     )
 }
+
+pub async fn reorder_screenshots(
+    Extension(pool): Extension<oxipage_core::state::SiteScopedDb>,
+    Path(slug): Path<String>,
+    Json(input): Json<crate::model::ScreenshotOrderInput>,
+) -> Result<Json<DataEnvelope<Vec<crate::model::Screenshot>>>, ApiError> {
+    use std::collections::HashSet;
+    if input.screenshot_ids.iter().collect::<HashSet<_>>().len() != input.screenshot_ids.len() {
+        return Err(ApiError::validation(
+            "screenshot_ids",
+            "screenshot_ids contains duplicates",
+        ));
+    }
+    let shots = repo::reorder_screenshots(&pool.db, &slug, &input.screenshot_ids)
+        .await
+        .map_err(|e| {
+            let msg = e.to_string();
+            if msg.starts_with("stale_order") {
+                ApiError::new(
+                    axum::http::StatusCode::CONFLICT,
+                    "stale_order",
+                    "submitted IDs do not match current screenshot set",
+                )
+            } else {
+                ApiError::internal(e)
+            }
+        })?;
+    Ok(Json(DataEnvelope { data: shots }))
+}

@@ -334,3 +334,46 @@ pub async fn update_screenshot(
     let shot = q.bind(sid).bind(project_slug).fetch_optional(pool).await?;
     Ok(shot)
 }
+
+pub async fn reorder_screenshots(
+    pool: &sqlx::SqlitePool,
+    project_slug: &str,
+    ids: &[i64],
+) -> anyhow::Result<Vec<crate::model::Screenshot>> {
+    let project_id: i64 = sqlx::query_scalar("SELECT id FROM project WHERE slug = ?")
+        .bind(project_slug)
+        .fetch_one(pool)
+        .await?;
+    let mut tx = pool.begin().await?;
+    let current: Vec<(i64,)> = sqlx::query_as(
+        "SELECT id FROM project_screenshot WHERE project_id = ? ORDER BY display_order",
+    )
+    .bind(project_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    let current_ids: Vec<i64> = current.into_iter().map(|(i,)| i).collect();
+    if current_ids.len() != ids.len()
+        || current_ids.iter().collect::<std::collections::HashSet<_>>()
+            != ids.iter().collect::<std::collections::HashSet<_>>()
+    {
+        anyhow::bail!("stale_order: submitted IDs do not match current screenshot set");
+    }
+    for (idx, id) in ids.iter().enumerate() {
+        sqlx::query(
+            "UPDATE project_screenshot SET display_order = ?1 WHERE id = ?2 AND project_id = ?3",
+        )
+        .bind(idx as i32)
+        .bind(id)
+        .bind(project_id)
+        .execute(&mut *tx)
+        .await?;
+    }
+    let updated = sqlx::query_as::<_, crate::model::Screenshot>(&format!(
+        "SELECT id, project_id, url, alt_ko, alt_en, display_order, created_at FROM project_screenshot WHERE project_id = ? ORDER BY display_order"
+    ))
+    .bind(project_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(updated)
+}

@@ -101,3 +101,8 @@ pub struct ListQuery {
     #[serde(default)]
     pub draft: bool,
 }
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ScreenshotOrderInput {
+    pub screenshot_ids: Vec<i64>,
+}

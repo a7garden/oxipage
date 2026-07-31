@@ -14,6 +14,9 @@ use tokio::sync::RwLock;
 #[derive(Clone)]
 pub struct SiteScopedDb {
     pub db: SqlitePool,
+    /// Live-reloadable site settings (site languages etc.) for per-site
+    /// extension handlers that validate against configuration.
+    pub settings: std::sync::Arc<tokio::sync::RwLock<crate::site_paths::MutableSiteSettings>>,
 }
 
 /// 사이트명/URL 오버라이드 — setup 마법사가 oxipage.toml을 갱신한 후

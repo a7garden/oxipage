@@ -79,3 +79,8 @@ pub struct ListQuery {
 pub fn char_count(body: &str) -> i64 {
     body.chars().filter(|c| !c.is_whitespace()).count() as i64
 }
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ChapterOrderInput {
+    pub chapter_ids: Vec<i64>,
+}

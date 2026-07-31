@@ -279,3 +279,43 @@ pub async fn delete_chapter(
     .await?;
     Ok(res.rows_affected() > 0)
 }
+
+pub async fn reorder_chapters(
+    pool: &sqlx::SqlitePool,
+    novel_slug: &str,
+    ids: &[i64],
+) -> anyhow::Result<Vec<crate::model::NovelChapter>> {
+    let novel_id = novel_id(pool, novel_slug).await?;
+    let mut tx = pool.begin().await?;
+    let current: Vec<(i64,)> =
+        sqlx::query_as("SELECT id FROM novel_chapter WHERE novel_id = ? ORDER BY chapter_order")
+            .bind(novel_id)
+            .fetch_all(&mut *tx)
+            .await?;
+    let current_ids: Vec<i64> = current.into_iter().map(|(i,)| i).collect();
+
+    // Exact set equality required: same length, same membership.
+    if current_ids.len() != ids.len()
+        || current_ids.iter().collect::<std::collections::HashSet<_>>()
+            != ids.iter().collect::<std::collections::HashSet<_>>()
+    {
+        anyhow::bail!("stale_order: submitted IDs do not match current chapter set");
+    }
+
+    for (idx, id) in ids.iter().enumerate() {
+        sqlx::query("UPDATE novel_chapter SET chapter_order = ?1 WHERE id = ?2 AND novel_id = ?3")
+            .bind((idx as i32) + 1)
+            .bind(id)
+            .bind(novel_id)
+            .execute(&mut *tx)
+            .await?;
+    }
+    let updated = sqlx::query_as::<_, crate::model::NovelChapter>(&format!(
+        "SELECT {CHAPTER_COLUMNS} FROM novel_chapter WHERE novel_id = ? ORDER BY chapter_order"
+    ))
+    .bind(novel_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(updated)
+}

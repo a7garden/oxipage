@@ -1,4 +1,4 @@
-use crate::model::{ChapterInput, ChapterPatch, ListQuery, Novel, NovelChapter, NovelInput};
+use crate::model::{ChapterInput, ChapterOrderInput, ChapterPatch, ListQuery, Novel, NovelChapter, NovelInput};
 use crate::repo;
 use axum::Json;
 use axum::extract::{Extension, Path, Query};
@@ -233,4 +233,38 @@ fn not_found(s: &str) -> ApiError {
         "not_found",
         &format!("novel/chapter '{s}' not found"),
     )
+}
+
+pub async fn reorder_chapters(
+    Extension(pool): Extension<SiteScopedDb>,
+    Path(slug): Path<String>,
+    Json(input): Json<ChapterOrderInput>,
+) -> Result<Json<DataEnvelope<Vec<NovelChapter>>>, ApiError> {
+    if input
+        .chapter_ids
+        .iter()
+        .collect::<std::collections::HashSet<_>>()
+        .len()
+        != input.chapter_ids.len()
+    {
+        return Err(ApiError::validation(
+            "chapter_ids",
+            "chapter_ids contains duplicates",
+        ));
+    }
+    let chapters = repo::reorder_chapters(&pool.db, &slug, &input.chapter_ids).await.map_err(
+        |e| {
+            let msg = e.to_string();
+            if msg.starts_with("stale_order") {
+                ApiError::new(
+                    axum::http::StatusCode::CONFLICT,
+                    "stale_order",
+                    "submitted IDs do not match current chapter set",
+                )
+            } else {
+                ApiError::internal(e)
+            }
+        },
+    )?;
+    Ok(Json(DataEnvelope { data: chapters }))
 }

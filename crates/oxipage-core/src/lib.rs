@@ -22,4 +22,5 @@ pub mod site_paths;
 pub mod sites;
 pub mod state;
 pub mod theme;
+pub mod validation;
 

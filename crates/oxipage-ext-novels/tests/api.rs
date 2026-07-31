@@ -27,7 +27,14 @@ async fn test_app(_admin_token: Option<&str>) -> Router {
     let r = registry.find("novels").unwrap().routes();
     Router::new()
         .nest("/api/console/novels", r)
-        .layer(Extension(SiteScopedDb { db: pool }))
+        .layer(Extension(SiteScopedDb {
+            db: pool,
+            settings: std::sync::Arc::new(tokio::sync::RwLock::new(
+                oxipage_core::site_paths::MutableSiteSettings::from_config(
+                    &oxipage_core::config::Config::default(),
+                )
+            )),
+        }))
 }
 
 async fn body_json(res: axum::response::Response) -> serde_json::Value {

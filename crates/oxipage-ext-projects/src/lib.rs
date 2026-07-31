@@ -49,6 +49,10 @@ impl Extension for ProjectsExtension {
             .route("/{slug}/publish", post(routes::publish))
             .route("/{slug}/screenshots", post(routes::add_screenshot))
             .route(
+                "/{slug}/screenshots/order",
+                axum::routing::put(routes::reorder_screenshots),
+            )
+            .route(
                 "/{slug}/screenshots/{sid}",
                 axum::routing::delete(routes::delete_screenshot)
                     .patch(routes::update_screenshot),

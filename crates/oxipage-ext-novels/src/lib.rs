@@ -133,6 +133,10 @@ impl Extension for NovelsExtension {
             )
             .route("/{slug}/publish", post(routes::publish_novel))
             .route(
+                "/{slug}/chapters/order",
+                axum::routing::put(routes::reorder_chapters),
+            )
+            .route(
                 "/{slug}/chapters",
                 get(routes::list_chapters).post(routes::create_chapter),
             )
