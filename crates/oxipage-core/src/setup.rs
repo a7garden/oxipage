@@ -18,45 +18,9 @@ use std::net::SocketAddr;
 
 // 환영 글 (샘플 post) 데이터는 `oxipage-ext-blog`가 자기 `seed_sample_data()`에서
 // 정의/관리한다. 코어는 블로그 도메인 데이터를 더 이상 모른다.
+// Setup's theme list is now sourced from the shared `oxipage_core::theme`
+// catalog (see crate::theme::ALL_THEMES). No local redefinition.
 
-const THEMES: &[ThemeEntry] = &[
-    ThemeEntry {
-        id: "paper",
-        name_ko: "종이",
-        name_en: "Paper",
-        mode: "light",
-        description_ko: "따뜻한 종이 배경",
-        description_en: "Warm paper background",
-        preview_colors: ["#fafaf5", "#f5f2ed", "#2d2934", "#2d7a5c"],
-    },
-    ThemeEntry {
-        id: "midnight",
-        name_ko: "한밤",
-        name_en: "Midnight",
-        mode: "dark",
-        description_ko: "깊은 밤하늘",
-        description_en: "Deep night sky",
-        preview_colors: ["#1a1a2e", "#16213e", "#e0e0e0", "#4fc3f7"],
-    },
-    ThemeEntry {
-        id: "sepia",
-        name_ko: "세피아",
-        name_en: "Sepia",
-        mode: "light",
-        description_ko: "오래된 책장",
-        description_en: "Old bookshelf",
-        preview_colors: ["#f5f0e8", "#ede0d4", "#3d3529", "#b8860b"],
-    },
-    ThemeEntry {
-        id: "forest",
-        name_ko: "숲",
-        name_en: "Forest",
-        mode: "dark",
-        description_ko: "이끼 낀 숲",
-        description_en: "Mossy forest",
-        preview_colors: ["#1b2b1b", "#243624", "#e0e8e0", "#2ecc71"],
-    },
-];
 
 // ─── Input / Output types ───
 
@@ -89,7 +53,7 @@ pub struct StatusResult {
     pub setup_mode: bool,
     pub completed_steps: Vec<String>,
     pub available_extensions: Vec<ExtInfo>,
-    pub available_themes: Vec<ThemeEntry>,
+    pub available_themes: Vec<crate::theme::ThemeDefinition>,
     /// 활성 확장이 소유한 서브-위자드 (각각 0..N step).
     pub extension_wizards: Vec<ExtensionWizardInfo>,
 }
@@ -114,16 +78,7 @@ pub struct ExtensionWizardInfo {
     pub steps: Vec<ExtensionStepInfo>,
 }
 
-#[derive(Serialize, Clone)]
-pub struct ThemeEntry {
-    pub id: &'static str,
-    pub name_ko: &'static str,
-    pub name_en: &'static str,
-    pub mode: &'static str,
-    pub description_ko: &'static str,
-    pub description_en: &'static str,
-    pub preview_colors: [&'static str; 4],
-}
+
 
 #[derive(Serialize)]
 pub struct SimpleOk {
@@ -333,7 +288,7 @@ pub async fn setup_status_handler(
             setup_mode: true,
             completed_steps,
             available_extensions,
-            available_themes: THEMES.to_vec(),
+            available_themes: crate::theme::ALL_THEMES.to_vec(),
             extension_wizards,
         },
     }))
@@ -472,7 +427,7 @@ pub async fn setup_theme_handler(
     State(state): State<AppState>,
     Json(input): Json<ThemeInput>,
 ) -> Result<Json<DataEnvelope<SimpleOk>>, ApiError> {
-    if !THEMES.iter().any(|t| t.id == input.theme_id) {
+    if !crate::theme::is_known_theme(&input.theme_id) {
         return Err(ApiError::new(
             StatusCode::BAD_REQUEST,
             "invalid_theme",

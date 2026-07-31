@@ -299,13 +299,24 @@ pub struct ThemeResponse {
 pub async fn theme_get(
     Extension(ctx): Extension<Arc<SiteContext>>,
 ) -> Result<Json<ThemeResponse>, (StatusCode, String)> {
+    use oxipage_core::theme::{find_theme, ALL_THEMES};
+
     let row: Option<(String,)> = sqlx::query_as("SELECT theme_id FROM theme_config WHERE id = 1")
         .fetch_optional(&ctx.db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("db: {e}")))?;
-    let theme_id = row.map(|r| r.0).unwrap_or_else(|| "paper".to_string());
+
+    let stored = row.map(|r| r.0);
+    let def = match stored.as_deref().and_then(find_theme) {
+        Some(d) => d,
+        None => ALL_THEMES.first().expect("paper always present"),
+    };
+
     Ok(Json(ThemeResponse {
-        data: serde_json::json!({ "theme_id": theme_id }),
+        data: serde_json::json!({
+            "theme_id": def.id,
+            "definition": def,
+        }),
     }))
 }
 
@@ -318,8 +329,9 @@ pub async fn theme_put(
     Extension(ctx): Extension<Arc<SiteContext>>,
     Json(input): Json<ThemePutInput>,
 ) -> Result<Json<ThemeResponse>, (StatusCode, String)> {
-    const VALID_THEMES: &[&str] = &["paper", "midnight", "sepia", "neon", "canvas"];
-    if !VALID_THEMES.contains(&input.theme_id.as_str()) {
+    use oxipage_core::theme::{find_theme, is_known_theme};
+
+    if !is_known_theme(&input.theme_id) {
         return Err((
             StatusCode::BAD_REQUEST,
             format!("'{}' is not a valid theme", input.theme_id),
@@ -333,8 +345,14 @@ pub async fn theme_put(
     .execute(&ctx.db)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("db: {e}")))?;
+
+    let def = find_theme(&input.theme_id)
+        .expect("validation above guarantees presence");
     Ok(Json(ThemeResponse {
-        data: serde_json::json!({ "theme_id": input.theme_id }),
+        data: serde_json::json!({
+            "theme_id": def.id,
+            "definition": def,
+        }),
     }))
 }
 
