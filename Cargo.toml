@@ -27,7 +27,7 @@ license = "MIT"
 [workspace.dependencies]
 anyhow = "1"
 async-trait = "0.1"
-axum = { version = "0.8", features = ["macros"] }
+axum = { version = "0.8", features = ["macros", "multipart"] }
 futures-core = "0.3"
 sha2 = "0.10"
 ed25519-dalek = { version = "2", features = ["std"] }

@@ -233,6 +233,7 @@ pub mod console_state;
 pub mod create_site;
 pub mod deploy;
 pub mod loader;
+pub mod media;
 pub mod middleware;
 pub mod per_site;
 pub mod preview;

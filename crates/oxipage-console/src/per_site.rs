@@ -830,4 +830,6 @@ pub fn per_site_router() -> Router {
         .route("/extensions", get(extensions_list))
         .route("/extensions/{id}/enable", post(extension_enable))
         .route("/extensions/{id}/disable", post(extension_disable))
+        // Media upload + live serve (spec §7–9).
+        .merge(crate::media::router())
 }
