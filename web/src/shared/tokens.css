@@ -155,6 +155,13 @@
   --color-positive:           var(--color-success);
   --color-ring:               var(--color-accent);
 
+  /* Sidebar tokens — Tailwind v4 utilities like bg-console-sidebar-bg */
+  --color-console-sidebar-bg:          var(--console-sidebar-bg);
+  --color-console-sidebar-text-hover:  var(--console-sidebar-text-hover);
+  --color-console-sidebar-hover-bg:    var(--console-sidebar-hover-bg);
+  --color-console-sidebar-border:      var(--console-sidebar-border);
+  --color-ring:               var(--color-accent);
+
   /* Fonts (alias names differ from primitive names to avoid self-reference) */
   --font-sans:  var(--font-body);
   --font-serif: var(--font-display);

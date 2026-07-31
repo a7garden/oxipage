@@ -52,7 +52,7 @@ const queryClient = new QueryClient();
 function ShellFallback() {
   return (
     <div className="flex">
-      <aside className="w-[200px]" style={{ backgroundColor: "#1a1e24", minHeight: "100vh" }} />
+      <aside className="w-[200px] bg-console-sidebar-bg" style={{ minHeight: "100vh" }} />
       <div className="flex-1 p-6 space-y-4">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-32 w-full" />
