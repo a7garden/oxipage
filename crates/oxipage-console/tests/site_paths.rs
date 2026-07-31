@@ -28,7 +28,7 @@ data_dir = "data"
     sf.set_default("test");
 
     let registry = Arc::new(
-        SiteRegistry::new(sf, Default::default(), Default::default())
+        SiteRegistry::new(sf, Default::default())
             .await
             .unwrap(),
     );

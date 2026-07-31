@@ -1,155 +1,94 @@
-//! Build-run infrastructure: per-site build guard + in-flight build state.
+//! Build-run orchestration on top of the shared [`SiteOperationGuard`].
 //!
-//! `BuildGuard` is a registry-level singleton (one `DashMap`) tracking the
-//! single in-flight build per site slug. `POST /build` calls `try_start`; a
-//! concurrent build for the same slug returns 409. The guard is released on
-//! every exit path when the build finishes (RAII via the orchestration task).
-//!
-//! `BuildRun` holds everything the lazy-started build task needs (db, builders,
-//! out/media dirs, slug) so the SSE subscriber can run the build without the
-//! original request context.
+//! The guard owns the per-site operation slot (conflict detection, broadcast
+//! fan-out, retained terminal state) and the start-CAS. This module provides
+//! the lazy-start entry point that turns the guard's slot into an actual SSG
+//! build: claim the slot, spawn the blocking build, relay every [`BuildEvent`]
+//! as an [`OperationEvent`], publish a terminal event, record the log row,
+//! and release the slot.
 
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
-
-use dashmap::DashMap;
+use crate::operations::{OperationEvent, SiteOperationGuard, SiteOperationKind};
+use crate::sites_runtime::SiteContext;
 use oxipage_core::build::BuildEvent;
-use oxipage_core::builder::BuildExt;
+use oxipage_core::builder::BuildInputs;
 use sqlx::SqlitePool;
-use tokio::sync::broadcast;
+use std::sync::Arc;
 
-/// Everything a lazy-started build task needs, independent of the HTTP request
-/// that triggered it. Stored in [`BuildGuard`] keyed by site slug.
-pub struct BuildRun {
-    pub id: String,
-    /// Broadcast fan-out for SSE subscribers. Build events are produced once
-    /// (into an mpsc inside the build task) and relayed here so any number of
-    /// subscribers see the full stream.
-    pub tx: broadcast::Sender<BuildEvent>,
-    /// CAS guard: the first caller (SSE subscriber or 3s watchdog) to flip
-    /// this false→true owns starting the build. Avoids the event-loss race
-    /// where the build emits before any subscriber connects.
-    pub started: AtomicBool,
-    pub started_at: String,
-    pub db: SqlitePool,
-    pub builders: Arc<Vec<Box<dyn BuildExt>>>,
-    pub out_dir: PathBuf,
-    pub media_dir: PathBuf,
-    pub slug: String,
-    /// Site base URL from settings — drives `deployment_base` at write time.
-    pub site_base_url: String,
-    /// Theme id active at build start.
-    pub theme_id: String,
-}
-
-/// Registry-level singleton tracking the single in-flight build per site.
-pub struct BuildGuard {
-    runs: DashMap<String, BuildRun>,
-}
-
-impl BuildGuard {
-    pub fn new() -> Self {
-        Self {
-            runs: DashMap::new(),
-        }
+/// Start the in-flight build for `slug` exactly once (CAS via the guard).
+/// The first caller — an SSE subscriber or the 3s watchdog — wins and spawns
+/// the build; later callers are no-ops. Returns `false` if no build is
+/// registered for `slug` or another caller already owns starting it.
+///
+/// Must be called from a Tokio runtime context (captures `Handle::current()`
+/// for the `spawn_blocking` build).
+pub async fn ensure_build_started(
+    guard: &Arc<SiteOperationGuard>,
+    ctx: &Arc<SiteContext>,
+    build_id: &str,
+) -> bool {
+    // Only the registered run may be started.
+    let Some(snapshot) = guard.current(&ctx.slug) else {
+        return false;
+    };
+    if snapshot.run_id != build_id {
+        return false;
+    }
+    if !guard.try_claim(&ctx.slug) {
+        return true; // already started by another caller
     }
 
-    /// Reserve a build slot for `slug`. Returns `Err(existing_build_id)` if a
-    /// build is already in flight for that slug (→ HTTP 409 Conflict).
-    pub fn try_start(&self, slug: &str, run: BuildRun) -> Result<(), String> {
-        use dashmap::mapref::entry::Entry;
-        match self.runs.entry(slug.to_string()) {
-            Entry::Occupied(o) => Err(o.get().id.clone()),
-            Entry::Vacant(v) => {
-                v.insert(run);
-                Ok(())
-            }
-        }
-    }
+    let slug = ctx.slug.clone();
+    let db = ctx.db.clone();
+    let builders = ctx.builders.clone();
+    let out_dir = ctx.out_dir.clone();
+    let media_dir = ctx.media_dir.clone();
+    let started_at = snapshot.started_at;
+    let site_base_url = ctx.settings.read().await.site.base_url.clone();
+    let theme_id = oxipage_core::theme::active_theme_id(&ctx.db).await;
+    let guard = guard.clone();
 
-    /// Look up an in-flight build by slug, returning a new broadcast receiver
-    /// (one SSE subscriber) plus the build id.
-    pub fn subscribe(&self, slug: &str) -> Option<(String, broadcast::Receiver<BuildEvent>)> {
-        self.runs.get(slug).map(|r| (r.id.clone(), r.tx.subscribe()))
-    }
-
-    /// Release the build slot for `slug`. Called on every build exit path so a
-    /// finished/failed build never permanently blocks the slug.
-    pub fn finish(&self, slug: &str) {
-        self.runs.remove(slug);
-    }
-}
-
-impl Default for BuildGuard {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl BuildGuard {
-    /// Start the in-flight build for `slug` exactly once (AtomicBool CAS).
-    /// The first caller — an SSE subscriber or the 3s watchdog — wins and
-    /// spawns the build; later callers are no-ops. Returns `false` if no build
-    /// is registered for `slug`.
-    ///
-    /// Must be called from a Tokio runtime context: it captures
-    /// `Handle::current()` for the `spawn_blocking` build and spawns the
-    /// relay/recorder tasks.
-    pub fn ensure_build_started(self: &Arc<Self>, slug: &str) -> bool {
-        use std::sync::atomic::Ordering;
-
-        let Some(run) = self.runs.get(slug) else {
-            return false;
-        };
-        if run
-            .started
-            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-            .is_err()
-        {
-            return true; // already started by another caller
-        }
-
-        // Won the CAS — clone everything the build task needs, then release the
-        // DashMap read guard before spawning.
-        let db = run.db.clone();
-        let builders = run.builders.clone();
-        let out_dir = run.out_dir.clone();
-        let media_dir = run.media_dir.clone();
-        let started_at = run.started_at.clone();
-        let bcast = run.tx.clone();
-        let slug_owned = slug.to_string();
-        let site_base_url = run.site_base_url.clone();
-        let theme_id = run.theme_id.clone();
-        drop(run);
-
+    tokio::spawn(async move {
         let rt = tokio::runtime::Handle::current();
         let (mpsc_tx, mut mpsc_rx) = tokio::sync::mpsc::channel::<BuildEvent>(64);
 
-        // Relay mpsc (sync, from the build task) → broadcast (async, to SSE).
+        // Relay build events (sync, from the build task) → OperationEvent
+        // broadcast (async, to SSE subscribers).
+        let relay_slug = slug.clone();
+        let relay_guard = guard.clone();
         tokio::spawn(async move {
             while let Some(ev) = mpsc_rx.recv().await {
-                let _ = bcast.send(ev);
+                let terminal = matches!(ev, BuildEvent::BuildComplete { .. } | BuildEvent::BuildFailed { .. });
+                let _ = relay_guard.publish(
+                    &relay_slug,
+                    OperationEvent {
+                        event: event_name(&ev).to_string(),
+                        data: serde_json::to_value(&ev).unwrap_or(serde_json::Value::Null),
+                        terminal,
+                    },
+                );
             }
         });
 
-        let guard = self.clone();
-        let db_for_log = db.clone();
-        let out_dir_for_log = out_dir.clone();
-        tokio::spawn(async move {
-            let outcome: Result<usize, String> = match tokio::task::spawn_blocking(move || {
-                match oxipage_core::build::build_site_with_progress(&db, &builders, &rt, &mpsc_tx)
-                {
+        let outcome: Result<usize, String> = {
+            let db_task = db.clone();
+            let out_task = out_dir.clone();
+            let media_task = media_dir.clone();
+            let builders_task = builders.clone();
+            let base_url_task = site_base_url.clone();
+            let theme_task = theme_id.clone();
+            match tokio::task::spawn_blocking(move || {
+                match oxipage_core::build::build_site_with_progress(
+                    &db_task,
+                    &builders_task,
+                    &rt,
+                    &mpsc_tx,
+                ) {
                     Ok(output) => {
-                        let inputs = oxipage_core::builder::BuildInputs::new(
-                            &site_base_url,
-                            &theme_id,
-                            "oxipage",
-                        );
+                        let inputs = BuildInputs::new(&base_url_task, &theme_task, "oxipage");
                         if let Err(e) = oxipage_core::build_writer::write_build_output(
                             &output,
-                            &out_dir,
-                            &media_dir,
+                            &out_task,
+                            &media_task,
                             &inputs,
                         ) {
                             return Err(format!("write_build_output: {e}"));
@@ -163,12 +102,45 @@ impl BuildGuard {
             {
                 Ok(inner) => inner,
                 Err(e) => Err(format!("build task panicked: {e}")),
-            };
+            }
+        };
 
-            record_build_log(&db_for_log, &started_at, &out_dir_for_log, &outcome).await;
-            guard.finish(&slug_owned);
-        });
-        true
+        record_build_log(&db, &started_at, &out_dir, &outcome).await;
+
+        // Publish a terminal snapshot before releasing the slot so a
+        // reconnecting client sees the final state.
+        match &outcome {
+            Ok(pages) => {
+                let _ = guard.publish(
+                    &slug,
+                    OperationEvent::terminal(
+                        "build_complete",
+                        serde_json::json!({ "total_pages": pages }),
+                    ),
+                );
+            }
+            Err(e) => {
+                let _ = guard.publish(
+                    &slug,
+                    OperationEvent::terminal(
+                        "build_failed",
+                        serde_json::json!({ "error": e }),
+                    ),
+                );
+            }
+        }
+        let _ = guard.finish(&slug);
+    });
+    true
+}
+
+fn event_name(ev: &BuildEvent) -> &'static str {
+    match ev {
+        BuildEvent::BuildStarted { .. } => "build_started",
+        BuildEvent::ExtensionStart { .. } => "extension_start",
+        BuildEvent::ExtensionDone { .. } => "extension_done",
+        BuildEvent::BuildComplete { .. } => "build_complete",
+        BuildEvent::BuildFailed { .. } => "build_failed",
     }
 }
 
@@ -196,7 +168,7 @@ async fn record_build_log(
         .await;
     let _ = sqlx::query("ALTER TABLE build_log ADD COLUMN error TEXT")
         .execute(db)
-    .await;
+        .await;
 
     let (status, page_count, error): (&str, Option<i64>, Option<&str>) = match outcome {
         Ok(n) => ("built", Some(*n as i64), None),
@@ -213,4 +185,9 @@ async fn record_build_log(
     .bind(error)
     .execute(db)
     .await;
+}
+
+/// Site operation kind used when registering a build slot.
+pub fn build_operation_kind() -> SiteOperationKind {
+    SiteOperationKind::Build
 }

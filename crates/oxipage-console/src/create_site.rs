@@ -111,7 +111,13 @@ enabled = ["profile", "blog"]
 
     // Register in in-memory registry if available
     if let Some(registry) = registry {
-        match SiteLoader::load(slug.clone(), path.clone(), registry.build_guard.clone(), registry.deploy_guard.clone()).await {
+        match SiteLoader::load(
+            slug.clone(),
+            path.clone(),
+            registry.operation_guard.clone(),
+        )
+        .await
+        {
             Ok(ctx) => {
                 registry.add_site(&slug, Arc::new(ctx)).await;
             }

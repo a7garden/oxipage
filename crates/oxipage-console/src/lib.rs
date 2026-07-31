@@ -169,9 +169,8 @@ pub async fn run_console_with_extensions(all: Vec<Arc<dyn Extension>>) -> anyhow
     } else {
         oxipage_core::sites::SitesFile::default()
     };
-    let build_guard = Arc::new(crate::build::build_run::BuildGuard::new());
-    let deploy_guard = Arc::new(crate::deploy::deploy_run::DeployGuard::new());
-    let site_registry = Arc::new(SiteRegistry::new(sites_file, build_guard, deploy_guard).await?);
+    let operation_guard = Arc::new(crate::operations::SiteOperationGuard::new());
+    let site_registry = Arc::new(SiteRegistry::new(sites_file, operation_guard).await?);
     let console = crate::router::build_console_router(site_registry.clone());
     let mut app = oxipage_core::http::build_app(state);
     app = app.nest("/api/console", console);
@@ -235,6 +234,7 @@ pub mod deploy;
 pub mod loader;
 pub mod media;
 pub mod middleware;
+pub mod operations;
 pub mod per_site;
 pub mod preview;
 pub mod router;

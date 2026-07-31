@@ -1,145 +1,141 @@
-//! Deploy-run infrastructure — mirrors `build_run.rs` for deploys.
+//! Deploy-run orchestration on top of the shared [`SiteOperationGuard`].
 //!
-//! `DeployGuard` is a registry-level singleton (one `DashMap`) tracking the
-//! single in-flight deploy per site slug, separate from the build guard so a
-//! build and a deploy may run concurrently. `DeployRun` holds the out-dir and a
-//! broadcast channel for SSE subscribers.
+//! Mirrors `build_run.rs`: claim the guard's slot, spawn the blocking
+//! repository-scoped deploy, relay every [`DeployEvent`] as an
+//! [`OperationEvent`], publish a terminal event, and release the slot.
 
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
-
-use dashmap::DashMap;
-use oxipage_core::build_manifest::BuildManifest;
+use crate::operations::{OperationEvent, SiteOperationGuard};
+use crate::sites_runtime::SiteContext;
 use oxipage_core::site_paths::GitHubPagesTarget;
 use oxipage_deploy::DeployEvent;
-use tokio::sync::broadcast;
+use std::sync::Arc;
 
-/// Everything a lazy-started deploy task needs, independent of the HTTP request
-/// that triggered it. Stored in [`DeployGuard`] keyed by site slug.
-pub struct DeployRun {
-    pub id: String,
-    pub tx: broadcast::Sender<DeployEvent>,
-    pub started: AtomicBool,
-    pub repo_dir: PathBuf,
-    pub out_dir: PathBuf,
-    pub target: GitHubPagesTarget,
-    pub manifest: BuildManifest,
-    pub slug: String,
-}
-
-/// Registry-level singleton tracking the single in-flight deploy per site.
-pub struct DeployGuard {
-    runs: DashMap<String, DeployRun>,
-}
-
-impl DeployGuard {
-    pub fn new() -> Self {
-        Self {
-            runs: DashMap::new(),
-        }
+/// Start the in-flight deploy for `slug` exactly once (CAS via the guard).
+/// The first caller — an SSE subscriber or the 3s watchdog — wins and spawns
+/// the deploy; later callers are no-ops. Returns `false` if no deploy is
+/// registered for `slug` or another caller already owns starting it.
+///
+/// Must be called from a Tokio runtime context.
+pub async fn ensure_deploy_started(
+    guard: &Arc<SiteOperationGuard>,
+    ctx: &Arc<SiteContext>,
+    deploy_id: &str,
+    target: &GitHubPagesTarget,
+) -> bool {
+    let Some(snapshot) = guard.current(&ctx.slug) else {
+        return false;
+    };
+    if snapshot.run_id != deploy_id {
+        return false;
+    }
+    if !guard.try_claim(&ctx.slug) {
+        return true; // already started by another caller
     }
 
-    /// Reserve a deploy slot for `slug`. Returns `Err(existing_deploy_id)` if a
-    /// deploy is already in flight (→ HTTP 409 Conflict).
-    pub fn try_start(&self, slug: &str, run: DeployRun) -> Result<(), String> {
-        use dashmap::mapref::entry::Entry;
-        match self.runs.entry(slug.to_string()) {
-            Entry::Occupied(o) => Err(o.get().id.clone()),
-            Entry::Vacant(v) => {
-                v.insert(run);
-                Ok(())
-            }
-        }
-    }
-
-    /// Look up an in-flight deploy by slug, returning a new broadcast receiver
-    /// (one SSE subscriber) plus the deploy id.
-    pub fn subscribe(&self, slug: &str) -> Option<(String, broadcast::Receiver<DeployEvent>)> {
-        self.runs.get(slug).map(|r| (r.id.clone(), r.tx.subscribe()))
-    }
-
-    /// Release the deploy slot for `slug`.
-    pub fn finish(&self, slug: &str) {
-        self.runs.remove(slug);
-    }
-}
-
-impl Default for DeployGuard {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl DeployGuard {
-    /// Start the in-flight deploy for `slug` exactly once (AtomicBool CAS).
-    /// The first caller — an SSE subscriber or the 3s watchdog — wins and
-    /// spawns the deploy; later callers are no-ops. `deploy_github_pages`
-    /// emits its own terminal `Deployed`/`Failed` event, so here we only wait
-    /// for completion and release the slot. Returns `false` if no deploy is
-    /// registered for `slug`.
-    ///
-    /// Must be called from a Tokio runtime context (captures `Handle::current()`).
-    pub fn ensure_deploy_started(self: &Arc<Self>, slug: &str) -> bool {
-        use std::sync::atomic::Ordering;
-
-        let Some(run) = self.runs.get(slug) else {
+    let slug = ctx.slug.clone();
+    let repo_dir = ctx.project_dir.clone();
+    let out_dir = ctx.out_dir.clone();
+    let target = target.clone();
+    let manifest = match oxipage_core::build_manifest::BuildManifest::read_from(&ctx.out_dir) {
+        Ok(Some(m)) => m,
+        Ok(None) => {
+            let _ = guard.finish(&slug);
             return false;
-        };
-        if run
-            .started
-            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-            .is_err()
-        {
-            return true;
         }
+        Err(_) => {
+            let _ = guard.finish(&slug);
+            return false;
+        }
+    };
+    let guard = guard.clone();
 
-        let repo_dir = run.repo_dir.clone();
-        let out_dir = run.out_dir.clone();
-        let target = run.target.clone();
-        let manifest = run.manifest.clone();
-        let bcast = run.tx.clone();
-        let slug_owned = slug.to_string();
-        drop(run);
-
+    tokio::spawn(async move {
         let (mpsc_tx, mut mpsc_rx) = tokio::sync::mpsc::channel::<DeployEvent>(32);
 
-        // Relay mpsc (sync, from the deploy task) → broadcast (async, to SSE).
-        let relay_bcast = bcast.clone();
+        // Relay deploy events (sync, from the deploy task) → OperationEvent
+        // broadcast (async, to SSE subscribers).
+        let relay_slug = slug.clone();
+        let relay_guard = guard.clone();
         tokio::spawn(async move {
             while let Some(ev) = mpsc_rx.recv().await {
-                let _ = relay_bcast.send(ev);
+                let terminal = matches!(ev, DeployEvent::Deployed { .. } | DeployEvent::Unchanged { .. } | DeployEvent::Failed { .. });
+                let _ = relay_guard.publish(
+                    &relay_slug,
+                    OperationEvent {
+                        event: event_name(&ev).to_string(),
+                        data: serde_json::to_value(&ev).unwrap_or(serde_json::Value::Null),
+                        terminal,
+                    },
+                );
             }
         });
 
-        let guard = self.clone();
-        tokio::spawn(async move {
-            let outcome: Result<oxipage_deploy::DeployOutcome, oxipage_deploy::DeployError> =
-                tokio::task::spawn_blocking(move || {
-                    oxipage_deploy::deploy_github_pages(
-                        &repo_dir,
-                        &out_dir,
-                        &target,
-                        &manifest,
-                        &mpsc_tx,
-                    )
-                })
-                .await
-                .map_err(|e| oxipage_deploy::DeployError::Io(std::io::Error::new(
+        let outcome: Result<oxipage_deploy::DeployOutcome, oxipage_deploy::DeployError> =
+            tokio::task::spawn_blocking(move || {
+                oxipage_deploy::deploy_github_pages(
+                    &repo_dir,
+                    &out_dir,
+                    &target,
+                    &manifest,
+                    &mpsc_tx,
+                )
+            })
+            .await
+            .map_err(|e| {
+                oxipage_deploy::DeployError::Io(std::io::Error::new(
                     std::io::ErrorKind::Other,
                     format!("deploy task panicked: {e}"),
-                )))
-                .and_then(|r| r);
-            if let Err(e) = &outcome {
-                let _ = bcast.send(DeployEvent::Failed {
-                    code: "deploy_failed".into(),
-                    error: e.to_string(),
-                });
+                ))
+            })
+            .and_then(|r| r);
+
+        // Terminal snapshot + release the slot.
+        match &outcome {
+            Ok(oxipage_deploy::DeployOutcome::Deployed { url, commit }) => {
+                let _ = guard.publish(
+                    &slug,
+                    OperationEvent::terminal(
+                        "deployed",
+                        serde_json::json!({ "status": "deployed", "url": url, "commit": commit }),
+                    ),
+                );
             }
-            // deploy_github_pages emits the terminal Deployed/Unchanged event
-            // itself; just release the slot so the slug isn't stuck.
-            guard.finish(&slug_owned);
-        });
-        true
+            Ok(oxipage_deploy::DeployOutcome::Unchanged { url, commit }) => {
+                let _ = guard.publish(
+                    &slug,
+                    OperationEvent::terminal(
+                        "unchanged",
+                        serde_json::json!({ "status": "unchanged", "url": url, "commit": commit }),
+                    ),
+                );
+            }
+            Err(e) => {
+                let _ = guard.publish(
+                    &slug,
+                    OperationEvent::terminal(
+                        "failed",
+                        serde_json::json!({ "status": "failed", "error": e.to_string() }),
+                    ),
+                );
+            }
+        }
+        let _ = guard.finish(&slug);
+    });
+    true
+}
+
+fn event_name(ev: &DeployEvent) -> &'static str {
+    match ev {
+        DeployEvent::PreflightStarted => "preflight_started",
+        DeployEvent::GhReady => "gh_ready",
+        DeployEvent::AuthReady => "auth_ready",
+        DeployEvent::RepositoryReady => "repository_ready",
+        DeployEvent::WorktreeReady => "worktree_ready",
+        DeployEvent::FilesCopied { .. } => "files_copied",
+        DeployEvent::CommitCreated { .. } => "commit_created",
+        DeployEvent::Pushing { .. } => "pushing",
+        DeployEvent::Deployed { .. } => "deployed",
+        DeployEvent::Unchanged { .. } => "unchanged",
+        DeployEvent::Failed { .. } => "failed",
     }
 }

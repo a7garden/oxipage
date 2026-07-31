@@ -57,7 +57,7 @@ async fn site_router_with_toml(toml_text: &str) -> (TempDir, PathBuf, Router) {
     sf.add("blog".into(), path.clone());
     sf.set_default("blog");
     let registry = Arc::new(
-        SiteRegistry::new(sf, Default::default(), Default::default())
+        SiteRegistry::new(sf, Default::default())
             .await
             .unwrap(),
     );

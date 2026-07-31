@@ -34,7 +34,7 @@ async fn build_app() -> (TempDir, Router) {
     sf.add("blog".into(), dir.path().to_path_buf());
     sf.set_default("blog");
     let registry = Arc::new(
-        SiteRegistry::new(sf, Default::default(), Default::default())
+        SiteRegistry::new(sf, Default::default())
             .await
             .unwrap(),
     );

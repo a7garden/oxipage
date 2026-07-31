@@ -5,8 +5,6 @@
 //! the slug. The handlers here thin-wrap core state (`SiteContext.db`) that
 //! the per-site middleware injects.
 
-use crate::build::build_run::BuildRun;
-use crate::deploy::deploy_run::DeployRun;
 use crate::sites_runtime::SiteContext;
 use axum::Extension;
 use axum::Json;
@@ -14,15 +12,11 @@ use axum::extract::{Path, Query};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::routing::{get, post};
 use axum::{Router, http::StatusCode};
-use oxipage_core::build::BuildEvent;
 use oxipage_core::config::ServerConfig;
 use oxipage_core::site_paths::{GitHubPagesTarget, MutableSiteSettings};
-use oxipage_deploy::DeployEvent;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 use tokio::sync::RwLock;
-use tokio::sync::broadcast;
 use tokio_stream::StreamExt;
 use tokio_stream::wrappers::BroadcastStream;
 
@@ -533,50 +527,35 @@ pub async fn build_post(
         )
     })?;
 
-    let media_dir = ctx.media_dir.clone();
-    let started_at = sqlx::query_scalar::<_, String>("SELECT datetime('now')")
-        .fetch_one(&ctx.db)
-        .await
-        .unwrap_or_else(|_| "unknown".into());
     let build_id = uuid::Uuid::new_v4().to_string();
-    let (tx, _rx) = broadcast::channel::<BuildEvent>(64);
 
-    // Snapshot the mutable inputs the build writer needs (base_url drives
-    // deployment_base; theme_id is recorded in the manifest). Read once so the
-    // lazy-started build task sees a consistent value.
-    let site_base_url = ctx.settings.read().await.site.base_url.clone();
-    let theme_id = oxipage_core::theme::active_theme_id(&ctx.db).await;
-
-    let run = BuildRun {
-        id: build_id.clone(),
-        tx,
-        started: AtomicBool::new(false),
-        started_at,
-        db: ctx.db.clone(),
-        builders: ctx.builders.clone(),
-        out_dir,
-        media_dir,
-        slug: ctx.slug.clone(),
-        site_base_url,
-        theme_id,
+    // One build/deploy slot per site — conflict if another operation runs.
+    let conflict = match ctx
+        .operation_guard
+        .try_start(&ctx.slug, &build_id, crate::operations::SiteOperationKind::Build)
+    {
+        Ok(()) => None,
+        Err(c) => Some(c),
     };
-    if let Err(existing_id) = ctx.build_guard.try_start(&ctx.slug, run) {
+    if let Some(c) = conflict {
         return Err((
             StatusCode::CONFLICT,
             Json(serde_json::json!({
-                "error": "build_in_progress",
-                "build_id": existing_id
+                "error": "site_operation_in_progress",
+                "kind": c.kind,
+                "run_id": c.run_id,
             })),
         ));
     }
 
     // Watchdog: if no SSE subscriber connects within 3s, start the build
     // anyway so a dropped request never leaves the slug "in progress".
-    let guard = ctx.build_guard.clone();
-    let slug = ctx.slug.clone();
+    let guard = ctx.operation_guard.clone();
+    let watchdog_ctx = ctx.clone();
+    let build_id2 = build_id.clone();
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-        guard.ensure_build_started(&slug);
+        crate::build::build_run::ensure_build_started(&guard, &watchdog_ctx, &build_id2).await;
     });
 
     // Informational summary of the most recent completed build (if any). The
@@ -612,18 +591,18 @@ pub async fn build_post(
 /// build (lazy-start); a 3s watchdog (from `build_post`) is the fallback.
 pub async fn build_stream(
     Extension(ctx): Extension<Arc<SiteContext>>,
-    Path(_build_id): Path<String>,
+    Path(build_id): Path<String>,
 ) -> Result<
     Sse<impl tokio_stream::Stream<Item = Result<Event, std::io::Error>>>,
     (StatusCode, String),
 > {
     // Subscribe BEFORE starting so the first subscriber sees BuildStarted with
     // zero event loss (broadcast delivers only post-subscribe messages).
-    let (_id, rx) = ctx
-        .build_guard
-        .subscribe(&ctx.slug)
+    let rx = ctx
+        .operation_guard
+        .subscribe(&ctx.slug, &build_id)
         .ok_or((StatusCode::NOT_FOUND, "no_active_build".to_string()))?;
-    ctx.build_guard.ensure_build_started(&ctx.slug);
+    crate::build::build_run::ensure_build_started(&ctx.operation_guard, &ctx, &build_id).await;
 
     let stream = BroadcastStream::new(rx).map(|res| {
         Ok::<_, std::io::Error>(match res {
@@ -671,36 +650,33 @@ pub async fn deploy_post(
             StatusCode::FAILED_DEPENDENCY,
             Json(serde_json::json!({ "error": "build_required" })),
         ))?;
+    drop(manifest); // validated above; the run re-reads it at start time
     let deploy_id = uuid::Uuid::new_v4().to_string();
-    let (tx, _rx) = broadcast::channel::<DeployEvent>(32);
 
-    let run = DeployRun {
-        id: deploy_id.clone(),
-        tx,
-        started: AtomicBool::new(false),
-        repo_dir: ctx.project_dir.clone(),
-        out_dir,
-        target,
-        manifest,
-        slug: ctx.slug.clone(),
-    };
-    if let Err(existing_id) = ctx.deploy_guard.try_start(&ctx.slug, run) {
+    // One build/deploy slot per site — conflict if another operation runs.
+    if let Err(c) = ctx
+        .operation_guard
+        .try_start(&ctx.slug, &deploy_id, crate::operations::SiteOperationKind::Deploy)
+    {
         return Err((
             StatusCode::CONFLICT,
             Json(serde_json::json!({
-                "error": "deploy_in_progress",
-                "deploy_id": existing_id
+                "error": "site_operation_in_progress",
+                "kind": c.kind,
+                "run_id": c.run_id,
             })),
         ));
     }
 
     // Watchdog: if no SSE subscriber connects within 3s, start the deploy
     // anyway so a dropped request never leaves the slug "in progress".
-    let guard = ctx.deploy_guard.clone();
-    let slug = ctx.slug.clone();
+    let guard = ctx.operation_guard.clone();
+    let ctx = ctx.clone();
+    let deploy_id2 = deploy_id.clone();
+    let target = target.clone();
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-        guard.ensure_deploy_started(&slug);
+        crate::deploy::deploy_run::ensure_deploy_started(&guard, &ctx, &deploy_id2, &target).await;
     });
 
     Ok((
@@ -710,23 +686,34 @@ pub async fn deploy_post(
 }
 
 /// `GET /s/{slug}/deploy/{deploy_id}/stream` — Server-Sent Events stream of
-/// [`DeployEvent`]s for the in-flight deploy. Mirrors [`build_stream`].
+/// deploy operation events. Mirrors [`build_stream`].
 pub async fn deploy_stream(
     Extension(ctx): Extension<Arc<SiteContext>>,
-    Path(_deploy_id): Path<String>,
+    Path(deploy_id): Path<String>,
 ) -> Result<
     Sse<impl tokio_stream::Stream<Item = Result<Event, std::io::Error>>>,
     (StatusCode, String),
 > {
-    let (_id, rx) = ctx
-        .deploy_guard
-        .subscribe(&ctx.slug)
+    let rx = ctx
+        .operation_guard
+        .subscribe(&ctx.slug, &deploy_id)
         .ok_or((StatusCode::NOT_FOUND, "no_active_deploy".to_string()))?;
-    ctx.deploy_guard.ensure_deploy_started(&ctx.slug);
+    // Re-read the target so the stream can start the deploy if nobody else did.
+    let target = ctx
+        .settings
+        .read()
+        .await
+        .deploy
+        .github_pages
+        .clone()
+        .ok_or((StatusCode::PRECONDITION_FAILED, "deploy_not_configured".to_string()))?;
+    crate::deploy::deploy_run::ensure_deploy_started(&ctx.operation_guard, &ctx, &deploy_id, &target)
+        .await;
 
     let stream = BroadcastStream::new(rx).map(|res| {
         Ok::<_, std::io::Error>(match res {
             Ok(ev) => Event::default().data(serde_json::to_string(&ev).unwrap_or_default()),
+            // Lagged receiver (slow client) — emit an SSE comment, not data.
             Err(_) => Event::default().comment("lagged"),
         })
     });

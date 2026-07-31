@@ -8,9 +8,8 @@
 
 pub use oxipage_core::state::SiteScopedDb;
 
-use crate::build::build_run::BuildGuard;
-use crate::deploy::deploy_run::DeployGuard;
 use crate::loader;
+use crate::operations::SiteOperationGuard;
 use oxipage_core::builder::BuildExt;
 use oxipage_core::extension::WasmLoader;
 use oxipage_core::registry::ExtensionRegistry;
@@ -37,8 +36,8 @@ pub struct SiteContext {
     pub db: SqlitePool,
     pub registry: Arc<ExtensionRegistry>,
     pub builders: Arc<Vec<Box<dyn BuildExt>>>,
-    pub build_guard: Arc<BuildGuard>,
-    pub deploy_guard: Arc<DeployGuard>,
+    /// One build/deploy slot per site (shared guard, registry-level).
+    pub operation_guard: Arc<SiteOperationGuard>,
     pub wasm_loader: Option<Arc<dyn WasmLoader>>,
 }
 
@@ -49,8 +48,7 @@ pub struct SiteContext {
 pub struct SiteRegistry {
     sites: RwLock<HashMap<String, Arc<SiteContext>>>,
     sites_file: RwLock<SitesFile>,
-    pub build_guard: Arc<BuildGuard>,
-    pub deploy_guard: Arc<DeployGuard>,
+    pub operation_guard: Arc<SiteOperationGuard>,
 }
 
 impl SiteRegistry {
@@ -58,8 +56,7 @@ impl SiteRegistry {
     /// missing oxipage.toml, DB connect failure) are skipped with a warning.
     pub async fn new(
         sites_file: SitesFile,
-        build_guard: Arc<BuildGuard>,
-        deploy_guard: Arc<DeployGuard>,
+        operation_guard: Arc<SiteOperationGuard>,
     ) -> anyhow::Result<Self> {
         let mut map = HashMap::new();
         for (slug, entry) in &sites_file.sites {
@@ -70,8 +67,7 @@ impl SiteRegistry {
             match loader::SiteLoader::load(
                 slug.clone(),
                 entry.path.clone(),
-                build_guard.clone(),
-                deploy_guard.clone(),
+                operation_guard.clone(),
             )
             .await
             {
@@ -86,8 +82,7 @@ impl SiteRegistry {
         Ok(Self {
             sites: RwLock::new(map),
             sites_file: RwLock::new(sites_file),
-            build_guard,
-            deploy_guard,
+            operation_guard,
         })
     }
 
@@ -263,14 +258,10 @@ impl SiteRegistry {
     /// no-op build/deploy guards. Used by integration tests that exercise the
     /// top-level router without booting a real site.
     pub async fn empty_for_tests() -> Arc<Self> {
-        use crate::build::build_run::BuildGuard;
-        use crate::deploy::deploy_run::DeployGuard;
-
         let sites_file = oxipage_core::sites::SitesFile::default();
-        let bg = Arc::new(BuildGuard::new());
-        let dg = Arc::new(DeployGuard::new());
+        let guard = Arc::new(crate::operations::SiteOperationGuard::new());
         Arc::new(
-            SiteRegistry::new(sites_file, bg, dg)
+            SiteRegistry::new(sites_file, guard)
                 .await
                 .expect("empty SitesFile always loads"),
         )

@@ -2,8 +2,7 @@
 //!
 //! Called by `SiteRegistry::new()` at startup for each valid site entry.
 
-use crate::build::build_run::BuildGuard;
-use crate::deploy::deploy_run::DeployGuard;
+use crate::operations::SiteOperationGuard;
 use crate::sites_runtime::SiteContext;
 
 use oxipage_core::config::Config;
@@ -23,8 +22,7 @@ impl SiteLoader {
     pub async fn load(
         slug: String,
         path: PathBuf,
-        build_guard: Arc<BuildGuard>,
-        deploy_guard: Arc<DeployGuard>,
+        operation_guard: Arc<SiteOperationGuard>,
     ) -> anyhow::Result<SiteContext> {
         let toml_path = path.join("oxipage.toml");
         let cfg = Config::load(&toml_path)?;
@@ -62,8 +60,7 @@ impl SiteLoader {
             db,
             registry,
             builders: Arc::new(crate::all_builders()),
-            build_guard,
-            deploy_guard,
+            operation_guard,
             wasm_loader,
         })
     }
