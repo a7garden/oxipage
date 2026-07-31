@@ -3,13 +3,16 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import {
   listBuilds,
+  listDeploys,
   triggerBuild,
   triggerDeploy,
-  buildStreamUrl,
-  deployStreamUrl,
-  previewUrl,
+  getDeployPreflight,
+  getCurrentOperation,
+  operationStreamUrl,
+  previewSiteUrl,
   OperationConflictError,
   type BuildRecord,
+  type DeployRecord,
 } from "../shared/api";
 import { Button } from "../../shared/ui/button";
 import { Badge } from "../../shared/ui/badge";
@@ -23,7 +26,7 @@ interface LogLine {
   tone: "info" | "ok" | "err";
 }
 
-interface BuildEvent {
+interface OpEvent {
   event: string;
   total?: number;
   ext_id?: string;
@@ -31,6 +34,8 @@ interface BuildEvent {
   total_pages?: number;
   count?: number;
   url?: string;
+  commit?: string;
+  branch?: string;
   error?: string;
   [k: string]: unknown;
 }
@@ -39,10 +44,11 @@ const TERMINAL_EVENTS: Record<string, true> = {
   build_complete: true,
   build_failed: true,
   deployed: true,
+  unchanged: true,
   failed: true,
 };
 
-function formatEvent(ev: BuildEvent): LogLine {
+function formatEvent(ev: OpEvent): LogLine {
   switch (ev.event) {
     case "build_started":
       return { text: `▶ Build started (${ev.total} extensions)`, tone: "info" };
@@ -54,24 +60,34 @@ function formatEvent(ev: BuildEvent): LogLine {
       return { text: `✓ Build complete — ${ev.total_pages} pages`, tone: "ok" };
     case "build_failed":
       return { text: `✗ Build failed: ${ev.error}`, tone: "err" };
-    case "gh_check":
-      return { text: "▶ Checking GitHub CLI…", tone: "info" };
-    case "auth_check":
-      return { text: "▶ Verifying authentication…", tone: "info" };
+    case "preflight_started":
+      return { text: "▶ Preflight checks…", tone: "info" };
+    case "gh_ready":
+      return { text: "✓ GitHub CLI ready", tone: "ok" };
+    case "auth_ready":
+      return { text: "✓ Authenticated", tone: "ok" };
+    case "repository_ready":
+      return { text: "✓ Repository verified", tone: "ok" };
     case "worktree_ready":
       return { text: "✓ Prepared gh-pages worktree", tone: "ok" };
     case "files_copied":
       return { text: `✓ Copied ${ev.count} files`, tone: "ok" };
+    case "commit_created":
+      return { text: `✓ Committed ${String(ev.commit).slice(0, 8)}`, tone: "ok" };
     case "pushing":
-      return { text: "▶ Pushing to gh-pages…", tone: "info" };
+      return { text: `▶ Pushing to ${ev.branch}…`, tone: "info" };
     case "deployed":
       return { text: `✓ Deployed: ${ev.url}`, tone: "ok" };
+    case "unchanged":
+      return { text: `• Unchanged (no diff): ${ev.url}`, tone: "info" };
     case "failed":
       return { text: `✗ Deploy failed: ${ev.error}`, tone: "err" };
     default:
       return { text: JSON.stringify(ev), tone: "info" };
   }
 }
+
+const PREVIEW_DISABLED_CODES = new Set(["build_required", "missing_index", "stale_build_base", "stale_build_theme"]);
 
 export function DeployPage() {
   const { slug } = useParams<{ slug: string }>()!;
@@ -81,30 +97,69 @@ export function DeployPage() {
   const [op, setOp] = useState<OpKind | null>(null);
   const esRef = useRef<EventSource | null>(null);
 
-  const { data, isLoading, isError } = useQuery({
+  const buildsQ = useQuery({
     queryKey: ["site", slug, "builds"],
     queryFn: () => listBuilds(slug!),
     enabled: !!slug,
   });
+  const deploysQ = useQuery({
+    queryKey: ["site", slug, "deploys"],
+    queryFn: () => listDeploys(slug!),
+    enabled: !!slug,
+  });
+  const preflightQ = useQuery({
+    queryKey: ["site", slug, "deploy-preflight"],
+    queryFn: () => getDeployPreflight(slug!),
+    enabled: !!slug,
+    refetchInterval: 15000,
+  });
+  const currentQ = useQuery({
+    queryKey: ["site", slug, "operation"],
+    queryFn: () => getCurrentOperation(slug!),
+    enabled: !!slug,
+  });
+
+  // Reattach to an in-flight operation on mount / when one appears.
+  useEffect(() => {
+    const cur = currentQ.data;
+    if (cur?.active && !esRef.current) {
+      attachStream(cur.kind, cur.run_id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentQ.data?.run_id, currentQ.data?.active]);
 
   // Close any open SSE stream on unmount.
   useEffect(() => () => esRef.current?.close(), []);
 
-  const builds: BuildRecord[] = data?.data ?? [];
+  const builds: BuildRecord[] = buildsQ.data?.data ?? [];
+  const deploys: DeployRecord[] = deploysQ.data ?? [];
   const last = builds[0];
   const busy = status === "running";
+  const stale =
+    preflightQ.data?.problems.some(
+      (p) => p.code === "stale_build_base" || p.code === "stale_build_theme",
+    ) ?? false;
+  const hasBuild = !preflightQ.data?.problems.some(
+    (p) => p.code === "build_required" || p.code === "missing_index",
+  );
+
+  function invalidateAll() {
+    qc.invalidateQueries({ queryKey: ["site", slug, "builds"] });
+    qc.invalidateQueries({ queryKey: ["site", slug, "deploys"] });
+    qc.invalidateQueries({ queryKey: ["site", slug, "deploy-preflight"] });
+    qc.invalidateQueries({ queryKey: ["site", slug, "operation"] });
+    qc.invalidateQueries({ queryKey: ["site", slug, "stats"] });
+  }
 
   function attachStream(kind: OpKind, id: string) {
     esRef.current?.close();
     setStatus("running");
     setOp(kind);
-    const url =
-      kind === "build" ? buildStreamUrl(slug!, id) : deployStreamUrl(slug!, id);
-    const es = new EventSource(url);
+    const es = new EventSource(operationStreamUrl(slug!, kind, id));
     esRef.current = es;
     es.onmessage = (e) => {
       try {
-        const ev = JSON.parse(e.data) as BuildEvent;
+        const ev = JSON.parse(e.data) as OpEvent;
         setLines((prev) => [...prev, formatEvent(ev)]);
         if (TERMINAL_EVENTS[ev.event]) {
           const failed =
@@ -112,9 +167,7 @@ export function DeployPage() {
           setStatus(failed ? "failed" : "done");
           es.close();
           esRef.current = null;
-          if (kind === "build") {
-            qc.invalidateQueries({ queryKey: ["site", slug, "builds"] });
-          }
+          invalidateAll();
         }
       } catch {
         /* ignore malformed event */
@@ -170,7 +223,7 @@ export function DeployPage() {
         <div>
           <h1 className="text-xl font-bold text-foreground">Deploy</h1>
           <p className="text-sm text-muted mt-0.5">
-            Build static site and deploy to production
+            Build static site and deploy to GitHub Pages
           </p>
         </div>
         <div className="flex gap-2">
@@ -179,19 +232,19 @@ export function DeployPage() {
           </Button>
           <Button
             variant="outline"
-            onClick={() => window.open(previewUrl(slug!), "_blank", "noopener,noreferrer")}
-            disabled={!last || last.status !== "built"}
-            title={
-              !last
-                ? "Run a build to enable preview"
-                : last.status !== "built"
-                  ? "Last build did not succeed"
-                  : "Open the built site in a new tab"
-            }
+            asChild
+            disabled={!hasBuild || stale}
           >
-            Preview Site ↗
+            {hasBuild && !stale ? (
+              <a href={previewSiteUrl(slug!)} target="_blank" rel="noreferrer">
+                Preview Site ↗
+              </a>
+            ) : (
+              <span>Preview Site ↗</span>
+            )}
           </Button>
-          <Button onClick={onDeploy} disabled={busy}>
+          {stale && <Badge variant="warning">Stale build</Badge>}
+          <Button onClick={onDeploy} disabled={busy || !preflightQ.data?.build_compatible}>
             {busy && op === "deploy" ? "Deploying…" : "⇧ Deploy"}
           </Button>
         </div>
@@ -226,27 +279,60 @@ export function DeployPage() {
         </div>
       )}
 
+      {/* Preflight card */}
+      <section className="rounded-lg border border-line p-5 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-foreground">
+            Deployment preflight
+          </h2>
+          {preflightQ.data?.build_compatible && (
+            <Badge variant="positive">Ready</Badge>
+          )}
+        </div>
+        {!preflightQ.data ? (
+          <Skeleton className="h-16 w-full" />
+        ) : (
+          <div className="space-y-2">
+            {preflightQ.data.problems.map((p) => (
+              <div key={p.code} className="flex justify-between items-center text-sm">
+                <span className="text-muted">{p.message}</span>
+                {(p.action === "build" || p.action === "rebuild") && (
+                  <Button size="sm" variant="outline" onClick={onBuild}>
+                    Build
+                  </Button>
+                )}
+                {p.action === "open_settings" && (
+                  <Button size="sm" variant="outline" asChild>
+                    <a href={`/sites/${slug}/settings`}>Settings</a>
+                  </Button>
+                )}
+              </div>
+            ))}
+            {preflightQ.data.problems.length === 0 && (
+              <p className="text-sm text-muted">All checks pass.</p>
+            )}
+            {preflightQ.data.pages_url && (
+              <a
+                href={preflightQ.data.pages_url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-muted underline"
+              >
+                {preflightQ.data.pages_url}
+              </a>
+            )}
+          </div>
+        )}
+      </section>
+
       <h2 className="text-sm font-semibold text-foreground mb-3">Last Build</h2>
-      {isLoading ? (
+      {buildsQ.isLoading ? (
         <Skeleton className="h-32 w-full" />
       ) : last ? (
         <div className="border border-line rounded-lg p-5 mb-6">
           <div className="flex items-center justify-between mb-3">
             <span className="font-semibold">Build #{last.id}</span>
             <Badge variant="positive">{last.status}</Badge>
-          </div>
-          <div className="flex gap-2 items-center text-xs text-muted mb-4">
-            <span className="flex items-center gap-1">
-              <span className="size-2 rounded-full bg-[#22c55e]" /> Build
-            </span>
-            <span className="text-line">→</span>
-            <span className="flex items-center gap-1">
-              <span className="size-2 rounded-full bg-[#22c55e]" /> Generate
-            </span>
-            <span className="text-line">→</span>
-            <span className="flex items-center gap-1">
-              <span className="size-2 rounded-full bg-[#22c55e]" /> Deploy
-            </span>
           </div>
           <div className="text-xs text-muted">
             <span className="font-mono">{last.out_dir ?? "—"}</span>
@@ -283,26 +369,16 @@ export function DeployPage() {
       )}
 
       <h2 className="text-sm font-semibold text-foreground mb-3">Build History</h2>
-      <div className="border border-line rounded-lg overflow-hidden">
+      <div className="border border-line rounded-lg overflow-hidden mb-6">
         <div className="flex bg-surface/50 text-xs font-semibold text-muted uppercase tracking-wider">
           <div className="flex-1 px-4 py-2.5">Build</div>
           <div className="w-24 px-4 py-2.5">Pages</div>
           <div className="w-24 px-4 py-2.5">Status</div>
           <div className="w-40 px-4 py-2.5">Time</div>
         </div>
-        {isLoading ? (
+        {buildsQ.isLoading ? (
           <div className="p-4">
             <Skeleton className="h-6 w-full" />
-          </div>
-        ) : isError ? (
-          <div className="p-8 text-center text-muted text-sm">
-            Failed to load build history.{" "}
-            <button
-              onClick={() => qc.invalidateQueries({ queryKey: ["site", slug, "builds"] })}
-              className="underline"
-            >
-              Retry
-            </button>
           </div>
         ) : builds.length > 0 ? (
           builds.map((b) => (
@@ -317,6 +393,50 @@ export function DeployPage() {
           ))
         ) : (
           <div className="p-8 text-center text-muted text-sm">No build history</div>
+        )}
+      </div>
+
+      <h2 className="text-sm font-semibold text-foreground mb-3">
+        Deployments
+        {deploys[0] && (
+          <Badge variant={deploys[0].status === "failed" ? "warning" : "positive"} className="ml-2">
+            {deploys[0].status}
+          </Badge>
+        )}
+      </h2>
+      <div className="border border-line rounded-lg overflow-hidden">
+        <div className="flex bg-surface/50 text-xs font-semibold text-muted uppercase tracking-wider">
+          <div className="flex-1 px-4 py-2.5">Repo</div>
+          <div className="w-24 px-4 py-2.5">Status</div>
+          <div className="w-32 px-4 py-2.5">Commit</div>
+          <div className="w-40 px-4 py-2.5">Started</div>
+        </div>
+        {deploysQ.isLoading ? (
+          <div className="p-4">
+            <Skeleton className="h-6 w-full" />
+          </div>
+        ) : deploys.length > 0 ? (
+          deploys.map((d) => (
+            <div key={d.run_id} className="flex border-t border-line text-sm">
+              <div className="flex-1 px-4 py-2.5">
+                {d.owner}/{d.repo}
+                {d.url && (
+                  <a href={d.url} target="_blank" rel="noreferrer" className="ml-2 text-xs underline">
+                    Open site ↗
+                  </a>
+                )}
+              </div>
+              <div className="w-24 px-4 py-2.5">
+                <Badge variant={d.status === "failed" ? "warning" : "positive"}>{d.status}</Badge>
+              </div>
+              <div className="w-32 px-4 py-2.5 font-mono text-xs">
+                {d.commit_sha?.slice(0, 8) ?? "—"}
+              </div>
+              <div className="w-40 px-4 py-2.5 text-muted text-xs">{d.started_at}</div>
+            </div>
+          ))
+        ) : (
+          <div className="p-8 text-center text-muted text-sm">No deployments yet</div>
         )}
       </div>
     </div>

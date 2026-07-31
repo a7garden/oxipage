@@ -107,7 +107,7 @@ export async function triggerBuild(slug: string): Promise<BuildStart> {
   const res = await siteScopedFetch(slug, "/build", { method: "POST" });
   if (res.status === 409) {
     const body = await res.json().catch(() => ({}));
-    throw new OperationConflictError("build", body.build_id ?? "");
+    throw new OperationConflictError(body.kind ?? "build", body.run_id ?? "");
   }
   return jsonOrThrow(res);
 }
@@ -118,12 +118,16 @@ export async function triggerDeploy(
   const res = await siteScopedFetch(slug, "/deploy", { method: "POST" });
   if (res.status === 409) {
     const body = await res.json().catch(() => ({}));
-    throw new OperationConflictError("deploy", body.deploy_id ?? "");
+    throw new OperationConflictError(body.kind ?? "deploy", body.run_id ?? "");
   }
   if (res.status === 424) {
     throw new Error("Build the site first — there is no build output to deploy.");
   }
   return jsonOrThrow(res);
+}
+
+export function operationStreamUrl(slug: string, kind: "build" | "deploy", id: string): string {
+  return `${CONSOLE_BASE}/s/${encodeURIComponent(slug)}/${kind}/${encodeURIComponent(id)}/stream`;
 }
 
 export function buildStreamUrl(slug: string, buildId: string): string {
@@ -176,6 +180,7 @@ export interface ConfigResponse {
     tmdb_api_key_env: string | null;
     aladin_ttbkey_env: string | null;
   };
+  deploy: { github_pages: GitHubPagesTarget | null };
 }
 
 export async function getConfig(slug: string): Promise<ConfigResponse> {
@@ -194,6 +199,7 @@ export async function updateConfig(
       tmdb_api_key_env: string | null;
       aladin_ttbkey_env: string | null;
     }>;
+    deploy?: { github_pages: GitHubPagesTarget | null };
   },
 ): Promise<ConfigResponse> {
   const res = await siteScopedFetch(slug, "/config", {
@@ -203,6 +209,70 @@ export async function updateConfig(
   });
   const json = await jsonOrThrow<{ data: ConfigResponse }>(res);
   return json.data;
+}
+
+// ─── Deploy (preflight / history / current) ────────────────────────────────
+
+export interface GitHubPagesTarget {
+  owner: string;
+  repo: string;
+  branch: string;
+  pages_url?: string;
+  base_path?: string;
+}
+
+export interface DeployPreflight {
+  configured: boolean;
+  gh_installed: boolean;
+  authenticated: boolean;
+  git_repository: boolean;
+  origin_matches: boolean;
+  build_compatible: boolean;
+  pages_url: string | null;
+  base_path: string | null;
+  problems: { code: string; message: string; action: string | null }[];
+}
+
+export interface DeployRecord {
+  id: number;
+  run_id: string;
+  build_id: string;
+  target: string;
+  owner: string;
+  repo: string;
+  branch: string;
+  base_path: string;
+  status: "running" | "deployed" | "unchanged" | "failed";
+  url: string | null;
+  commit_sha: string | null;
+  error_code: string | null;
+  error: string | null;
+  started_at: string;
+  finished_at: string | null;
+}
+
+export interface CurrentOperation {
+  kind: "build" | "deploy";
+  run_id: string;
+  active: boolean;
+  started_at: string;
+  terminal: Record<string, unknown> | null;
+}
+
+export async function getDeployPreflight(slug: string): Promise<DeployPreflight> {
+  return (await jsonOrThrow<{ data: DeployPreflight }>(await siteScopedFetch(slug, "/deploy/preflight"))).data;
+}
+
+export async function listDeploys(slug: string): Promise<DeployRecord[]> {
+  return (await jsonOrThrow<{ data: DeployRecord[] }>(await siteScopedFetch(slug, "/deploys?limit=50"))).data;
+}
+
+export async function getCurrentOperation(slug: string): Promise<CurrentOperation | null> {
+  return (await jsonOrThrow<{ data: CurrentOperation | null }>(await siteScopedFetch(slug, "/operations/current"))).data;
+}
+
+export function previewSiteUrl(slug: string): string {
+  return `${CONSOLE_BASE}/preview/${encodeURIComponent(slug)}/`;
 }
 
 // ─── Stats / Recent ─────────────────────────────────────────────────────────
@@ -217,6 +287,7 @@ export interface StatsResponse {
   counts: Record<string, number>;
   storage_bytes: number;
   last_build: BuildStatus | null;
+  last_deploy: DeployRecord | null;
 }
 
 export interface RecentItem {

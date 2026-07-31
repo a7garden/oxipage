@@ -90,6 +90,13 @@ export function DashboardPage() {
         change: str(stats.last_build.started_at),
       });
     }
+    if (stats.last_deploy) {
+      statCards.push({
+        label: "Last Deploy",
+        value: stats.last_deploy.status,
+        change: `${stats.last_deploy.owner}/${stats.last_deploy.repo}`,
+      });
+    }
   }
 
   return (
@@ -103,6 +110,14 @@ export function DashboardPage() {
           {stats?.last_build && (
             <Badge variant={stats.last_build.status === "success" ? "positive" : "secondary"}>
               {stats.last_build.status}
+            </Badge>
+          )}
+          {stats?.last_deploy && (
+            <Badge
+              variant={stats.last_deploy.status === "failed" ? "warning" : "positive"}
+              title={`${stats.last_deploy.owner}/${stats.last_deploy.repo} · ${stats.last_deploy.started_at}`}
+            >
+              deploy:{stats.last_deploy.status}
             </Badge>
           )}
           <Button variant="outline" size="sm" onClick={handleBuild}>

@@ -1092,11 +1092,20 @@ pub async fn stats_get(
         })
     });
 
+    // Last deploy: most recent deploy_log entry (may not exist yet).
+    let last_deploy: Option<DeployRecord> = sqlx::query_as::<_, DeployRecord>(
+        "SELECT * FROM deploy_log ORDER BY id DESC LIMIT 1",
+    )
+    .fetch_optional(&ctx.db)
+    .await
+    .unwrap_or(None);
+
     Ok(Json(ConfigResponse {
         data: serde_json::json!({
             "counts": counts,
             "storage_bytes": storage_bytes,
             "last_build": last_build,
+            "last_deploy": last_deploy,
         }),
     }))
 }

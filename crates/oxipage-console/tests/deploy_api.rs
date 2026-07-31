@@ -185,3 +185,12 @@ async fn deploy_post_rejects_preflight_failure_with_424() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::FAILED_DEPENDENCY);
 }
+
+#[tokio::test]
+async fn stats_uses_latest_deploy() {
+    let (_dir, db, _reg, app) = site_router().await;
+    insert_deploy(&db, "old", "deployed").await;
+    insert_deploy(&db, "new", "unchanged").await;
+    let j = get_json(app, "/s/blog/stats").await;
+    assert_eq!(j["data"]["last_deploy"]["run_id"], "new");
+}

@@ -72,6 +72,11 @@ export function SettingsPage() {
   const [tmdbApiKeyEnv, setTmdbApiKeyEnv] = useState("");
   const [aladinTtbkeyEnv, setAladinTtbkeyEnv] = useState("");
 
+  // Deployment · GitHub Pages
+  const [owner, setOwner] = useState("");
+  const [repo, setRepo] = useState("");
+  const [branch, setBranch] = useState("gh-pages");
+
   // Danger Zone
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteInput, setDeleteInput] = useState("");
@@ -107,6 +112,10 @@ export function SettingsPage() {
     setGithubUsername(data.integrations.github_username ?? "");
     setTmdbApiKeyEnv(data.integrations.tmdb_api_key_env ?? "");
     setAladinTtbkeyEnv(data.integrations.aladin_ttbkey_env ?? "");
+    const pages = data.deploy?.github_pages;
+    setOwner(pages?.owner ?? "");
+    setRepo(pages?.repo ?? "");
+    setBranch(pages?.branch ?? "gh-pages");
   }, [data]);
 
   const save = useMutation({
@@ -124,12 +133,34 @@ export function SettingsPage() {
           tmdb_api_key_env: tmdbApiKeyEnv || null,
           aladin_ttbkey_env: aladinTtbkeyEnv || null,
         },
+        deploy: {
+          github_pages: validTarget ? { owner, repo, branch } : null,
+        },
       }),
     onSuccess: (updated) => {
       qc.setQueryData(["site", slug, "config"], updated);
       qc.invalidateQueries({ queryKey: ["sites"] });
     },
   });
+
+  const componentRe = /^[A-Za-z0-9._-]+$/;
+  const branchOk =
+    /^[A-Za-z0-9._\/-]+$/.test(branch) &&
+    !branch.includes("..") &&
+    !branch.startsWith("/") &&
+    !branch.endsWith("/");
+  const validTarget =
+    componentRe.test(owner) && componentRe.test(repo) && branchOk && owner !== "" && repo !== "";
+  const pagesUrl = validTarget
+    ? repo.toLowerCase() === `${owner.toLowerCase()}.github.io`
+      ? `https://${owner}.github.io/`
+      : `https://${owner}.github.io/${repo}/`
+    : "";
+  const basePath = validTarget
+    ? repo.toLowerCase() === `${owner.toLowerCase()}.github.io`
+      ? "/"
+      : `/${repo}/`
+    : "";
 
   const handleDeleteSite = async () => {
     try {
@@ -255,6 +286,34 @@ export function SettingsPage() {
             onChange={setAladinTtbkeyEnv}
             placeholder="OXIPAGE_ALADIN_TTBKEY"
           />
+        </div>
+
+        <div className="border border-line rounded-lg p-5">
+          <h3 className="text-sm font-semibold mb-1">Deployment · GitHub Pages</h3>
+          <p className="text-xs text-muted mb-3">
+            Authentication stays in GitHub CLI; no token is stored.
+          </p>
+          <SettingsField label="Owner" value={owner} onChange={setOwner} placeholder="github-username" />
+          <SettingsField label="Repository" value={repo} onChange={setRepo} placeholder="my-site" />
+          <SettingsField label="Publish branch" value={branch} onChange={setBranch} placeholder="gh-pages" />
+          <div className="ml-28 text-xs text-muted mb-3">
+            Pages URL: {pagesUrl || "—"}
+            <br />
+            Base path: <code className="font-mono">{basePath || "—"}</code>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!pagesUrl || baseUrl === pagesUrl}
+              onClick={() => setBaseUrl(pagesUrl)}
+            >
+              Use this Pages URL as Site Base URL
+            </Button>
+            <Button type="button" variant="outline" asChild>
+              <Link to={`/sites/${slug}/deploy`}>Open Deploy page</Link>
+            </Button>
+          </div>
         </div>
 
         <div className="border border-line rounded-lg p-5">
