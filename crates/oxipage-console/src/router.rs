@@ -3,7 +3,7 @@
 //! Build/deploy live exclusively under `/s/{slug}/...` (per_site_router).
 
 use crate::middleware::site_db::inject_site_context;
-use crate::preview::handler::preview_handler;
+use crate::preview::handler::{preview_handler, preview_trailing, redirect_to_slash};
 use crate::sites_runtime::SiteRegistry;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -37,6 +37,8 @@ pub fn build_top_level_router() -> Router<Arc<SiteRegistry>> {
         .route("/sites", get(list_sites))
         .route("/sites/default", get(get_default).put(set_default))
         .route("/sites/{slug}", delete(delete_site_handler))
+        .route("/preview/{slug}", get(redirect_to_slash))
+        .route("/preview/{slug}/", get(preview_trailing))
         .route("/preview/{slug}/{*rest}", get(preview_handler))
         .route("/setup/create-site", post(create_site_handler))
         .route("/theme", get(get_default_theme))
