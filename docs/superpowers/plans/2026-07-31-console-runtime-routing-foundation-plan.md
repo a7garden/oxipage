@@ -146,10 +146,16 @@ fn main() {
             "index.html",
             "web/dist-static",
         );
-    } else {
+    } else if root.join("embedded-spa").exists() || root.join("embedded-spa-static").exists() {
         // Mode 2: Published crate — packaged embeds must already be populated.
         require_packaged(root.join("embedded-spa"), "admin.html");
         require_packaged(root.join("embedded-spa-static"), "index.html");
+    } else {
+        // Fresh development clone: no web build and no packaged embeds yet.
+        // Fail with the exact command that produces the required output.
+        panic!(
+            "no SPA bundle found. Run first: cd web && bun run build && bun run build:static"
+        );
     }
 
     // Registry + WASM (unchanged from existing logic).
@@ -310,23 +316,41 @@ async fn admin_html_has_no_cache_header() {
 #[tokio::test]
 async fn hashed_asset_has_immutable_cache() {
     let app = build_test_app().await;
-    // Read the actual hash from embedded admin.html to construct the URI.
+    // Extract the hashed JS asset URI from the embedded admin.html so the
+    // test is robust to hash changes across builds.
     let html = oxipage_core::http::spa_index_html().unwrap_or_default();
-    // admin.html is served as fallback; the hashed JS is referenced inside.
-    // For this test, request any /assets/ path that exists.
+    let asset = html
+        .split("src=\"")
+        .nth(1)
+        .and_then(|s| s.split('\"').next())
+        .expect("admin.html must reference a script");
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/assets/global-GVxw7SR-.js")
+                .uri(asset)
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
-    if resp.status() == StatusCode::OK {
-        let cc = resp.headers().get("cache-control").unwrap().to_str().unwrap();
-        assert!(cc.contains("immutable"), "cache-control was: {cc}");
-    }
+    assert_eq!(resp.status(), StatusCode::OK, "asset {asset} not found");
+    let cc = resp.headers().get("cache-control").unwrap().to_str().unwrap();
+    assert!(cc.contains("immutable"), "cache-control was: {cc}");
+}
+
+#[tokio::test]
+async fn admin_html_has_revision_meta_and_header() {
+    let app = build_test_app().await;
+    let resp = app
+        .oneshot(Request::builder().uri("/sites").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let body = String::from_utf8(bytes.to_vec()).unwrap();
+    assert!(
+        body.contains("oxipage-spa-revision"),
+        "admin.html must carry the revision meta tag"
+    );
 }
 ```
 
@@ -342,9 +366,23 @@ In `crates/oxipage-core/src/http.rs`, replace `serve_asset`:
 ```rust
 fn serve_asset(path: &str) -> Option<Response> {
     Assets::get(path).map(|content| {
+        let mut bytes = content.data.into_owned();
+
+        // Expose the compiled SPA revision to the browser on the console entry
+        // HTML (both the exact match and the fallback path). The ErrorBoundary
+        // reads this meta tag; the header is for debugging.
+        if path == "admin.html" {
+            let meta = format!(
+                "<meta name=\"oxipage-spa-revision\" content=\"{}\">",
+                spa_revision()
+            );
+            let html = String::from_utf8_lossy(&bytes);
+            bytes = html.replace("</head>", &format!("{meta}</head>")).into_bytes();
+        }
+
         let mime = mime_guess::from_path(path).first_or_octet_stream();
         let cache_control = cache_policy_for(path);
-        let etag = format!("\"{:x}\"", xxhash_seed(&content.data));
+        let etag = format!("\"{:x}\"", content_hash(&bytes));
 
         let mut builder = Response::builder()
             .status(StatusCode::OK)
@@ -352,11 +390,10 @@ fn serve_asset(path: &str) -> Option<Response> {
             .header(header::CACHE_CONTROL, cache_control)
             .header(header::ETAG, etag);
 
-        // Expose the SPA revision on HTML responses for diagnostics.
         if is_html_entry(path) {
             builder = builder.header("X-Oxipage-SPA-Revision", spa_revision());
         }
-        builder.body(Body::from(content.data.into_owned())).unwrap()
+        builder.body(Body::from(bytes)).unwrap()
     })
 }
 
@@ -387,11 +424,11 @@ fn spa_revision() -> &'static str {
     option_env!("OXIPAGE_SPA_REVISION").unwrap_or("unknown")
 }
 
-fn xxhash_seed(data: &[u8]) -> u64 {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    data.hash(&mut hasher);
-    hasher.finish()
+fn content_hash(data: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    format!("{:x}", hasher.finalize())
 }
 ```
 
@@ -478,7 +515,13 @@ interface State {
   category: "render" | "chunk-load" | "unknown";
 }
 
-const SPA_REVISION = (import.meta.env.VITE_SPA_REVISION as string | undefined) ?? "unknown";
+/** Compiled SPA revision, injected into admin.html by serve_asset as a meta tag. */
+function getSpaRevision(): string {
+  return (
+    document.querySelector('meta[name="oxipage-spa-revision"]')?.getAttribute("content") ??
+    "unknown"
+  );
+}
 
 export class AdminErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false, error: null, category: "unknown" };
@@ -551,7 +594,7 @@ export class AdminErrorBoundary extends Component<Props, State> {
             </button>
           </div>
           <p className="text-xs text-muted">
-            SPA revision: <code className="font-mono">{SPA_REVISION.slice(0, 12)}</code>
+            SPA revision: <code className="font-mono">{getSpaRevision().slice(0, 12)}</code>
           </p>
         </div>
       </div>
@@ -978,6 +1021,14 @@ pub async fn config_put(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("parse toml: {e}")))?;
 
     // Apply allowlisted patches (site, lobby, integrations — NOT server).
+    // These three helpers are NEW functions defined in per_site.rs that
+    // preserve the existing inline TOML-table edit logic at per_site.rs
+    // lines 104-183 (site_tbl/lobby_tbl/int_tbl insertion). Extract that
+    // logic verbatim into apply_site_patch, apply_lobby_patch, and
+    // apply_integrations_patch — each takes &mut toml::Value and the
+    // corresponding Option<Update> struct, returns Result<(), (StatusCode,
+    // String)> on parse/validation failure. Do not add new fields to these
+    // helpers; Task 6 only refactors the existing mutation path.
     apply_site_patch(&mut doc, &update.site)?;
     apply_lobby_patch(&mut doc, &update.lobby)?;
     apply_integrations_patch(&mut doc, &update.integrations)?;
