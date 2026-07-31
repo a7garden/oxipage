@@ -276,18 +276,18 @@ oxipage build --incremental  # 변경된 콘텐츠만 (v2.1에서)
 
 ```toml
 [site.blog]
-base_url = "https://blog.a7garden.dev"
+base_url = "https://blog.oxinot.dev"
 extensions = ["blog", "profile", "links", "novels"]
 
 [site.portfolio]
-base_url = "https://a7garden.dev"
+base_url = "https://oxinot.dev"
 extensions = ["profile", "projects", "activity", "movies", "books", "scraps"]
 ```
 
 ```
 oxipage build --site blog        → out/blog/
 oxipage build --site portfolio   → out/portfolio/
-oxipage deploy --site blog       → blog.a7garden.dev
+oxipage deploy --site blog       → blog.oxinot.dev
 ```
 
 `oxipage build`(site 생략)는 기본 사이트를 빌드.
