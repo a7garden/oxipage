@@ -420,7 +420,7 @@ fn has_hash_suffix(path: &str) -> bool {
     let name = &stem[..dot];
     name.find('-')
         .map(|i| &name[i + 1..])
-        .map_or(false, |h| h.len() >= 6)
+        .is_some_and(|h| h.len() >= 6)
 }
 
 fn spa_revision() -> &'static str {

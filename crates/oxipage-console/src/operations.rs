@@ -144,6 +144,9 @@ impl SiteOperationGuard {
 
     /// Relay an event to subscribers; a terminal event also updates the
     /// retained snapshot's `terminal` payload.
+    // `()` is an intentional "no such slot" sentinel; a named error type
+    // would add noise for zero callers.
+    #[allow(clippy::result_unit_err)]
     pub fn publish(&self, slug: &str, e: OperationEvent) -> Result<(), ()> {
         let mut x = self.slots.get_mut(slug).ok_or(())?;
         if e.terminal {
@@ -154,6 +157,7 @@ impl SiteOperationGuard {
     }
 
     /// Mark the operation inactive (keeps the snapshot + terminal state).
+    #[allow(clippy::result_unit_err)]
     pub fn finish(&self, slug: &str) -> Result<(), ()> {
         self.slots.get_mut(slug).ok_or(())?.snapshot.active = false;
         Ok(())

@@ -314,10 +314,13 @@ pub struct BuildsResponse {
 
 /// Read build history from the per-site DB (`build_log` table). Returns an
 /// empty list if no table exists yet (no builds have run).
+/// `build_log` row: (id, status, created_at, page_count, out_dir).
+type BuildLogRow = (i64, String, String, Option<i64>, Option<String>);
+
 pub async fn builds_list(
     Extension(ctx): Extension<Arc<SiteContext>>,
 ) -> Result<Json<BuildsResponse>, (StatusCode, String)> {
-    let rows: Result<Vec<(i64, String, String, Option<i64>, Option<String>)>, _> = sqlx::query_as(
+    let rows: Result<Vec<BuildLogRow>, _> = sqlx::query_as(
         "SELECT id, status, created_at, page_count, out_dir FROM build_log ORDER BY id DESC LIMIT 50",
     )
     .fetch_all(&ctx.db)
@@ -742,14 +745,11 @@ pub async fn build_post(
     let build_id = uuid::Uuid::new_v4().to_string();
 
     // One build/deploy slot per site — conflict if another operation runs.
-    let conflict = match ctx.operation_guard.try_start(
+    let conflict = ctx.operation_guard.try_start(
         &ctx.slug,
         &build_id,
         crate::operations::SiteOperationKind::Build,
-    ) {
-        Ok(()) => None,
-        Err(c) => Some(c),
-    };
+    ).err();
     if let Some(c) = conflict {
         return Err((
             StatusCode::CONFLICT,

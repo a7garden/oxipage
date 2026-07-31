@@ -99,10 +99,9 @@ pub async fn ensure_deploy_started(
             })
             .await
             .map_err(|e| {
-                oxipage_deploy::DeployError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("deploy task panicked: {e}"),
-                ))
+                oxipage_deploy::DeployError::Io(std::io::Error::other(format!(
+                    "deploy task panicked: {e}"
+                )))
             })
             .and_then(|r| r);
 

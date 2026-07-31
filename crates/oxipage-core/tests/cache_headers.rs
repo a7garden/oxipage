@@ -2,7 +2,6 @@
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use oxipage_core::http::build_app;
 use oxipage_core::state::AppState;
 use std::sync::Arc;
 use tower::util::ServiceExt;
@@ -18,7 +17,7 @@ async fn build_test_app() -> axum::Router {
         fn id(&self) -> &'static str {
             "dummy"
         }
-        fn display_name(&self, l: Lang) -> String {
+        fn display_name(&self, _l: Lang) -> String {
             "Dummy".into()
         }
         fn migrations(&self) -> Vec<Migration> {

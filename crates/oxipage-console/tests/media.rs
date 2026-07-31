@@ -82,7 +82,7 @@ async fn upload_png_round_trips() {
     assert!(path.ends_with(".png"), "path: {path}");
     assert_eq!(json["data"]["mime"], "image/png");
 
-    let file_name = path.split('/').last().unwrap();
+    let file_name = path.rsplit('/').next().unwrap();
     let get_req = Request::builder()
         .method("GET")
         .uri(format!("/s/blog/media/profile/{file_name}"))

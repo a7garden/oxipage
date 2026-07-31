@@ -59,10 +59,7 @@ impl ApiError {
         message: &str,
         data: &T,
     ) -> Self {
-        let value = match serde_json::to_value(data) {
-            Ok(v) => Some(v),
-            Err(_) => None,
-        };
+        let value = serde_json::to_value(data).ok();
         ApiError {
             status,
             body: ErrorBody {

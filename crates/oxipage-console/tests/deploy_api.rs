@@ -7,7 +7,6 @@ use oxipage_console::operations::SiteOperationKind;
 use oxipage_console::router::build_console_router;
 use oxipage_console::sites_runtime::SiteRegistry;
 use oxipage_core::sites::SitesFile;
-use serde_json::json;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 use tempfile::TempDir;

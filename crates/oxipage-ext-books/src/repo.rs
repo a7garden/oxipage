@@ -206,7 +206,7 @@ mod tests {
             .await
             .unwrap();
         for m in crate::BooksExtension.migrations() {
-            sqlx::query(&m.sql).execute(&pool).await.unwrap();
+            sqlx::query(m.sql).execute(&pool).await.unwrap();
         }
         pool
     }

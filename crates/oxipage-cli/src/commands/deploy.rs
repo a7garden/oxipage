@@ -98,10 +98,10 @@ pub fn resolve_deploy_project(
     if !sites.sites.is_empty() {
         // Validate an explicitly requested site EXISTS before resolve_name
         // (which silently falls back to the default otherwise).
-        if let Some(name) = requested {
-            if !sites.sites.contains_key(name) {
-                return Err(anyhow::anyhow!("site '{name}' is not registered"));
-            }
+        if let Some(name) = requested
+            && !sites.sites.contains_key(name)
+        {
+            return Err(anyhow::anyhow!("site '{name}' is not registered"));
         }
         let name = sites
             .resolve_name(requested)

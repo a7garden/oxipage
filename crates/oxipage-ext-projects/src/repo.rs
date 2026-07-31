@@ -384,9 +384,9 @@ pub async fn reorder_screenshots(
         .execute(&mut *tx)
         .await?;
     }
-    let updated = sqlx::query_as::<_, crate::model::Screenshot>(&format!(
+    let updated = sqlx::query_as::<_, crate::model::Screenshot>(
         "SELECT id, project_id, url, alt_ko, alt_en, display_order, created_at FROM project_screenshot WHERE project_id = ? ORDER BY display_order"
-    ))
+    )
     .bind(project_id)
     .fetch_all(&mut *tx)
     .await?;

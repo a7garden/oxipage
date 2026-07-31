@@ -1,6 +1,6 @@
 //! Tests for SiteContext resolved paths.
 
-use oxipage_console::sites_runtime::{SiteContext, SiteRegistry};
+use oxipage_console::sites_runtime::SiteRegistry;
 use oxipage_core::sites::SitesFile;
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -8,8 +8,7 @@ use tempfile::TempDir;
 #[tokio::test]
 async fn site_context_resolves_absolute_data_dir() {
     let dir = TempDir::with_prefix("oxipage-paths-").unwrap();
-    let toml = format!(
-        r#"[site]
+    let toml = r#"[site]
 name = "Test"
 base_url = "http://127.0.0.1:8787"
 default_lang = "ko"
@@ -19,8 +18,8 @@ languages = ["ko"]
 host = "127.0.0.1"
 port = 8787
 data_dir = "data"
-"#,
-    );
+"#
+    .to_string();
     std::fs::write(dir.path().join("oxipage.toml"), toml).unwrap();
 
     let mut sf = SitesFile::default();
