@@ -812,8 +812,8 @@ git commit -m "feat(core): materialization — relative asset tags, <base>, Buil
 
 ### Task 3: Preview handler — prefix-aware, base-href rewrite, 424
 
-**Files:**
-- Modify: `crates/oxipage-console/src/preview/handler.rs`
+- Create: `crates/oxipage-console/src/preview/handler.rs` (rewrite of the existing file)
+- Modify: `crates/oxipage-console/src/router.rs` (add `/preview/{slug}` redirect route)
 - Modify: `crates/oxipage-console/tests/build_deploy_preview.rs`
 
 **Interfaces:**
@@ -856,6 +856,15 @@ Replace the entire contents of `crates/oxipage-console/src/preview/handler.rs`:
 ```rust
 //! `GET /api/console/preview/{slug}/{*rest}` — serve one site's `out/` build.
 //!
+//! Two routes are mounted by `router.rs::build_top_level_router`:
+//!   - `/api/console/preview/{slug}`            → `redirect_to_slash`  (307)
+//!   - `/api/console/preview/{slug}/{*rest}`   → `preview_handler`     (catch-all)
+//!
+//! `preview_handler` accepts a single `Path<(String, String)>` extractor
+//! because catch-all routes always populate the rest capture (as an empty
+//! string for `/preview/{slug}/`). The bare-slug case is handled by the
+//! separate redirect route — `preview_handler` never sees it.
+//!
 //! Resolution rules (spec §6):
 //!   empty path             → out/index.html
 //!   directory path         → <dir>/index.html
@@ -873,23 +882,17 @@ Replace the entire contents of `crates/oxipage-console/src/preview/handler.rs`:
 //! `X-Content-Type-Options: nosniff`. No directory listing.
 
 use crate::sites_runtime::SiteRegistry;
-use axum::Router;
 use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::{Response, StatusCode, header};
-use axum::routing::get;
 use oxipage_core::build_manifest::BuildManifest;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
-pub fn router() -> Router<Arc<SiteRegistry>> {
-    Router::new()
-        .route("/preview/{slug}", get(redirect_to_slash))
-        .route("/preview/{slug}/", get(preview_handler))
-        .route("/preview/{slug}/{*rest}", get(preview_handler))
-}
-
-async fn redirect_to_slash(
+/// `GET /api/console/preview/{slug}` → 307 to `/preview/{slug}/`.
+/// Mounted directly in `router.rs::build_top_level_router` so the handler
+/// file owns no routing surface (the file is named `handler.rs`, not `router.rs`).
+pub async fn redirect_to_slash(
     State(_registry): State<Arc<SiteRegistry>>,
     Path(slug): Path<String>,
 ) -> Response<Body> {
@@ -1056,6 +1059,35 @@ fn rewrite_base_href(html: &[u8], preview_base: &str, _materialized_base: &str) 
 }
 ```
 
+- [ ] **Step 3b: Wire the redirect route in `router.rs`**
+
+The bare-slug route (no trailing slash) needs a separate handler that returns
+307 to the canonical `/preview/{slug}/` URL. Add it to the top-level console
+router alongside the existing `preview` catch-all.
+
+In `crates/oxipage-console/src/router.rs`, find the line that mounts the
+preview route inside `build_top_level_router()`:
+
+```rust
+.route("/preview/{slug}/{*rest}", get(preview_handler))
+```
+
+Add a sibling route above it (axum matches routes in registration order, so
+the more specific bare-slug route must come first):
+
+```rust
+use crate::preview::handler::redirect_to_slash;
+
+// in build_top_level_router():
+.route("/preview/{slug}", get(redirect_to_slash))
+.route("/preview/{slug}/{*rest}", get(preview_handler))
+```
+
+The existing `use crate::preview::handler::preview_handler;` import stays.
+The `handler.rs` file no longer exports a `router()` function — its job is
+to expose the two handlers, and `router.rs` is the single source of truth
+for route wiring.
+
 - [ ] **Step 4: Add coverage for the new behavior**
 
 Add to `crates/oxipage-console/tests/build_deploy_preview.rs`:
@@ -1209,7 +1241,7 @@ Expected: PASS — all preview tests pass.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/oxipage-console/src/preview/handler.rs crates/oxipage-console/tests/build_deploy_preview.rs
+git add crates/oxipage-console/src/preview/handler.rs crates/oxipage-console/src/router.rs crates/oxipage-console/tests/build_deploy_preview.rs
 git commit -m "feat(console): preview prefix-aware + base-rewrite + 424 build_required"
 ```
 

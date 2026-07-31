@@ -1909,7 +1909,7 @@ pub async fn put_profile(
         .await
         .map_err(|e| match e {
             repo::UpsertError::Stale { expected: _ } => {
-                let remote = match repo::get(&pool.db) {
+                let remote = match repo::get(&pool.db).await {
                     Ok(Some(p)) => p,
                     _ => return ApiError::internal(anyhow::anyhow!("profile vanished during stale write")),
                 };
@@ -2254,7 +2254,7 @@ export function ProfileTab({ slug }: { slug: string }) {
             <DrawerField label="Avatar">
               <ImageField value={form.avatar_url} onChange={(v) => { setDirty(true); setForm((f) => ({ ...f, avatar_url: v })); }} extension="profile" />
             </DrawerField>
-            <DrawerField label="Email" error={errors.email}>
+
             <DrawerField label="Email" error={errors.email}>
               <Input value={form.email} onChange={(e) => { setDirty(true); setForm((f) => ({ ...f, email: e.target.value })); }} placeholder="hello@example.com" />
             </DrawerField>
