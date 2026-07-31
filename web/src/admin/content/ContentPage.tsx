@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useParams } from "react-router";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "../../shared/ui/cn";
+import { listExtensions } from "../shared/api";
 import { BlogTab } from "./BlogTab";
 import { ProjectsTab } from "./ProjectsTab";
 import { LinksTab } from "./LinksTab";
@@ -35,7 +37,19 @@ const tabComponents: Record<string, React.FC<{ slug: string }>> = {
 export function ContentPage() {
   const { slug } = useParams<{ slug: string }>()!;
   const [activeTab, setActiveTab] = useState("profile");
-  const TabComponent = tabComponents[activeTab];
+  const { data: extensions = [] } = useQuery({
+    queryKey: ["site", slug, "extensions"],
+    queryFn: () => listExtensions(slug!),
+    enabled: !!slug,
+  });
+  const enabledIds = new Set(
+    extensions.filter((e) => e.enabled).map((e) => e.id),
+  );
+  const visibleTabs = tabs.filter(
+    (t) => t.id === "profile" || enabledIds.has(t.id),
+  );
+  const active = visibleTabs.some((t) => t.id === activeTab) ? activeTab : "profile";
+  const TabComponent = tabComponents[active];
 
   return (
     <div>
@@ -43,13 +57,13 @@ export function ContentPage() {
       <p className="text-sm text-muted mb-4">Manage all content across extensions</p>
 
       <div className="flex gap-0 border-b-2 border-line mb-4">
-        {tabs.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
               "px-4 py-2 text-sm font-medium border-b-2 -mb-[2px] transition-colors",
-              activeTab === tab.id
+              active === tab.id
                 ? "text-[#2a6b4a] border-[#22c55e]"
                 : "text-muted border-transparent hover:text-foreground",
             )}

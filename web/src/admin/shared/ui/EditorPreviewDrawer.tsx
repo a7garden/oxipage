@@ -61,13 +61,14 @@ interface PublicThemeScopeProps {
   children: ReactNode;
 }
 
-/** Scopes a subtree under `[data-public-theme="paper"]` so the public theme
- *  palette variables take effect (the Admin shell remains untouched).
- *  When the peer plan ships a richer version with the active theme id, this
- *  minimal version keeps the same attribute so styles apply. */
+/** Scopes a subtree under the site's active `[data-public-theme]` so the public
+ *  theme palette variables take effect (the Admin shell remains untouched).
+ *  The attribute is published to <html> by `applyServerTheme`; fall back to
+ *  "paper" before the first palette load. */
 export function PublicThemeScope({ children }: PublicThemeScopeProps) {
+  const themeId = document.documentElement.dataset.publicTheme ?? "paper";
   return (
-    <div data-public-theme="paper" className="contents">
+    <div data-public-theme={themeId} className="contents">
       {children}
     </div>
   );

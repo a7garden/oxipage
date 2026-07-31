@@ -11,6 +11,7 @@ import { Drawer, DrawerField } from "../../shared/ui/drawer";
 import { Pencil, Trash2, Send, Plus, ChevronDown, ChevronUp } from "lucide-react";
 import { useRowFilter } from "../shared/useRowFilter";
 import { field, str } from "../shared/row-utils";
+import { adminAssetResolver } from "../../shared/assets";
 import {
   addScreenshot, updateScreenshot, deleteScreenshot, showExtension,
   type Screenshot,
@@ -316,7 +317,7 @@ export function ProjectsTab({ slug }: { slug: string }) {
               <div className="space-y-2 mb-3">
                 {screenshots.map((s: Screenshot, i: number) => (
                   <div key={s.id} className="flex items-center gap-2 p-2 border border-line rounded">
-                    <img src={s.url} alt="" className="size-10 rounded object-cover shrink-0 border border-line" />
+                    <img src={adminAssetResolver(slug).resolve(s.url) ?? ""} alt="" className="size-10 rounded object-cover shrink-0 border border-line" />
                     <input
                       className="flex-1 text-xs border border-line rounded px-1 py-0.5 bg-canvas"
                       defaultValue={s.alt_ko ?? ""}

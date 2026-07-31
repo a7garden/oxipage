@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getTheme, setTheme, listThemes } from "../shared/api";
-import type { ThemeDefinition } from "../../shared/theme";
+import { applyServerTheme, type ThemeDefinition } from "../../shared/theme";
 import { Button } from "../../shared/ui/button";
 import { Skeleton } from "../../shared/ui/skeleton";
 
@@ -39,6 +39,7 @@ export function ThemesPage() {
     mutationFn: () => setTheme(slug!, current),
     onSuccess: (next) => {
       qc.setQueryData(["site", slug, "theme"], next);
+      void applyServerTheme(slug!);
     },
   });
 

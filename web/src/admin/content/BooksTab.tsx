@@ -11,6 +11,7 @@ import { Drawer, DrawerField } from "../../shared/ui/drawer";
 import { Pencil, Trash2, Send, Plus } from "lucide-react";
 import { useRowFilter } from "../shared/useRowFilter";
 import { field, str } from "../shared/row-utils";
+import { validateIsbn13, clampRating } from "../shared/validation";
 
 interface Book {
   id: number;
@@ -79,16 +80,21 @@ export function BooksTab({ slug }: { slug: string }) {
 
   const save = useMutation({
     mutationFn: async () => {
+      const isbnErr = validateIsbn13(form.isbn13);
+      if (isbnErr) throw new Error(isbnErr);
+      const rating = clampRating(form.rating || "0");
+      if (rating.error) throw new Error(rating.error);
       const payload = {
         title: form.title.trim(),
         author: form.author || null,
         isbn13: form.isbn13 || null,
-        rating: parseInt(form.rating || "0", 10),
+        rating: rating.value ?? 0,
         review_ko: form.review_ko || null,
         review_en: form.review_en || null,
         status: form.status,
         started_at: form.started_at || null,
         finished_at: form.finished_at || null,
+        cover_image_url: form.cover_image_url || null,
       };
       if (editing === "new") return contentClient.create<Book>(slug, "books", payload);
       if (editing) return contentClient.update<Book>(slug, "books", String(editing.id), payload);

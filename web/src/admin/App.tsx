@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect } from "react";
-import { BrowserRouter, Routes, Route, useParams } from "react-router";
+import { lazy, Suspense } from "react";
+import { BrowserRouter, Routes, Route } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConsoleShell } from "./shell/ConsoleShell";
 import { ScrollToTop } from "./shared/ui/ScrollToTop";
@@ -9,15 +9,6 @@ import { NewSiteWizardPage } from "./sites/NewSiteWizardPage";
 import { SetupGuard } from "../setup/SetupGuard";
 import { Skeleton } from "../shared/ui/skeleton";
 import { AdminErrorBoundary } from "./shared/ui/AdminErrorBoundary";
-import { applyServerTheme } from "../shared/theme";
-
-function ThemeBootstrap() {
-  const { slug } = useParams();
-  useEffect(() => {
-    void applyServerTheme(slug);
-  }, [slug]);
-  return null;
-}
 
 const DashboardPage = lazy(() =>
   import("./dashboard/DashboardPage").then((m) => ({ default: m.DashboardPage })),
@@ -68,7 +59,6 @@ export function AdminApp() {
       <AdminErrorBoundary>
         <BrowserRouter>
           <ScrollToTop />
-          <ThemeBootstrap />
           <Routes>
           <Route
             path="/setup/*"

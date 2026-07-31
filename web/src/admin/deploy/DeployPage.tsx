@@ -87,8 +87,6 @@ function formatEvent(ev: OpEvent): LogLine {
   }
 }
 
-const PREVIEW_DISABLED_CODES = new Set(["build_required", "missing_index", "stale_build_base", "stale_build_theme"]);
-
 export function DeployPage() {
   const { slug } = useParams<{ slug: string }>()!;
   const qc = useQueryClient();
