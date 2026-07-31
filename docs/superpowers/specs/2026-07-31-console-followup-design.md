@@ -157,7 +157,7 @@ let sql = if status.is_some() {
 pub fn build_console_app(
     state: oxipage_core::state::AppState,
     registry: Arc<SiteRegistry>,
-) -> axum::Router {
+) -> axum::Router<oxipage_core::state::AppState> {
     let console = crate::router::build_console_router(registry);
     let mut app = oxipage_core::http::build_app(state);
     app = app.nest("/api/console", console);
