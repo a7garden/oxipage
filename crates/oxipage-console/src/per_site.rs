@@ -11,18 +11,18 @@ use crate::sites_runtime::SiteContext;
 use axum::Extension;
 use axum::Json;
 use axum::extract::{Path, Query};
+use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::routing::{get, post};
 use axum::{Router, http::StatusCode};
+use oxipage_core::build::BuildEvent;
+use oxipage_deploy::DeployEvent;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio::sync::RwLock;
-use axum::response::sse::{Event, KeepAlive, Sse};
-use oxipage_core::build::BuildEvent;
 use std::sync::atomic::AtomicBool;
+use tokio::sync::RwLock;
 use tokio::sync::broadcast;
 use tokio_stream::StreamExt;
 use tokio_stream::wrappers::BroadcastStream;
-use oxipage_deploy::DeployEvent;
 
 // ─── config (GET/PUT) ───────────────────────────────────────────────────────
 
@@ -94,12 +94,16 @@ pub async fn config_put(
     Extension(ctx): Extension<Arc<SiteContext>>,
     Json(update): Json<ConfigUpdate>,
 ) -> Result<Json<ConfigResponse>, (StatusCode, String)> {
-    let toml_path = ctx.path.join("oxipage.toml");
+    let toml_path = ctx.project_dir.join("oxipage.toml");
     let raw = tokio::fs::read_to_string(&toml_path)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("read toml: {e}")))?;
-    let mut doc: toml::Value = toml::from_str(&raw)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("parse toml: {e}")))?;
+    let mut doc: toml::Value = toml::from_str(&raw).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("parse toml: {e}"),
+        )
+    })?;
 
     if let Some(site) = update.site {
         let root = doc.as_table_mut().ok_or_else(|| {
@@ -182,11 +186,20 @@ pub async fn config_put(
         }
     }
 
-    let serialized = toml::to_string_pretty(&doc)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("serialize toml: {e}")))?;
+    let serialized = toml::to_string_pretty(&doc).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("serialize toml: {e}"),
+        )
+    })?;
     tokio::fs::write(&toml_path, serialized)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("write toml: {e}")))?;
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("write toml: {e}"),
+            )
+        })?;
 
     // Reload config from disk so the response reflects what was actually saved.
     let new_cfg = oxipage_core::config::Config::load(&toml_path)
@@ -249,13 +262,15 @@ pub async fn builds_list(
     let records = match rows {
         Ok(rs) => rs
             .into_iter()
-            .map(|(id, status, created_at, page_count, out_dir)| BuildRecord {
-                id: id.to_string(),
-                status,
-                created_at,
-                page_count: page_count.map(|p| p as usize),
-                out_dir,
-            })
+            .map(
+                |(id, status, created_at, page_count, out_dir)| BuildRecord {
+                    id: id.to_string(),
+                    status,
+                    created_at,
+                    page_count: page_count.map(|p| p as usize),
+                    out_dir,
+                },
+            )
             .collect(),
         Err(_) => Vec::new(),
     };
@@ -350,29 +365,33 @@ async fn set_extension_enabled(
     id: &str,
     enabled: bool,
 ) -> Result<Json<ExtensionInfo>, (StatusCode, String)> {
-    let ext = ctx.registry.find(id).ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            format!("unknown extension id: {id}"),
-        )
-    })?;
+    let ext = ctx
+        .registry
+        .find(id)
+        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("unknown extension id: {id}")))?;
     let prev = ctx.registry.status_of(id).await;
     let was_purged = prev.map(|s| s.purged).unwrap_or(false);
     let was_enabled = prev.map(|s| s.enabled).unwrap_or(false);
     if was_purged && enabled {
-        ctx.registry.set_purged(&ctx.db, id, false).await.map_err(|e| {
+        ctx.registry
+            .set_purged(&ctx.db, id, false)
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("set_purged: {e}"),
+                )
+            })?;
+    }
+    ctx.registry
+        .set_enabled(&ctx.db, id, enabled)
+        .await
+        .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                format!("set_purged: {e}"),
+                format!("set_enabled: {e}"),
             )
         })?;
-    }
-    ctx.registry.set_enabled(&ctx.db, id, enabled).await.map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("set_enabled: {e}"),
-        )
-    })?;
     if enabled && (!was_enabled || was_purged) {
         // Build a minimal AppState for the lifecycle hook. The console
         // process owns the real one for the default site; per-site the
@@ -413,21 +432,18 @@ pub async fn extension_disable(
 
 // ─── build / deploy (POST) ──────────────────────────────────────────────────
 
-
 pub async fn build_post(
     Extension(ctx): Extension<Arc<SiteContext>>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<serde_json::Value>)> {
-    let out_dir = ctx.path.join("out");
-    tokio::fs::create_dir_all(&out_dir)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": e.to_string() })),
-            )
-        })?;
+    let out_dir = ctx.out_dir.clone();
+    tokio::fs::create_dir_all(&out_dir).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": e.to_string() })),
+        )
+    })?;
 
-    let media_dir = ctx.config.server.data_dir.join("media");
+    let media_dir = ctx.media_dir.clone();
     let started_at = sqlx::query_scalar::<_, String>("SELECT datetime('now')")
         .fetch_one(&ctx.db)
         .await
@@ -477,8 +493,10 @@ pub async fn build_post(
 pub async fn build_stream(
     Extension(ctx): Extension<Arc<SiteContext>>,
     Path(_build_id): Path<String>,
-) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, std::io::Error>>>, (StatusCode, String)>
-{
+) -> Result<
+    Sse<impl tokio_stream::Stream<Item = Result<Event, std::io::Error>>>,
+    (StatusCode, String),
+> {
     // Subscribe BEFORE starting so the first subscriber sees BuildStarted with
     // zero event loss (broadcast delivers only post-subscribe messages).
     let (_id, rx) = ctx
@@ -500,7 +518,7 @@ pub async fn build_stream(
 pub async fn deploy_post(
     Extension(ctx): Extension<Arc<SiteContext>>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<serde_json::Value>)> {
-    let out_dir = ctx.path.join("out");
+    let out_dir = ctx.out_dir.clone();
     if !out_dir.exists() {
         // Deploy needs a prior build's output directory.
         return Err((
@@ -548,8 +566,10 @@ pub async fn deploy_post(
 pub async fn deploy_stream(
     Extension(ctx): Extension<Arc<SiteContext>>,
     Path(_deploy_id): Path<String>,
-) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, std::io::Error>>>, (StatusCode, String)>
-{
+) -> Result<
+    Sse<impl tokio_stream::Stream<Item = Result<Event, std::io::Error>>>,
+    (StatusCode, String),
+> {
     let (_id, rx) = ctx
         .deploy_guard
         .subscribe(&ctx.slug)
@@ -579,13 +599,27 @@ async fn recent_for_extension(
     limit: i64,
 ) -> Vec<serde_json::Value> {
     let sql = match ext_id {
-        "blog" => Some("SELECT id, title, updated_at, published_at FROM blog_post ORDER BY updated_at DESC LIMIT ?"),
-        "books" => Some("SELECT id, title, updated_at, published_at FROM book_entry ORDER BY updated_at DESC LIMIT ?"),
-        "links" => Some("SELECT id, title, updated_at, NULL AS published_at FROM link_card ORDER BY updated_at DESC LIMIT ?"),
-        "movies" => Some("SELECT id, title, updated_at, published_at FROM movie_entry ORDER BY updated_at DESC LIMIT ?"),
-        "novels" => Some("SELECT id, title, updated_at, published_at FROM novel ORDER BY updated_at DESC LIMIT ?"),
-        "projects" => Some("SELECT id, COALESCE(title_ko, title_en) AS title, updated_at, published_at FROM project ORDER BY updated_at DESC LIMIT ?"),
-        "scraps" => Some("SELECT id, title, updated_at, published_at FROM scrap_item ORDER BY updated_at DESC LIMIT ?"),
+        "blog" => Some(
+            "SELECT id, title, updated_at, published_at FROM blog_post ORDER BY updated_at DESC LIMIT ?",
+        ),
+        "books" => Some(
+            "SELECT id, title, updated_at, published_at FROM book_entry ORDER BY updated_at DESC LIMIT ?",
+        ),
+        "links" => Some(
+            "SELECT id, title, updated_at, NULL AS published_at FROM link_card ORDER BY updated_at DESC LIMIT ?",
+        ),
+        "movies" => Some(
+            "SELECT id, title, updated_at, published_at FROM movie_entry ORDER BY updated_at DESC LIMIT ?",
+        ),
+        "novels" => Some(
+            "SELECT id, title, updated_at, published_at FROM novel ORDER BY updated_at DESC LIMIT ?",
+        ),
+        "projects" => Some(
+            "SELECT id, COALESCE(title_ko, title_en) AS title, updated_at, published_at FROM project ORDER BY updated_at DESC LIMIT ?",
+        ),
+        "scraps" => Some(
+            "SELECT id, title, updated_at, published_at FROM scrap_item ORDER BY updated_at DESC LIMIT ?",
+        ),
         _ => None,
     };
     let Some(sql) = sql else { return vec![] };
@@ -653,7 +687,7 @@ pub async fn stats_get(
 
     // Storage: recursive walk of site directory, excluding out/
     let storage_bytes = tokio::task::spawn_blocking({
-        let path = ctx.path.clone();
+        let path = ctx.project_dir.clone();
         move || -> u64 {
             fn dir_size(path: &std::path::Path) -> u64 {
                 let mut total = 0u64;
@@ -737,7 +771,9 @@ pub async fn recent_get(
     });
     all.truncate(limit as usize);
 
-    Ok(Json(ConfigResponse { data: serde_json::json!(all) }))
+    Ok(Json(ConfigResponse {
+        data: serde_json::json!(all),
+    }))
 }
 
 pub fn per_site_router() -> Router {

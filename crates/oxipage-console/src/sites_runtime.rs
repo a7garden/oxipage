@@ -8,11 +8,10 @@
 
 pub use oxipage_core::state::SiteScopedDb;
 
-use crate::loader;
 use crate::build::build_run::BuildGuard;
 use crate::deploy::deploy_run::DeployGuard;
+use crate::loader;
 use oxipage_core::builder::BuildExt;
-use oxipage_core::config::Config;
 use oxipage_core::extension::WasmLoader;
 use oxipage_core::registry::ExtensionRegistry;
 use oxipage_core::sites::SitesFile;
@@ -25,8 +24,14 @@ use tokio::sync::RwLock;
 /// Context for one registered oxipage site.
 pub struct SiteContext {
     pub slug: String,
-    pub path: PathBuf,
-    pub config: Arc<Config>,
+    pub project_dir: PathBuf,
+    pub data_dir: PathBuf,
+    pub out_dir: PathBuf,
+    pub media_dir: PathBuf,
+    pub startup_server: oxipage_core::config::ServerConfig,
+    // config: Arc<Config> is KEPT for now. Task 6 adds `settings`,
+    // migrates all readers, THEN removes this field.
+    pub config: Arc<oxipage_core::config::Config>,
     pub db: SqlitePool,
     pub registry: Arc<ExtensionRegistry>,
     pub builders: Arc<Vec<Box<dyn BuildExt>>>,
@@ -49,14 +54,25 @@ pub struct SiteRegistry {
 impl SiteRegistry {
     /// Load all valid sites from `SitesFile`. Invalid entries (missing path,
     /// missing oxipage.toml, DB connect failure) are skipped with a warning.
-    pub async fn new(sites_file: SitesFile, build_guard: Arc<BuildGuard>, deploy_guard: Arc<DeployGuard>) -> anyhow::Result<Self> {
+    pub async fn new(
+        sites_file: SitesFile,
+        build_guard: Arc<BuildGuard>,
+        deploy_guard: Arc<DeployGuard>,
+    ) -> anyhow::Result<Self> {
         let mut map = HashMap::new();
         for (slug, entry) in &sites_file.sites {
             if !entry.path.exists() {
                 tracing::warn!(slug, path = %entry.path.display(), "site path missing; skipping");
                 continue;
             }
-                match loader::SiteLoader::load(slug.clone(), entry.path.clone(), build_guard.clone(), deploy_guard.clone()).await {
+            match loader::SiteLoader::load(
+                slug.clone(),
+                entry.path.clone(),
+                build_guard.clone(),
+                deploy_guard.clone(),
+            )
+            .await
+            {
                 Ok(ctx) => {
                     map.insert(slug.clone(), Arc::new(ctx));
                 }
@@ -121,7 +137,6 @@ impl SiteRegistry {
     pub fn len(&self) -> usize {
         self.sites.try_read().map(|g| g.len()).unwrap_or(0)
     }
-
     /// Return all loaded sites as a sorted list.
     pub async fn all_sites(&self) -> Vec<(String, PathBuf, bool)> {
         let sites = self.sites.read().await;
@@ -130,7 +145,7 @@ impl SiteRegistry {
             .iter()
             .map(|(slug, ctx)| {
                 let active = sf.default_site.as_deref() == Some(slug.as_str());
-                (slug.clone(), ctx.path.clone(), active)
+                (slug.clone(), ctx.project_dir.clone(), active)
             })
             .collect();
         result.sort_by(|a, b| a.0.cmp(&b.0));
@@ -154,7 +169,7 @@ impl SiteRegistry {
         for (slug, ctx) in loaded.iter() {
             if !result.iter().any(|(s, _, _)| s == slug) {
                 let active = sf.default_site.as_deref() == Some(slug.as_str());
-                result.push((slug.clone(), ctx.path.clone(), active));
+                result.push((slug.clone(), ctx.project_dir.clone(), active));
             }
         }
         result.sort_by(|a, b| a.0.cmp(&b.0));

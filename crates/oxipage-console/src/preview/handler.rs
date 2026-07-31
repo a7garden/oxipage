@@ -11,7 +11,6 @@ use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::{Response, StatusCode, header};
 use axum::routing::get;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 pub fn router() -> Router<Arc<SiteRegistry>> {
@@ -29,7 +28,7 @@ pub(crate) async fn preview_handler(
 
     // Strip leading slash from `rest`, then resolve safely inside out/.
     let clean = rest.trim_start_matches('/');
-    let mut file_path = PathBuf::from(&ctx.path).join("out");
+    let mut file_path = ctx.out_dir.clone();
     for component in clean.split('/').filter(|c| !c.is_empty()) {
         if matches!(component, "." | "..") {
             return Err((StatusCode::BAD_REQUEST, "path_traversal".into()));

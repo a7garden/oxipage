@@ -30,14 +30,14 @@ pub(crate) async fn build_handler(
         axum::http::StatusCode::NOT_FOUND,
         "site_not_found".to_string(),
     ))?;
-    let out_dir = ctx.path.join("out");
+    let out_dir = ctx.out_dir.clone();
     std::fs::create_dir_all(&out_dir)
         .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let output = oxipage_core::build::build_site(&ctx.db, &ctx.builders)
         .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let media_dir = ctx.config.server.data_dir.join("media");
+    let media_dir = ctx.media_dir.clone();
     oxipage_core::build_writer::write_build_output(&output, &out_dir, &media_dir)
         .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
