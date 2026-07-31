@@ -47,7 +47,7 @@ pub async fn list(
 ) -> anyhow::Result<Vec<Book>> {
     let limit = limit.clamp(1, 200);
     let published_clause = if draft { "" } else { "published_at IS NOT NULL" };
-    let sql = if let Some(s) = status {
+    let sql = if status.is_some() {
         if draft {
             format!(
                 "SELECT {COLUMNS} FROM book_entry
