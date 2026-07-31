@@ -1464,8 +1464,12 @@ pub async fn upload_handler(
 
 Create `crates/oxipage-console/src/media/serve.rs`:
 
-```rust
 //! Live serving of uploaded media. Spec §9 (live serving).
+//!
+//! Reads are lock-free. Unix `rename(2)` is atomic, so a reader always sees
+//! either the old path or the fully-written new path — never a partial file.
+//! The upload handler writes to a `.tmp` sibling and atomically renames into
+//! place, so no cross-handler synchronization is required here.
 
 use crate::sites_runtime::SiteContext;
 use axum::Extension;
@@ -1475,12 +1479,6 @@ use axum::http::{Response, StatusCode, header};
 use axum::response::IntoResponse;
 use std::path::{Component, PathBuf};
 use std::sync::Arc;
-use tokio::sync::Mutex;
-
-/// Global reorder lock for media writes/reads. Each request acquires it
-/// briefly to serialize directory mutations (uploads rename inside the same
-/// directory the reader is scanning). Held only across the read phase.
-static MEDIA_LOCK: Mutex<()> = Mutex::const_new(());
 
 pub async fn serve_handler(
     State(_registry): State<Arc<crate::sites_runtime::SiteRegistry>>,
@@ -1513,7 +1511,6 @@ pub async fn serve_handler(
         }
     }
 
-    let _guard = MEDIA_LOCK.lock().await;
     let meta = match tokio::fs::metadata(&candidate).await {
         Ok(m) if m.is_file() => m,
         _ => return Err(StatusCode::NOT_FOUND.into_response()),

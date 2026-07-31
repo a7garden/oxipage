@@ -1703,17 +1703,76 @@ git commit -m "refactor: extract *Card and ProjectView presentation components"
 - Modify: `crates/oxipage-ext-profile/src/repo.rs`
 - Modify: `crates/oxipage-ext-profile/src/routes.rs`
 
-**Interfaces:**
-- Produces:
-  ```rust
-  pub struct ProfileInput {
-      pub expected_updated_at: String, // ISO timestamp from prior GET; "" for first write
-      pub display_name: String,
-      // ... existing fields
-  }
-  pub enum UpsertError { Stale { expected: String }, Db(anyhow::Error) }
-  pub async fn upsert_if_unchanged(pool, input) -> Result<Profile, UpsertError>;
-  ```
+ **Interfaces:**
+ - Produces:
+   ```rust
+   pub struct ProfileInput {
+       pub expected_updated_at: String, // ISO timestamp from prior GET; "" for first write
+       pub display_name: String,
+       // ... existing fields
+   }
+   pub enum UpsertError { Stale { expected: String }, Db(anyhow::Error) }
+   pub async fn upsert_if_unchanged(pool, input) -> Result<Profile, UpsertError>;
+   // On stale detection the 409 response body is:
+   //   { error: { code: "stale_profile", message, field: null },
+   //     data:   <current Profile> }
+   // `ApiError::with_data(status, code, message, &data)` is added so the
+   // Profile route can attach the remote row to the 409 body. `ErrorBody`
+   // gains an optional `data: Option<serde_json::Value>` (skip-if-none).
+   ```
+
+- [ ] **Step 0: Extend `ErrorBody` and add `ApiError::with_data`**
+
+In `crates/oxipage-core/src/error.rs`, extend `ErrorBody` and `ApiError`:
+
+```rust
+#[derive(Debug, serde::Serialize)]
+pub struct ErrorBody {
+    pub error: ErrorDetail,
+    /// Optional payload attached to non-2xx responses that need to convey
+    /// state alongside the error (e.g. the current remote row on 409).
+    /// Skipped when `None` so existing handlers are unaffected.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub data: Option<serde_json::Value>,
+}
+
+impl ApiError {
+    /// Build an error response that also carries `data` (any `Serialize`).
+    /// The JSON body becomes `{ error: {...}, data: <value> }`.
+    pub fn with_data<T: serde::Serialize>(
+        status: axum::http::StatusCode,
+        code: &str,
+        message: &str,
+        data: &T,
+    ) -> Self {
+        let value = match serde_json::to_value(data) {
+            Ok(v) => Some(v),
+            Err(_) => None,
+        };
+        ApiError {
+            status,
+            body: ErrorBody {
+                error: ErrorDetail {
+                    code: code.to_string(),
+                    message: message.to_string(),
+                    field: None,
+                },
+                data: value,
+            },
+        }
+    }
+}
+```
+
+(Existing `ApiError::new` and `ApiError::validation` keep `data: None` via `Default`; no other handler changes.)
+
+Verify the workspace builds:
+
+```bash
+cargo build -p oxipage-core
+```
+
+Expected: success.
 
 - [ ] **Step 1: Add `expected_updated_at` to `ProfileInput`**
 
@@ -1843,18 +1902,28 @@ pub async fn put_profile(
             return Err(ApiError::validation("education", "education end_year must be >= start_year"));
         }
     }
+    // On stale detection, read the current remote row so the client can
+    // offer Reload/Compare instead of overwriting silently. The 409 body
+    // carries `{ error: {...}, data: <current Profile> }`.
     let profile = repo::upsert_if_unchanged(&pool.db, &input)
         .await
         .map_err(|e| match e {
-            repo::UpsertError::Stale { expected } => ApiError::new(
-                axum::http::StatusCode::CONFLICT,
-                "stale_profile",
-                &format!("profile changed since {expected}; reload to see remote changes"),
-            ),
+            repo::UpsertError::Stale { expected: _ } => {
+                let remote = match repo::get(&pool.db) {
+                    Ok(Some(p)) => p,
+                    _ => return ApiError::internal(anyhow::anyhow!("profile vanished during stale write")),
+                };
+                ApiError::with_data(
+                    axum::http::StatusCode::CONFLICT,
+                    "stale_profile",
+                    "profile changed since your last load; reload to see remote changes",
+                    &remote,
+                )
+            }
             repo::UpsertError::Db(err) => ApiError::internal(err),
         })?;
     Ok(Json(DataEnvelope { data: profile }))
-}
+ }
 ```
 
 - [ ] **Step 5: Build**
@@ -2122,9 +2191,16 @@ export function ProfileTab({ slug }: { slug: string }) {
         }),
       });
       if (res.status === 409) {
-        const remote = await jsonOrThrow<{ data: ProfileData }>(res);
-        const e = new Error("stale_profile") as Error & { remote?: ProfileData };
-        e.remote = remote.data;
+        // `jsonOrThrow` throws on non-ok responses, so we cannot use it here —
+        // we need the 409 body's `data` (current remote Profile) to offer
+        // Reload/Compare. The server emits
+        //   { error: { code, message, field }, data: ProfileData }
+        // from `ApiError::with_data` on the Stale branch.
+        const body = (await res.json().catch(() => null)) as
+          | { error?: { code?: string; message?: string }; data?: ProfileData }
+          | null;
+        const e = new Error(body?.error?.message ?? "stale_profile") as Error & { remote?: ProfileData };
+        if (body?.data) e.remote = body.data;
         throw e;
       }
       return jsonOrThrow<{ data: ProfileData }>(res);
@@ -2178,6 +2254,7 @@ export function ProfileTab({ slug }: { slug: string }) {
             <DrawerField label="Avatar">
               <ImageField value={form.avatar_url} onChange={(v) => { setDirty(true); setForm((f) => ({ ...f, avatar_url: v })); }} extension="profile" />
             </DrawerField>
+            <DrawerField label="Email" error={errors.email}>
             <DrawerField label="Email" error={errors.email}>
               <Input value={form.email} onChange={(e) => { setDirty(true); setForm((f) => ({ ...f, email: e.target.value })); }} placeholder="hello@example.com" />
             </DrawerField>
