@@ -63,22 +63,6 @@ async fn unknown_slug_returns_404() {
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
-#[tokio::test]
-async fn known_slug_build_endpoint_returns_200() {
-    let app = build_test_app().await;
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri("/build/blog")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let s = resp.status(); // build needs migrations; OK if 200/500 in tests
-    assert!(s != StatusCode::NOT_FOUND, "route missing, got {s:?}");
-}
 
 #[tokio::test]
 async fn sites_list_returns_json() {

@@ -45,42 +45,6 @@ async fn build_test_app() -> Router {
     build_console_router(registry)
 }
 
-#[tokio::test]
-async fn build_endpoint_rejects_unknown_slug() {
-    let app = build_test_app().await;
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri("/build/{slug-other}")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    // The router is built without that slug, so 404.
-    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
-}
-
-#[tokio::test]
-async fn deploy_endpoint_returns_stub_response() {
-    let app = build_test_app().await;
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri("/deploy/blog")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let s = resp.status();
-    assert!(
-        s == StatusCode::OK || s == StatusCode::ACCEPTED || s == StatusCode::INTERNAL_SERVER_ERROR,
-        "got {s:?}"
-    );
-}
 
 #[tokio::test]
 async fn preview_endpoint_returns_404_for_missing_out_dir() {

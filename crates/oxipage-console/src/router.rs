@@ -1,9 +1,7 @@
-//! Console router — top-level routes (CRUD + build/deploy/preview) plus
-//! per-site extension routes. Per-site routes use middleware-injected
-//! SiteScopedDb.
+//! Console router — top-level routes (site CRUD + preview) plus per-site
+//! extension routes. Per-site routes use middleware-injected SiteScopedDb.
+//! Build/deploy live exclusively under `/s/{slug}/...` (per_site_router).
 
-use crate::build::site_build;
-use crate::deploy::site_deploy;
 use crate::middleware::site_db::inject_site_context;
 use crate::preview::handler::preview_handler;
 use crate::sites_runtime::SiteRegistry;
@@ -31,13 +29,14 @@ static REGISTRY: OnceLock<Arc<SiteRegistry>> = OnceLock::new();
 
 /// Build the top-level console routes. Returns `Router<Arc<SiteRegistry>>`
 /// without baking state — caller passes the registry once.
+///
+/// Build/deploy are intentionally NOT mounted here — they live per-site at
+/// `/s/{slug}/build` and `/s/{slug}/deploy` (see [`build_per_site_router`]).
 pub fn build_top_level_router() -> Router<Arc<SiteRegistry>> {
     Router::new()
         .route("/sites", get(list_sites))
         .route("/sites/default", get(get_default).put(set_default))
         .route("/sites/{slug}", delete(delete_site_handler))
-        .route("/build/{slug}", post(site_build::build_handler))
-        .route("/deploy/{slug}", post(site_deploy::deploy_handler))
         .route("/preview/{slug}/{*rest}", get(preview_handler))
         .route("/setup/create-site", post(create_site_handler))
 }
