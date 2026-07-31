@@ -199,20 +199,7 @@ pub(super) fn resolve_data_dir() -> anyhow::Result<std::path::PathBuf> {
     Ok(std::path::PathBuf::from("data"))
 }
 
-/// config/env에서 프로젝트 루트 해상: `OXIPAGE_CONFIG` 파일의 부모 디렉토리,
-/// 그 외에는 CWD. deploy/build 명령이 git 리포지토리 루트를 필요로 할 때 사용.
-pub(super) fn resolve_project_dir() -> anyhow::Result<std::path::PathBuf> {
-    let config_path = std::env::var("OXIPAGE_CONFIG")
-        .map(std::path::PathBuf::from)
-        .ok()
-        .filter(|p| p.exists());
-    if let Some(path) = &config_path {
-        if let Some(parent) = path.parent() {
-            return Ok(parent.to_path_buf());
-        }
-    }
-    Ok(std::env::current_dir()?)
-}
+
 
 // ──────────────────── 동적 명령 디스패치 (doc/11) ────────────────────
 

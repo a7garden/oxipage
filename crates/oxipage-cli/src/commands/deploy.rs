@@ -1,6 +1,6 @@
 use crate::output::Output;
 use clap::Args;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Args, Debug, Clone)]
 pub struct DeployArgs {
@@ -16,44 +16,58 @@ pub struct DeployArgs {
 }
 
 pub(crate) async fn deploy(c: DeployArgs, out: &Output) -> anyhow::Result<()> {
-    let data_dir = resolve_data_dir()?;
+    // Resolve the project from the registered-site registry first (--site or
+    // default), falling back to the legacy oxipage.toml path.
+    let sites = crate::sites::load_sites();
+    let legacy = std::env::var_os("OXIPAGE_CONFIG")
+        .map(PathBuf::from)
+        .or_else(|| Path::new("oxipage.toml").exists().then(|| PathBuf::from("oxipage.toml")));
+    let project = resolve_deploy_project(c.site.as_deref(), &sites, legacy.as_deref())?;
+    let cfg = oxipage_core::config::Config::load(&project.join("oxipage.toml"))?;
+    let data_dir = if cfg.server.data_dir.is_absolute() {
+        cfg.server.data_dir
+    } else {
+        project.join(&cfg.server.data_dir)
+    };
     let out_dir = data_dir.join("out");
 
     if c.dry_run {
+        let target = cfg
+            .deploy
+            .github_pages
+            .ok_or_else(|| anyhow::anyhow!("[deploy.github_pages] is not configured"))?;
         let _ = out.ok(format!(
-            "dry-run: would deploy {} to GitHub Pages",
-            out_dir.display()
+            "dry-run: would deploy {} to {}",
+            out_dir.display(),
+            target.pages_url()
         ));
         return Ok(());
     }
 
     match c.target.as_str() {
         "github-pages" => {
-            // Repository-scoped deploy: project dir from config, target from
-            // [deploy.github_pages], manifest from the latest build output.
-            let project = super::resolve_project_dir()?;
-            let config_path = std::env::var("OXIPAGE_CONFIG")
-                .map(PathBuf::from)
-                .unwrap_or_else(|_| PathBuf::from("oxipage.toml"));
-            let cfg = if config_path.exists() {
-                oxipage_core::config::Config::load(&config_path)?
-            } else {
-                oxipage_core::config::Config::default()
-            };
             let target = cfg
                 .deploy
                 .github_pages
                 .ok_or_else(|| anyhow::anyhow!("[deploy.github_pages] is not configured"))?;
             target.validate()?;
             let manifest = oxipage_core::build_manifest::BuildManifest::read_from(&out_dir)?
-                .ok_or_else(|| anyhow::anyhow!("build required: no manifest in {}", out_dir.display()))?;
+                .ok_or_else(|| {
+                    anyhow::anyhow!("build required: no manifest in {}", out_dir.display())
+                })?;
 
             let (tx, mut rx) = tokio::sync::mpsc::channel::<oxipage_deploy::DeployEvent>(32);
             let repo = project.clone();
             let out_dir_owned = out_dir.clone();
             let target2 = target.clone();
             let handle = tokio::task::spawn_blocking(move || {
-                oxipage_deploy::deploy_github_pages(&repo, &out_dir_owned, &target2, &manifest, &tx)
+                oxipage_deploy::deploy_github_pages(
+                    &repo,
+                    &out_dir_owned,
+                    &target2,
+                    &manifest,
+                    &tx,
+                )
             });
             while let Some(ev) = rx.recv().await {
                 let _ = out.ok(deploy_event_label(&ev));
@@ -74,6 +88,36 @@ pub(crate) async fn deploy(c: DeployArgs, out: &Output) -> anyhow::Result<()> {
         }
         _ => anyhow::bail!("unsupported deploy target: {}", c.target),
     }
+}
+
+/// Resolve the deploy project directory: registered site (--site or default)
+/// wins; otherwise fall back to the legacy oxipage.toml path's parent.
+pub fn resolve_deploy_project(
+    requested: Option<&str>,
+    sites: &oxipage_core::sites::SitesFile,
+    legacy: Option<&Path>,
+) -> anyhow::Result<PathBuf> {
+    if !sites.sites.is_empty() {
+        // Validate an explicitly requested site EXISTS before resolve_name
+        // (which silently falls back to the default otherwise).
+        if let Some(name) = requested {
+            if !sites.sites.contains_key(name) {
+                return Err(anyhow::anyhow!("site '{name}' is not registered"));
+            }
+        }
+        let name = sites
+            .resolve_name(requested)
+            .ok_or_else(|| anyhow::anyhow!("select a site with --site or set a default"))?;
+        return sites
+            .sites
+            .get(name)
+            .map(|e| e.path.clone())
+            .ok_or_else(|| anyhow::anyhow!("site '{name}' is not registered"));
+    }
+    legacy
+        .and_then(Path::parent)
+        .map(Path::to_path_buf)
+        .ok_or_else(|| anyhow::anyhow!("no registered site and no oxipage.toml"))
 }
 
 fn deploy_event_label(ev: &oxipage_deploy::DeployEvent) -> String {
@@ -97,27 +141,56 @@ fn deploy_event_label(ev: &oxipage_deploy::DeployEvent) -> String {
     }
 }
 
-fn resolve_data_dir() -> anyhow::Result<PathBuf> {
-    let config_path = std::env::var("OXIPAGE_CONFIG")
-        .map(PathBuf::from)
-        .ok()
-        .filter(|p| p.exists());
 
-    if let Some(ref path) = config_path {
-        let toml_str = std::fs::read_to_string(path)?;
-        let value: toml::Value = toml::from_str(&toml_str)?;
-        if let Some(data_dir) = value
-            .get("server")
-            .and_then(|s| s.get("data_dir"))
-            .and_then(|d| d.as_str())
-        {
-            return Ok(PathBuf::from(data_dir));
-        }
+#[cfg(test)]
+mod tests {
+    use super::resolve_deploy_project;
+    use oxipage_core::sites::SitesFile;
+    use std::path::{Path, PathBuf};
+
+    fn registry() -> SitesFile {
+        let mut sf = SitesFile::default();
+        sf.add("alpha".into(), PathBuf::from("/sites/alpha"));
+        sf.add("beta".into(), PathBuf::from("/sites/beta"));
+        sf.set_default("alpha");
+        sf
     }
 
-    if let Ok(dir) = std::env::var("OXIPAGE_DATA_DIR") {
-        return Ok(PathBuf::from(dir));
+    #[test]
+    fn explicit_site_wins() {
+        assert_eq!(
+            resolve_deploy_project(Some("beta"), &registry(), None).unwrap(),
+            PathBuf::from("/sites/beta")
+        );
     }
 
-    Ok(PathBuf::from("data"))
+    #[test]
+    fn default_is_used() {
+        assert_eq!(
+            resolve_deploy_project(None, &registry(), None).unwrap(),
+            PathBuf::from("/sites/alpha")
+        );
+    }
+
+    #[test]
+    fn legacy_only_without_registry() {
+        assert_eq!(
+            resolve_deploy_project(None, &SitesFile::default(), Some(Path::new("/legacy/oxipage.toml")))
+                .unwrap(),
+            PathBuf::from("/legacy")
+        );
+        assert!(
+            resolve_deploy_project(
+                Some("missing"),
+                &registry(),
+                Some(Path::new("/legacy/oxipage.toml"))
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn missing_site_is_err() {
+        assert!(resolve_deploy_project(Some("nope"), &registry(), None).is_err());
+    }
 }
