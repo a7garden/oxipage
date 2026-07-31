@@ -26,7 +26,7 @@ jobs:
 
       - name: Build web SPAs
         run: |
-          cd web && bun install && bun run build
+          cd web && bun install && bun run build && bun run build:static
 
       - name: Check
         run: cargo check --workspace --all-targets

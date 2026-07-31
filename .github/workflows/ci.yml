@@ -27,7 +27,7 @@ jobs:
 
       - name: Build web (for oxipage-core embedded SPA)
         run: |
-          cd web && bun install && bun run build
+          cd web && bun install && bun run build && bun run build:static
 
       - name: Check
         run: cargo check --workspace --all-targets
