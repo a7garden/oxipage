@@ -184,13 +184,13 @@ impl Default for SiteOperationGuard {
     }
 }
 
-fn now() -> String {
-    // SQLite-style UTC timestamp; chrono isn't a console dependency.
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+/// ISO-8601 UTC ("YYYY-MM-DDTHH:MM:SSZ") for an arbitrary `SystemTime`,
+/// chrono-free (Howard Hinnant's days-from-civil). Shared by operation
+/// timestamps and the media-library `updated_at` field.
+pub(crate) fn system_time_iso(t: std::time::SystemTime) -> String {
+    t.duration_since(std::time::UNIX_EPOCH)
         .map(|d| {
             let secs = d.as_secs();
-            // ISO-ish "YYYY-MM-DDTHH:MM:SSZ" from Unix epoch via days.
             let days = secs / 86400;
             let (y, mo, da) = civil_from_days(days as i64);
             let rem = secs % 86400;
@@ -198,6 +198,10 @@ fn now() -> String {
             format!("{y:04}-{mo:02}-{da:02}T{h:02}:{mi:02}:{s:02}Z")
         })
         .unwrap_or_else(|_| "1970-01-01T00:00:00Z".into())
+}
+
+fn now() -> String {
+    system_time_iso(std::time::SystemTime::now())
 }
 
 /// Days → civil date (Howard Hinnant's algorithm).

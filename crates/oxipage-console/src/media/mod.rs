@@ -8,6 +8,7 @@
 //! Live serving is a thin static handler that precedes the Admin SPA
 //! fallback so a `/media/...` URL always returns bytes, never `admin.html`.
 
+pub mod library;
 pub mod serve;
 pub mod upload;
 
@@ -23,12 +24,15 @@ use axum::routing::{get, post};
 /// authoritative rejection point for oversized files.
 pub fn router() -> Router {
     Router::new()
+        .route("/media", get(library::list_handler))
         .route(
             "/media/{extension}",
             post(upload::upload_handler).layer(DefaultBodyLimit::max(12 * 1024 * 1024)),
         )
         .route(
             "/media/{extension}/{file}",
-            get(serve::serve_handler).head(serve::serve_handler),
+            get(serve::serve_handler)
+                .head(serve::serve_handler)
+                .delete(library::delete_handler),
         )
 }

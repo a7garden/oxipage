@@ -139,3 +139,100 @@ async fn upload_rejects_invalid_extension_id() {
     let resp = app.oneshot(req).await.unwrap();
     assert!(resp.status() == StatusCode::BAD_REQUEST || resp.status() == StatusCode::NOT_FOUND);
 }
+
+async fn read_json(res: axum::response::Response) -> serde_json::Value {
+    let bytes = axum::body::to_bytes(res.into_body(), 64 * 1024)
+        .await
+        .unwrap();
+    serde_json::from_slice(&bytes).unwrap()
+}
+
+#[tokio::test]
+async fn list_media_after_upload() {
+    let (_dir, app) = build_app().await;
+    let (ct, body) = build_multipart("a.png", PNG_1X1);
+    let req = Request::builder()
+        .method("POST")
+        .uri("/s/blog/media/profile")
+        .header("content-type", ct)
+        .body(Body::from(body))
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let up = read_json(resp).await;
+    let path = up["data"]["path"].as_str().unwrap().to_string();
+
+    let req = Request::builder()
+        .method("GET")
+        .uri("/s/blog/media")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let list = read_json(resp).await;
+    let items = list["data"].as_array().unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0]["path"], path);
+    assert_eq!(items[0]["extension"], "profile");
+    assert!(items[0]["bytes"].as_u64().unwrap() > 0);
+    assert!(items[0]["updated_at"].as_str().unwrap().ends_with('Z'));
+
+    // extension filter excludes other namespaces
+    let req = Request::builder()
+        .method("GET")
+        .uri("/s/blog/media?extension=blog")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    let list2 = read_json(resp).await;
+    assert!(list2["data"].as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn delete_media_removes_file() {
+    let (_dir, app) = build_app().await;
+    let (ct, body) = build_multipart("a.png", PNG_1X1);
+    let req = Request::builder()
+        .method("POST")
+        .uri("/s/blog/media/profile")
+        .header("content-type", ct)
+        .body(Body::from(body))
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    let up = read_json(resp).await;
+    let path = up["data"]["path"].as_str().unwrap().to_string();
+    let file = path.rsplit('/').next().unwrap().to_string();
+
+    let req = Request::builder()
+        .method("DELETE")
+        .uri(format!("/s/blog/media/profile/{file}"))
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+    // serve now 404
+    let req = Request::builder()
+        .method("GET")
+        .uri(format!("/s/blog/media/profile/{file}"))
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn delete_rejects_traversal() {
+    let (_dir, app) = build_app().await;
+    let req = Request::builder()
+        .method("DELETE")
+        .uri("/s/blog/media/profile/..%2F..%2Fetc%2Fpasswd")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert!(
+        resp.status() == StatusCode::BAD_REQUEST || resp.status() == StatusCode::NOT_FOUND,
+        "status: {}",
+        resp.status()
+    );
+}
