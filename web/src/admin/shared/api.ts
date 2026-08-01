@@ -688,6 +688,42 @@ export async function uploadImage(
   return body.data;
 }
 
+export interface MediaItem {
+  path: string;
+  extension: string;
+  file: string;
+  mime: string;
+  bytes: number;
+  updated_at: string;
+}
+
+/** List the site's uploaded media, newest first. Optional extension filter. */
+export async function listMedia(
+  slug: string,
+  extension?: string,
+): Promise<MediaItem[]> {
+  const qs = extension ? `?extension=${encodeURIComponent(extension)}` : "";
+  const res = await siteScopedFetch(slug, `/media${qs}`);
+  const body = await jsonOrThrow<{ data: MediaItem[] }>(res);
+  return body.data;
+}
+
+/** Delete one uploaded media file. */
+export async function deleteMedia(
+  slug: string,
+  extension: string,
+ file: string,
+): Promise<void> {
+  const res = await siteScopedFetch(
+    slug,
+    `/media/${encodeURIComponent(extension)}/${encodeURIComponent(file)}`,
+    { method: "DELETE" },
+  );
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`Delete failed (${res.status})`);
+  }
+}
+
 /** Prefix-aware URL for the preview iframe. Opens at the deployed base. */
 export function previewUrl(slug: string): string {
   return `${CONSOLE_BASE}/preview/${slug}/`;
