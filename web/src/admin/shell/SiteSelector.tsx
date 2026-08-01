@@ -10,6 +10,18 @@ export function SiteSelector() {
   const { slug } = useParams();
   const { data } = useQuery({ queryKey: ["sites"], queryFn: listSites });
   const sites = data?.data ?? [];
+  const current = sites.find((s) => slug ? s.name === slug : s.active) ?? sites[0];
+
+  // All hooks MUST run unconditionally. The early `return null` below
+  // previously sat BEFORE this useQuery, so once the sites list loaded the
+  // hook count rose mid-component — "rendered more hooks than the previous
+  // render" (React #310), which broke every admin page. Gate the fetch via
+  // `enabled` instead of branching the hook itself.
+  const { data: stats } = useQuery({
+    queryKey: ["site", current?.name ?? "_", "stats"],
+    queryFn: () => getStats(current!.name),
+    enabled: open && !!current,
+  });
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -19,14 +31,7 @@ export function SiteSelector() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  const current = sites.find((s) => slug ? s.name === slug : s.active) ?? sites[0];
   if (!current) return null;
-
-  const { data: stats } = useQuery({
-    queryKey: ["site", current.name, "stats"],
-    queryFn: () => getStats(current.name),
-    enabled: open,
-  });
 
   return (
     <div ref={ref} className="relative">
