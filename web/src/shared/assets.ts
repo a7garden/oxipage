@@ -39,7 +39,7 @@ function normalize(mediaPath: string): string {
 }
 
 export function adminAssetResolver(slug: string): AssetResolver {
-  const base = `/api/console/s/${slug}/media/`;
+  const base = `/api/console/s/${slug}/`;
   return {
     resolve(value) {
       if (!value) return null;
