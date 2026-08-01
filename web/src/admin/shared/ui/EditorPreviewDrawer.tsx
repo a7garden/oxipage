@@ -1,78 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { createContext, useContext } from "react";
 import { X } from "lucide-react";
 
 import { cn } from "../../../shared/ui/cn";
 import {
-  adminAssetResolver,
-  type AssetResolver,
-} from "../../../shared/assets";
-
-// Minimal in-file provider pair — when the peer plan ships the full
-// PublicThemeScope + AssetResolverContext, the imports below can be
-// redirected to the canonical locations without changing consumers.
-
-const AssetResolverContext = createContext<AssetResolver | null>(null);
-
-interface AssetResolverProviderProps {
-  /** "admin" scopes by site slug; "public" falls back to document.baseURI. */
-  mode: "admin" | "public";
-  slug?: string;
-  children: ReactNode;
-}
-
-/** Wraps the preview tree so *View/Card components resolve `media/...`
- *  through the admin endpoint (live preview). */
-export function AssetResolverProvider({
-  mode,
-  slug,
-  children,
-}: AssetResolverProviderProps) {
-  let resolver: AssetResolver;
-  if (mode === "admin" && slug) {
-    resolver = adminAssetResolver(slug);
-  } else {
-    // Public fallback: build a static resolver using the same safeUrl rules.
-    resolver = {
-      resolve(value) {
-        if (!value) return null;
-        if (/^(javascript|data|file|vbscript):/i.test(value.trim())) return null;
-        try {
-          return new URL(value, document.baseURI).toString();
-        } catch {
-          return null;
-        }
-      },
-    };
-  }
-  return (
-    <AssetResolverContext.Provider value={resolver}>
-      {children}
-    </AssetResolverContext.Provider>
-  );
-}
-
-/** Consumer hook: *View components read the resolver off this context. */
-export function useAssetResolver(): AssetResolver {
-  return useContext(AssetResolverContext) ?? adminAssetResolver("");
-}
-
-interface PublicThemeScopeProps {
-  children: ReactNode;
-}
-
-/** Scopes a subtree under the site's active `[data-public-theme]` so the public
- *  theme palette variables take effect (the Admin shell remains untouched).
- *  The attribute is published to <html> by `applyServerTheme`; fall back to
- *  "paper" before the first palette load. */
-export function PublicThemeScope({ children }: PublicThemeScopeProps) {
-  const themeId = document.documentElement.dataset.publicTheme ?? "paper";
-  return (
-    <div data-public-theme={themeId} className="contents">
-      {children}
-    </div>
-  );
-}
+  AssetResolverProvider,
+  PublicThemeScope,
+} from "../../../shared/asset-context";
 
 interface EditorPreviewDrawerProps {
   open: boolean;

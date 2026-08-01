@@ -13,6 +13,7 @@ import { applyServerTheme } from "./shared/theme";
 import { Button } from "./shared/ui/button";
 import { Container } from "./shared/ui/container";
 import { Skeleton } from "./shared/ui/skeleton";
+import { AssetResolverProvider } from "./shared/asset-context";
 
 const queryClient = new QueryClient();
 
@@ -224,11 +225,13 @@ function Shell() {
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/*" element={<Shell />} />
-        </Routes>
-      </BrowserRouter>
+      <AssetResolverProvider mode="public">
+        <BrowserRouter>
+          <Routes>
+            <Route path="/*" element={<Shell />} />
+          </Routes>
+        </BrowserRouter>
+      </AssetResolverProvider>
     </QueryClientProvider>
   );
 }
