@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Inline media authoring.** Images and GIFs can be embedded inside markdown content bodies (blog posts, project descriptions, profile bios, book/movie/scraps reviews, novel chapters). The `MarkdownEditor` gained an image toolbar with a `MediaPicker` (browse/upload/delete/pick), plus drag-and-drop and paste-to-upload that splice `![alt](media/<ext>/<uuid>)` at the cursor. Markdown rendering (`markdown-it` for the public SPA, `marked` for the admin preview) now resolves `media/...` references through a shared `AssetResolverContext`, so inline images render correctly in the live admin, draft preview, built preview, and on nested deployed routes.
+- **Media library API.** `GET /api/console/s/{slug}/media` enumerates uploaded media (filterable by extension, newest-first); `DELETE /api/console/s/{slug}/media/{ext}/{file}` removes one. Both reuse the existing path-containment checks.
+
+### Fixed
+- **Admin SPA rendered blank on every page** (React error #310). `SiteSelector` called `useQuery` after an early `return null`, so the hook count rose once the sites list loaded. All hooks now run unconditionally; the stats fetch is gated via `enabled`.
+- **`adminAssetResolver` produced a doubled `media/media/` path**, which 404'd cover previews (and inline-image previews) against the single-`media` serve route.
+
 ## [0.8.0] - 2026-07-31
 
 ### Added
