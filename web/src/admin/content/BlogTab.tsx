@@ -233,7 +233,7 @@ export function BlogTab({ slug }: { slug: string }) {
           <TagInput value={form.tags} onChange={(tags) => setForm((f) => ({ ...f, tags }))} />
         </DrawerField>
         <DrawerField label="Body" hint="Markdown is supported">
-          <MarkdownEditor value={form.body} onChange={(v) => setForm((f) => ({ ...f, body: v }))} rows={16} />
+          <MarkdownEditor slug={slug} extension="blog" value={form.body} onChange={(v) => setForm((f) => ({ ...f, body: v }))} rows={16} />
         </DrawerField>
         {error && <p className="text-sm text-red-600">{error}</p>}
       </Drawer>

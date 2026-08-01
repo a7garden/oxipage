@@ -264,10 +264,10 @@ export function BooksTab({ slug }: { slug: string }) {
           </DrawerField>
         </div>
         <DrawerField label="Review (Korean)">
-          <MarkdownEditor value={form.review_ko} onChange={(v) => setForm((f) => ({ ...f, review_ko: v }))} rows={5} />
+          <MarkdownEditor slug={slug} extension="books" value={form.review_ko} onChange={(v) => setForm((f) => ({ ...f, review_ko: v }))} rows={5} />
         </DrawerField>
         <DrawerField label="Review (English)">
-          <MarkdownEditor value={form.review_en} onChange={(v) => setForm((f) => ({ ...f, review_en: v }))} rows={5} />
+          <MarkdownEditor slug={slug} extension="books" value={form.review_en} onChange={(v) => setForm((f) => ({ ...f, review_en: v }))} rows={5} />
         </DrawerField>
         {error && <p className="text-sm text-red-600">{error}</p>}
       </Drawer>

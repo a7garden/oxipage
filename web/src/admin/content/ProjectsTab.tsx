@@ -5,7 +5,7 @@ import { ContentTable } from "../shared/content-table";
 import { Badge } from "../../shared/ui/badge";
 import { Button } from "../../shared/ui/button";
 import { Input } from "../../shared/ui/input";
-import { Textarea } from "../../shared/ui/textarea";
+import { MarkdownEditor } from "../shared/ui/MarkdownEditor";
 import { ImageField } from "../shared/ui/ImageField";
 import { Drawer, DrawerField } from "../../shared/ui/drawer";
 import { Pencil, Trash2, Send, Plus, ChevronDown, ChevronUp } from "lucide-react";
@@ -290,10 +290,10 @@ export function ProjectsTab({ slug }: { slug: string }) {
           </DrawerField>
         </div>
         <DrawerField label="Description (Korean)">
-          <Textarea value={form.description_ko} onChange={(e) => setForm((f) => ({ ...f, description_ko: e.target.value }))} rows={4} />
+          <MarkdownEditor slug={slug} extension="projects" value={form.description_ko} onChange={(v) => setForm((f) => ({ ...f, description_ko: v }))} rows={4} />
         </DrawerField>
         <DrawerField label="Description (English)">
-          <Textarea value={form.description_en} onChange={(e) => setForm((f) => ({ ...f, description_en: e.target.value }))} rows={4} />
+          <MarkdownEditor slug={slug} extension="projects" value={form.description_en} onChange={(v) => setForm((f) => ({ ...f, description_en: v }))} rows={4} />
         </DrawerField>
         <label className="flex items-center gap-2 text-sm">
           <input

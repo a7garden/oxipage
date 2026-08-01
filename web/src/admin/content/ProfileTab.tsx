@@ -285,6 +285,8 @@ export function ProfileTab({ slug }: { slug: string }) {
             </div>
             <DrawerField label="Bio (Korean)">
               <MarkdownEditor
+                slug={slug}
+                extension="profile"
                 value={form.bio_ko}
                 onChange={(v) => {
                   setDirty(true);
@@ -294,6 +296,8 @@ export function ProfileTab({ slug }: { slug: string }) {
             </DrawerField>
             <DrawerField label="Bio (English)">
               <MarkdownEditor
+                slug={slug}
+                extension="profile"
                 value={form.bio_en}
                 onChange={(v) => {
                   setDirty(true);

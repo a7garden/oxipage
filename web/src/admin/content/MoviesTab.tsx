@@ -307,10 +307,10 @@ export function MoviesTab({ slug }: { slug: string }) {
           </DrawerField>
         </div>
         <DrawerField label="Review (Korean)">
-          <MarkdownEditor value={form.review_ko} onChange={(v) => setForm((f) => ({ ...f, review_ko: v }))} rows={5} />
+          <MarkdownEditor slug={slug} extension="movies" value={form.review_ko} onChange={(v) => setForm((f) => ({ ...f, review_ko: v }))} rows={5} />
         </DrawerField>
         <DrawerField label="Review (English)">
-          <MarkdownEditor value={form.review_en} onChange={(v) => setForm((f) => ({ ...f, review_en: v }))} rows={5} />
+          <MarkdownEditor slug={slug} extension="movies" value={form.review_en} onChange={(v) => setForm((f) => ({ ...f, review_en: v }))} rows={5} />
         </DrawerField>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={form.rewatch} onChange={(e) => setForm((f) => ({ ...f, rewatch: e.target.checked }))} />

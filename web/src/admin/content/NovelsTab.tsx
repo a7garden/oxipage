@@ -319,7 +319,7 @@ export function NovelsTab({ slug }: { slug: string }) {
                   value={chapterForm.title}
                   onChange={(e) => setChapterForm((f) => ({ ...f, title: e.target.value }))}
                 />
-                <MarkdownEditor value={chapterForm.body} onChange={(v) => setChapterForm((f) => ({ ...f, body: v }))} rows={6} placeholder="Chapter body" />
+                <MarkdownEditor slug={slug} extension="novels" value={chapterForm.body} onChange={(v) => setChapterForm((f) => ({ ...f, body: v }))} rows={6} placeholder="Chapter body" />
                 <div className="flex gap-2 justify-end">
                   <Button variant="outline" size="sm" onClick={() => setEditingChapter(null)}>Cancel</Button>
                   <Button size="sm" onClick={() => {

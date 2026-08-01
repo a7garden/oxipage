@@ -220,10 +220,10 @@ export function ScrapsTab({ slug }: { slug: string }) {
           <TagInput value={form.tags} onChange={(tags) => setForm((f) => ({ ...f, tags }))} />
         </DrawerField>
         <DrawerField label="Note (Korean)">
-          <MarkdownEditor value={form.note_ko} onChange={(v) => setForm((f) => ({ ...f, note_ko: v }))} rows={5} />
+          <MarkdownEditor slug={slug} extension="scraps" value={form.note_ko} onChange={(v) => setForm((f) => ({ ...f, note_ko: v }))} rows={5} />
         </DrawerField>
         <DrawerField label="Note (English)">
-          <MarkdownEditor value={form.note_en} onChange={(v) => setForm((f) => ({ ...f, note_en: v }))} rows={5} />
+          <MarkdownEditor slug={slug} extension="scraps" value={form.note_en} onChange={(v) => setForm((f) => ({ ...f, note_en: v }))} rows={5} />
         </DrawerField>
         {error && <p className="text-sm text-red-600">{error}</p>}
       </Drawer>
