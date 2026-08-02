@@ -1,3 +1,5 @@
+> Canonical unified design system: project-oxi/.github/DESIGN.md — this file is project-specific.
+
 # oxipage — Unified Design System (Project Adaptation)
 
 > **정규 문서:** `oxinot/doc/UNIFIED-DESIGN.md` (oxi 생태계 통합 디자인 시스템 v1.0).
