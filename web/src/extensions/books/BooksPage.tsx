@@ -31,8 +31,8 @@ export function BooksPage() {
           <EmptyStateTitle>{lang === "ko" ? "책이 없습니다" : "No books yet"}</EmptyStateTitle>
           <EmptyStateDescription>
             {lang === "ko"
-              ? "`oxipage books add` 로 책을 추가하세요."
-              : "Add a book with `oxipage books add`."}
+              ? "`oxibuilder books add` 로 책을 추가하세요."
+              : "Add a book with `oxibuilder books add`."}
           </EmptyStateDescription>
         </EmptyState>
       </div>

@@ -31,8 +31,8 @@ export function LinksPage() {
           <EmptyStateTitle>{lang === "ko" ? "등록된 링크가 없습니다" : "No links yet"}</EmptyStateTitle>
           <EmptyStateDescription>
             {lang === "ko"
-              ? "`oxipage links add` 로 링크를 추가하세요."
-              : "Add a link with `oxipage links add`."}
+              ? "`oxibuilder links add` 로 링크를 추가하세요."
+              : "Add a link with `oxibuilder links add`."}
           </EmptyStateDescription>
         </EmptyState>
       </div>

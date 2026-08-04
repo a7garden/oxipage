@@ -275,7 +275,7 @@ Admin preview (marked)
    → /api/console/s/{slug}/media/blog/<uuid>.gif  ✓ visible
 
 Public built site
-  oxipage build → copies media/blog/<uuid>.gif → out/media/blog/<uuid>.gif
+  oxibuilder build → copies media/blog/<uuid>.gif → out/media/blog/<uuid>.gif
   SPA renders markdown → Markdown.tsx image rule
    → publicAssetResolver().resolve("media/blog/<uuid>.gif")
    → new URL("media/blog/<uuid>.gif", document.baseURI)
@@ -307,7 +307,7 @@ Public built site
 - `bun run build` succeeds (embedded SPA rebuilt; `build.rs` re-embeds).
 
 **Build-path correctness (regression):**
-- After `oxipage build`, a post body containing `![](media/blog/x.webp)` renders
+- After `oxibuilder build`, a post body containing `![](media/blog/x.webp)` renders
   an `<img>` whose resolved URL equals `<deployment_base>/media/blog/x.webp`,
   not a nested-page-relative path. Asserted via the resolver unit behavior +
   an SSG test that the public HTML carries `<base>` before assets.
@@ -315,17 +315,17 @@ Public built site
 **Browser smoke (manual, final):**
 - Open console, create/edit a blog post, drag a GIF into the body, confirm it
   appears in the editor preview, save, open the public draft preview, confirm it
-  renders; run `oxipage build` and confirm the built preview renders the GIF on
+  renders; run `oxibuilder build` and confirm the built preview renders the GIF on
   the detail route.
 
 ## 9. File map
 
 ```
-crates/oxipage-console/src/media/
+crates/oxibuilder-console/src/media/
 ├── mod.rs              # add GET /media, DELETE /media/{ext}/{file}
 └── library.rs          # list_handler, delete_handler (NEW)
 
-crates/oxipage-console/tests/
+crates/oxibuilder-console/tests/
 └── media.rs            # add list + delete tests
 
 web/src/

@@ -1,0 +1,44 @@
+# Oxibuilder configuration example (doc/04 §4.4). Copy to oxibuilder.toml and edit.
+# Adjust [site].base_url, [integrations], etc. for your deployment.
+# Never put secret API-key VALUES in this file — only the names of the env vars that hold them.
+
+[site]
+name = "My Oxibuilder"
+base_url = "https://example.com"          # public domain. The CLI defaults to this endpoint.
+default_lang = "ko"                         # "ko" | "en"
+languages = ["ko", "en"]
+
+[server]
+host = "127.0.0.1"                          # 0.0.0.0 when behind a reverse proxy
+port = 8787
+data_dir = "data"                           # SQLite db + media. Prefer an absolute path in prod (/srv/oxibuilder/data).
+# api_endpoint = "https://example.com/api/v1"  # only if different from base_url.
+
+[extensions]
+# Empty = every compiled-in extension is active.
+# To enable only specific ones, list them. Order is irrelevant (lobby.display_order controls display order).
+enabled = [
+    "profile",
+    "blog",
+    "projects",
+    "links",
+    "novels",
+    "movies",
+    "books",
+    "scraps",
+    "activity",
+]
+
+[integrations]
+# github_username = "yourname"             # activity extension (public Events API).
+# tmdb_api_key_env = "OXIBUILDER_TMDB_KEY"     # movies. Manual mode if unset.
+# aladin_ttbkey_env = "OXIBUILDER_ALADIN_TTBKEY"  # books, first choice. Falls back to Google Books if unset.
+# GitHub webhook HMAC secret (activity). Set the env var OXIBUILDER_GITHUB_WEBHOOK_SECRET
+# to the secret you configured in GitHub webhook settings. Webhook returns 503 if unset.
+
+[lobby]
+default_mode = "grid"                       # "canvas" | "grid" | "list". Per-extension overrides via API/CLI.
+
+# [lobby.overrides]                         # doc/04 §4.4 — per-extension display_mode.
+# projects = "canvas"
+# links = "list"

@@ -4,7 +4,7 @@
 
 **Goal:** Real deploy pipeline: per-site build guard (409), SSE streaming, build_log.finished_at, port gh-pages deploy.
 
-**Architecture:** Lazy-start build (first SSE subscriber triggers spawn_blocking; 3s watchdog fallback). BuildRun stored in DashMap with broadcast channel. Deploy logic extracted to oxipage-deploy crate.
+**Architecture:** Lazy-start build (first SSE subscriber triggers spawn_blocking; 3s watchdog fallback). BuildRun stored in DashMap with broadcast channel. Deploy logic extracted to oxibuilder-deploy crate.
 
 **Tech Stack:** Rust (axum SSE, tokio broadcast, dashmap, uuid), TypeScript/React (EventSource)
 
@@ -22,7 +22,7 @@
 
 ### Task 1: Core — Streaming build variant
 
-**Files:** `crates/oxipage-core/src/build.rs`
+**Files:** `crates/oxibuilder-core/src/build.rs`
 
 - [ ] **Add BuildEvent enum and `build_site_with_progress`**
 
@@ -45,15 +45,15 @@ pub fn build_site_with_progress(
 ) -> Result<BuildOutput, Box<dyn Error + Send + Sync>>;
 ```
 
-- [ ] `cargo check -p oxipage-core`
+- [ ] `cargo check -p oxibuilder-core`
 
 ---
 
 ### Task 2: Console — Dependencies + BuildRun infrastructure
 
 **Files:**
-- Modify: `crates/oxipage-console/Cargo.toml` (+tokio-stream, +futures, +dashmap, +uuid)
-- Create: `crates/oxipage-console/src/build/build_run.rs`
+- Modify: `crates/oxibuilder-console/Cargo.toml` (+tokio-stream, +futures, +dashmap, +uuid)
+- Create: `crates/oxibuilder-console/src/build/build_run.rs`
 
 `BuildRun` holds ALL data the lazy-started build task needs (db, builders, out_dir, media_dir, slug) so the subscriber can run `build_site_with_progress` without the original request context:
 
@@ -64,7 +64,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::{broadcast, Notify};
 use dashmap::DashMap;
 use sqlx::SqlitePool;
-use oxipage_core::builder::BuildExt;
+use oxibuilder_core::builder::BuildExt;
 
 pub struct BuildRun {
     pub id: String,
@@ -98,15 +98,15 @@ pub struct SiteContext {
 }
 ```
 
-- [ ] `cargo check -p oxipage-console`
+- [ ] `cargo check -p oxibuilder-console`
 
 ---
 
 ### Task 3: Console — Build endpoints (POST + SSE stream)
 
 **Files:**
-- Modify: `crates/oxipage-console/src/per_site.rs` (build_post → 202; add stream handler)
-- Modify: `crates/oxipage-console/src/build/site_build.rs` (add stream route)
+- Modify: `crates/oxibuilder-console/src/per_site.rs` (build_post → 202; add stream handler)
+- Modify: `crates/oxibuilder-console/src/build/site_build.rs` (add stream route)
 
 - [ ] **`POST /s/{slug}/build`** → guard.try_start(slug). If busy → 409 `{error:"build_in_progress", build_id}`. Create BuildRun from ctx, clone db/builders/out_dir/media_dir/slug into it. **No spawn yet.** Schedule 3s watchdog (tokio::spawn sleep + notify start if !started). Return 202 `{build_id}`.
 
@@ -114,20 +114,20 @@ pub struct SiteContext {
 
 - [ ] **build_log.finished_at** — ALTER TABLE ADD COLUMN idempotent migration in the build_log path. Stats#last_build (from S1) already reads build_log — finished_at appears automatically.
 
-- [ ] `cargo check -p oxipage-console`
+- [ ] `cargo check -p oxibuilder-console`
 
 ---
 
-### Task 4: Shared `oxipage-deploy` crate
+### Task 4: Shared `oxibuilder-deploy` crate
 
 **Files:**
-- Create: `crates/oxipage-deploy/Cargo.toml`
-- Create: `crates/oxipage-deploy/src/lib.rs`
+- Create: `crates/oxibuilder-deploy/Cargo.toml`
+- Create: `crates/oxibuilder-deploy/src/lib.rs`
 - Modify: `Cargo.toml` (workspace — add member)
-- Modify: `crates/oxipage-cli/src/commands/deploy.rs` (call shared crate)
+- Modify: `crates/oxibuilder-cli/src/commands/deploy.rs` (call shared crate)
 
-- [ ] **Create crate**: `oxipage-deploy = { path = "crates/oxipage-deploy" }` in workspace members; deps = `tokio`, `thiserror`
-- [ ] **Port `deploy_github_pages`** from `oxipage-cli/src/commands/deploy.rs:32-152`: extract the gh/auth check, worktree create, cp, commit+push logic into `oxipage_deploy::deploy_github_pages(out_dir: &Path, tx: &Sender<DeployEvent>)`. Emit events instead of printing via `Output`. Return Result.
+- [ ] **Create crate**: `oxibuilder-deploy = { path = "crates/oxibuilder-deploy" }` in workspace members; deps = `tokio`, `thiserror`
+- [ ] **Port `deploy_github_pages`** from `oxibuilder-cli/src/commands/deploy.rs:32-152`: extract the gh/auth check, worktree create, cp, commit+push logic into `oxibuilder_deploy::deploy_github_pages(out_dir: &Path, tx: &Sender<DeployEvent>)`. Emit events instead of printing via `Output`. Return Result.
 ```rust
 pub enum DeployEvent {
     GhCheck, AuthCheck, WorktreeReady, FilesCopied { count: usize }, Pushing,
@@ -143,13 +143,13 @@ pub enum DeployEvent {
 ### Task 5: Console — Deploy endpoints
 
 **Files:**
-- Modify: `crates/oxipage-console/src/deploy/site_deploy.rs` (replace stub)
-- Modify: `crates/oxipage-console/src/per_site.rs` (deploy_post)
+- Modify: `crates/oxibuilder-console/src/deploy/site_deploy.rs` (replace stub)
+- Modify: `crates/oxibuilder-console/src/per_site.rs` (deploy_post)
 
 - [ ] **`POST /s/{slug}/deploy`** → guard check (reuse the same guard or a separate deploy guard), clone ctx, create DeployRun with broadcast, return 202. Lazy-start: on first subscriber, spawn_blocking(deploy_github_pages). Stream DeployEvents as SSE.
 - [ ] **`GET /s/{slug}/deploy/{deploy_id}/stream`** → SSE of DeployEvent JSON.
 
-- [ ] `cargo check -p oxipage-console`
+- [ ] `cargo check -p oxibuilder-console`
 
 ---
 
@@ -169,4 +169,4 @@ pub enum DeployEvent {
 ### Task 7: Wire + smoke
 
 - [ ] `cargo check && cd web && npx tsc --noEmit`
-- [ ] Manual: `oxipage console` → Deploy → trigger build → watch per-extension log → BuildComplete → history refreshes → trigger deploy → stream steps → second concurrent POST → 409 + attach
+- [ ] Manual: `oxibuilder console` → Deploy → trigger build → watch per-extension log → BuildComplete → history refreshes → trigger deploy → stream steps → second concurrent POST → 409 + attach

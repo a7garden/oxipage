@@ -1,0 +1,23 @@
+[package]
+name = "oxibuilder-ext-profile"
+version = "0.8.0"
+edition = "2024"
+license.workspace = true
+description = "프로필 확장 — 소개 명함 / 포트폴리오 싱글턴 (doc/02 §2.3)"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+axum.workspace = true
+erased-serde.workspace = true
+oxibuilder-core = { version = "0.8.0", path = "../oxibuilder-core" }
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+tower = { version = "0.5", features = ["util"] }

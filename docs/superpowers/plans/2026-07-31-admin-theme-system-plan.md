@@ -2,16 +2,16 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Resolve every console-theme duplication and split console appearance from public site theme: a single `oxipage_core::theme` catalog, one default-site `/api/console/theme` handler, a shared browser controller, a three-state appearance toggle, scoped sidebar tokens, and `--accent-hue`-driven public presentation.
+**Goal:** Resolve every console-theme duplication and split console appearance from public site theme: a single `oxibuilder_core::theme` catalog, one default-site `/api/console/theme` handler, a shared browser controller, a three-state appearance toggle, scoped sidebar tokens, and `--accent-hue`-driven public presentation.
 
-**Architecture:** Rust catalog lives in `oxipage_core::theme` and is consumed by setup, core catalog, console default-site router, and per-site PUT validation. The console router resolves the default site through `SiteRegistry::default_slug` / `ctx_for` instead of reading `AppState.db`. The web side centralizes `ConsoleAppearance` (system/light/dark) with a single early-boot helper, removing the private toggle and inline FOUC scripts. Sidebar tokens are scoped per `[data-theme=light|dark]` so light mode actually has a light sidebar. `--accent-hue` is consumed by OKLCH accent primitives inside `[data-public-theme=...]` scopes (DraftPreviewPane) and the static generated HTML.
+**Architecture:** Rust catalog lives in `oxibuilder_core::theme` and is consumed by setup, core catalog, console default-site router, and per-site PUT validation. The console router resolves the default site through `SiteRegistry::default_slug` / `ctx_for` instead of reading `AppState.db`. The web side centralizes `ConsoleAppearance` (system/light/dark) with a single early-boot helper, removing the private toggle and inline FOUC scripts. Sidebar tokens are scoped per `[data-theme=light|dark]` so light mode actually has a light sidebar. `--accent-hue` is consumed by OKLCH accent primitives inside `[data-public-theme=...]` scopes (DraftPreviewPane) and the static generated HTML.
 
 **Tech Stack:** Rust (axum 0.8, sqlx, serde), React 19, TypeScript, Vite 7, Tailwind v4 (OKLCH + @theme inline), TanStack Query 5.
 
 ## Global Constraints
 
-- Single shared catalog: `oxipage_core::theme` — `paper`, `midnight`, `sepia`, `forest`, `neon`, `canvas` are the only valid IDs.
-- Console appearance key: `localStorage["oxipage-console-appearance"]` — values `"system" | "light" | "dark"`; missing/invalid → `"system"`.
+- Single shared catalog: `oxibuilder_core::theme` — `paper`, `midnight`, `sepia`, `forest`, `neon`, `canvas` are the only valid IDs.
+- Console appearance key: `localStorage["oxibuilder-console-appearance"]` — values `"system" | "light" | "dark"`; missing/invalid → `"system"`.
 - Public theme key in per-site DB: `theme_config.theme_id` (singleton row id=1).
 - `--accent-hue` is set by `applyServerTheme` (default scope: `<html>`); OKLCH accent primitives consume it only inside `[data-public-theme="…"]` scopes.
 - Default-site `/api/console/theme` resolves through `Arc<SiteRegistry>`; with no registered site returns the `paper` definition without writing to DB.
@@ -23,14 +23,14 @@
 ## File Structure
 
 ```text
-crates/oxipage-core/
+crates/oxibuilder-core/
 └── src/
     ├── theme.rs                    # NEW: ThemeDefinition catalog + helpers
     ├── lib.rs                      # pub mod theme
     ├── http.rs                     # -THEMES, -ThemeCatalogEntry, -theme_catalog, -theme_get, -theme_put routes
-    └── setup.rs                    # -local THEMES, consume oxipage_core::theme
+    └── setup.rs                    # -local THEMES, consume oxibuilder_core::theme
 
-crates/oxipage-console/
+crates/oxibuilder-console/
 └── src/
     ├── router.rs                   # +GET /theme route (default-site resolution via SiteRegistry)
     └── per_site.rs                 # -local VALID_THEMES, -local default theme_id; return full definition
@@ -57,11 +57,11 @@ web/
 
 ---
 
-### Task 1: Create `oxipage_core::theme` with single shared catalog
+### Task 1: Create `oxibuilder_core::theme` with single shared catalog
 
 **Files:**
-- Create: `crates/oxipage-core/src/theme.rs`
-- Modify: `crates/oxipage-core/src/lib.rs:1-22`
+- Create: `crates/oxibuilder-core/src/theme.rs`
+- Modify: `crates/oxibuilder-core/src/lib.rs:1-22`
 
 **Interfaces:**
 - Consumes: nothing
@@ -84,10 +84,10 @@ web/
 
 - [ ] **Step 1: Write failing test for `find_theme`**
 
-Create `crates/oxipage-core/tests/theme_catalog.rs`:
+Create `crates/oxibuilder-core/tests/theme_catalog.rs`:
 
 ```rust
-use oxipage_core::theme::{ALL_THEMES, is_known_theme, find_theme};
+use oxibuilder_core::theme::{ALL_THEMES, is_known_theme, find_theme};
 
 #[test]
 fn catalog_has_six_themes() {
@@ -107,7 +107,7 @@ fn find_theme_returns_definition() {
     let t = find_theme("paper").expect("paper exists");
     assert_eq!(t.id, "paper");
     assert_eq!(t.name_en, "Paper");
-    assert!(matches!(t.mode, oxipage_core::theme::ThemeMode::Light));
+    assert!(matches!(t.mode, oxibuilder_core::theme::ThemeMode::Light));
     assert_eq!(t.preview_colors.len(), 4);
 }
 
@@ -129,12 +129,12 @@ fn duplicate_ids_rejected() {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cargo test -p oxipage-core --test theme_catalog`
+Run: `cargo test -p oxibuilder-core --test theme_catalog`
 Expected: compile error — `theme` module does not exist.
 
 - [ ] **Step 3: Implement `theme.rs`**
 
-Create `crates/oxipage-core/src/theme.rs`:
+Create `crates/oxibuilder-core/src/theme.rs`:
 
 ```rust
 //! Single source of truth for the curated public site theme catalog.
@@ -247,7 +247,7 @@ pub fn is_known_theme(id: &str) -> bool {
 }
 ```
 
-In `crates/oxipage-core/src/lib.rs`, add `pub mod theme;` between `state` and the closing brace (line 21). Insert before line 22 (end of file):
+In `crates/oxibuilder-core/src/lib.rs`, add `pub mod theme;` between `state` and the closing brace (line 21). Insert before line 22 (end of file):
 
 ```rust
 pub mod theme;
@@ -255,13 +255,13 @@ pub mod theme;
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cargo test -p oxipage-core --test theme_catalog`
+Run: `cargo test -p oxibuilder-core --test theme_catalog`
 Expected: 5 passed.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/oxipage-core/src/theme.rs crates/oxipage-core/src/lib.rs crates/oxipage-core/tests/theme_catalog.rs
+git add crates/oxibuilder-core/src/theme.rs crates/oxibuilder-core/src/lib.rs crates/oxibuilder-core/tests/theme_catalog.rs
 git commit -m "feat(core): single ThemeDefinition catalog — paper/midnight/sepia/forest/neon/canvas"
 ```
 
@@ -270,26 +270,26 @@ git commit -m "feat(core): single ThemeDefinition catalog — paper/midnight/sep
 ### Task 2: Move GET /api/console/theme from core http.rs into console router
 
 **Files:**
-- Modify: `crates/oxipage-console/src/router.rs:32-43` (add new route)
-- Modify: `crates/oxipage-core/src/http.rs:67-72` (remove the `/theme` GET route; keep `/themes` PUT removed too)
-- Modify: `crates/oxipage-core/src/http.rs:1047-1060` (delete the original core `theme_get`)
-- Modify: `crates/oxipage-core/src/http.rs:977-988, 1028-1045` (delete `ThemeCatalogEntry`, the `THEMES` slice, and `theme_catalog`)
-- Modify: `crates/oxipage-core/src/http.rs:1062-1095` (delete core `theme_put`)
-- Modify: `crates/oxipage-core/src/http.rs:8` (drop `use crate::error::ApiError` only if no longer used; leave if needed)
+- Modify: `crates/oxibuilder-console/src/router.rs:32-43` (add new route)
+- Modify: `crates/oxibuilder-core/src/http.rs:67-72` (remove the `/theme` GET route; keep `/themes` PUT removed too)
+- Modify: `crates/oxibuilder-core/src/http.rs:1047-1060` (delete the original core `theme_get`)
+- Modify: `crates/oxibuilder-core/src/http.rs:977-988, 1028-1045` (delete `ThemeCatalogEntry`, the `THEMES` slice, and `theme_catalog`)
+- Modify: `crates/oxibuilder-core/src/http.rs:1062-1095` (delete core `theme_put`)
+- Modify: `crates/oxibuilder-core/src/http.rs:8` (drop `use crate::error::ApiError` only if no longer used; leave if needed)
 
 **Interfaces:**
-- Consumes: `SiteRegistry::{default_slug, ctx_for}` from `oxipage_console::sites_runtime`; `oxipage_core::theme::ALL_THEMES`
+- Consumes: `SiteRegistry::{default_slug, ctx_for}` from `oxibuilder_console::sites_runtime`; `oxibuilder_core::theme::ALL_THEMES`
 - Produces: `GET /api/console/theme` mounted in `build_top_level_router()` returning `{ "data": { "theme_id": "...", "definition": ThemeDefinition } }`. With no default site, returns `paper` without DB access.
 
 - [ ] **Step 1: Write failing test for default-site GET /theme**
 
-Create `crates/oxipage-console/tests/default_theme_route.rs`:
+Create `crates/oxibuilder-console/tests/default_theme_route.rs`:
 
 ```rust
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use oxipage_console::router::build_console_router;
-use oxipage_console::sites_runtime::SiteRegistry;
+use oxibuilder_console::router::build_console_router;
+use oxibuilder_console::sites_runtime::SiteRegistry;
 use tower::util::ServiceExt;
 
 #[tokio::test]
@@ -329,21 +329,21 @@ async fn get_default_theme_404s_for_unknown_route_after_move() {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cargo test -p oxipage-console --test default_theme_route`
+Run: `cargo test -p oxibuilder-console --test default_theme_route`
 Expected: compile error — `SiteRegistry::empty_for_tests` does not exist; `GET /theme` route does not exist yet.
 
 - [ ] **Step 3: Add `SiteRegistry::empty_for_tests` and the new console route**
 
-In `crates/oxipage-console/src/sites_runtime.rs`, append inside `impl SiteRegistry`:
+In `crates/oxibuilder-console/src/sites_runtime.rs`, append inside `impl SiteRegistry`:
 
 ```rust
 #[cfg(test)]
 pub async fn empty_for_tests() -> Arc<Self> {
     use crate::build::BuildGuard;
     use crate::deploy::DeployGuard;
-    use oxipage_core::config::Config;
+    use oxibuilder_core::config::Config;
 
-    let sites_file = oxipage_core::sites::SitesFile::default();
+    let sites_file = oxibuilder_core::sites::SitesFile::default();
     let bg = Arc::new(BuildGuard::default());
     let dg = Arc::new(DeployGuard::default());
     let inner = SiteRegistry::new(sites_file, bg, dg).await.unwrap();
@@ -353,10 +353,10 @@ pub async fn empty_for_tests() -> Arc<Self> {
 }
 ```
 
-(If `BuildGuard::default()` / `DeployGuard::default()` don't exist in your tree, replace with whatever zero-value construction already exists in `sites_runtime.rs` — keep lines minimal.) In `crates/oxipage-console/src/router.rs`, after line 43 (after `/preview/{slug}/{*rest}`), add:
+(If `BuildGuard::default()` / `DeployGuard::default()` don't exist in your tree, replace with whatever zero-value construction already exists in `sites_runtime.rs` — keep lines minimal.) In `crates/oxibuilder-console/src/router.rs`, after line 43 (after `/preview/{slug}/{*rest}`), add:
         .route("/theme", get(get_default_theme))
 
-Replace the `async fn get_default(...) { ... }` block (currently around lines 94–97) so it sits next to the new handler. Append a new handler in `crates/oxipage-console/src/router.rs` after the existing handlers:
+Replace the `async fn get_default(...) { ... }` block (currently around lines 94–97) so it sits next to the new handler. Append a new handler in `crates/oxibuilder-console/src/router.rs` after the existing handlers:
 
 ```rust
 /// `GET /api/console/theme` — current default site's theme definition.
@@ -368,7 +368,7 @@ Replace the `async fn get_default(...) { ... }` block (currently around lines 94
 async fn get_default_theme(
     State(registry): State<Arc<SiteRegistry>>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use oxipage_core::theme::{find_theme, ALL_THEMES};
+    use oxibuilder_core::theme::{find_theme, ALL_THEMES};
 
     let slug = match registry.default_slug().await {
         Some(s) => s,
@@ -410,15 +410,15 @@ async fn get_default_theme(
 }
 ```
 
-Add the required import in `crates/oxipage-console/src/router.rs` at the top:
+Add the required import in `crates/oxibuilder-console/src/router.rs` at the top:
 
 ```rust
-use oxipage_core::theme::{find_theme, ALL_THEMES};
+use oxibuilder_core::theme::{find_theme, ALL_THEMES};
 ```
 
 - [ ] **Step 4: Remove `/theme` GET/PUT and `/themes` GET from core's `build_app`**
 
-In `crates/oxipage-core/src/http.rs`, delete the two lines inside `build_app`:
+In `crates/oxibuilder-core/src/http.rs`, delete the two lines inside `build_app`:
 
 ```rust
         .route("/theme", get(theme_get).put(theme_put))
@@ -435,10 +435,10 @@ In `crates/oxipage-core/src/http.rs`, delete the two lines inside `build_app`:
 /// `ThemeDefinition` type fits all three endpoints, so no shape translation
 /// is needed in the browser.
 async fn theme_catalog()
-    -> Json<DataEnvelope<Vec<oxipage_core::theme::ThemeDefinition>>>
+    -> Json<DataEnvelope<Vec<oxibuilder_core::theme::ThemeDefinition>>>
 {
     Json(DataEnvelope {
-        data: oxipage_core::theme::ALL_THEMES.to_vec(),
+        data: oxibuilder_core::theme::ALL_THEMES.to_vec(),
     })
 }
 ```
@@ -453,16 +453,16 @@ In `build_app`, after `.route("/extensions/registry", ...)`, add:
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `cargo test -p oxipage-console --test default_theme_route`
+Run: `cargo test -p oxibuilder-console --test default_theme_route`
 Expected: 2 passed.
 
-Run: `cargo test -p oxipage-core --test theme_catalog`
+Run: `cargo test -p oxibuilder-core --test theme_catalog`
 Expected: still 5 passed.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/oxipage-console/src/router.rs crates/oxipage-console/src/sites_runtime.rs crates/oxipage-console/tests/default_theme_route.rs crates/oxipage-core/src/http.rs
+git add crates/oxibuilder-console/src/router.rs crates/oxibuilder-console/src/sites_runtime.rs crates/oxibuilder-console/tests/default_theme_route.rs crates/oxibuilder-core/src/http.rs
 git commit -m "refactor(console): default-site GET /theme resolves through SiteRegistry"
 ```
 
@@ -471,22 +471,22 @@ git commit -m "refactor(console): default-site GET /theme resolves through SiteR
 ### Task 3: Update per-site theme GET/PUT to use shared catalog and return full definition
 
 **Files:**
-- Modify: `crates/oxipage-console/src/per_site.rs:265-313`
-- Modify: `crates/oxipage-core/src/setup.rs:22-47, 332-340, 470-484`
+- Modify: `crates/oxibuilder-console/src/per_site.rs:265-313`
+- Modify: `crates/oxibuilder-core/src/setup.rs:22-47, 332-340, 470-484`
 
 **Interfaces:**
-- Consumes: `oxipage_core::theme::{find_theme, is_known_theme, ALL_THEMES}`
+- Consumes: `oxibuilder_core::theme::{find_theme, is_known_theme, ALL_THEMES}`
 - Produces: `GET /api/console/s/{slug}/theme` returns `{ theme_id, definition: ThemeDefinition }`. PUT accepts only IDs in `ALL_THEMES`, returns 400 otherwise.
 
 - [ ] **Step 1: Write failing test for per-site theme GET returning full definition**
 
-Create `crates/oxipage-console/tests/per_site_theme.rs`:
+Create `crates/oxibuilder-console/tests/per_site_theme.rs`:
 
 ```rust
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use oxipage_console::router::build_console_router;
-use oxipage_console::sites_runtime::SiteRegistry;
+use oxibuilder_console::router::build_console_router;
+use oxibuilder_console::sites_runtime::SiteRegistry;
 use tower::util::ServiceExt;
 
 #[tokio::test]
@@ -509,12 +509,12 @@ async fn per_site_theme_get_unknown_slug_404s() {
 
 - [ ] **Step 2: Run test to verify baseline**
 
-Run: `cargo test -p oxipage-console --test per_site_theme`
+Run: `cargo test -p oxibuilder-console --test per_site_theme`
 Expected: PASS once site routes are wired (unknown slug already 404s because of middleware). This is the regression net for the next step.
 
 - [ ] **Step 3: Rewrite per_site::theme_get and per_site::theme_put**
 
-Replace `crates/oxipage-console/src/per_site.rs` lines 265–313 with:
+Replace `crates/oxibuilder-console/src/per_site.rs` lines 265–313 with:
 
 ```rust
 // ─── theme (GET/PUT) ────────────────────────────────────────────────────────
@@ -527,7 +527,7 @@ pub struct ThemeResponse {
 pub async fn theme_get(
     Extension(ctx): Extension<Arc<SiteContext>>,
 ) -> Result<Json<ThemeResponse>, (StatusCode, String)> {
-    use oxipage_core::theme::{find_theme, ALL_THEMES};
+    use oxibuilder_core::theme::{find_theme, ALL_THEMES};
 
     let row: Option<(String,)> = sqlx::query_as("SELECT theme_id FROM theme_config WHERE id = 1")
         .fetch_optional(&ctx.db)
@@ -557,7 +557,7 @@ pub async fn theme_put(
     Extension(ctx): Extension<Arc<SiteContext>>,
     Json(input): Json<ThemePutInput>,
 ) -> Result<Json<ThemeResponse>, (StatusCode, String)> {
-    use oxipage_core::theme::{find_theme, is_known_theme};
+    use oxibuilder_core::theme::{find_theme, is_known_theme};
 
     if !is_known_theme(&input.theme_id) {
         return Err((
@@ -586,41 +586,41 @@ pub async fn theme_put(
 }
 ```
 
-Add at the top of `per_site.rs` (next to the existing oxipage_core imports) if absent:
+Add at the top of `per_site.rs` (next to the existing oxibuilder_core imports) if absent:
 
 ```rust
-use oxipage_core::theme::{find_theme, is_known_theme, ALL_THEMES};
+use oxibuilder_core::theme::{find_theme, is_known_theme, ALL_THEMES};
 ```
 
 (The imports are used only inside the handler bodies above; the explicit `use` inside each function keeps them scoped.)
 
 - [ ] **Step 4: Replace `THEMES` in setup.rs with `ALL_THEMES`**
 
-In `crates/oxipage-core/src/setup.rs`, remove lines 22–47 (the local `THEMES` slice and its 4 entries). The `available_themes` payload returned by `/api/console/setup/status` must still work. Replace line 336's `THEMES.to_vec()` with:
+In `crates/oxibuilder-core/src/setup.rs`, remove lines 22–47 (the local `THEMES` slice and its 4 entries). The `available_themes` payload returned by `/api/console/setup/status` must still work. Replace line 336's `THEMES.to_vec()` with:
 
 ```rust
-            available_themes: oxipage_core::theme::ALL_THEMES.to_vec(),
+            available_themes: oxibuilder_core::theme::ALL_THEMES.to_vec(),
 ```
 
 Replace line 475's `THEMES.iter().any(|t| t.id == input.theme_id)` with:
 
 ```rust
-    if !oxipage_core::theme::is_known_theme(&input.theme_id) {
+    if !oxibuilder_core::theme::is_known_theme(&input.theme_id) {
 ```
 
 - [ ] **Step 5: Verify baseline still passes and run both tests**
 
-Run: `cargo test -p oxipage-console --test per_site_theme --test default_theme_route`
+Run: `cargo test -p oxibuilder-console --test per_site_theme --test default_theme_route`
 Expected: 3 passed.
 
-Run: `cargo test -p oxipage-core --test theme_catalog`
+Run: `cargo test -p oxibuilder-core --test theme_catalog`
 Expected: 5 passed.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/oxipage-console/src/per_site.rs crates/oxipage-console/tests/per_site_theme.rs crates/oxipage-core/src/setup.rs
-git commit -m "refactor(theme): per-site PUT uses oxipage_core::theme catalog; setup consumes shared"
+git add crates/oxibuilder-console/src/per_site.rs crates/oxibuilder-console/tests/per_site_theme.rs crates/oxibuilder-core/src/setup.rs
+git commit -m "refactor(theme): per-site PUT uses oxibuilder_core::theme catalog; setup consumes shared"
 ```
 
 ---
@@ -714,7 +714,7 @@ git commit -m "feat(api): per-site theme returns full ThemeDefinition"
 - Modify: `web/index.html:6-18`
 
 **Interfaces:**
-- Consumes: `localStorage["oxipage-console-appearance"]` when `data-context="console"`; nothing when `data-context="public"` (reads pre-baked attributes from a `<meta name="oxipage-theme">` if present — falls back to `paper`).
+- Consumes: `localStorage["oxibuilder-console-appearance"]` when `data-context="console"`; nothing when `data-context="public"` (reads pre-baked attributes from a `<meta name="oxibuilder-theme">` if present — falls back to `paper`).
 - Produces: synchronous, dependency-free script executed before `<link rel="stylesheet">` and before React. Sets `<html data-theme>` (and `data-public-theme` for the public site) before first paint.
 
 - [ ] **Step 1: Write `web/theme-boot.js`**
@@ -722,12 +722,12 @@ git commit -m "feat(api): per-site theme returns full ThemeDefinition"
 Create `web/theme-boot.js`:
 
 ```js
-/* Oxipage early theme boot.
+/* Oxibuilder early theme boot.
    - Synchronous, no deps, executes before <link rel=stylesheet>.
    - Reads <script data-context="..."> on this tag (set by admin.html / index.html).
-   - For "console": reads oxipage-console-appearance; resolves system | light | dark,
+   - For "console": reads oxibuilder-console-appearance; resolves system | light | dark,
      writes <html data-theme> and document.documentElement.style.setProperty('--accent-hue','160').
-   - For "public": reads <meta name="oxipage-theme" content="paper"> if present,
+   - For "public": reads <meta name="oxibuilder-theme" content="paper"> if present,
      writes <html data-public-theme="...">, sets --accent-hue on root.
 */
 (function () {
@@ -744,7 +744,7 @@ Create `web/theme-boot.js`:
     if (ctx === "console") {
       var stored;
       try {
-        stored = localStorage.getItem("oxipage-console-appearance");
+        stored = localStorage.getItem("oxibuilder-console-appearance");
       } catch (e) {
         stored = null;
       }
@@ -755,7 +755,7 @@ Create `web/theme-boot.js`:
     }
 
     // public
-    var meta = document.querySelector('meta[name="oxipage-theme"]');
+    var meta = document.querySelector('meta[name="oxibuilder-theme"]');
     var themeId = (meta && meta.content) || "paper";
     document.documentElement.dataset.publicTheme = themeId;
     var hueByTheme = { paper: "160", midnight: "230", sepia: "70", forest: "155", neon: "290", canvas: "240" };
@@ -772,7 +772,7 @@ In `web/admin.html`, replace lines 6–18 (the `<script>` block) with:
 
 ```html
     <script src="/theme-boot.js" data-context="console"></script>
-    <title>Oxipage Console</title>
+    <title>Oxibuilder Console</title>
 ```
 
 (Place the `<script>` directly under `<meta name="viewport" ...>` and before `<title>`.)
@@ -783,7 +783,7 @@ In `web/index.html`, replace lines 6–18 (the `<script>` block) with:
 
 ```html
     <script src="/theme-boot.js" data-context="public"></script>
-    <meta name="oxipage-theme" content="paper" />
+    <meta name="oxibuilder-theme" content="paper" />
 ```
 
 (Falls back to `paper`. SSG templates inject a real theme_id at build time.)
@@ -812,12 +812,12 @@ git commit -m "feat(web): shared theme-boot.js — replaces duplicated inline FO
 - Rewrite: `web/src/shared/theme.ts`
 
 **Interfaces:**
-- Consumes: `localStorage["oxipage-console-appearance"]`; `/api/console/theme` (new shape from Task 2/3).
+- Consumes: `localStorage["oxibuilder-console-appearance"]`; `/api/console/theme` (new shape from Task 2/3).
 - Produces:
   ```ts
   export type ConsoleAppearance = "system" | "light" | "dark";
   export type ResolvedMode = "light" | "dark";
-  export const STORAGE_KEY: "oxipage-console-appearance";
+  export const STORAGE_KEY: "oxibuilder-console-appearance";
 
   export function getConsoleAppearance(): ConsoleAppearance;
   export function setConsoleAppearance(value: ConsoleAppearance): void;
@@ -838,19 +838,19 @@ Replace the entire contents of `web/src/shared/theme.ts` with:
 // Console appearance vs public site theme — kept distinct on purpose.
 //
 //  - Console appearance (the Admin shell's <html data-theme>)
-//      localStorage["oxipage-console-appearance"] = "system" | "light" | "dark"
+//      localStorage["oxibuilder-console-appearance"] = "system" | "light" | "dark"
 //      Resolution: explicit light/dark → that mode; "system" or missing/invalid →
 //      window.matchMedia('(prefers-color-scheme: dark)').
 //
 //  - Public site theme (the per-site SQLite singleton)
-//      Shared catalog: oxipage_core::theme in Rust; ThemeDefinition here.
+//      Shared catalog: oxibuilder_core::theme in Rust; ThemeDefinition here.
 //      applyServerTheme() publishes palette variables to the document, but
 //      NEVER mutates the console's data-theme or sets console mode.
 
 export type ConsoleAppearance = "system" | "light" | "dark";
 export type ResolvedMode = "light" | "dark";
 
-export const STORAGE_KEY = "oxipage-console-appearance";
+export const STORAGE_KEY = "oxibuilder-console-appearance";
 
 export interface ThemeDefinition {
   id: string;
@@ -1559,12 +1559,12 @@ git commit -m "refactor(shells): replace hex literals with semantic sidebar toke
 - §3.2 Public site theme via per-site DB → Task 3 (PUT/GET use shared catalog).
 - §3.3 `applyServerTheme()` semantics — never overwrites console mode, default-site fallback, slug-specific fetch → Task 6.
 - §4 Shared boot helper; duplicated inline scripts removed → Task 5.
-- §5 Single `oxipage_core::theme` catalog with 6 themes → Task 1.
+- §5 Single `oxibuilder_core::theme` catalog with 6 themes → Task 1.
 - §6 GET/PUT validation + shared catalog endpoint + default-site moved → Tasks 2, 3.
 - §7 Shared browser controller surface + three-state toggle + `--accent-hue` consumption → Tasks 6, 7, 12.
 - §8 Settings & ThemesPage UX (3-state, summary, link, server-catalog) → Tasks 10, 11.
 - §9 Theme-aware sidebar tokens scoped per `[data-theme]`, light/dark palette + AA contrast; hex literals replaced → Tasks 12, 13.
-- §10 Static build integration — Task 5 sets `data-public-theme` from `<meta name="oxipage-theme">`; the SSG template population is owned by the build-pipeline plan (subproject 4). This plan provisions the boot + apply paths; theme-driven static HTML remains consistent because `theme-boot.js` reads the meta tag and `applyServerTheme` is a no-op for static Pages (Tasks 5, 6).
+- §10 Static build integration — Task 5 sets `data-public-theme` from `<meta name="oxibuilder-theme">`; the SSG template population is owned by the build-pipeline plan (subproject 4). This plan provisions the boot + apply paths; theme-driven static HTML remains consistent because `theme-boot.js` reads the meta tag and `applyServerTheme` is a no-op for static Pages (Tasks 5, 6).
 
 **2. Placeholder scan** — no "TODO", no "similar to", no "implement later". Every code block stands on its own with full type signatures and identifiers defined earlier in the plan (`ThemeDefinition` defined Task 1/6; `SiteTheme` defined Task 4; the Sidebar token names added in Task 12 propagate to Task 13).
 

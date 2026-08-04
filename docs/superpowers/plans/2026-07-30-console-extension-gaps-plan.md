@@ -22,10 +22,10 @@
 ### Task 1: Backend — Movies series group update/delete
 
 **Files:**
-- Modify: `crates/oxipage-ext-movies/src/model.rs` (add `SeriesGroupPatch`)
-- Modify: `crates/oxipage-ext-movies/src/repo.rs` (add `update_group`, `delete_group`)
-- Modify: `crates/oxipage-ext-movies/src/routes.rs` (add `update_group`, `delete_group` handlers)
-- Modify: `crates/oxipage-ext-movies/src/lib.rs` (mount `PATCH/DELETE /series/{slug}`)
+- Modify: `crates/oxibuilder-ext-movies/src/model.rs` (add `SeriesGroupPatch`)
+- Modify: `crates/oxibuilder-ext-movies/src/repo.rs` (add `update_group`, `delete_group`)
+- Modify: `crates/oxibuilder-ext-movies/src/routes.rs` (add `update_group`, `delete_group` handlers)
+- Modify: `crates/oxibuilder-ext-movies/src/lib.rs` (mount `PATCH/DELETE /series/{slug}`)
 
 **Interfaces:**
 - Produces: `repo::update_group(pool, slug, patch) -> Result<Option<SeriesGroup>>`
@@ -115,7 +115,7 @@ Fix: change the existing `.route("/series/{slug}", get(routes::show_group))` to 
 
 - [ ] **Step 6: Build and test**
 
-Run: `cargo check -p oxipage-ext-movies`
+Run: `cargo check -p oxibuilder-ext-movies`
 Expected: compiles cleanly.
 
 ---
@@ -123,10 +123,10 @@ Expected: compiles cleanly.
 ### Task 2: Backend — Projects screenshot update
 
 **Files:**
-- Modify: `crates/oxipage-ext-projects/src/model.rs` (add `ScreenshotPatch`)
-- Modify: `crates/oxipage-ext-projects/src/repo.rs` (add `update_screenshot`)
-- Modify: `crates/oxipage-ext-projects/src/routes.rs` (add `update_screenshot` handler)
-- Modify: `crates/oxipage-ext-projects/src/lib.rs` (mount `PATCH /{slug}/screenshots/{sid}`)
+- Modify: `crates/oxibuilder-ext-projects/src/model.rs` (add `ScreenshotPatch`)
+- Modify: `crates/oxibuilder-ext-projects/src/repo.rs` (add `update_screenshot`)
+- Modify: `crates/oxibuilder-ext-projects/src/routes.rs` (add `update_screenshot` handler)
+- Modify: `crates/oxibuilder-ext-projects/src/lib.rs` (mount `PATCH /{slug}/screenshots/{sid}`)
 
 **Interfaces:**
 - Produces: `repo::update_screenshot(pool, project_slug, sid, patch) -> Result<Option<Screenshot>>`
@@ -183,14 +183,14 @@ Wait — the existing route is `DELETE` only for `/{slug}/screenshots/{sid}`. Ch
 
 - [ ] **Step 4: Build check**
 
-`cargo check -p oxipage-ext-projects`
+`cargo check -p oxibuilder-ext-projects`
 
 ---
 
 ### Task 3: Backend — WASM registry list endpoint
 
 **Files:**
-- Modify: `crates/oxipage-core/src/http.rs`
+- Modify: `crates/oxibuilder-core/src/http.rs`
 
 **Interfaces:**
 - Produces: `GET /api/console/extensions/registry` → `{ data: RegistryEntry[] }`
@@ -237,7 +237,7 @@ async fn registry_list(
 
 - [ ] **Step 3: Build check**
 
-`cargo check -p oxipage-core`
+`cargo check -p oxibuilder-core`
 
 ---
 
@@ -709,7 +709,7 @@ Expected: both pass.
 
 - [ ] **Step 2: Manual smoke**
 
-Run `oxipage console`, navigate each extension tab:
+Run `oxibuilder console`, navigate each extension tab:
 1. Novels: open a novel → add chapter with title+body → verify auto-order and char_count → edit chapter → reorder (↑↓) → delete chapter
 2. Movies: switch to Series tab → create series → edit a movie entry → assign to series with order → switch back to Series → view member list → unassign member → delete series
 3. Projects: edit a project → add screenshot URL → verify preview → reorder → edit alt → delete

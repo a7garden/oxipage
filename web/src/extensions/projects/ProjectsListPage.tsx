@@ -33,8 +33,8 @@ export function ProjectsListPage() {
           </EmptyStateTitle>
           <EmptyStateDescription>
             {lang === "ko"
-              ? "`oxipage projects add` 로 프로젝트를 추가하세요."
-              : "Add a project with `oxipage projects add`."}
+              ? "`oxibuilder projects add` 로 프로젝트를 추가하세요."
+              : "Add a project with `oxibuilder projects add`."}
           </EmptyStateDescription>
         </EmptyState>
       </div>

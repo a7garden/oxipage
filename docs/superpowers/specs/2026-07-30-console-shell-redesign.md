@@ -26,7 +26,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ [oxipage] │ [selfhost ▾] │ My Blog  http://...    │  🌙  ⚙     │  topbar (48px)
+│ [oxibuilder] │ [selfhost ▾] │ My Blog  http://...    │  🌙  ⚙     │  topbar (48px)
 ├────────────┼─────────────────────────────────────────────────────┤
 │            │                                                     │
 │ ● Dash     │  ┌─ Page Title ───────────────────────────────┐     │
@@ -46,7 +46,7 @@
 
 ### 2.1 Topbar
 
-- `oxipage` 로고 (좌측 고정)
+- `oxibuilder` 로고 (좌측 고정)
 - **Site selector dropdown**: 녹색 online indicator + 현재 사이트 slug + ▽ chevron.
   클릭 시 사이트 목록 패널 — 각 사이트에 상태 dot, 이름, URL. "Manage Sites", "Add New Site" 액션.
 - Divider + 현재 사이트 title / URL 표시 (context 확인용)
@@ -81,14 +81,14 @@ Operations
 ┌─────────────────────────────────┬──────────────────┐
 │ Your Sites                      │ Info             │
 │                                 │                  │
-│ ● selfhost                     ✓│ oxipage v1.0.0   │
+│ ● selfhost                     ✓│ oxibuilder v1.0.0   │
 │   http://127.0.0.1:8787         │ uptime: 14d 3h   │
 │                                 │ ext: 8 active    │
 │ ● alibaba                       │                  │
 │   https://blog.alibaba.com      │ Click to switch   │
 │                                 │                  │
 │ ● flyio                         │                  │
-│   https://oxipage.fly.dev       │                  │
+│   https://oxibuilder.fly.dev       │                  │
 │                                 │                  │
 │ [Manage Sites] [+ Add New Site] │                  │
 └─────────────────────────────────┴──────────────────┘
@@ -228,12 +228,12 @@ Table:
 INSTALLED (8)
 ┌──────────────┐ ┌──────────────┐
 │ [B] Blog     │ │ [P] Projects │
-│ oxipage-...  │ │ oxipage-...  │
+│ oxibuilder-...  │ │ oxibuilder-...  │
 │     [Disable]│ │     [Disable]│
 └──────────────┘ └──────────────┘
 ┌──────────────┐ ┌──────────────┐
 │ [L] Links    │ │ [M] Movies   │
-│ oxipage-...  │ │ oxipage-...  │
+│ oxibuilder-...  │ │ oxibuilder-...  │
 │     [Disable]│ │     [Disable]│
 └──────────────┘ └──────────────┘
 ... (2-col grid)
@@ -241,7 +241,7 @@ INSTALLED (8)
 AVAILABLE FROM REGISTRY
 ┌──────────────┐ ┌──────────────┐
 │ [A] Activity │ │ [P] Profile  │
-│ oxipage-...  │ │ oxipage-...  │
+│ oxibuilder-...  │ │ oxibuilder-...  │
 │    [Install] │ │    [Install] │
 └──────────────┘ └──────────────┘
 ```
@@ -357,7 +357,7 @@ Danger Zone ▸
 - **API Tokens**: masked by default, reveal toggle. 미설정 시 disabled + "not set"
 - **Danger Zone**: red-tinted border, destructive outline buttons, confirm dialogs
 - **Save**: `PUT /api/console/s/{slug}/config` → dirty state tracking, show "unsaved changes" indicator
-- **API**: site config API TBD — v1에서는 `oxipage.toml`을 직접 읽는 엔드포인트 필요
+- **API**: site config API TBD — v1에서는 `oxibuilder.toml`을 직접 읽는 엔드포인트 필요
 
 ## 5. 컴포넌트 구조
 

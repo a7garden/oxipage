@@ -269,7 +269,7 @@ export function SettingsPage() {
         <div className="border border-line rounded-lg p-5">
           <h3 className="text-sm font-semibold mb-4">Integrations</h3>
           <p className="text-xs text-muted mb-2">
-            Set environment-variable names in <code className="px-1 py-0.5 bg-surface/50 rounded">oxipage.toml</code>{" "}
+            Set environment-variable names in <code className="px-1 py-0.5 bg-surface/50 rounded">oxibuilder.toml</code>{" "}
             <code className="px-1 py-0.5 bg-surface/50 rounded">[integrations]</code>. The console never stores
             secret values.
           </p>
@@ -278,13 +278,13 @@ export function SettingsPage() {
             label="TMDB Key Env"
             value={tmdbApiKeyEnv}
             onChange={setTmdbApiKeyEnv}
-            placeholder="OXIPAGE_TMDB_KEY"
+            placeholder="OXIBUILDER_TMDB_KEY"
           />
           <SettingsField
             label="Aladin Key Env"
             value={aladinTtbkeyEnv}
             onChange={setAladinTtbkeyEnv}
-            placeholder="OXIPAGE_ALADIN_TTBKEY"
+            placeholder="OXIBUILDER_ALADIN_TTBKEY"
           />
         </div>
 

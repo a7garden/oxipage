@@ -99,7 +99,7 @@ erDiagram
 | `tags[]` | | |
 | `scraped_at` | timestamp | |
 
-**수집 방식:** Hacker News는 공식 Firebase 기반 API(`https://github.com/HackerNews/API`)로 아이템 메타데이터를 가져옵니다. GeekNews(news.hada.io)는 RSS 피드를 제공하므로 RSS를 파싱해 신규 글을 감지합니다. 두 소스 모두 "background job이 새 글 후보를 가져와 큐에 쌓아두고, 사용자가 `oxipage scrap add`로 그중 하나를 골라 코멘트를 붙여 발행"하는 흐름이며, 자동으로 스크랩이 게시되지는 않습니다(원칙: 발행은 항상 사람의 선택).
+**수집 방식:** Hacker News는 공식 Firebase 기반 API(`https://github.com/HackerNews/API`)로 아이템 메타데이터를 가져옵니다. GeekNews(news.hada.io)는 RSS 피드를 제공하므로 RSS를 파싱해 신규 글을 감지합니다. 두 소스 모두 "background job이 새 글 후보를 가져와 큐에 쌓아두고, 사용자가 `oxibuilder scrap add`로 그중 하나를 골라 코멘트를 붙여 발행"하는 흐름이며, 자동으로 스크랩이 게시되지는 않습니다(원칙: 발행은 항상 사람의 선택).
 
 ## 2.8 `activity` — 최근 활동(Git 커밋 등)
 
@@ -108,7 +108,7 @@ erDiagram
 | 필드 | 타입 | 비고 |
 |---|---|---|
 | `id` | | |
-| `repo_full_name` | text | 예: `myid/oxipage` |
+| `repo_full_name` | text | 예: `myid/oxibuilder` |
 | `event_type` | enum `push \| pull_request \| issues \| release \| star \| ...` | GitHub Events API의 이벤트 타입 매핑 |
 | `summary` | text | 사람이 읽기 좋게 가공한 한 줄 요약 |
 | `url` | text | |
@@ -153,11 +153,11 @@ GitHub의 공개 Events API만 사용하므로 **비공개 저장소의 활동�
 ```mermaid
 sequenceDiagram
     participant U as 사용자/에이전트
-    participant CLI as Oxipage CLI
-    participant API as oxipage-core API
+    participant CLI as Oxibuilder CLI
+    participant API as oxibuilder-core API
     participant TMDB as TMDB API
 
-    U->>CLI: oxipage review movie add --tmdb "해리포터와 마법사의 돌"
+    U->>CLI: oxibuilder review movie add --tmdb "해리포터와 마법사의 돌"
     CLI->>API: POST /api/console/movies/search {query}
     API->>TMDB: GET /search/movie
     TMDB-->>API: 후보 목록
@@ -215,13 +215,13 @@ TMDB API 사용 시 TMDB의 attribution 요구사항(예: "This product uses the
 
 ## 2.13 확장 비활성화 데이터 라이프사이클
 
-`oxipage extension disable <name>`(§4.3)과 `LobbyConfig.enabled=false`(§2.12)의 데이터 의미를 명확히 합니다. **v1은 soft-disable을 기본 동작**으로 합니다:
+`oxibuilder extension disable <name>`(§4.3)과 `LobbyConfig.enabled=false`(§2.12)의 데이터 의미를 명확히 합니다. **v1은 soft-disable을 기본 동작**으로 합니다:
 
 - **유지:** 확장의 DB 테이블 행과 `/data/media/{extension}/` 파일은 그대로 둡니다.
 - **즉시 해제:** 라우트 마운트 해제, 백그라운드 잡 등록 해제, 로비 카드에서 제외 → 비활성화된 확장의 API·페이지는 404, 로비에서 사라짐.
 - **공유 FTS 인덱스 즉시 정리:** `search_documents`에서 해당 `extension_id`의 행을 **동기 삭제**(§1.7). daily 정리 잡(§1.9)을 기다리지 않습니다 — 그렇지 않으면 비활성화된 확장의 문서가 `/search`에 잠깐 노출됩니다.
 - **재활성화:** 데이터가 그대로 있으므로 enable 시 라우트·잡·인덱스를 다시 등록하기만 하면 복구(스냅샷·FTS는 파생 데이터라 필요시 재생성).
-- **완전 삭제(hard purge):** 별도 명령 `oxipage extension purge <name>`으로만 — 테이블 DROP + 미디어 디렉토리 삭제 + 인덱스 정리. 실수 방지를 위해 `disable`과 분리하고 확인 프롬프트를 둡니다.
+- **완전 삭제(hard purge):** 별도 명령 `oxibuilder extension purge <name>`으로만 — 테이블 DROP + 미디어 디렉토리 삭제 + 인덱스 정리. 실수 방지를 위해 `disable`과 분리하고 확인 프롬프트를 둡니다.
 
 ## 2.14 이중언어 정책 요약
 

@@ -20,7 +20,7 @@
 - 코어는 확장 도메인 컬럼/키 이름을 모른다 — 모든 도메인 SQL/저장은 확장 트레이트 안에서.
 - 모든 setup 핸들러 응답은 `DataEnvelope<T>`.
 - 위자드 프론트는 `web/` (공개 SPA). 빌드: `cd web && bun run build`. (admin-web 아님.)
-- 테스트: `cargo test -p oxipage-core`.
+- 테스트: `cargo test -p oxibuilder-core`.
 - step id, extension id는 레지스트리 전역 유일.
 - 구현은 별도 브랜치에서 (사용자 되돌림 가능성). 각 task 끝에 커밋.
 
@@ -28,7 +28,7 @@
 
 ## File Structure
 
-**Rust core (`crates/oxipage-core/src/`):**
+**Rust core (`crates/oxibuilder-core/src/`):**
 - `extension.rs` — `Extension` 트레이트, `ExtensionWizard`, `SetupStep`(+`visible_when`), `SetupField`, `SetupFieldKind`(+`Secret`), `SetupSaveHandler`(→`StepOutcome` 반환), `StepOutcome`, `VisibilityRule`, `PrefillSource`, `ExtensionStepInfo`/`ExtensionWizardInfo`. `external_api_keys`/`save_external_key`/`ExternalApiKey`/`ExternalKeyScope` 폐지(Phase 2).
 - `setup.rs` — `StatusResult.extension_wizards`, `setup_status_handler`, `setup_extension_step_handler`(네임스페이스 + `StepOutcome` 반환), `/setup/external-keys` 제거(Phase 2).
 - `tests/setup_wizard.rs` — 시그니처 갱신 + 다중 step/가시성/action 테스트.
@@ -46,8 +46,8 @@
 ### Task 1: 코어 — `setup_wizard()` 복수 API + status 그룹화 + 네임스페이스 라우트
 
 **Files:**
-- Modify: `crates/oxipage-core/src/extension.rs`, `crates/oxipage-core/src/setup.rs`, `crates/oxipage-ext-profile/src/lib.rs`
-- Test: `crates/oxipage-core/tests/setup_wizard.rs`
+- Modify: `crates/oxibuilder-core/src/extension.rs`, `crates/oxibuilder-core/src/setup.rs`, `crates/oxibuilder-ext-profile/src/lib.rs`
+- Test: `crates/oxibuilder-core/tests/setup_wizard.rs`
 
 **Interfaces:**
 - Produces: `pub fn setup_wizard(&self) -> Option<ExtensionWizard>` (기본 `None`); `pub struct ExtensionWizard { pub steps: Vec<SetupStep> }`; `pub struct ExtensionWizardInfo { extension_id, display_name, steps: Vec<ExtensionStepInfo> }`; `StatusResult.extension_wizards: Vec<ExtensionWizardInfo>`; 라우트 `POST /setup/extension-step/{ext_id}/{step_id}`.
@@ -97,7 +97,7 @@ async fn status_returns_multiple_steps_per_wizard() {
 
 - [ ] **Step 2: 테스트 실패 확인**
 
-Run: `cargo test -p oxipage-core --test setup_wizard status_returns_multiple_steps_per_wizard`
+Run: `cargo test -p oxibuilder-core --test setup_wizard status_returns_multiple_steps_per_wizard`
 Expected: 컴파일 에러 (`setup_wizard`/`ExtensionWizard` 미정의).
 
 - [ ] **Step 3: 코어 타입 구현 (`extension.rs`)**
@@ -119,19 +119,19 @@ Expected: 컴파일 에러 (`setup_wizard`/`ExtensionWizard` 미정의).
 - `setup_routes`: `/setup/extension-step/{step_id}` → `/setup/extension-step/{ext_id}/{step_id}`.
 - `setup_extension_step_handler`: `Path<(String, String)>` (ext_id, step_id). `ext_id`로 활성 확장 찾기 → 그 `setup_wizard().steps`에서 `step.id == step_id` 매칭 → 없으면 404 → `step.save_handler.save(...)`. 응답은 이 phase에선 기존 `SimpleOk` (`StepOutcome` 반환은 Phase 3).
 
-- [ ] **Step 6: profile 마이그레이션 (`crates/oxipage-ext-profile/src/lib.rs`)**
+- [ ] **Step 6: profile 마이그레이션 (`crates/oxibuilder-ext-profile/src/lib.rs`)**
 
 `fn setup_wizard_step()` → `fn setup_wizard() -> Option<ExtensionWizard>`. 기존 `SetupStep`을 `ExtensionWizard { steps: vec![기존 step에 visible_when: None 추가] }`로 감쌈.
 
 - [ ] **Step 7: 기존 테스트 갱신 + 통과**
 
 `tests/setup_wizard.rs`의 `DemoExt`/`setup_status_includes_extension_steps`/`disabled_extension_excluded_from_status`를 `setup_wizard()` 시그니처로 갱신. (`external_api_keys` 관련 테스트는 Phase 2까지 유지 — status 응답에 `external_api_keys` 필드가 아직 있으므로.)
-Run: `cargo test -p oxipage-core --test setup_wizard`
+Run: `cargo test -p oxibuilder-core --test setup_wizard`
 Expected: PASS.
 
 - [ ] **Step 8: 컴파일 + 커밋**
 
-Run: `cargo build -p oxipage-core -p oxipage-ext-profile`
+Run: `cargo build -p oxibuilder-core -p oxibuilder-ext-profile`
 ```bash
 git add -A && git commit -m "feat(setup): 단수 setup_wizard_step → 복수 setup_wizard + 네임스페이스 라우트"
 ```
@@ -175,8 +175,8 @@ git add -A && git commit -m "feat(setup-web): 위자드 그룹화 렌더 (평탄
 ### Task 3: 코어 — `Secret` 필드 종류 + external-keys 메커니즘 폐지
 
 **Files:**
-- Modify: `crates/oxipage-core/src/extension.rs`, `crates/oxipage-core/src/setup.rs`
-- Test: `crates/oxipage-core/tests/setup_wizard.rs`
+- Modify: `crates/oxibuilder-core/src/extension.rs`, `crates/oxibuilder-core/src/setup.rs`
+- Test: `crates/oxibuilder-core/tests/setup_wizard.rs`
 
 **Interfaces:**
 - Produces: `SetupFieldKind::Secret`. 제거: `Extension::external_api_keys()`, `Extension::save_external_key()`, `ExternalApiKey`, `ExternalKeyScope`, `StatusResult.external_api_keys`, `POST /setup/external-keys` 라우트 + `setup_external_keys_handler` + `ExternalKeysInput`.
@@ -198,7 +198,7 @@ async fn status_has_no_external_api_keys_field() {
 
 - [ ] **Step 2: 테스트 실패 확인**
 
-Run: `cargo test -p oxipage-core --test setup_wizard status_has_no_external_api_keys_field`
+Run: `cargo test -p oxibuilder-core --test setup_wizard status_has_no_external_api_keys_field`
 Expected: FAIL (필드 아직 존재) 또는 컴파일 에러.
 
 - [ ] **Step 3: SetupFieldKind::Secret 추가 (`extension.rs`)**
@@ -213,12 +213,12 @@ Expected: FAIL (필드 아직 존재) 또는 컴파일 에러.
 - [ ] **Step 5: 기존 키 테스트 정리**
 
 `tests/setup_wizard.rs`: `KeyOnlyExt`가 `external_api_keys()` 대신 `setup_wizard()`로 단일 Secret-field step을 반환하도록 변경 (Task 4에서 실제 확장에 적용할 패턴의 템플릿). `submitExternalKeys` 관련 통합 테스트 제거.
-Run: `cargo test -p oxipage-core --test setup_wizard`
+Run: `cargo test -p oxibuilder-core --test setup_wizard`
 Expected: PASS (코어 한정; movies/books/activity는 Task 4에서 복구).
 
 - [ ] **Step 6: 코어 빌드 확인**
 
-Run: `cargo build -p oxipage-core`
+Run: `cargo build -p oxibuilder-core`
 Expected: 성공. (workspace 전체는 Task 4 후 녹색.)
 
 ---
@@ -226,7 +226,7 @@ Expected: 성공. (workspace 전체는 Task 4 후 녹색.)
 ### Task 4: 확장 마이그레이션 + 프론트 Secret 렌더
 
 **Files:**
-- Modify: `crates/oxipage-ext-movies/src/lib.rs`, `crates/oxipage-ext-books/src/lib.rs`, `crates/oxipage-ext-activity/src/lib.rs`, `web/src/setup/GenericStep.tsx`, `web/src/setup/api.ts`, `web/src/setup/SetupWizard.tsx`
+- Modify: `crates/oxibuilder-ext-movies/src/lib.rs`, `crates/oxibuilder-ext-books/src/lib.rs`, `crates/oxibuilder-ext-activity/src/lib.rs`, `web/src/setup/GenericStep.tsx`, `web/src/setup/api.ts`, `web/src/setup/SetupWizard.tsx`
 - Delete: `web/src/setup/ExternalKeysStep.tsx`
 
 **Interfaces:**
@@ -235,15 +235,15 @@ Expected: 성공. (workspace 전체는 Task 4 후 녹색.)
 
 - [ ] **Step 1: movies 키-step 위자드**
 
-`crates/oxipage-ext-movies/src/lib.rs`: `external_api_keys()` 제거. `setup_wizard()` 추가 — 단일 step `movies_key`, 필드 `tmdb_key` (`Secret`, required=false). `MoviesKeySave` 핸들러: `persist_extension_config(ctx, "movies", "tmdb_key", form["tmdb_key"])` + `std::env::set_var("OXIPAGE_TMDB_KEY", val)`. (테스트/가져오기 step은 Phase 3 Task 7.)
+`crates/oxibuilder-ext-movies/src/lib.rs`: `external_api_keys()` 제거. `setup_wizard()` 추가 — 단일 step `movies_key`, 필드 `tmdb_key` (`Secret`, required=false). `MoviesKeySave` 핸들러: `persist_extension_config(ctx, "movies", "tmdb_key", form["tmdb_key"])` + `std::env::set_var("OXIBUILDER_TMDB_KEY", val)`. (테스트/가져오기 step은 Phase 3 Task 7.)
 
 - [ ] **Step 2: books 동일 패턴**
 
-`crates/oxipage-ext-books/src/lib.rs`: `aladin_key` → 단일 step `books_key`, `Secret` 필드, `persist_extension_config("books","aladin_key")` + `OXIPAGE_ALADIN_KEY`.
+`crates/oxibuilder-ext-books/src/lib.rs`: `aladin_key` → 단일 step `books_key`, `Secret` 필드, `persist_extension_config("books","aladin_key")` + `OXIBUILDER_ALADIN_KEY`.
 
 - [ ] **Step 3: activity 동일 패턴**
 
-`crates/oxipage-ext-activity/src/lib.rs`: `github_username` → 단일 step `activity_github`, 필드 `github_username` (`Text` — 공개 식별자라 Secret 아님). `persist_extension_config("activity","github_username")`.
+`crates/oxibuilder-ext-activity/src/lib.rs`: `github_username` → 단일 step `activity_github`, 필드 `github_username` (`Text` — 공개 식별자라 Secret 아님). `persist_extension_config("activity","github_username")`.
 
 - [ ] **Step 4: workspace 빌드 + 테스트 녹색**
 
@@ -272,8 +272,8 @@ git add -A && git commit -m "feat(setup): movies/books/activity 키를 각자 Se
 ### Task 5: 코어 — `VisibilityRule` 평가 + `StepOutcome` 반환
 
 **Files:**
-- Modify: `crates/oxipage-core/src/extension.rs`, `crates/oxipage-core/src/setup.rs`, `crates/oxipage-ext-profile/src/lib.rs`, `crates/oxipage-ext-movies/src/lib.rs`, `crates/oxipage-ext-books/src/lib.rs`, `crates/oxipage-ext-activity/src/lib.rs`
-- Test: `crates/oxipage-core/tests/setup_wizard.rs`
+- Modify: `crates/oxibuilder-core/src/extension.rs`, `crates/oxibuilder-core/src/setup.rs`, `crates/oxibuilder-ext-profile/src/lib.rs`, `crates/oxibuilder-ext-movies/src/lib.rs`, `crates/oxibuilder-ext-books/src/lib.rs`, `crates/oxibuilder-ext-activity/src/lib.rs`
+- Test: `crates/oxibuilder-core/tests/setup_wizard.rs`
 
 **Interfaces:**
 - Produces: `SetupSaveHandler::save(...) -> anyhow::Result<StepOutcome>`; `StepOutcome { values: Map<String,Value> }` + `from_form`; `setup_extension_step_handler`가 `Json<DataEnvelope<StepOutcome>>` 반환; `ExtensionStepInfo.visible_when` 실직렬화.
@@ -352,7 +352,7 @@ async fn status_serializes_visible_when() {
 
 - [ ] **Step 2: 테스트 실패 확인**
 
-Run: `cargo test -p oxipage-core --test setup_wizard extension_step_returns_outcome status_serializes_visible_when`
+Run: `cargo test -p oxibuilder-core --test setup_wizard extension_step_returns_outcome status_serializes_visible_when`
 Expected: FAIL.
 
 - [ ] **Step 3: SetupSaveHandler 반환형 변경 (`extension.rs`)**
@@ -361,7 +361,7 @@ Expected: FAIL.
 
 - [ ] **Step 4: 모든 save 핸들러 갱신**
 
-- profile (`crates/oxipage-ext-profile/src/lib.rs`): 폼 저장 후 `Ok(StepOutcome::from_form(form))`.
+- profile (`crates/oxibuilder-ext-profile/src/lib.rs`): 폼 저장 후 `Ok(StepOutcome::from_form(form))`.
 - movies/books/activity 키-step 핸들러: 저장 후 `Ok(StepOutcome::from_form(form))`.
 - `tests/setup_wizard.rs`의 `NoopSave`: `Ok(StepOutcome::default())`.
 
@@ -444,8 +444,8 @@ git add -A && git commit -m "feat(setup-web): ExtensionSubWizard + 클라이언�
 ### Task 7: movies/books/activity action step 추가 + profile outcome
 
 **Files:**
-- Modify: `crates/oxipage-ext-movies/src/lib.rs`, `crates/oxipage-ext-books/src/lib.rs`, `crates/oxipage-ext-activity/src/lib.rs`, `crates/oxipage-ext-profile/src/lib.rs`
-- Test: `crates/oxipage-core/tests/setup_wizard.rs`
+- Modify: `crates/oxibuilder-ext-movies/src/lib.rs`, `crates/oxibuilder-ext-books/src/lib.rs`, `crates/oxibuilder-ext-activity/src/lib.rs`, `crates/oxibuilder-ext-profile/src/lib.rs`
+- Test: `crates/oxibuilder-core/tests/setup_wizard.rs`
 
 **Interfaces:**
 - Consumes: Task 5의 action step (`fields: vec![]`) + `visible_when` + `StepOutcome`.
@@ -453,22 +453,22 @@ git add -A && git commit -m "feat(setup-web): ExtensionSubWizard + 클라이언�
 
 - [ ] **Step 1: movies 테스트/가져오기 step 추가**
 
-`crates/oxipage-ext-movies/src/lib.rs`: 위자드 steps를 3개로 확장:
+`crates/oxibuilder-ext-movies/src/lib.rs`: 위자드 steps를 3개로 확장:
 - `movies_key` (Secret, Task 4)
 - `movies_test` — `fields: vec![]`, save_handler가 TMDB 핑 → `Ok(StepOutcome{ values: {"connection_ok":"true"} })` (실패 시 `{"connection_ok":"false","error":...}`). `visible_when: Some(FieldNotEmpty{ step_id:"movies_key", field:"tmdb_key" })`.
 - `movies_import` — `fields: vec![]`, save_handler가 인기작 가져오기 → `Ok(StepOutcome{ values: {"imported": count} })`. `visible_when: Some(FieldEquals{ step_id:"movies_test", field:"connection_ok", value:"true" })`.
 
 - [ ] **Step 2: books 동일 (알라딘)**
 
-`crates/oxipage-ext-books/src/lib.rs`: `books_key` / `books_test` / `books_import`. 동일 visible_when 패턴.
+`crates/oxibuilder-ext-books/src/lib.rs`: `books_key` / `books_test` / `books_import`. 동일 visible_when 패턴.
 
 - [ ] **Step 3: activity 동기화 step 추가**
 
-`crates/oxipage-ext-activity/src/lib.rs`: `activity_github` (Task 4) + `activity_sync` — `fields: vec![]`, save_handler가 GitHub 활동 동기화. `visible_when: Some(FieldNotEmpty{ step_id:"activity_github", field:"github_username" })`.
+`crates/oxibuilder-ext-activity/src/lib.rs`: `activity_github` (Task 4) + `activity_sync` — `fields: vec![]`, save_handler가 GitHub 활동 동기화. `visible_when: Some(FieldNotEmpty{ step_id:"activity_github", field:"github_username" })`.
 
 - [ ] **Step 4: profile from_form 확인**
 
-`crates/oxipage-ext-profile/src/lib.rs`: save가 `Ok(StepOutcome::from_form(form))` 반환 (Task 5에서 했으면 확인만).
+`crates/oxibuilder-ext-profile/src/lib.rs`: save가 `Ok(StepOutcome::from_form(form))` 반환 (Task 5에서 했으면 확인만).
 
 - [ ] **Step 5: 통합 테스트 — action step 디스패치 + outcome**
 
@@ -518,7 +518,7 @@ Expected: PASS.
 
 - [ ] **Step 6: 스모크 + 커밋**
 
-`cargo run -p oxipage-console -- console` 후 브라우저 `/setup`: movies 켜고 → TMDB 키 입력 → 테스트 버튼 → (키 있을 때) 가져오기 버튼 노출 확인. (자동화 어려우면 cargo test + web build 녹색으로 대체.)
+`cargo run -p oxibuilder-console -- console` 후 브라우저 `/setup`: movies 켜고 → TMDB 키 입력 → 테스트 버튼 → (키 있을 때) 가져오기 버튼 노출 확인. (자동화 어려우면 cargo test + web build 녹색으로 대체.)
 ```bash
 git add -A && git commit -m "feat(setup): movies/books/activity 조건부 action step 추가"
 ```

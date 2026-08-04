@@ -153,6 +153,6 @@ v1 디자인 시스템은 기술적 토대가 견고(OKLCH 3계층 토큰, WCAG 
 
 ## 10. 롤백
 
-- 백엔드 WIP(7개 Rust 파일 + oxipage.toml + 신규 migration)는 사용자 소유 — 건드리지 않음.
+- 백엔드 WIP(7개 Rust 파일 + oxibuilder.toml + 신규 migration)는 사용자 소유 — 건드리지 않음.
 - 본 작업은 `7def3df` HEAD 위에 커밋이 쌓임, 단계별 revert 가능.
 - PoC(Phase 1) 통과 전까지 기존 파일을 덮어쓰지 않음 — 새 파일 우선, 교체는 검증 후.

@@ -4,7 +4,7 @@
 
 **Goal:** Make GitHub Pages deployment a configured, preflighted, repository-scoped operation with reconnectable progress and durable history, shared by the console and CLI.
 
-**Architecture:** `oxipage-core` owns target configuration, validation, and URL/base derivation; `oxipage-deploy` owns a blocking, shell-free Git worktree pipeline. The console adds one per-site build/deploy guard, typed preflight, SSE retention, and SQLite history; React and the CLI consume those shared contracts.
+**Architecture:** `oxibuilder-core` owns target configuration, validation, and URL/base derivation; `oxibuilder-deploy` owns a blocking, shell-free Git worktree pipeline. The console adds one per-site build/deploy guard, typed preflight, SSE retention, and SQLite history; React and the CLI consume those shared contracts.
 
 **Tech Stack:** Rust 2024 (axum 0.8, tokio, sqlx SQLite, serde, uuid), Git/GitHub CLI subprocesses, React 19, TypeScript, TanStack Query, Vite 7
 
@@ -19,7 +19,7 @@
 - No credentials or raw command stderr are persisted.
 - No `bash -c`, external `cp`, external `rm`, or shell interpolation in deploy core.
 - One build or deploy may run per site; different sites remain concurrent.
-- `BuildManifest` from `oxipage_core::build_manifest` is the sole build metadata contract.
+- `BuildManifest` from `oxibuilder_core::build_manifest` is the sole build metadata contract.
 - Rust integration tests use `cargo test -p <crate> --test <name>`. Frontend verification uses `cd web && npx tsc --noEmit` plus manual smoke; add no frontend test runner.
 - Clean cutover: remove separate `BuildGuard`/`DeployGuard` APIs and leave no aliases.
 
@@ -28,17 +28,17 @@
 ## File Structure
 
 ```text
-crates/oxipage-core/src/
+crates/oxibuilder-core/src/
 ├── config.rs                         # deserialize DeployConfig
 └── site_paths.rs                     # validate/derive foundation target types
-crates/oxipage-core/migrations/core/
+crates/oxibuilder-core/migrations/core/
 └── 0007_deploy_log.sql               # durable deployment history
-crates/oxipage-core/tests/deploy_config.rs
-crates/oxipage-deploy/
+crates/oxibuilder-core/tests/deploy_config.rs
+crates/oxibuilder-deploy/
 ├── Cargo.toml                         # core + uuid dependencies
 ├── src/lib.rs                        # safe repository-scoped pipeline
 └── tests/github_pages.rs
-crates/oxipage-console/src/
+crates/oxibuilder-console/src/
 ├── operations.rs                     # shared operation slot and retained terminal state
 ├── lib.rs                            # construct shared guard
 ├── loader.rs                         # pass guard to SiteContext
@@ -46,12 +46,12 @@ crates/oxipage-console/src/
 ├── build/build_run.rs                # build via shared guard
 ├── deploy/deploy_run.rs              # deploy + deploy_log recorder
 └── per_site.rs                       # config/preflight/history/current routes
-crates/oxipage-console/tests/
+crates/oxibuilder-console/tests/
 ├── config_deploy.rs
 ├── operations.rs
 └── deploy_api.rs
-crates/oxipage-cli/src/commands/deploy.rs
-crates/oxipage-cli/tests/deploy_site.rs
+crates/oxibuilder-cli/src/commands/deploy.rs
+crates/oxibuilder-cli/tests/deploy_site.rs
 web/src/admin/
 ├── shared/api.ts
 ├── deploy/DeployPage.tsx
@@ -64,9 +64,9 @@ web/src/admin/
 ### Task 1: Core target configuration, validation, and derivation
 
 **Files:**
-- Modify: `crates/oxipage-core/src/config.rs`
-- Modify: `crates/oxipage-core/src/site_paths.rs`
-- Create: `crates/oxipage-core/tests/deploy_config.rs`
+- Modify: `crates/oxibuilder-core/src/config.rs`
+- Modify: `crates/oxibuilder-core/src/site_paths.rs`
+- Create: `crates/oxibuilder-core/tests/deploy_config.rs`
 
 **Interfaces:**
 - Consumes: foundation `DeployConfig { github_pages: Option<GitHubPagesTarget> }`
@@ -75,8 +75,8 @@ web/src/admin/
 - [ ] **Step 1: Write the failing test**
 
 ```rust
-// crates/oxipage-core/tests/deploy_config.rs
-use oxipage_core::{config::Config, site_paths::GitHubPagesTarget};
+// crates/oxibuilder-core/tests/deploy_config.rs
+use oxibuilder_core::{config::Config, site_paths::GitHubPagesTarget};
 fn target(owner: &str, repo: &str, branch: &str) -> GitHubPagesTarget {
     GitHubPagesTarget { owner: owner.into(), repo: repo.into(), branch: branch.into() }
 }
@@ -85,14 +85,14 @@ fn parses_and_derives_pages_targets() {
     let cfg = Config::from_toml_str(r#"
 [site]
 name="Site"
-base_url="https://project-oxi.github.io/oxipage/"
+base_url="https://project-oxi.github.io/oxibuilder/"
 [deploy.github_pages]
 owner="a7garden"
 repo="notes"
 "#).unwrap();
     let pages = cfg.deploy.github_pages.unwrap();
     assert_eq!(pages.branch, "gh-pages");
-    assert_eq!(pages.pages_url(), "https://project-oxi.github.io/oxipage/");
+    assert_eq!(pages.pages_url(), "https://project-oxi.github.io/oxibuilder/");
     assert_eq!(pages.base_path(), "/notes/");
     let root = target("a7garden", "a7garden.github.io", "pages/v1");
     assert_eq!((root.pages_url(), root.base_path()), ("https://a7garden.github.io/".into(), "/".into()));
@@ -111,7 +111,7 @@ fn rejects_unsafe_values() {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cargo test -p oxipage-core --test deploy_config`
+Run: `cargo test -p oxibuilder-core --test deploy_config`
 
 Expected: FAIL because `Config.deploy` and target methods are absent.
 
@@ -173,14 +173,14 @@ deploy: cfg.deploy.clone(),
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `cargo test -p oxipage-core --test deploy_config`
+Run: `cargo test -p oxibuilder-core --test deploy_config`
 
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/oxipage-core/src/config.rs crates/oxipage-core/src/site_paths.rs crates/oxipage-core/tests/deploy_config.rs
+git add crates/oxibuilder-core/src/config.rs crates/oxibuilder-core/src/site_paths.rs crates/oxibuilder-core/tests/deploy_config.rs
 git commit -m "feat(core): add validated GitHub Pages target config"
 ```
 
@@ -189,8 +189,8 @@ git commit -m "feat(core): add validated GitHub Pages target config"
 ### Task 2: Atomic allowlisted deployment config API
 
 **Files:**
-- Modify: `crates/oxipage-console/src/per_site.rs`
-- Create: `crates/oxipage-console/tests/config_deploy.rs`
+- Modify: `crates/oxibuilder-console/src/per_site.rs`
+- Create: `crates/oxibuilder-console/tests/config_deploy.rs`
 
 **Interfaces:**
 - Consumes: `ctx.settings`, `ctx.startup_server`, `ctx.config_write_lock`, target validation
@@ -199,7 +199,7 @@ git commit -m "feat(core): add validated GitHub Pages target config"
 - [ ] **Step 1: Write the failing preservation/validation test**
 
 ```rust
-// crates/oxipage-console/tests/config_deploy.rs; reuse the concrete router fixture pattern from site_routes.rs
+// crates/oxibuilder-console/tests/config_deploy.rs; reuse the concrete router fixture pattern from site_routes.rs
 #[tokio::test]
 async fn deploy_patch_preserves_server_and_unknown_keys() {
     let fixture = site_router_with_toml(r#"
@@ -216,7 +216,7 @@ keep="yes"
         "deploy":{"github_pages":{"owner":"a7garden","repo":"notes","branch":"gh-pages"}}
     })).await;
     assert_eq!(response.status(), axum::http::StatusCode::OK);
-    let saved: toml::Value = toml::from_str(&std::fs::read_to_string(fixture.project_dir.join("oxipage.toml")).unwrap()).unwrap();
+    let saved: toml::Value = toml::from_str(&std::fs::read_to_string(fixture.project_dir.join("oxibuilder.toml")).unwrap()).unwrap();
     assert_eq!(saved["server"]["port"].as_integer(), Some(9123));
     assert_eq!(saved["custom"]["keep"].as_str(), Some("yes"));
     assert_eq!(saved["deploy"]["github_pages"]["repo"].as_str(), Some("notes"));
@@ -224,7 +224,7 @@ keep="yes"
 #[tokio::test]
 async fn invalid_target_is_not_persisted() {
     let fixture = site_router().await;
-    let path = fixture.project_dir.join("oxipage.toml");
+    let path = fixture.project_dir.join("oxibuilder.toml");
     let before = std::fs::read_to_string(&path).unwrap();
     let response = put_json(fixture.app, "/s/blog/config", serde_json::json!({
         "deploy":{"github_pages":{"owner":"bad/name","repo":"notes","branch":"gh-pages"}}
@@ -236,7 +236,7 @@ async fn invalid_target_is_not_persisted() {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cargo test -p oxipage-console --test config_deploy`
+Run: `cargo test -p oxibuilder-console --test config_deploy`
 
 Expected: FAIL because deploy is not allowlisted.
 
@@ -302,14 +302,14 @@ Ok(Json(ConfigResponse { data: config_json(&next, &ctx.startup_server) }))
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `cargo test -p oxipage-console --test config_deploy`
+Run: `cargo test -p oxibuilder-console --test config_deploy`
 
 Expected: PASS; invalid targets do not write and server/custom keys survive.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/oxipage-console/src/per_site.rs crates/oxipage-console/tests/config_deploy.rs
+git add crates/oxibuilder-console/src/per_site.rs crates/oxibuilder-console/tests/config_deploy.rs
 git commit -m "feat(console): expose mutable GitHub Pages settings"
 ```
 
@@ -318,9 +318,9 @@ git commit -m "feat(console): expose mutable GitHub Pages settings"
 ### Task 3: Safe repository-scoped deploy core
 
 **Files:**
-- Modify: `crates/oxipage-deploy/Cargo.toml`
-- Rewrite: `crates/oxipage-deploy/src/lib.rs`
-- Create: `crates/oxipage-deploy/tests/github_pages.rs`
+- Modify: `crates/oxibuilder-deploy/Cargo.toml`
+- Rewrite: `crates/oxibuilder-deploy/src/lib.rs`
+- Create: `crates/oxibuilder-deploy/tests/github_pages.rs`
 
 **Interfaces:**
 - Consumes: `GitHubPagesTarget`, `BuildManifest`
@@ -329,8 +329,8 @@ git commit -m "feat(console): expose mutable GitHub Pages settings"
 - [ ] **Step 1: Write failing precondition/origin tests**
 
 ```rust
-use oxipage_core::{build_manifest::BuildManifest, site_paths::GitHubPagesTarget};
-use oxipage_deploy::{deploy_github_pages, origin_matches, DeployError};
+use oxibuilder_core::{build_manifest::BuildManifest, site_paths::GitHubPagesTarget};
+use oxibuilder_deploy::{deploy_github_pages, origin_matches, DeployError};
 use tempfile::TempDir;
 #[test]
 fn manifest_mismatch_precedes_git_changes() {
@@ -353,13 +353,13 @@ fn origin_matching_is_exact() {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cargo test -p oxipage-deploy --test github_pages`
+Run: `cargo test -p oxibuilder-deploy --test github_pages`
 
 Expected: FAIL on the new API.
 
 - [ ] **Step 3: Implement the contracts, filesystem operations, and cleanup guard**
 
-Add `oxipage-core` and `uuid.workspace = true` to the deploy crate. Rewrite its public types:
+Add `oxibuilder-core` and `uuid.workspace = true` to the deploy crate. Rewrite its public types:
 
 ```rust
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -424,7 +424,7 @@ pub fn deploy_github_pages(repo_dir:&Path,out_dir:&Path,target:&GitHubPagesTarge
  run(repo_dir,"git",&["rev-parse","--is-inside-work-tree"],"repository").map_err(|_|DeployError::NotGitRepository)?;
  let remote=run(repo_dir,"git",&["remote","get-url","origin"],"origin")?;
  if !origin_matches(&String::from_utf8_lossy(&remote.stdout),target){return Err(DeployError::OriginMismatch)} let _=tx.blocking_send(DeployEvent::RepositoryReady);
- let work=std::env::temp_dir().join(format!("oxipage-deploy-{}",uuid::Uuid::new_v4())); let w=work.to_string_lossy().into_owned();
+ let work=std::env::temp_dir().join(format!("oxibuilder-deploy-{}",uuid::Uuid::new_v4())); let w=work.to_string_lossy().into_owned();
  let remote_ref=format!("refs/remotes/origin/{}",target.branch);
  let exists=Command::new("git").current_dir(repo_dir).args(["show-ref","--verify","--quiet",&remote_ref]).status().is_ok_and(|s|s.success());
  if exists{run(repo_dir,"git",&["worktree","add","--detach",&w,&remote_ref],"worktree")?;}else{run(repo_dir,"git",&["worktree","add","--detach",&w],"worktree")?;}
@@ -440,18 +440,18 @@ pub fn deploy_github_pages(repo_dir:&Path,out_dir:&Path,target:&GitHubPagesTarge
 
 - [ ] **Step 4: Verify tests and forbidden-command scan**
 
-Run: `cargo test -p oxipage-deploy --test github_pages`
+Run: `cargo test -p oxibuilder-deploy --test github_pages`
 
 Expected: PASS.
 
-Run: `grep -n 'bash\|Command::new("cp")\|Command::new("rm")' crates/oxipage-deploy/src/lib.rs`
+Run: `grep -n 'bash\|Command::new("cp")\|Command::new("rm")' crates/oxibuilder-deploy/src/lib.rs`
 
 Expected: no matches.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/oxipage-deploy
+git add crates/oxibuilder-deploy
 git commit -m "refactor(deploy): make GitHub Pages deployment repository scoped"
 ```
 
@@ -460,11 +460,11 @@ git commit -m "refactor(deploy): make GitHub Pages deployment repository scoped"
 ### Task 4: One operation guard for build and deploy
 
 **Files:**
-- Create: `crates/oxipage-console/src/operations.rs`
-- Modify: `crates/oxipage-console/src/{lib.rs,loader.rs,sites_runtime.rs}`
-- Modify: `crates/oxipage-console/src/build/build_run.rs`
-- Modify: `crates/oxipage-console/src/deploy/deploy_run.rs`
-- Create: `crates/oxipage-console/tests/operations.rs`
+- Create: `crates/oxibuilder-console/src/operations.rs`
+- Modify: `crates/oxibuilder-console/src/{lib.rs,loader.rs,sites_runtime.rs}`
+- Modify: `crates/oxibuilder-console/src/build/build_run.rs`
+- Modify: `crates/oxibuilder-console/src/deploy/deploy_run.rs`
+- Create: `crates/oxibuilder-console/tests/operations.rs`
 
 **Interfaces:**
 - Produces: `SiteOperationGuard::{try_start,current,subscribe,publish,finish}` and retained `OperationSnapshot`
@@ -472,14 +472,14 @@ git commit -m "refactor(deploy): make GitHub Pages deployment repository scoped"
 - [ ] **Step 1: Write failing exclusion/retention tests**
 
 ```rust
-use oxipage_console::operations::{OperationEvent,SiteOperationGuard,SiteOperationKind};
+use oxibuilder_console::operations::{OperationEvent,SiteOperationGuard,SiteOperationKind};
 #[test] fn conflicts_only_within_site(){let g=SiteOperationGuard::new();g.try_start("a","b1",SiteOperationKind::Build).unwrap();let e=g.try_start("a","d1",SiteOperationKind::Deploy).unwrap_err();assert_eq!((e.kind,e.run_id),(SiteOperationKind::Build,"b1".into()));assert!(g.try_start("b","d2",SiteOperationKind::Deploy).is_ok());}
 #[test] fn terminal_state_survives_finish(){let g=SiteOperationGuard::new();g.try_start("a","d1",SiteOperationKind::Deploy).unwrap();g.publish("a",OperationEvent::terminal("deployed",serde_json::json!({"url":"u"}))).unwrap();g.finish("a").unwrap();let s=g.current("a").unwrap();assert!(!s.active);assert_eq!(s.terminal.unwrap()["url"],"u");}
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cargo test -p oxipage-console --test operations`
+Run: `cargo test -p oxibuilder-console --test operations`
 
 Expected: FAIL because `operations` is absent.
 
@@ -514,18 +514,18 @@ Relay build events through `OperationEvent`, publish a terminal event before `fi
 
 - [ ] **Step 4: Run focused tests**
 
-Run: `cargo test -p oxipage-console --test operations`
+Run: `cargo test -p oxibuilder-console --test operations`
 
 Expected: PASS.
 
-Run: `cargo test -p oxipage-console --test build_deploy_preview`
+Run: `cargo test -p oxibuilder-console --test build_deploy_preview`
 
 Expected: PASS after assertions use the common 409 shape.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/oxipage-console/src crates/oxipage-console/tests/operations.rs crates/oxipage-console/tests/build_deploy_preview.rs
+git add crates/oxibuilder-console/src crates/oxibuilder-console/tests/operations.rs crates/oxibuilder-console/tests/build_deploy_preview.rs
 git commit -m "refactor(console): serialize site build and deploy operations"
 ```
 
@@ -534,10 +534,10 @@ git commit -m "refactor(console): serialize site build and deploy operations"
 ### Task 5: Deploy history and run lifecycle
 
 **Files:**
-- Create: `crates/oxipage-core/migrations/core/0007_deploy_log.sql`
-- Rewrite: `crates/oxipage-console/src/deploy/deploy_run.rs`
-- Modify: `crates/oxipage-console/src/per_site.rs`
-- Create: `crates/oxipage-console/tests/deploy_api.rs`
+- Create: `crates/oxibuilder-core/migrations/core/0007_deploy_log.sql`
+- Rewrite: `crates/oxibuilder-console/src/deploy/deploy_run.rs`
+- Modify: `crates/oxibuilder-console/src/per_site.rs`
+- Create: `crates/oxibuilder-console/tests/deploy_api.rs`
 
 **Interfaces:**
 - Consumes: shared guard, live target snapshot, manifest, deploy outcome
@@ -554,7 +554,7 @@ git commit -m "refactor(console): serialize site build and deploy operations"
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cargo test -p oxipage-console --test deploy_api`
+Run: `cargo test -p oxibuilder-console --test deploy_api`
 
 Expected: FAIL because table/route are absent.
 
@@ -589,14 +589,14 @@ Register `.route("/deploys", get(deploys_list))`.
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `cargo test -p oxipage-console --test deploy_api`
+Run: `cargo test -p oxibuilder-console --test deploy_api`
 
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/oxipage-core/migrations/core/0007_deploy_log.sql crates/oxipage-console/src/deploy/deploy_run.rs crates/oxipage-console/src/per_site.rs crates/oxipage-console/tests/deploy_api.rs
+git add crates/oxibuilder-core/migrations/core/0007_deploy_log.sql crates/oxibuilder-console/src/deploy/deploy_run.rs crates/oxibuilder-console/src/per_site.rs crates/oxibuilder-console/tests/deploy_api.rs
 git commit -m "feat(console): persist GitHub Pages deploy history"
 ```
 
@@ -605,8 +605,8 @@ git commit -m "feat(console): persist GitHub Pages deploy history"
 ### Task 6: Preflight and current-operation APIs
 
 **Files:**
-- Modify: `crates/oxipage-console/src/per_site.rs`
-- Modify: `crates/oxipage-console/tests/deploy_api.rs`
+- Modify: `crates/oxibuilder-console/src/per_site.rs`
+- Modify: `crates/oxibuilder-console/tests/deploy_api.rs`
 
 **Interfaces:**
 - Produces: `GET /deploy/preflight`, `GET /operations/current`; deploy POST preflight gate
@@ -620,7 +620,7 @@ git commit -m "feat(console): persist GitHub Pages deploy history"
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cargo test -p oxipage-console --test deploy_api`
+Run: `cargo test -p oxibuilder-console --test deploy_api`
 
 Expected: FAIL with 404.
 
@@ -654,14 +654,14 @@ Register both routes. `deploy_post` calls `evaluate_preflight`; on failure retur
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `cargo test -p oxipage-console --test deploy_api`
+Run: `cargo test -p oxibuilder-console --test deploy_api`
 
 Expected: PASS for all nine checks, current operation, and 424 behavior.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/oxipage-console/src/per_site.rs crates/oxipage-console/tests/deploy_api.rs
+git add crates/oxibuilder-console/src/per_site.rs crates/oxibuilder-console/tests/deploy_api.rs
 git commit -m "feat(console): add deploy preflight and reconnect APIs"
 ```
 
@@ -670,8 +670,8 @@ git commit -m "feat(console): add deploy preflight and reconnect APIs"
 ### Task 7: CLI registered-site convergence
 
 **Files:**
-- Rewrite: `crates/oxipage-cli/src/commands/deploy.rs`
-- Create: `crates/oxipage-cli/tests/deploy_site.rs`
+- Rewrite: `crates/oxibuilder-cli/src/commands/deploy.rs`
+- Create: `crates/oxibuilder-cli/tests/deploy_site.rs`
 
 **Interfaces:**
 - Produces: `resolve_deploy_project`; `--site`/default/legacy precedence; shared-core invocation
@@ -681,12 +681,12 @@ git commit -m "feat(console): add deploy preflight and reconnect APIs"
 ```rust
 #[test]fn explicit_site_wins(){assert_eq!(resolve_deploy_project(Some("beta"),&registry(),None).unwrap(),PathBuf::from("/sites/beta"));}
 #[test]fn default_is_used(){assert_eq!(resolve_deploy_project(None,&registry(),None).unwrap(),PathBuf::from("/sites/alpha"));}
-#[test]fn legacy_only_without_registry(){assert_eq!(resolve_deploy_project(None,&SitesFile::default(),Some(Path::new("/legacy/oxipage.toml"))).unwrap(),PathBuf::from("/legacy"));assert!(resolve_deploy_project(Some("missing"),&registry(),Some(Path::new("/legacy/oxipage.toml"))).is_err());}
+#[test]fn legacy_only_without_registry(){assert_eq!(resolve_deploy_project(None,&SitesFile::default(),Some(Path::new("/legacy/oxibuilder.toml"))).unwrap(),PathBuf::from("/legacy"));assert!(resolve_deploy_project(Some("missing"),&registry(),Some(Path::new("/legacy/oxibuilder.toml"))).is_err());}
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cargo test -p oxipage --test deploy_site`
+Run: `cargo test -p oxibuilder --test deploy_site`
 
 Expected: FAIL.
 
@@ -695,13 +695,13 @@ Expected: FAIL.
 ```rust
 pub fn resolve_deploy_project(requested:Option<&str>,sites:&SitesFile,legacy:Option<&Path>)->anyhow::Result<PathBuf>{
  if !sites.sites.is_empty(){let name=sites.resolve_name(requested).ok_or_else(||anyhow!("select a site with --site or set a default"))?;return sites.sites.get(&name).map(|e|e.path.clone()).ok_or_else(||anyhow!("site '{name}' is not registered"));}
- legacy.and_then(Path::parent).map(Path::to_path_buf).ok_or_else(||anyhow!("no registered site and no oxipage.toml"))
+ legacy.and_then(Path::parent).map(Path::to_path_buf).ok_or_else(||anyhow!("no registered site and no oxibuilder.toml"))
 }
 ```
 
 ```rust
-let sites=crate::sites::load_sites();let legacy=std::env::var_os("OXIPAGE_CONFIG").map(PathBuf::from).or_else(||Path::new("oxipage.toml").exists().then(||PathBuf::from("oxipage.toml")));
-let project=resolve_deploy_project(c.site.as_deref(),&sites,legacy.as_deref())?;let cfg=Config::load(&project.join("oxipage.toml"))?;
+let sites=crate::sites::load_sites();let legacy=std::env::var_os("OXIBUILDER_CONFIG").map(PathBuf::from).or_else(||Path::new("oxibuilder.toml").exists().then(||PathBuf::from("oxibuilder.toml")));
+let project=resolve_deploy_project(c.site.as_deref(),&sites,legacy.as_deref())?;let cfg=Config::load(&project.join("oxibuilder.toml"))?;
 let target=cfg.deploy.github_pages.ok_or_else(||anyhow!("[deploy.github_pages] is not configured"))?;target.validate()?;
 let data=if cfg.server.data_dir.is_absolute(){cfg.server.data_dir}else{project.join(cfg.server.data_dir)};let out_dir=data.join("out");let manifest=BuildManifest::read_from(&out_dir)?;
 let(tx,mut rx)=tokio::sync::mpsc::channel(64);let repo=project.clone();let target2=target.clone();let handle=tokio::task::spawn_blocking(move||deploy_github_pages(&repo,&out_dir,&target2,&manifest,&tx));while let Some(e)=rx.recv().await{out.ok(deploy_event_label(&e))?;}match handle.await??{DeployOutcome::Deployed{url,commit}=>out.ok(format!("deployed {commit} to {url}")),DeployOutcome::Unchanged{url,commit}=>out.ok(format!("unchanged at {commit}: {url}"))}
@@ -711,14 +711,14 @@ Retain dry-run, but print selected `out_dir` and `target.pages_url()`. Update `d
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `cargo test -p oxipage --test deploy_site`
+Run: `cargo test -p oxibuilder --test deploy_site`
 
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/oxipage-cli/src/commands/deploy.rs crates/oxipage-cli/tests/deploy_site.rs
+git add crates/oxibuilder-cli/src/commands/deploy.rs crates/oxibuilder-cli/tests/deploy_site.rs
 git commit -m "fix(cli): honor registered site for deploy"
 ```
 
@@ -818,9 +818,9 @@ git commit -m "feat(admin): add preflighted reconnectable deployment"
 
 **Files:**
 - Modify: `web/src/admin/settings/SettingsPage.tsx`
-- Modify: `crates/oxipage-console/src/per_site.rs`
+- Modify: `crates/oxibuilder-console/src/per_site.rs`
 - Modify: `web/src/admin/dashboard/DashboardPage.tsx`
-- Modify: `crates/oxipage-console/tests/deploy_api.rs`
+- Modify: `crates/oxibuilder-console/tests/deploy_api.rs`
 
 **Interfaces:**
 - Produces: Settings deployment section, explicit base URL action, `stats.last_deploy`
@@ -833,7 +833,7 @@ git commit -m "feat(admin): add preflighted reconnectable deployment"
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cargo test -p oxipage-console --test deploy_api`
+Run: `cargo test -p oxibuilder-console --test deploy_api`
 
 Expected: FAIL because stats lacks `last_deploy`.
 
@@ -879,17 +879,17 @@ let last_deploy=sqlx::query_as::<_,DeployRecord>("SELECT * FROM deploy_log ORDER
 
 - [ ] **Step 5: Run focused verification**
 
-Run: `cargo test -p oxipage-core --test deploy_config`
+Run: `cargo test -p oxibuilder-core --test deploy_config`
 
-Run: `cargo test -p oxipage-deploy --test github_pages`
+Run: `cargo test -p oxibuilder-deploy --test github_pages`
 
-Run: `cargo test -p oxipage-console --test config_deploy`
+Run: `cargo test -p oxibuilder-console --test config_deploy`
 
-Run: `cargo test -p oxipage-console --test operations`
+Run: `cargo test -p oxibuilder-console --test operations`
 
-Run: `cargo test -p oxipage-console --test deploy_api`
+Run: `cargo test -p oxibuilder-console --test deploy_api`
 
-Run: `cargo test -p oxipage --test deploy_site`
+Run: `cargo test -p oxibuilder --test deploy_site`
 
 Run: `cd web && npx tsc --noEmit`
 
@@ -897,12 +897,12 @@ Expected: every command PASS.
 
 - [ ] **Step 6: Perform end-to-end smoke**
 
-Manual smoke with two temporary registered sites/remotes: confirm root `/` and project `/<repo>/`; launch console outside both repositories; deploy only the selected repo; verify origin/auth/base/theme failures modify no Git state; start deploy on site A and observe build/deploy 409 while site B remains operable; refresh and reattach; produce deployed, unchanged, and failed history rows; run `oxipage deploy --site <second-slug>` and confirm the second target receives output whose assets/data/media resolve under its Pages URL.
+Manual smoke with two temporary registered sites/remotes: confirm root `/` and project `/<repo>/`; launch console outside both repositories; deploy only the selected repo; verify origin/auth/base/theme failures modify no Git state; start deploy on site A and observe build/deploy 409 while site B remains operable; refresh and reattach; produce deployed, unchanged, and failed history rows; run `oxibuilder deploy --site <second-slug>` and confirm the second target receives output whose assets/data/media resolve under its Pages URL.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add web/src/admin/settings/SettingsPage.tsx web/src/admin/dashboard/DashboardPage.tsx crates/oxipage-console/src/per_site.rs crates/oxipage-console/tests/deploy_api.rs
+git add web/src/admin/settings/SettingsPage.tsx web/src/admin/dashboard/DashboardPage.tsx crates/oxibuilder-console/src/per_site.rs crates/oxibuilder-console/tests/deploy_api.rs
 git commit -m "feat(console): expose GitHub Pages settings and status"
 ```
 

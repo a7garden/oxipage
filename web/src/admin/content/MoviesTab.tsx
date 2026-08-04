@@ -507,7 +507,7 @@ function TmdbSearchRow({ slug, onPick }: { slug: string; onPick: (r: TmdbSearchR
         <p className="mt-1 text-xs text-muted max-w-56">
           TMDB 검색 비활성 —{" "}
           <Link className="underline" to={`/s/${slug}/settings`}>Settings</Link>
-          에서 TMDB Key Env를 확인하거나 <code>OXIPAGE_TMDB_KEY</code> 환경변수를
+          에서 TMDB Key Env를 확인하거나 <code>OXIBUILDER_TMDB_KEY</code> 환경변수를
           설정하세요. 제목/포스터는 수동 입력할 수 있습니다.
         </p>
       )}

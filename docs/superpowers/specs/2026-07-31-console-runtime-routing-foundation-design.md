@@ -15,7 +15,7 @@ The current source path for `/sites` is internally correct:
 
 ```text
 GET /sites
-→ oxipage-core build_app outer fallback
+→ oxibuilder-core build_app outer fallback
 → static_handler exact asset lookup misses "sites"
 → serve embedded admin.html
 → load /assets/admin-<hash>.js and global CSS
@@ -25,7 +25,7 @@ GET /sites
 
 Evidence:
 
-- `crates/oxipage-core/src/http.rs::Assets` embeds `crates/oxipage-core/embedded-spa`.
+- `crates/oxibuilder-core/src/http.rs::Assets` embeds `crates/oxibuilder-core/embedded-spa`.
 - `static_handler` serves an exact embedded file or falls back to `admin.html`.
 - `web/src/admin/App.tsx` declares `path="sites"` under a root-hosted `BrowserRouter`.
 - Admin API clients use absolute `/api/console/...` paths, so deep-link depth is irrelevant.
@@ -35,17 +35,17 @@ The source therefore does not justify a `/sites` server route or an Admin router
 
 A major source of confusion is the duplicate embed:
 
-- **served:** `crates/oxipage-core/embedded-spa`
-- **unused:** `crates/oxipage-console/embedded-spa`, populated by `crates/oxipage-console/build.rs`
+- **served:** `crates/oxibuilder-core/embedded-spa`
+- **unused:** `crates/oxibuilder-console/embedded-spa`, populated by `crates/oxibuilder-console/build.rs`
 
-Nothing in `oxipage-console/src` embeds or reads the latter.
+Nothing in `oxibuilder-console/src` embeds or reads the latter.
 
 ## 3. Scope
 
 ### In scope
 
 - Reproduce `/sites` from a freshly built frontend and Rust binary before changing routing.
-- Consolidate Admin embed ownership in `oxipage-core`.
+- Consolidate Admin embed ownership in `oxibuilder-core`.
 - Fail the build when the production Admin entry is absent.
 - Add cache and SPA revision policy.
 - Add an Admin ErrorBoundary and stale-chunk recovery UI.
@@ -57,7 +57,7 @@ Nothing in `oxipage-console/src` embeds or reads the latter.
 
 - Hosting the Admin SPA under a reverse-proxy subpath.
 - Changing the Admin router to a data router.
-- Changing the `oxipage open` root URL behavior.
+- Changing the `oxibuilder open` root URL behavior.
 - Public static-site base-path behavior beyond defining the `SiteContext` and build-manifest contracts consumed by later specs.
 
 ## 4. Embed and build design
@@ -67,14 +67,14 @@ Nothing in `oxipage-console/src` embeds or reads the latter.
 Keep only:
 
 ```text
-crates/oxipage-core/embedded-spa/
+crates/oxibuilder-core/embedded-spa/
 ```
 
 Remove:
 
 ```text
-crates/oxipage-console/embedded-spa/
-crates/oxipage-console/build.rs
+crates/oxibuilder-console/embedded-spa/
+crates/oxibuilder-console/build.rs
 ```
 
 The current console build script has no other responsibility.
@@ -95,7 +95,7 @@ The build script chooses one of two explicit input modes:
    ```
 2. **Published crate build:** when workspace `web/` is absent, use the packaged, already-populated `embedded-spa/` and `embedded-spa-static/`; require their `admin.html`/`index.html` entries and fail if the crate package is incomplete.
 
-The build script never writes an index-only placeholder. `oxipage-core/Cargo.toml` includes both `embedded-spa/**` and `embedded-spa-static/**` so `cargo install oxipage` works without the web source tree.
+The build script never writes an index-only placeholder. `oxibuilder-core/Cargo.toml` includes both `embedded-spa/**` and `embedded-spa-static/**` so `cargo install oxibuilder` works without the web source tree.
 
 ### 4.3 Revision marker
 
@@ -108,7 +108,7 @@ embedded-spa/.build-revision
 The same revision is compiled into the server. HTML responses expose:
 
 ```http
-X-Oxipage-SPA-Revision: <sha256>
+X-Oxibuilder-SPA-Revision: <sha256>
 ```
 
 The ErrorBoundary displays this revision. It is diagnostic metadata, not a cache key or security token.
@@ -183,7 +183,7 @@ media_dir   = data_dir.join("media")
 
 `MutableSiteSettings` contains only live-reloadable site display/language fields, lobby settings, integrations, and deploy target. `config_put` takes `config_write_lock`, rereads the current TOML, applies an allowlisted patch to those mutable sections, preserves server/unknown sections, validates the complete document, writes a same-directory temporary file plus atomic rename, then replaces only `settings`. Atomic rename prevents torn writes; the mutex prevents two console mutations from losing each other. Build and deploy clone one settings snapshot at operation start.
 
-The DB is `data_dir/oxipage.db`. Build output is always `out_dir`. Media is always `media_dir`. Handlers do not recompute any of these from `ctx.path`, config strings, or CWD.
+The DB is `data_dir/oxibuilder.db`. Build output is always `out_dir`. Media is always `media_dir`. Handlers do not recompute any of these from `ctx.path`, config strings, or CWD.
 
 The field `path` is renamed to `project_dir` and all internal callers migrate in the same cutover; no alias remains.
 
@@ -203,8 +203,8 @@ Remove legacy duplicates:
 ```text
 POST /api/console/build/{slug}
 POST /api/console/deploy/{slug}
-crates/oxipage-console/src/build/site_build.rs
-crates/oxipage-console/src/deploy/site_deploy.rs
+crates/oxibuilder-console/src/build/site_build.rs
+crates/oxibuilder-console/src/deploy/site_deploy.rs
 ```
 
 Preview remains top-level site-addressed because it serves a public static origin simulation:
@@ -218,14 +218,14 @@ Its behavior is completed in subproject 3.
 ## 9. File map
 
 ```text
-crates/oxipage-core/
+crates/oxibuilder-core/
 ├── Cargo.toml                      # package both live + static embeds
 ├── build.rs                        # workspace/package modes, one live embed, revision
 ├── embedded-spa/                   # sole live Admin embed
 ├── embedded-spa-static/            # packaged public static embed
 └── src/http.rs                     # cache headers, ETag, revision
 
-crates/oxipage-console/
+crates/oxibuilder-console/
 ├── build.rs                         # remove
 ├── embedded-spa/                    # remove
 └── src/

@@ -1,9 +1,9 @@
-/* Oxipage early theme boot.
+/* Oxibuilder early theme boot.
    - Synchronous, no deps, executes before <link rel=stylesheet>.
    - Reads <script data-context="..."> on this tag (set by admin.html / index.html).
-   - For "console": reads oxipage-console-appearance; resolves system | light | dark,
+   - For "console": reads oxibuilder-console-appearance; resolves system | light | dark,
      writes <html data-theme> and document.documentElement.style.setProperty('--accent-hue','160').
-   - For "public": reads <meta name="oxipage-theme" content="paper"> if present,
+   - For "public": reads <meta name="oxibuilder-theme" content="paper"> if present,
      writes <html data-public-theme="...">, sets --accent-hue on root.
 */
 (function () {
@@ -20,7 +20,7 @@
     if (ctx === "console") {
       var stored;
       try {
-        stored = localStorage.getItem("oxipage-console-appearance");
+        stored = localStorage.getItem("oxibuilder-console-appearance");
       } catch (e) {
         stored = null;
       }
@@ -31,7 +31,7 @@
     }
 
     // public
-    var meta = document.querySelector('meta[name="oxipage-theme"]');
+    var meta = document.querySelector('meta[name="oxibuilder-theme"]');
     var themeId = (meta && meta.content) || "paper";
     document.documentElement.dataset.publicTheme = themeId;
     var hueByTheme = { paper: "160", midnight: "230", sepia: "70", forest: "155", neon: "290", canvas: "240" };

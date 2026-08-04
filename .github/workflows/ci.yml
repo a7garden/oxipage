@@ -25,7 +25,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
-      - name: Build web (for oxipage-core embedded SPA)
+      - name: Build web (for oxibuilder-core embedded SPA)
         run: |
           cd web && bun install && bun run build && bun run build:static
 
@@ -43,11 +43,11 @@ jobs:
         # from `web/dist`). `--allow-dirty` lets `cargo package` see it.
         run: |
           set -euo pipefail
-          pkg=$(cargo package --list -p oxipage-core --no-verify --allow-dirty)
+          pkg=$(cargo package --list -p oxibuilder-core --no-verify --allow-dirty)
           echo "$pkg" | grep -q 'embedded-spa/index.html$' \
             || { echo "FATAL: packaged crate is missing embedded-spa/index.html"; echo "$pkg"; exit 1; }
           echo "$pkg" | grep -q '_registry.json$' \
             || { echo "FATAL: packaged crate is missing _registry.json"; exit 1; }
           echo "$pkg" | grep -q '_wasm-demo.wasm$' \
             || { echo "FATAL: packaged crate is missing _wasm-demo.wasm"; exit 1; }
-          echo "OK: published oxipage-core carries embedded-spa + registry + wasm demo"
+          echo "OK: published oxibuilder-core carries embedded-spa + registry + wasm demo"

@@ -61,7 +61,7 @@ It resolves `data/blog.json`, `media/profile/a.webp`, and internal static resour
 Each build writes:
 
 ```text
-out/.oxipage-build.json
+out/.oxibuilder-build.json
 ```
 
 ```json
@@ -74,7 +74,7 @@ out/.oxipage-build.json
 }
 ```
 
-`BuildManifest` is a serialized Rust type in `oxipage-core::build_manifest` with `read_from(out_dir)` and atomic `write_to(out_dir)` helpers. Build writer, preview, console preflight, CLI deploy, and `oxipage-deploy` all consume this one type; no subsystem reparses ad hoc JSON.
+`BuildManifest` is a serialized Rust type in `oxibuilder-core::build_manifest` with `read_from(out_dir)` and atomic `write_to(out_dir)` helpers. Build writer, preview, console preflight, CLI deploy, and `oxibuilder-deploy` all consume this one type; no subsystem reparses ad hoc JSON.
 
 Preview requires this file. A missing manifest or missing `out/index.html` returns `424 build_required` rather than serving a partial directory.
 
@@ -257,7 +257,7 @@ It runs after a clean output directory is created. The generated public resolver
 
 ```text
 workspace axum features             # add multipart
-oxipage-console                     # body streaming/signature validation dependency
+oxibuilder-console                     # body streaming/signature validation dependency
 ```
 
 Use existing `uuid`, `tokio`, and `mime_guess`. Do not add an image transformation library because resize/conversion is out of scope.
@@ -265,7 +265,7 @@ Use existing `uuid`, `tokio`, and `mime_guess`. Do not add an image transformati
 ## 14. File map
 
 ```text
-crates/oxipage-console/src/
+crates/oxibuilder-console/src/
 ├── media/
 │   ├── mod.rs
 │   ├── upload.rs
@@ -273,7 +273,7 @@ crates/oxipage-console/src/
 ├── preview/handler.rs
 └── per_site.rs                    # media routes/status
 
-crates/oxipage-core/src/
+crates/oxibuilder-core/src/
 ├── build_manifest.rs              # shared typed manifest/read/write
 ├── build_writer.rs                # relative public tags, <base>, manifest, media copy
 └── build.rs                       # build metadata input

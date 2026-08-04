@@ -45,20 +45,20 @@ export function NewSiteWizardPage() {
               <Label htmlFor="site-path">사이트 경로</Label>
               <Input
                 id="site-path"
-                placeholder="~/oxipage/blog"
+                placeholder="~/oxibuilder/blog"
                 value={path}
                 onChange={(e) => setPath(e.target.value)}
                 disabled={create.isPending}
                 autoFocus
               />
               <p className="text-xs text-muted">
-                oxipage.toml이 없는 경로는 자동으로 생성됩니다. 사이트 이름(slug)은
+                oxibuilder.toml이 없는 경로는 자동으로 생성됩니다. 사이트 이름(slug)은
                 디렉토리 이름이 됩니다.
               </p>
             </div>
 
             <CardDescription className="text-xs">
-              예: "~/oxipage/blog" 입력 시 slug는 "blog"가 됩니다.
+              예: "~/oxibuilder/blog" 입력 시 slug는 "blog"가 됩니다.
             </CardDescription>
 
             {error && (

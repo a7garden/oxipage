@@ -1,12 +1,12 @@
 # Site-Picker Unified Console — Design
 
-> 2026-07-30. v2 SSG 모델 위에 "여러 oxipage 사이트를 한 콘솔에서 전환·편집"하는 통합 관리 UX를 설계한다.
+> 2026-07-30. v2 SSG 모델 위에 "여러 oxibuilder 사이트를 한 콘솔에서 전환·편집"하는 통합 관리 UX를 설계한다.
 
 ## 0. 확정 결정
 
 | # | 결정 | 근거 |
 |---|---|---|
-| D1 | 사이트 = **별도 oxipage 프로젝트 디렉토리** (각자 oxipage.toml / oxipage.db) | v2 SSG §2.2 "테이블 스키마 불변" 위배 없음. 콘텐츠 격리 단위 = 디렉토리 |
+| D1 | 사이트 = **별도 oxibuilder 프로젝트 디렉토리** (각자 oxibuilder.toml / oxibuilder.db) | v2 SSG §2.2 "테이블 스키마 불변" 위배 없음. 콘텐츠 격리 단위 = 디렉토리 |
 | D2 | 서버 토폴로지: **:8787 = 관리 콘솔 전용** · 퍼블릭 미리보기는 `console --preview` · :8788 폐기 | v2 SSG §2 "관리는 동적으로, 배포는 정적으로". `:8788`은 `admin/mod.rs:66` "v1 호환" 레거시 |
 | D3 | GUI = **admin-web SPA 코드를 web/src/admin/ 으로 흡수** 후 :8787에서 서빙 | 단일 Vite 프로젝트, 사이트 피커·콘솔·위저드를 같은 셸에 |
 | D4 | v2.0 범위 = **단일 :8787 인스턴스 통합** | 활성 사이트 한 번에 하나. 다중 인스턴스 동시 실행은 v2.1+ |
@@ -18,26 +18,26 @@
 
 | 컴포넌트 | 위치 | 진단 |
 |---|---|---|
-| 메인 콘솔 | `crates/oxipage-console/src/lib.rs::run_console_with_extensions` (`:8787`) | 웹 SPA + `/api/console/*` 서빙. **퍼블릭 사이트 + 위저드를 함께 서빙** — v2 SSG "퍼블릭은 정적" 원칙 위배 |
-| 관리 콘솔 (레거시) | `crates/oxipage-console/src/admin/mod.rs::run_admin` (`:8788`) | `mod.rs:66` 자체 코멘트 "v1 호환: oxipage_console::run_admin 별칭". proxy.rs/원격 사이트 모드 v2에서 제거됨. 미구현 잔재 |
+| 메인 콘솔 | `crates/oxibuilder-console/src/lib.rs::run_console_with_extensions` (`:8787`) | 웹 SPA + `/api/console/*` 서빙. **퍼블릭 사이트 + 위저드를 함께 서빙** — v2 SSG "퍼블릭은 정적" 원칙 위배 |
+| 관리 콘솔 (레거시) | `crates/oxibuilder-console/src/admin/mod.rs::run_admin` (`:8788`) | `mod.rs:66` 자체 코멘트 "v1 호환: oxibuilder_console::run_admin 별칭". proxy.rs/원격 사이트 모드 v2에서 제거됨. 미구현 잔재 |
 | 위저드 종료 후 | `web/src/setup/SetupWizard.tsx` → `web/src/App.tsx` Shell | `/setup` 종료 시 `/` (퍼블릭 로비)로. 헤더 톱니바퀴 클릭이 `:8788` 새 탭 → 사용자 불만의 직접 원인 |
 | SiteSwitcher | `admin-web/src/shell/SiteSwitcher.tsx` | `useSite()` 컨텍스트의 "active site" — admin-web `api.ts:25-28` 주석이 "v2: display-only in v2"라고 명시. 실제로 작동은 표시만 |
-| 사이트 식별 단위 | `sites.toml` (CLI 메타) vs 단일 oxipage.toml (서버 시작) | 두 모델이 동시에 존재. 콘솔이 둘을 연결하지 않음 |
-| 멀티사이트 빌드 | ssg-design §12 = `oxipage build --site <name>` 정의, but 콘솔 피커 책임 0 | §12가 정의한 사이트 = 확장 서브셋 (콘텐츠 격리 X). 우리가 원하는 것은 디렉토리 격리 — §2.2 "테이블 스키마 불변" 내에서만 가능 |
+| 사이트 식별 단위 | `sites.toml` (CLI 메타) vs 단일 oxibuilder.toml (서버 시작) | 두 모델이 동시에 존재. 콘솔이 둘을 연결하지 않음 |
+| 멀티사이트 빌드 | ssg-design §12 = `oxibuilder build --site <name>` 정의, but 콘솔 피커 책임 0 | §12가 정의한 사이트 = 확장 서브셋 (콘텐츠 격리 X). 우리가 원하는 것은 디렉토리 격리 — §2.2 "테이블 스키마 불변" 내에서만 가능 |
 
 ## 2. 목표
 
-- G1. 사용자가 `cargo install oxipage` → `oxipage console` 한 줄로 자기 사이트 콘솔에 진입. 첫 부팅이면 위저드 → 자동 콘솔 셸.
+- G1. 사용자가 `cargo install oxibuilder` → `oxibuilder console` 한 줄로 자기 사이트 콘솔에 진입. 첫 부팅이면 위저드 → 자동 콘솔 셸.
 - G2. 콘솔 사이트 피커가 등록된 사이트들을 마운트된 라우트 prefix `/s/:slug`와 매핑. URL에서 slug가 곧 어느 사이트인지를 결정.
 - G3. 콘솔에서 게시물 작성·발행, 확장 토글, 테마 변경, 빌드/배포 트리거 — `sites.toml`의 `default_site`(= 활성 사이트 1개)가 디폴트지만, 백엔드는 모든 사이트를 항상 마운트하므로 `/s/<other>/blog` 같은 직접 접근도 가능.
-- G4. 퍼블릭 미리보기는 `oxipage console --preview --site <slug>`로 같은 :8787의 `/preview/:slug/*`에서 그 사이트의 `out/` 서빙. 셸은 관리 콘솔 모드 유지.
+- G4. 퍼블릭 미리보기는 `oxibuilder console --preview --site <slug>`로 같은 :8787의 `/preview/:slug/*`에서 그 사이트의 `out/` 서빙. 셸은 관리 콘솔 모드 유지.
 - G5. v2 SSG 모델(공유 DB 금지, 런타임 의존 최소화)과의 정합. "활성 사이트 = 백엔드 글로벌 상태"라는 이전 v0의 가정은 폐기(§5 참조 — 사이트별 동시 라우팅 가능).
 
 ## 3. 아키텍처
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  oxipage console                    ← 단일 통합 관리 진입점             │
+│  oxibuilder console                    ← 단일 통합 관리 진입점             │
 │                                                                      │
 │  :8787 (127.0.0.1 강제 — 보안 경계, auth 없음)                          │
 │  ┌──────────────────────────────────────────────────────────────┐    │
@@ -67,16 +67,16 @@
 
 ## 4. 데이터 모델
 
-### 4.1 `~/.config/oxipage/sites.toml`
+### 4.1 `~/.config/oxibuilder/sites.toml`
 
 ```toml
 default_site = "blog"
 
 [sites.blog]
-path = "~/oxipage/blog"
+path = "~/oxibuilder/blog"
 
 [sites.portfolio]
-path = "~/oxipage/portfolio"
+path = "~/oxibuilder/portfolio"
 ```
 
 - v1의 `endpoint`/`token` 폐기. 사이트 = **로컬 디렉토리 경로** only.
@@ -87,15 +87,15 @@ path = "~/oxipage/portfolio"
 
 ```
 <path>/
-├── oxipage.toml           # 사이트별 설정
+├── oxibuilder.toml           # 사이트별 설정
 ├── data/
-│   ├── oxipage.db         # 사이트별 DB
-│   ├── oxipage.db-wal
+│   ├── oxibuilder.db         # 사이트별 DB
+│   ├── oxibuilder.db-wal
 │   └── media/
-└── out/                   # oxipage build 결과 (정적 산출물)
+└── out/                   # oxibuilder build 결과 (정적 산출물)
 ```
 
-위저드 `create-site`이 이 구조를 한번에 생성. `oxipage.toml` 시드 = 현재 `oxipage.toml.example` 단순화 버전.
+위저드 `create-site`이 이 구조를 한번에 생성. `oxibuilder.toml` 시드 = 현재 `oxibuilder.toml.example` 단순화 버전.
 
 ### 4.3 런타임 SiteContext
 
@@ -139,7 +139,7 @@ impl SiteRegistry {
 - **사이트 컨텍스트 동시성**: 모든 사이트가 startup 시 한 번 로드되어 레지스트리에 들어간다. swap·리마운트가 없다. 라우트 prefix가 slug로 곧장 풀을 해결한다.
 - **사이트 추가/삭제**: 사용자가 `/sites/new` 또는 `POST /api/console/sites`로 신규 사이트를 등록하면 핸들러가 (a) 새 `SiteContext`를 빌드(동기, 다음 await 전 완료) → (b) 레지스트리 맵에 insert → (c) 라우터는 빌드 타임에 모든 사이트에 대해 마운트되어 있으므로 새로 추가된 사이트는 *다음 부팅부터* 라우트 등장. (단, `active` 같은 prefix 자체는 변하지 않음.) 신규 사이트는 setup 흐름으로 등록 → 사용자는 한 번 재시작해서 그 사이트 라우트를 활성화하거나, 부팅 시 동적 라우팅을 별도 구현한다 — v2.0에서는 **재시작 필요** (범위 단순화).
 - **빌드/배포 트리거**: `POST /api/console/s/:slug/build` 또는 `POST /api/console/s/:slug/deploy` — slug를 Path로 받아 `ctx_for(slug)`가 풀+builders를 꺼낸다.
-- **active 개념**: 백엔드 글로벌 상태가 아니다. 프론트엔드/UX(사이트 피커의 chip 강조)와 CLI 디폴트(`OXIPAGE_SITE` env, `default_site`)에만 사용된다. 어느 사이트인지 헷갈리는 핸들러는 slug를 Path로 받으면 그만이다.
+- **active 개념**: 백엔드 글로벌 상태가 아니다. 프론트엔드/UX(사이트 피커의 chip 강조)와 CLI 디폴트(`OXIBUILDER_SITE` env, `default_site`)에만 사용된다. 어느 사이트인지 헷갈리는 핸들러는 slug를 Path로 받으면 그만이다.
 
 ## 5. 라우터 디스패치
 
@@ -209,11 +209,11 @@ async fn list(pool: Extension<SiteScopedDb>) -> ... { let db = &pool.db; ... }
 
 §4.3의 분리로 setup_state는 사이트별 DB에 둘 수 없다 — 사이트 0개 상태에는 사이트 DB가 아예 존재하지 않는다. 따라서:
 
-- **setup_state = 콘솔 단위 DB** (`~/.config/oxipage/console.db`, sites.toml과 같은 디렉토리). setup_state 테이블 + 콘솔 wide 메타만 보관. 사이트 콘텐츠/스키마는 사이트별 DB.
+- **setup_state = 콘솔 단위 DB** (`~/.config/oxibuilder/console.db`, sites.toml과 같은 디렉토리). setup_state 테이블 + 콘솔 wide 메타만 보관. 사이트 콘텐츠/스키마는 사이트별 DB.
 - **`is_setup_needed`** = `console.db`의 `setup_state.setup_completed_at IS NULL`. sites.toml 무관.
 - 사이트 0개 → `is_setup_needed=true`로 파생되는 게 아니라 **그 자체가 setup 미완료 신호**. 둘은 사실상 같은 것 — 사이트를 등록하는 행위 자체가 setup 종결.
 - site 신규 추가는 `POST /api/console/sites`로 — 첫 호출이면 setup_state 마저 동시 시드. 이후 추가 시에는 `setup_completed_at`가 이미 있는 상태에서 한 사이트만 추가.
-- `OXIPAGE_CONFIG`로 사이트별 oxipage.toml을 가리키던 v0 흐름은 폐기. 콘솔은 sites.toml만 본다.
+- `OXIBUILDER_CONFIG`로 사이트별 oxibuilder.toml을 가리키던 v0 흐름은 폐기. 콘솔은 sites.toml만 본다.
 
 §6.0의 "setup = 콘솔 단위 한 번" 불변. §6.1의 시나리오별 의미는 다음과 같이 단순화:
 
@@ -234,13 +234,13 @@ async fn list(pool: Extension<SiteScopedDb>) -> ... { let db = &pool.db; ... }
        SetupWizard
          Step 1 "Site" — 강제:
            ○ 새 사이트 디렉토리 만들기
-              → 입력 경로 (e.g. ~/oxipage/blog)
-              → POST /api/console/setup/create-site {path:"~/oxipage/blog"}
-                 → 디렉토리 신설, oxipage.toml 시드
+              → 입력 경로 (e.g. ~/oxibuilder/blog)
+              → POST /api/console/setup/create-site {path:"~/oxibuilder/blog"}
+                 → 디렉토리 신설, oxibuilder.toml 시드
                  → sites.toml에 slug 등록, default_site = slug
-                 → 응답 {slug:"blog", path:"~/oxipage/blog"}
+                 → 응답 {slug:"blog", path:"~/oxibuilder/blog"}
            ○ 기존 디렉토리 등록
-              → 경로 입력 (oxipage.toml 존재 검증)
+              → 경로 입력 (oxibuilder.toml 존재 검증)
               → sites.toml에 slug 기록
          Step 2 (확장) … Step N (theme) — 방금 만든 사이트 컨텍스트에 적용
          Step Done:
@@ -275,19 +275,19 @@ console.db.setup_state.setup_completed_at 존재 + sites.toml 비어있음
 
 | 위치 | 처리 |
 |---|---|
-| `crates/oxipage-console/src/admin/mod.rs::run_admin` | 삭제. `pub fn run_admin` 사용처 없음 확인 후 |
-| `:8788` 포트 / `OXIPAGE_ADMIN_PORT` env | 무시 + deprecation 로그 |
-| `crates/oxipage-console/src/admin/proxy.rs` (있는 경우) | 이미 v2에서 제거됨. 잔재 확인만 |
+| `crates/oxibuilder-console/src/admin/mod.rs::run_admin` | 삭제. `pub fn run_admin` 사용처 없음 확인 후 |
+| `:8788` 포트 / `OXIBUILDER_ADMIN_PORT` env | 무시 + deprecation 로그 |
+| `crates/oxibuilder-console/src/admin/proxy.rs` (있는 경우) | 이미 v2에서 제거됨. 잔재 확인만 |
 | `admin-web/` 디렉토리 | web/src/admin/ 으로 이관 후 삭제 |
 
 ### 7.2 신규 모듈
 
-- `crates/oxipage-console/src/sites_runtime.rs`
+- `crates/oxibuilder-console/src/sites_runtime.rs`
   - `SiteRegistry` (startup 시 sites.toml + console.db로 모든 사이트 SiteContext 일괄 로드)
   - `SiteLoader::load(slug, path) -> SiteContext` (디스크 검증 + DB connect + extension migrations)
   - `db_for(slug) -> Pool`, `ctx_for(slug) -> Arc<SiteContext>` (per-request 풀 해결)
   - `add_site(path)` / `remove_site(slug)` / `set_default(slug)` (sites.toml CRUD; 레지스트리 reload는 부팅 후)
-- `crates/oxipage-console/src/console_state.rs`
+- `crates/oxibuilder-console/src/console_state.rs`
   - `console.db` 연결 + 마이그레이션 (setup_state, 콘솔 메타)
   - `is_setup_needed()` 쿼리
 
@@ -295,8 +295,8 @@ console.db.setup_state.setup_completed_at 존재 + sites.toml 비어있음
 
 ```
 POST /api/console/setup/create-site
-  body: {path: "~/oxipage/blog"}
-  → {data: {slug: "blog", path: ".../oxipage/blog"}}
+  body: {path: "~/oxibuilder/blog"}
+  → {data: {slug: "blog", path: ".../oxibuilder/blog"}}
 ```
 
 (loopback-only + setup-완료 후 410 게이트 그대로)
@@ -304,7 +304,7 @@ POST /api/console/setup/create-site
 ### 7.4 사이트 라우트 헬퍼
 
 ```rust
-// crates/oxipage-console/src/router.rs
+// crates/oxibuilder-console/src/router.rs
 pub fn build_console_router(state: AppState) -> Router {
     let mut r = Router::new()
         .route("/sites", get(list_sites).post(create_site))
@@ -390,21 +390,21 @@ pub fn build_console_router(state: AppState) -> Router {
 
 | 명령 | 변경 |
 |---|---|
-| `oxipage site add` | 인자: `<name> --path <dir>` (endpoint/token 폐기) |
-| `oxipage site list` | path + "active" 표시 |
-| `oxipage site use` | default_site 변경 (그대로 의미 유지) |
-| `oxipage site migrate` | v1 site.toml (endpoint+token) 발견 시 한 번 변환 권장 — 자동 변경 X |
-| `oxipage site rm` | 미변경 |
-| `oxipage console` | --project <dir> 플래그 추가 (기본: default_site 또는 현재 디렉토리). 첫 부팅 시 /setup 자동 오픈 (현재 동작 유지). 사이트 0개면 /sites 페이지 |
-| `oxipage console --preview` | 활성 사이트 out/을 /preview로 서빙. 셸은 관리 콘솔 모드 유지 |
-| `oxipage build --site <slug>` | 활성 사이트만 빌드. multi-build는 v2.1+에서 |
-| `oxipage deploy` | 활성 사이트만 배포 (--site는 옵션, 현재 그대로의 동작) |
-| `oxipage status` | sites.toml 요약 + active 표시 |
+| `oxibuilder site add` | 인자: `<name> --path <dir>` (endpoint/token 폐기) |
+| `oxibuilder site list` | path + "active" 표시 |
+| `oxibuilder site use` | default_site 변경 (그대로 의미 유지) |
+| `oxibuilder site migrate` | v1 site.toml (endpoint+token) 발견 시 한 번 변환 권장 — 자동 변경 X |
+| `oxibuilder site rm` | 미변경 |
+| `oxibuilder console` | --project <dir> 플래그 추가 (기본: default_site 또는 현재 디렉토리). 첫 부팅 시 /setup 자동 오픈 (현재 동작 유지). 사이트 0개면 /sites 페이지 |
+| `oxibuilder console --preview` | 활성 사이트 out/을 /preview로 서빙. 셸은 관리 콘솔 모드 유지 |
+| `oxibuilder build --site <slug>` | 활성 사이트만 빌드. multi-build는 v2.1+에서 |
+| `oxibuilder deploy` | 활성 사이트만 배포 (--site는 옵션, 현재 그대로의 동작) |
+| `oxibuilder status` | sites.toml 요약 + active 표시 |
 
 ## 10. preview 동작
 
 ```
-oxipage console --preview --site blog
+oxibuilder console --preview --site blog
   → :8787 (관리 셸 + /preview/* 경로만 out/ 서빙)
   → 사용자는 콘솔 셸에서 활성 사이트 콘텐츠를 편집하면서 같은 창에서 /preview로 결과 확인 가능
 ```
@@ -420,9 +420,9 @@ oxipage console --preview --site blog
 
 ## 12. 마이그레이션·호환성
 
-- `OXIPAGE_ADMIN_PORT` 무시 (경고 로그).
+- `OXIBUILDER_ADMIN_PORT` 무시 (경고 로그).
 - 구 v1 사이트 프로필: `endpoint`만 있고 `path` 없음 → 마이그레이션 도구 실행 안내. **자동 변경 X** (사용자 의도 확인).
-- `oxipage.toml` 자체 v1 → v2는 별도 마이그레이션 가이드 (이 spec 범위 밖).
+- `oxibuilder.toml` 자체 v1 → v2는 별도 마이그레이션 가이드 (이 spec 범위 밖).
 - 백워드: 구 사이트 endpoint/token은 CLI 쪽에 일시 보존. 콘솔 사이트 피커는 표시 X.
 
 ## 13. 작업 분할 (구현 단계)
@@ -432,7 +432,7 @@ oxipage console --preview --site blog
 4. **T4: 첫 번째 확장 PR (blog)** — blog 핸들러의 `state.db` → `Extension<SiteScopedDb>.db` 일괄 교체 + `s/<slug>/blog` prefix 라우트 정상 응답 (T3 의존). 다른 확장은 후속 PR.
 5. **T5: admin-web → web/src/admin/ 이주 + 셸 라우트 트리 재구성** — admin/ 폴더 신설, `/s/:slug/*` 라우트 + `/sites` CRUD 페이지 + 톱니바퀴 제거 (T3 의존).
 6. **T6: 위저드 Step 1 사이트 디렉토리 결정 + `create-site` 핸들러 + 완료 후 `/s/<slug>/`** — UX 통합. setup과 사이트 등록을 한 흐름에 묶음 (T2 의존).
-7. **T7: `:8788` / `run_admin` / `OXIPAGE_ADMIN_PORT` 제거** — T1-T6 머지 후. 한 사이클 동안 v1 alias만 보관하고 deprecation.
+7. **T7: `:8788` / `run_admin` / `OXIBUILDER_ADMIN_PORT` 제거** — T1-T6 머지 후. 한 사이클 동안 v1 alias만 보관하고 deprecation.
 8. **T8: 나머지 확장 PR (projects / links / movies / books / scrap / activity / novels / profile 순서대로)** — 각 확장에서 T4와 같은 한 줄 교체 + 라우트 prefix 통과 검증. 가장 부피 큰 작업 — 페이지 분할로 PR 압박 완화.
 9. **T9: 콘솔 빌드/배포 트리거 + `/preview/:slug/*` 라우트** — 사용자가 만든 콘텐츠를 빌드/배포 흐름과 연결, `--preview --site` 플래그 통합.
 
@@ -441,7 +441,7 @@ oxipage console --preview --site blog
 ## 14. 향후 확장 (out of scope, v2.1+)
 
 - 사이트마다 다른 포트로 동시 인스턴스 실행 — `port` 필드 도입.
-- 다중 사이트 빌드 (`oxipage build --all`, `out/<slug>/`).
-- OS 키체인 통합 (`OXIPAGE_TOKEN` 대체).
+- 다중 사이트 빌드 (`oxibuilder build --all`, `out/<slug>/`).
+- OS 키체인 통합 (`OXIBUILDER_TOKEN` 대체).
 - 원격 사이트(배포된 정적 호스트) 점검 — `site health` 같은 read-only 모드.
 - 콘솔 셸 안 admin 인증 (PAT 체계와 함께).

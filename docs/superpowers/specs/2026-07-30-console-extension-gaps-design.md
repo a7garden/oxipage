@@ -36,7 +36,7 @@ Complete the four extension feature gaps left as list-only skeletons after Sub-p
 | Movies entry→series link | exists — `MovieEntryInput`/`Patch` carry `series_group_slug` + `series_order` | `ext-movies/model.rs`, `repo.rs:244-334` |
 | Projects screenshot backend | PARTIAL — `add_screenshot`/`delete_screenshot`; `GET project` returns screenshots via `ProjectDetail`; **no update/reorder** | `ext-projects/routes.rs:141-175`, `repo.rs:244-305` |
 | Projects screenshot UI | none | `web/src/admin/content/ProjectsTab.tsx` |
-| WASM install | `POST /api/console/extensions/install {name}` exists (global); **no registry-list endpoint** | `oxipage-core/src/http.rs:645-796` |
+| WASM install | `POST /api/console/extensions/install {name}` exists (global); **no registry-list endpoint** | `oxibuilder-core/src/http.rs:645-796` |
 | WASM install UI | none — `ExtensionsPage` toggles installed only | `web/src/admin/extensions/ExtensionsPage.tsx` |
 | `contentClient` | flat `/{extId}/{id}` — does not fit `/{extId}/{slug}/chapters` | `web/src/admin/shared/api.ts:228-289` |
 
@@ -63,7 +63,7 @@ ExtensionsPage
   └ "Available from Registry" section  ─ GET /extensions/registry → [Install] → POST install
 ```
 
-New server handlers mirror existing extension handler placement (`routes.rs` + `repo.rs` + `lib.rs` route mount). The registry-list handler lives in `oxipage-core/src/http.rs` next to `extension_install` (it reads the same embedded `_registry.json`).
+New server handlers mirror existing extension handler placement (`routes.rs` + `repo.rs` + `lib.rs` route mount). The registry-list handler lives in `oxibuilder-core/src/http.rs` next to `extension_install` (it reads the same embedded `_registry.json`).
 
 ## 5. Backend fills — contracts
 
@@ -167,7 +167,7 @@ Inside the project edit Drawer, add a **"Screenshots"** accordion:
 
 Below the existing "Installed" grid, add **"Available from Registry"**:
 - `useQuery(["extensions","registry"], listRegistry)` → render `runtime_loadable` entries not yet installed.
-- Each card: name + `[Install]` button → `installExtension(name)` mutation → on success: invalidate `["extensions"]` + `["extensions","registry"]`. Show the response `activated` flag: `true` → "Activated", `false` → "Restart oxipage-console (built with `--features wasm`) to activate".
+- Each card: name + `[Install]` button → `installExtension(name)` mutation → on success: invalidate `["extensions"]` + `["extensions","registry"]`. Show the response `activated` flag: `true` → "Activated", `false` → "Restart oxibuilder-console (built with `--features wasm`) to activate".
 
 ## 7. Constraints
 
@@ -184,22 +184,22 @@ Below the existing "Installed" grid, add **"Available from Registry"**:
   - `update_group` partial patch round-trips; `delete_group` removes the row and NULLs member `series_group_id`; 404 for unknown group slug.
   - `update_screenshot` updates alt + display_order; 404 for unknown sid.
   - `GET /extensions/registry` returns only `runtime_loadable` entries, with correct `installed` flags.
-- **Client (manual smoke):** `oxipage console` → open a novel, add/reorder/publish/delete chapters in the Drawer; in Movies, create a series, assign two movies, unassign one, delete the group; in Projects, add a screenshot URL, reorder, edit alt; in Extensions, install `wasm-demo` from the registry and see activation status.
+- **Client (manual smoke):** `oxibuilder console` → open a novel, add/reorder/publish/delete chapters in the Drawer; in Movies, create a series, assign two movies, unassign one, delete the group; in Projects, add a screenshot URL, reorder, edit alt; in Extensions, install `wasm-demo` from the registry and see activation status.
 
 ## 9. File map
 
 ```
-crates/oxipage-ext-movies/src/
+crates/oxibuilder-ext-movies/src/
 ├── routes.rs   # +update_group, +delete_group handlers
 ├── repo.rs     # +update_group, +delete_group (NULL members)
 └── lib.rs      # mount PATCH/DELETE /series/{slug}
 
-crates/oxipage-ext-projects/src/
+crates/oxibuilder-ext-projects/src/
 ├── routes.rs   # +update_screenshot handler
 ├── repo.rs     # +update_screenshot
 └── lib.rs      # mount PATCH /{slug}/screenshots/{sid}
 
-crates/oxipage-core/src/
+crates/oxibuilder-core/src/
 └── http.rs     # +registry_list handler + route GET /extensions/registry
 
 web/src/admin/

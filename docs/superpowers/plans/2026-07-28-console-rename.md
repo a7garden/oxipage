@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development (recommended) or executing-plans to implement this plan task-by-task.
 
-**Goal:** Rename `oxipage-server` → `oxipage-console` (crate, CLI command, HTTP route prefix) and remove `oxipage-admin` to align the codebase with v2 SSG model terminology.
+**Goal:** Rename `oxibuilder-server` → `oxibuilder-console` (crate, CLI command, HTTP route prefix) and remove `oxibuilder-admin` to align the codebase with v2 SSG model terminology.
 
 **Architecture:** Single Cargo workspace move. Update imports, CLI subcommand, HTTP routes, and all docs. Provide 301 redirect for `/api/v1/*` → `/api/console/*` for backward compat.
 
@@ -19,17 +19,17 @@
 
 ---
 
-### Task 1: Rename `oxipage-server` crate directory to `oxipage-console`
+### Task 1: Rename `oxibuilder-server` crate directory to `oxibuilder-console`
 
 **Files:**
-- Move: `crates/oxipage-server/` → `crates/oxipage-console/`
+- Move: `crates/oxibuilder-server/` → `crates/oxibuilder-console/`
 - Modify: `Cargo.toml` (workspace members)
-- Modify: `crates/oxipage-console/Cargo.toml` (name field)
+- Modify: `crates/oxibuilder-console/Cargo.toml` (name field)
 
 - [ ] **Step 1: Move the directory**
 
 ```bash
-git mv crates/oxipage-server crates/oxipage-console
+git mv crates/oxibuilder-server crates/oxibuilder-console
 ```
 
 - [ ] **Step 2: Update workspace Cargo.toml**
@@ -37,41 +37,41 @@ git mv crates/oxipage-server crates/oxipage-console
 Edit `Cargo.toml`:
 ```diff
  members = [
-     "crates/oxipage-core",
--    "crates/oxipage-server",
-+    "crates/oxipage-console",
-     "crates/oxipage-cli",
+     "crates/oxibuilder-core",
+-    "crates/oxibuilder-server",
++    "crates/oxibuilder-console",
+     "crates/oxibuilder-cli",
 ```
 
 - [ ] **Step 3: Update the crate's Cargo.toml name**
 
-Edit `crates/oxipage-console/Cargo.toml`:
+Edit `crates/oxibuilder-console/Cargo.toml`:
 ```diff
  [package]
--name = "oxipage-server"
-+name = "oxipage-console"
+-name = "oxibuilder-server"
++name = "oxibuilder-console"
  version = "0.1.0"
 ```
 
 - [ ] **Step 4: Verify it compiles**
 
 ```bash
-cargo check -p oxipage-console
+cargo check -p oxibuilder-console
 ```
 
 - [ ] **Step 5: Commit**
 
 ```
 git add -A
-git commit -m "refactor: rename oxipage-server crate → oxipage-console"
+git commit -m "refactor: rename oxibuilder-server crate → oxibuilder-console"
 ```
 
 ---
 
-### Task 2: Rename public functions in `oxipage-console` (server → console)
+### Task 2: Rename public functions in `oxibuilder-console` (server → console)
 
 **Files:**
-- Modify: `crates/oxipage-console/src/lib.rs`
+- Modify: `crates/oxibuilder-console/src/lib.rs`
 
 - [ ] **Step 1: Rename functions**
 
@@ -107,7 +107,7 @@ Find any other references to `run_server_with_extensions` and update them to `ru
 - [ ] **Step 4: Verify**
 
 ```bash
-cargo check -p oxipage-console 2>&1 | head -20
+cargo check -p oxibuilder-console 2>&1 | head -20
 ```
 
 Expect warnings about deprecated `run_server` calls if any remain.
@@ -115,13 +115,13 @@ Expect warnings about deprecated `run_server` calls if any remain.
 - [ ] **Step 5: Commit**
 
 ```
-git add crates/oxipage-console/src/lib.rs
+git add crates/oxibuilder-console/src/lib.rs
 git commit -m "refactor(console): rename run_server → run_console (with deprecated alias)"
 ```
 
 ---
 
-### Task 3: Update all `oxipage_server::*` imports to `oxipage_console::*`
+### Task 3: Update all `oxibuilder_server::*` imports to `oxibuilder_console::*`
 
 **Files:**
 - Multiple (grep first to find)
@@ -129,16 +129,16 @@ git commit -m "refactor(console): rename run_server → run_console (with deprec
 - [ ] **Step 1: Find all references**
 
 ```bash
-grep -rln "oxipage_server" --include="*.rs" --include="*.toml" crates/
+grep -rln "oxibuilder_server" --include="*.rs" --include="*.toml" crates/
 ```
 
 - [ ] **Step 2: Update each file**
 
 ```rust
 // Replace:
-use oxipage_server::all_builders;
+use oxibuilder_server::all_builders;
 // With:
-use oxipage_console::all_builders;
+use oxibuilder_console::all_builders;
 ```
 
 - [ ] **Step 3: Verify with check**
@@ -151,27 +151,27 @@ cargo check --workspace 2>&1 | head -30
 
 ```
 git add -A
-git commit -m "refactor: update all imports oxipage_server → oxipage_console"
+git commit -m "refactor: update all imports oxibuilder_server → oxibuilder_console"
 ```
 
 ---
 
-### Task 4: Integrate `oxipage-admin` into `oxipage-console`
+### Task 4: Integrate `oxibuilder-admin` into `oxibuilder-console`
 
 **Files:**
-- Read: `crates/oxipage-admin/` (all files)
-- Modify: `crates/oxipage-console/Cargo.toml`
-- Modify: `crates/oxipage-console/src/lib.rs`
-- Delete: `crates/oxipage-admin/`
+- Read: `crates/oxibuilder-admin/` (all files)
+- Modify: `crates/oxibuilder-console/Cargo.toml`
+- Modify: `crates/oxibuilder-console/src/lib.rs`
+- Delete: `crates/oxibuilder-admin/`
 - Modify: `Cargo.toml` (workspace members)
-- Modify: `crates/oxipage-cli/Cargo.toml`
+- Modify: `crates/oxibuilder-cli/Cargo.toml`
 
-- [ ] **Step 1: Read oxipage-admin to understand what to integrate**
+- [ ] **Step 1: Read oxibuilder-admin to understand what to integrate**
 
 ```bash
-ls crates/oxipage-admin/src/
-cat crates/oxipage-admin/src/main.rs
-cat crates/oxipage-admin/Cargo.toml
+ls crates/oxibuilder-admin/src/
+cat crates/oxibuilder-admin/src/main.rs
+cat crates/oxibuilder-admin/Cargo.toml
 ```
 
 - [ ] **Step 2: Find where admin-web SPA bundle lives**
@@ -180,54 +180,54 @@ cat crates/oxipage-admin/Cargo.toml
 ls admin-web/dist/ 2>/dev/null || echo "no admin-web/dist"
 ```
 
-- [ ] **Step 3: Add admin-web to oxipage-console via rust-embed**
+- [ ] **Step 3: Add admin-web to oxibuilder-console via rust-embed**
 
-In `crates/oxipage-console/Cargo.toml`:
+In `crates/oxibuilder-console/Cargo.toml`:
 ```toml
 [dependencies]
-oxipage-core = { path = "../oxipage-core" }
+oxibuilder-core = { path = "../oxibuilder-core" }
 # ... existing deps
 rust-embed.workspace = true
 ```
 
-If the admin-web React SPA was previously embedded in `oxipage-server`, the rust-embed setup should already exist. If it was only in `oxipage-admin`, copy the embedding pattern.
+If the admin-web React SPA was previously embedded in `oxibuilder-server`, the rust-embed setup should already exist. If it was only in `oxibuilder-admin`, copy the embedding pattern.
 
 - [ ] **Step 4: Move admin's `run_admin()` logic into console**
 
-In `crates/oxipage-console/src/lib.rs`, add a module that integrates the admin SPA serving. Or have console serve admin-web at the `/` route alongside the API.
+In `crates/oxibuilder-console/src/lib.rs`, add a module that integrates the admin SPA serving. Or have console serve admin-web at the `/` route alongside the API.
 
 - [ ] **Step 5: Update Cargo.toml workspace members**
 
 ```diff
  members = [
-     "crates/oxipage-core",
-     "crates/oxipage-console",
-     "crates/oxipage-cli",
-     "crates/oxipage-wasm",
--    "crates/oxipage-admin",
-     "crates/oxipage-ext-activity",
+     "crates/oxibuilder-core",
+     "crates/oxibuilder-console",
+     "crates/oxibuilder-cli",
+     "crates/oxibuilder-wasm",
+-    "crates/oxibuilder-admin",
+     "crates/oxibuilder-ext-activity",
      # ...
 ```
 
-- [ ] **Step 6: Remove oxipage-admin dependency from CLI**
+- [ ] **Step 6: Remove oxibuilder-admin dependency from CLI**
 
-In `crates/oxipage-cli/Cargo.toml`:
+In `crates/oxibuilder-cli/Cargo.toml`:
 ```diff
--oxipage-admin = { version = "0.1.0", path = "../oxipage-admin" }
+-oxibuilder-admin = { version = "0.1.0", path = "../oxibuilder-admin" }
 ```
 
-- [ ] **Step 7: Remove oxipage-admin calls from CLI**
+- [ ] **Step 7: Remove oxibuilder-admin calls from CLI**
 
 ```bash
-grep -rln "oxipage_admin" crates/oxipage-cli/
+grep -rln "oxibuilder_admin" crates/oxibuilder-cli/
 ```
 
-Replace any `oxipage_admin::run_admin(...)` calls with the equivalent in `oxipage_console`.
+Replace any `oxibuilder_admin::run_admin(...)` calls with the equivalent in `oxibuilder_console`.
 
-- [ ] **Step 8: Delete the oxipage-admin directory**
+- [ ] **Step 8: Delete the oxibuilder-admin directory**
 
 ```bash
-git rm -r crates/oxipage-admin/
+git rm -r crates/oxibuilder-admin/
 ```
 
 - [ ] **Step 9: Verify**
@@ -240,7 +240,7 @@ cargo check --workspace 2>&1 | head -30
 
 ```
 git add -A
-git commit -m "refactor: integrate oxipage-admin into oxipage-console; remove oxipage-admin crate"
+git commit -m "refactor: integrate oxibuilder-admin into oxibuilder-console; remove oxibuilder-admin crate"
 ```
 
 ---
@@ -248,20 +248,20 @@ git commit -m "refactor: integrate oxipage-admin into oxipage-console; remove ox
 ### Task 5: Rename CLI `serve` command to `console`
 
 **Files:**
-- Modify: `crates/oxipage-cli/src/main.rs`
-- Modify: `crates/oxipage-cli/src/commands/init_status_serve.rs` (rename file)
-- Modify: `crates/oxipage-cli/src/commands/mod.rs`
+- Modify: `crates/oxibuilder-cli/src/main.rs`
+- Modify: `crates/oxibuilder-cli/src/commands/init_status_serve.rs` (rename file)
+- Modify: `crates/oxibuilder-cli/src/commands/mod.rs`
 
 - [ ] **Step 1: Rename the module file**
 
 ```bash
-git mv crates/oxipage-cli/src/commands/init_status_serve.rs \
-        crates/oxipage-cli/src/commands/init_console.rs
+git mv crates/oxibuilder-cli/src/commands/init_status_serve.rs \
+        crates/oxibuilder-cli/src/commands/init_console.rs
 ```
 
 - [ ] **Step 2: Update the function `serve` → `console` in init_console.rs**
 
-In `crates/oxipage-cli/src/commands/init_console.rs`:
+In `crates/oxibuilder-cli/src/commands/init_console.rs`:
 ```diff
 -pub(crate) async fn serve(
 +pub(crate) async fn console(
@@ -308,14 +308,14 @@ Also update `Command::Init { wizard }` arm that called `init_status_serve::serve
 - [ ] **Step 6: Verify**
 
 ```bash
-cargo check -p oxipage --bin oxipage 2>&1 | head -20
+cargo check -p oxibuilder --bin oxibuilder 2>&1 | head -20
 ```
 
 - [ ] **Step 7: Commit**
 
 ```
 git add -A
-git commit -m "feat(cli): rename 'oxipage serve' to 'oxipage console'"
+git commit -m "feat(cli): rename 'oxibuilder serve' to 'oxibuilder console'"
 ```
 
 ---
@@ -323,12 +323,12 @@ git commit -m "feat(cli): rename 'oxipage serve' to 'oxipage console'"
 ### Task 6: Change HTTP route prefix `/api/v1` to `/api/console`
 
 **Files:**
-- Modify: `crates/oxipage-core/src/http.rs`
+- Modify: `crates/oxibuilder-core/src/http.rs`
 
 - [ ] **Step 1: Find the route prefix**
 
 ```bash
-grep -n '/api/v1' crates/oxipage-core/src/http.rs
+grep -n '/api/v1' crates/oxibuilder-core/src/http.rs
 ```
 
 - [ ] **Step 2: Update the route prefix**
@@ -364,13 +364,13 @@ Add the route in `build_app`:
 - [ ] **Step 4: Verify**
 
 ```bash
-cargo check -p oxipage-core
+cargo check -p oxibuilder-core
 ```
 
 - [ ] **Step 5: Commit**
 
 ```
-git add crates/oxipage-core/src/http.rs
+git add crates/oxibuilder-core/src/http.rs
 git commit -m "refactor(http): change API prefix /api/v1 → /api/console with 301 redirect"
 ```
 
@@ -385,7 +385,7 @@ git commit -m "refactor(http): change API prefix /api/v1 → /api/console with 3
 - [ ] **Step 1: Find all `/api/v1` references in web code**
 
 ```bash
-grep -rln "/api/v1" admin-web/ web/ crates/oxipage-ext-*/web/
+grep -rln "/api/v1" admin-web/ web/ crates/oxibuilder-ext-*/web/
 ```
 
 - [ ] **Step 2: Replace with `/api/console`**
@@ -419,19 +419,19 @@ git commit -m "refactor(web): update fetch paths /api/v1 → /api/console"
 **Files:**
 - Modify: `README.md`
 - Modify: `doc/00-overview.md`, `doc/01-architecture.md`, etc.
-- Modify: `.agent/skills/oxipage-cli/SKILL.md`
+- Modify: `.agent/skills/oxibuilder-cli/SKILL.md`
 - Modify: `doc/12-admin-console.md` (rename → `doc/12-console.md`)
 
 - [ ] **Step 1: Update SKILL.md**
 
 Replace:
-- `oxipage serve` → `oxipage console`
+- `oxibuilder serve` → `oxibuilder console`
 - `http://127.0.0.1:8787` description "서버" → "콘솔"
 - Any example paths `/api/v1/...` → `/api/console/...`
 
 - [ ] **Step 2: Update README.md**
 
-Replace "서버", "server", "oxipage serve" terminology. The v2 section was already updated but check for v1 leftovers.
+Replace "서버", "server", "oxibuilder serve" terminology. The v2 section was already updated but check for v1 leftovers.
 
 - [ ] **Step 3: Rename doc/12-admin-console.md → doc/12-console.md**
 
@@ -448,11 +448,11 @@ Rewrite or update to reflect that "console" is the new unified name (no separate
 For each file in `doc/`:
 - Replace "서버" → "콘솔" where context is local management tool
 - Replace "POST /api/v1/..." → "POST /api/console/..."
-- Replace "oxipage serve" → "oxipage console"
+- Replace "oxibuilder serve" → "oxibuilder console"
 
 ```bash
 # Use sed carefully; manually verify after
-find doc/ -type f -name "*.md" -exec sed -i '' 's|oxipage serve|oxipage console|g' {} +
+find doc/ -type f -name "*.md" -exec sed -i '' 's|oxibuilder serve|oxibuilder console|g' {} +
 ```
 
 - [ ] **Step 6: Commit**
@@ -477,10 +477,10 @@ cat doc/12-console.md
 
 - [ ] **Step 2: Update to reflect unified console model**
 
-The doc was written for the separate `oxipage-admin` admin UI. Now that it's unified into `oxipage-console`, rewrite the introduction:
+The doc was written for the separate `oxibuilder-admin` admin UI. Now that it's unified into `oxibuilder-console`, rewrite the introduction:
 
 - Remove references to "admin UI" (now part of console)
-- Add note about `oxipage console` being the single binary for both API and admin UI
+- Add note about `oxibuilder console` being the single binary for both API and admin UI
 - Update any usage instructions
 
 - [ ] **Step 3: Commit**
@@ -519,8 +519,8 @@ cargo build --release
 - [ ] **Step 4: Verify CLI works**
 
 ```bash
-./target/release/oxipage console --help
-./target/release/oxipage --help
+./target/release/oxibuilder console --help
+./target/release/oxibuilder --help
 ```
 
 Confirm `Console` appears, no `Serve`.
@@ -529,7 +529,7 @@ Confirm `Console` appears, no `Serve`.
 
 Start the console locally and curl:
 ```bash
-./target/release/oxipage console &
+./target/release/oxibuilder console &
 sleep 2
 curl -I http://127.0.0.1:8787/api/v1/healthz 2>&1 | head -3
 # Expect: HTTP/1.1 301 ... Location: /api/console/healthz
@@ -547,26 +547,26 @@ git commit -m "fix: address post-rename test/build issues"
 
 ### Task 11: Final verification
 
-- [ ] **Step 1: Confirm no `oxipage-server` references remain (except in deprecation warnings)**
+- [ ] **Step 1: Confirm no `oxibuilder-server` references remain (except in deprecation warnings)**
 
 ```bash
-grep -rln "oxipage-server" --include="*.rs" --include="*.toml" --include="*.md" .
+grep -rln "oxibuilder-server" --include="*.rs" --include="*.toml" --include="*.md" .
 # Should only show:
-# - Deprecation aliases in oxipage-console/src/lib.rs
+# - Deprecation aliases in oxibuilder-console/src/lib.rs
 # - Spec doc explaining the rename
 ```
 
-- [ ] **Step 2: Confirm no `oxipage-admin` directory exists**
+- [ ] **Step 2: Confirm no `oxibuilder-admin` directory exists**
 
 ```bash
-ls crates/oxipage-admin/ 2>&1
+ls crates/oxibuilder-admin/ 2>&1
 # Should error
 ```
 
-- [ ] **Step 3: Confirm no `oxipage serve` references in active code**
+- [ ] **Step 3: Confirm no `oxibuilder serve` references in active code**
 
 ```bash
-grep -rn "oxipage serve" --include="*.rs" --include="*.md" .
+grep -rn "oxibuilder serve" --include="*.rs" --include="*.md" .
 # Should only show in:
 # - doc/05 deployment history
 # - Possibly deprecation notes
@@ -592,5 +592,5 @@ git commit -m "chore: final console rename verification — no stale server refe
 
 1. **Spec coverage:** All 11 design sections mapped to tasks. ✓
 2. **No placeholders:** Each step has concrete commands. ✓
-3. **Type consistency:** `oxipage_console` crate name consistent throughout. ✓
+3. **Type consistency:** `oxibuilder_console` crate name consistent throughout. ✓
 4. **Test coverage:** Task 10 includes test suite verification. ✓

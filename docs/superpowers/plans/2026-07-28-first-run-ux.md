@@ -3,7 +3,7 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development.
 > Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** `cargo install oxipage` → `oxipage serve` → 브라우저로 6-step 마법사 완료
+**Goal:** `cargo install oxibuilder` → `oxibuilder serve` → 브라우저로 6-step 마법사 완료
 
 **Architecture:** Main server embeds `/setup` route + loopback-gated unauthenticated setup API. Admin console stays separate process. First boot detected via `setup_state.setup_completed_at` DB column.
 
@@ -21,15 +21,15 @@
 ### Task P1: setup_state table + setup API 8 endpoints + loopback gate
 
 **Files:**
-- Create: `crates/oxipage-core/migrations/core/0006_setup_state.sql`
-- Create: `crates/oxipage-core/src/setup.rs` (setup module with all handlers)
-- Modify: `crates/oxipage-core/src/migrate.rs` (add Migration to CORE_MIGRATIONS)
-- Modify: `crates/oxipage-core/src/http.rs` (add setup routes + loopback gate + api_fallback update)
-- Modify: `crates/oxipage-core/src/state.rs` (add site_override field to AppState, add setup_completed helper)
-- Modify: `crates/oxipage-server/src/lib.rs` (seed setup_state singleton on startup)
+- Create: `crates/oxibuilder-core/migrations/core/0006_setup_state.sql`
+- Create: `crates/oxibuilder-core/src/setup.rs` (setup module with all handlers)
+- Modify: `crates/oxibuilder-core/src/migrate.rs` (add Migration to CORE_MIGRATIONS)
+- Modify: `crates/oxibuilder-core/src/http.rs` (add setup routes + loopback gate + api_fallback update)
+- Modify: `crates/oxibuilder-core/src/state.rs` (add site_override field to AppState, add setup_completed helper)
+- Modify: `crates/oxibuilder-server/src/lib.rs` (seed setup_state singleton on startup)
 
 **Interfaces:**
-- Consumes: `crates/oxipage-core/src/state.rs` AppState, `crates/oxipage-core/src/auth.rs` create_pat
+- Consumes: `crates/oxibuilder-core/src/state.rs` AppState, `crates/oxibuilder-core/src/auth.rs` create_pat
 - Produces: `/api/v1/setup/*` 8 endpoints, `AppState.site_override`, `AppState.is_setup_mode()`
 
 **API endpoints (spec: doc/13-first-run-ux.md §13.5.2):**
@@ -56,7 +56,7 @@ INSERT OR IGNORE INTO setup_state (id) VALUES (1);
 ```
 
 - [ ] **Step 1: Add migration 0006_setup_state.sql**
-- [ ] **Step 2: Register migration in CORE_MIGRATIONS** (crates/oxipage-core/src/migrate.rs)
+- [ ] **Step 2: Register migration in CORE_MIGRATIONS** (crates/oxibuilder-core/src/migrate.rs)
 - [ ] **Step 3: Add `site_override` field to AppState** (state.rs): `pub site_override: Arc<tokio::sync::RwLock<Option<SiteOverride>>>` where `SiteOverride { name: String, base_url: String }`
 - [ ] **Step 4: Add `setup_completed()` helper to AppState**: checks `setup_state.setup_completed_at IS NOT NULL`
 - [ ] **Step 5: Create setup.rs module** with 8 handler functions
@@ -70,7 +70,7 @@ INSERT OR IGNORE INTO setup_state (id) VALUES (1);
   - `setup_complete_handler` — writes setup_completed_at, creates PAT, writes credentials, returns token
 - [ ] **Step 6: Add loopback gate middleware** `setup_gate` — returns 403 for non-loopback
 - [ ] **Step 7: Register setup routes in http.rs** — `.route("/setup/status", get(...))` etc. BEFORE extension nest, with loopback gate layer
-- [ ] **Step 8: Wire start-up in oxipage-server/src/lib.rs** — after migrations, ensure setup_state singleton exists
+- [ ] **Step 8: Wire start-up in oxibuilder-server/src/lib.rs** — after migrations, ensure setup_state singleton exists
 - [ ] **Step 9: Wire lobby_manifest to check site_override** — reads `state.site_override.read().await` first, falls back to `config.site`
 - [ ] **Step 10: Unit test** — test setup API flow (loopback mock, 403, 410, happy path)
 - [ ] **Step 11: Commit**
@@ -123,17 +123,17 @@ INSERT OR IGNORE INTO setup_state (id) VALUES (1);
 ### Task P3: serve first boot detection + browser auto-open + open command
 
 **Files:**
-- Modify: `crates/oxipage-server/src/lib.rs` (first boot detection + browser open)
-- Modify: `crates/oxipage-cli/src/main.rs` (add `open` subcommand)
-- Modify: `crates/oxipage-cli/src/commands/mod.rs` (register Open command)
-- Create: `crates/oxipage-cli/src/commands/open.rs` (open implementation)
-- Modify: `crates/oxipage-cli/src/commands/init_status_serve.rs` (serve: auto-open on first boot, init --wizard)
+- Modify: `crates/oxibuilder-server/src/lib.rs` (first boot detection + browser open)
+- Modify: `crates/oxibuilder-cli/src/main.rs` (add `open` subcommand)
+- Modify: `crates/oxibuilder-cli/src/commands/mod.rs` (register Open command)
+- Create: `crates/oxibuilder-cli/src/commands/open.rs` (open implementation)
+- Modify: `crates/oxibuilder-cli/src/commands/init_status_serve.rs` (serve: auto-open on first boot, init --wizard)
 
 **Interfaces:**
 - Consumes: `setup_state.setup_completed_at` (from P1)
-- Produces: `oxipage open` CLI command, `oxipage serve` auto-open, `oxipage init --wizard`
+- Produces: `oxibuilder open` CLI command, `oxibuilder serve` auto-open, `oxibuilder init --wizard`
 
-- [ ] **Step 1: Add open_browser() helper** in oxipage-server (platform-specific `open`/`start`/`xdg-open`)
+- [ ] **Step 1: Add open_browser() helper** in oxibuilder-server (platform-specific `open`/`start`/`xdg-open`)
 - [ ] **Step 2: First boot detection in run_server** — after setup_state migration, check `setup_completed_at`. If NULL → print URL + call open_browser
 - [ ] **Step 3: Create open.rs** command implementation — reads TOML/sites.toml for URL, calls open_browser
 - [ ] **Step 4: Register `open` subcommand** in main.rs and commands/mod.rs

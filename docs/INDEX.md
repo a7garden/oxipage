@@ -1,6 +1,6 @@
-# oxipage — Documentation Index
+# oxibuilder — Documentation Index
 
-> Oxipage = multi-extension personal site. Two doc trees below; the larger is `docs/`.
+> Oxibuilder = multi-extension personal site. Two doc trees below; the larger is `docs/`.
 > Canonical unified design system: `project-oxi/.github/DESIGN.md` (per-repo pointer: `.omp/DESIGN-REF.md`).
 
 ---
@@ -9,7 +9,7 @@
 
 - **Source of truth:** `project-oxi/.github/DESIGN.md` (v1.0 · 2026-07-31)
 - **Per-repo pointer:** `.omp/DESIGN-REF.md` — role + adaptation + migration status
-- **Oxipage-specific surfaces:** `doc/UNIFIED-DESIGN.md` — lobby 3 modes, rating gold, 6 public themes, migration path
+- **Oxibuilder-specific surfaces:** `doc/UNIFIED-DESIGN.md` — lobby 3 modes, rating gold, 6 public themes, migration path
 
 ---
 
@@ -23,7 +23,7 @@ Linear doc series: domain model, CLI/SDK, deployment, console, roadmap, remainin
 | `01-architecture.md` | Workspace layout, extension boundaries, build graph |
 | `02-domain-model.md` | Sites, extensions, snippets, content schemas |
 | `03-design-system.md` | (Legacy per-repo design narrative — superseded by `doc/UNIFIED-DESIGN.md` + canonical) |
-| `04-cli-api-skill.md` | `oxipage` CLI surface + AI skill contract |
+| `04-cli-api-skill.md` | `oxibuilder` CLI surface + AI skill contract |
 | `05-deployment-self-hosting.md` | Deploy targets, self-host knobs, env vars |
 | `06-roadmap.md` | Public roadmap, milestone ordering |
 | `07-remaining-work.md` | Known gaps, deferred scope |

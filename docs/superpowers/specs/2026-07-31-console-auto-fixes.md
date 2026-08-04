@@ -1,4 +1,4 @@
-# Oxipage Console Fixes — Design Spec
+# Oxibuilder Console Fixes — Design Spec
 
 > **Date:** 2026-07-31 · **Mode:** Autonomous (no interactive approval; standard choices)
 > **Task source:** `.omp/auto-task-2026-07-31.md` (5 issues)

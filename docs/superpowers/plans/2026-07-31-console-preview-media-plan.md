@@ -4,7 +4,7 @@
 
 **Goal:** Replace the static-file preview handler with a faithful built-preview that resolves directory indexes, falls back to `404.html` for missing client routes, rewrites the generated `<base href>` to the preview prefix, and writes a typed `BuildManifest` so every consumer (preview, deploy, CLI) sees one source of truth. Add an image-upload route that validates by magic bytes, stores files under `media_dir/<extension>/<uuid>.<ext>`, and exposes them under a stable `/api/console/s/{slug}/media/...` namespace.
 
-**Architecture:** Three independent slices — (1) build-side: a new `oxipage_core::build_manifest` shared type and `build_writer` changes that convert public asset tags to relative paths and inject `<base href>`; (2) preview handler: prefix-aware directory resolution + per-request base-href rewrite from a single helper; (3) media API: axum `multipart` upload + GET/HEAD serve. On the web side, a small `AssetResolver` interface lets the Deploy preview iframe, the live Admin, and the public static SPA all share one URL-shape contract.
+**Architecture:** Three independent slices — (1) build-side: a new `oxibuilder_core::build_manifest` shared type and `build_writer` changes that convert public asset tags to relative paths and inject `<base href>`; (2) preview handler: prefix-aware directory resolution + per-request base-href rewrite from a single helper; (3) media API: axum `multipart` upload + GET/HEAD serve. On the web side, a small `AssetResolver` interface lets the Deploy preview iframe, the live Admin, and the public static SPA all share one URL-shape contract.
 
 **Tech Stack:** Rust (axum 0.8, rust-embed, mime_guess, uuid, tokio), React 19, TypeScript, Vite 7
 
@@ -23,7 +23,7 @@
   - `http://127.0.0.1:8787/` (default) → `/`
   - `not a url` → `/` (fallback, never blocks a build)
 
-  This lives in a single helper `derive_deployment_base(base_url: &str) -> String` in `oxipage_core::build_manifest` and is the ONLY way `BuildManifest::deployment_base` is populated. The preview handler overrides the `<base href>` at serve time (per-request) but the manifest value is the canonical artifact base.
+  This lives in a single helper `derive_deployment_base(base_url: &str) -> String` in `oxibuilder_core::build_manifest` and is the ONLY way `BuildManifest::deployment_base` is populated. The preview handler overrides the `<base href>` at serve time (per-request) but the manifest value is the canonical artifact base.
 
 - **Avoid a second embed or extraction path.** The static SPA bundle (`embedded-spa-static` → `StaticAssets`) already exists with `static_spa_index_html()` and `static_spa_files()`. `build_writer` already extracts the hashed `<script>`/`<link>` tags. The new materialization step transforms those tags in-place.
 - **Public static asset/data/media URLs never start with `/`.** Build writer strips the leading slash; the runtime resolver relies on `<base href>` for both GitHub Pages project paths and the preview prefix.
@@ -37,7 +37,7 @@
 ## File Structure
 
 ```text
-crates/oxipage-core/
+crates/oxibuilder-core/
 ├── Cargo.toml                                # add uuid dep
 ├── src/
 │   ├── lib.rs                                # pub mod build_manifest
@@ -45,7 +45,7 @@ crates/oxipage-core/
 │   ├── build_writer.rs                       # relative tags + <base> + manifest write
 │   └── builder.rs                            # write_build_output signature accepts BuildInputs
 
-crates/oxipage-console/
+crates/oxibuilder-console/
 ├── Cargo.toml                                # (workspace axum multipart feature)
 ├── src/
 │   ├── media/
@@ -74,29 +74,29 @@ web/
 ### Task 1: `BuildManifest` type + atomic read/write + `derive_deployment_base`
 
 **Files:**
-- Create: `crates/oxipage-core/src/build_manifest.rs`
-- Modify: `crates/oxipage-core/src/lib.rs`
-- Modify: `crates/oxipage-core/Cargo.toml`
+- Create: `crates/oxibuilder-core/src/build_manifest.rs`
+- Modify: `crates/oxibuilder-core/src/lib.rs`
+- Modify: `crates/oxibuilder-core/Cargo.toml`
 
 **Interfaces:**
 - Consumes: `out_dir` from the build pipeline (path on disk); `base_url` from `MutableSiteSettings::site.base_url` (string)
 - Produces:
-  - `BuildManifest` struct serialized to `<out_dir>/.oxipage-build.json` with `read_from(out_dir)` and `write_to(out_dir)` methods.
-  - `pub fn derive_deployment_base(base_url: &str) -> String` — the ONLY derivation rule, used by `build_writer` (Task 2) and reusable by `oxipage-deploy` (subproject 4).
+  - `BuildManifest` struct serialized to `<out_dir>/.oxibuilder-build.json` with `read_from(out_dir)` and `write_to(out_dir)` methods.
+  - `pub fn derive_deployment_base(base_url: &str) -> String` — the ONLY derivation rule, used by `build_writer` (Task 2) and reusable by `oxibuilder-deploy` (subproject 4).
 
 - [ ] **Step 1: Write a manifest round-trip and derivation test**
 
-Create `crates/oxipage-core/tests/build_manifest.rs`:
+Create `crates/oxibuilder-core/tests/build_manifest.rs`:
 
 ```rust
 //! Tests for BuildManifest serialization and deployment_base derivation.
 
-use oxipage_core::build_manifest::{derive_deployment_base, BuildManifest, MAG_FILENAME};
+use oxibuilder_core::build_manifest::{derive_deployment_base, BuildManifest, MAG_FILENAME};
 use tempfile::TempDir;
 
 #[test]
 fn round_trip_preserves_fields() {
-    let dir = TempDir::with_prefix("oxipage-mag-").unwrap();
+    let dir = TempDir::with_prefix("oxibuilder-mag-").unwrap();
     let m = BuildManifest {
         build_id: "11111111-2222-3333-4444-555555555555".to_string(),
         deployment_base: "/repo/".to_string(),
@@ -111,19 +111,19 @@ fn round_trip_preserves_fields() {
     assert_eq!(m.theme_id, m2.theme_id);
     assert_eq!(m.asset_revision, m2.asset_revision);
     assert_eq!(m.built_at, m2.built_at);
-    assert_eq!(MAG_FILENAME, ".oxipage-build.json");
+    assert_eq!(MAG_FILENAME, ".oxibuilder-build.json");
 }
 
 #[test]
 fn read_returns_none_when_missing() {
-    let dir = TempDir::with_prefix("oxipage-mag-missing-").unwrap();
+    let dir = TempDir::with_prefix("oxibuilder-mag-missing-").unwrap();
     let got = BuildManifest::read_from(dir.path()).unwrap();
     assert!(got.is_none());
 }
 
 #[test]
 fn write_to_missing_dir_creates_path() {
-    let dir = TempDir::with_prefix("oxipage-mag-created-").unwrap();
+    let dir = TempDir::with_prefix("oxibuilder-mag-created-").unwrap();
     let out = dir.path().join("out");
     let m = BuildManifest::new("/myrepo/", "paper", "deadbeef");
     m.write_to(&out).unwrap();
@@ -174,12 +174,12 @@ fn new_helper_uses_supplied_base_without_normalization() {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cargo test -p oxipage-core --test build_manifest`
+Run: `cargo test -p oxibuilder-core --test build_manifest`
 Expected: FAIL — `build_manifest` module does not exist.
 
 - [ ] **Step 3: Add `uuid` to core Cargo.toml**
 
-In `crates/oxipage-core/Cargo.toml`, add to `[dependencies]`:
+In `crates/oxibuilder-core/Cargo.toml`, add to `[dependencies]`:
 
 ```toml
 uuid.workspace = true
@@ -187,18 +187,18 @@ uuid.workspace = true
 
 - [ ] **Step 4: Implement `BuildManifest`**
 
-Create `crates/oxipage-core/src/build_manifest.rs`:
+Create `crates/oxibuilder-core/src/build_manifest.rs`:
 
 ```rust
 //! Build manifest — single typed source of truth for "what did the build produce?".
 //!
-//! Written to `<out_dir>/.oxipage-build.json` by `build_writer` after every
+//! Written to `<out_dir>/.oxibuilder-build.json` by `build_writer` after every
 //! successful build. Consumed by:
-//! - `oxipage_console::preview::handler` (to decide 424 vs serve, and to write
+//! - `oxibuilder_console::preview::handler` (to decide 424 vs serve, and to write
 //!   the per-request `<base href>`),
 //! - the per-site `build_post` status response (so the UI can render build ID,
 //!   theme, deployment base),
-//! - `oxipage-deploy` (deployment base + asset revision for GitHub Pages).
+//! - `oxibuilder-deploy` (deployment base + asset revision for GitHub Pages).
 //!
 //! `deployment_base` is always derived from `MutableSiteSettings::site.base_url`
 //! via [`derive_deployment_base`] — it is the canonical "where the deployed
@@ -215,9 +215,9 @@ use uuid::Uuid;
 
 /// Manifest filename written inside `out_dir`. Leading dot keeps it adjacent
 /// to the deploy artifact without competing with user-facing routes.
-pub const MAG_FILENAME: &str = ".oxipage-build.json";
+pub const MAG_FILENAME: &str = ".oxibuilder-build.json";
 
-/// One build's metadata. Serialized to `out_dir/.oxipage-build.json`.
+/// One build's metadata. Serialized to `out_dir/.oxibuilder-build.json`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BuildManifest {
     /// UUIDv4 assigned at write time.
@@ -264,7 +264,7 @@ impl BuildManifest {
         )
     }
 
-    /// Read the manifest from `<out_dir>/.oxipage-build.json`. Returns `Ok(None)`
+    /// Read the manifest from `<out_dir>/.oxibuilder-build.json`. Returns `Ok(None)`
     /// if the file is absent (not an error — the build hasn't run yet).
     pub fn read_from(out_dir: &Path) -> Result<Option<Self>, ManifestError> {
         let path = out_dir.join(MAG_FILENAME);
@@ -276,7 +276,7 @@ impl BuildManifest {
         Ok(Some(parsed))
     }
 
-    /// Atomically write the manifest to `<out_dir>/.oxipage-build.json`.
+    /// Atomically write the manifest to `<out_dir>/.oxibuilder-build.json`.
     /// Creates the directory if missing. Writes to a temp file in the same
     /// directory then renames — a read on the live path never sees a partial
     /// payload.
@@ -348,7 +348,7 @@ pub enum ManifestError {
 
 - [ ] **Step 5: Add `url` and `chrono` to core Cargo.toml**
 
-In `crates/oxipage-core/Cargo.toml`, add to `[dependencies]`:
+In `crates/oxibuilder-core/Cargo.toml`, add to `[dependencies]`:
 
 ```toml
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
@@ -359,7 +359,7 @@ url = "2"
 
 - [ ] **Step 6: Register the module**
 
-In `crates/oxipage-core/src/lib.rs`, add:
+In `crates/oxibuilder-core/src/lib.rs`, add:
 
 ```rust
 pub mod build_manifest;
@@ -369,13 +369,13 @@ pub mod build_manifest;
 
 - [ ] **Step 7: Run test to verify it passes**
 
-Run: `cargo test -p oxipage-core --test build_manifest`
+Run: `cargo test -p oxibuilder-core --test build_manifest`
 Expected: PASS — six tests pass.
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add crates/oxipage-core/src/build_manifest.rs crates/oxipage-core/src/lib.rs crates/oxipage-core/Cargo.toml crates/oxipage-core/tests/build_manifest.rs
+git add crates/oxibuilder-core/src/build_manifest.rs crates/oxibuilder-core/src/lib.rs crates/oxibuilder-core/Cargo.toml crates/oxibuilder-core/tests/build_manifest.rs
 git commit -m "feat(core): BuildManifest + derive_deployment_base from site.base_url"
 ```
 
@@ -384,18 +384,18 @@ git commit -m "feat(core): BuildManifest + derive_deployment_base from site.base
 ### Task 2: `build_writer` — relative asset tags, `<base>`, manifest write
 
 **Files:**
-- Modify: `crates/oxipage-core/src/build_writer.rs`
-- Modify: `crates/oxipage-core/src/builder.rs` (change `write_build_output` signature)
+- Modify: `crates/oxibuilder-core/src/build_writer.rs`
+- Modify: `crates/oxibuilder-core/src/builder.rs` (change `write_build_output` signature)
 
 **Interfaces:**
 - Consumes: `BuildOutput`, `out_dir`, `media_dir`, `build_inputs: BuildInputs` (new struct carrying `theme_id`, `asset_revision_seed`; deployment_base is derived INSIDE `write_build_output` from `inputs.site_base_url` via `BuildManifest::from_site_base`)
-- Produces: All HTML shells have relative `assets/...` tags and a `<base href="{derived_deployment_base}">` emitted before the dependent scripts/styles; `<out_dir>/.oxipage-build.json` written with the derived `deployment_base`
+- Produces: All HTML shells have relative `assets/...` tags and a `<base href="{derived_deployment_base}">` emitted before the dependent scripts/styles; `<out_dir>/.oxibuilder-build.json` written with the derived `deployment_base`
 
 - [ ] **Step 1: Update `write_build_output` signature**
 
-Read `crates/oxipage-core/src/builder.rs` and find the existing `write_build_output` plumbing. Add a `BuildInputs` struct that carries only the site base URL, theme, and asset revision seed. The deployment_base is derived inside `write_build_output` to enforce the single derivation rule.
+Read `crates/oxibuilder-core/src/builder.rs` and find the existing `write_build_output` plumbing. Add a `BuildInputs` struct that carries only the site base URL, theme, and asset revision seed. The deployment_base is derived inside `write_build_output` to enforce the single derivation rule.
 
-Add to `crates/oxipage-core/src/builder.rs`:
+Add to `crates/oxibuilder-core/src/builder.rs`:
 
 ```rust
 /// Inputs to the build writer that aren't part of the per-extension output.
@@ -508,7 +508,7 @@ fn inject_assets(shell: &str, asset_tags: Option<&str>) -> String {
 
 - [ ] **Step 3: Compute asset revision and write the manifest using `from_site_base`**
 
-In `crates/oxipage-core/src/build_writer.rs`, add a helper to compute the asset revision hash and update `write_build_output` to (a) accept `BuildInputs`, (b) derive `deployment_base` from `inputs.site_base_url`, (c) compute the revision, (d) write the manifest.
+In `crates/oxibuilder-core/src/build_writer.rs`, add a helper to compute the asset revision hash and update `write_build_output` to (a) accept `BuildInputs`, (b) derive `deployment_base` from `inputs.site_base_url`, (c) compute the revision, (d) write the manifest.
 
 Add at the top of `build_writer.rs`:
 
@@ -701,21 +701,21 @@ For each call site, replace the trailing args with a `BuildInputs` constructed f
 // Standard pattern at any caller:
 let base_url = ctx.settings.read().await.site.base_url.clone();
 let theme_id = "paper".to_string(); // or read from settings if/when added
-let inputs = BuildInputs::new(base_url, theme_id, "oxipage");
+let inputs = BuildInputs::new(base_url, theme_id, "oxibuilder");
 write_build_output(output, out_dir, media_dir, &inputs)?;
 ```
 
 - [ ] **Step 5: Write build_writer tests**
 
-Add `crates/oxipage-core/tests/build_writer_tags.rs`:
+Add `crates/oxibuilder-core/tests/build_writer_tags.rs`:
 
 ```rust
 //! Tests for build_writer tag transformations and manifest derivation.
 
-use oxipage_core::build_manifest::BuildManifest;
-use oxipage_core::builder::{BuildInputs, BuildOutput};
-use oxipage_core::build_writer::write_build_output;
-use oxipage_core::builder::PageOutput;
+use oxibuilder_core::build_manifest::BuildManifest;
+use oxibuilder_core::builder::{BuildInputs, BuildOutput};
+use oxibuilder_core::build_writer::write_build_output;
+use oxibuilder_core::builder::PageOutput;
 use tempfile::TempDir;
 
 fn page(rel: &str, body: &str) -> PageOutput {
@@ -724,7 +724,7 @@ fn page(rel: &str, body: &str) -> PageOutput {
 
 #[test]
 fn relative_assets_drop_leading_slash() {
-    let tmp = TempDir::with_prefix("oxipage-bw-").unwrap();
+    let tmp = TempDir::with_prefix("oxibuilder-bw-").unwrap();
     let out = tmp.path().join("out");
     let media = tmp.path().join("media");
     std::fs::create_dir_all(&media).unwrap();
@@ -747,7 +747,7 @@ fn relative_assets_drop_leading_slash() {
 
 #[test]
 fn apex_base_url_emits_root_base() {
-    let tmp = TempDir::with_prefix("oxipage-bw-apex-").unwrap();
+    let tmp = TempDir::with_prefix("oxibuilder-bw-apex-").unwrap();
     let out = tmp.path().join("out");
     let media = tmp.path().join("media");
     std::fs::create_dir_all(&media).unwrap();
@@ -766,7 +766,7 @@ fn apex_base_url_emits_root_base() {
 
 #[test]
 fn manifest_reflects_derived_deployment_base() {
-    let tmp = TempDir::with_prefix("oxipage-bw-mag-").unwrap();
+    let tmp = TempDir::with_prefix("oxibuilder-bw-mag-").unwrap();
     let out = tmp.path().join("out");
     let media = tmp.path().join("media");
     std::fs::create_dir_all(&media).unwrap();
@@ -786,25 +786,25 @@ fn manifest_reflects_derived_deployment_base() {
 }
 ```
 
-Add `Default` to `BuildOutput` and `PageOutput` in `oxipage_core::builder` if not already present. If they aren't `Default`, the test uses explicit field literals — adjust as needed.
+Add `Default` to `BuildOutput` and `PageOutput` in `oxibuilder_core::builder` if not already present. If they aren't `Default`, the test uses explicit field literals — adjust as needed.
 
 - [ ] **Step 6: Run build and tests**
 
-Run: `cargo build -p oxipage-core`
+Run: `cargo build -p oxibuilder-core`
 Expected: success.
 
-Run: `cargo test -p oxipage-core --test build_manifest --test build_writer_tags`
+Run: `cargo test -p oxibuilder-core --test build_manifest --test build_writer_tags`
 Expected: PASS — all manifest and build_writer tests pass.
 
 - [ ] **Step 7: Verify the materialize transformation in a real build**
 
-Run: `cargo build -p oxipage-cli`
+Run: `cargo build -p oxibuilder-cli`
 Expected: success.
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add -A crates/oxipage-core/src/build_writer.rs crates/oxipage-core/src/builder.rs crates/oxipage-core/tests/build_writer_tags.rs
+git add -A crates/oxibuilder-core/src/build_writer.rs crates/oxibuilder-core/src/builder.rs crates/oxibuilder-core/tests/build_writer_tags.rs
 git commit -m "feat(core): materialization — relative asset tags, <base>, BuildManifest via derive_deployment_base"
 ```
 
@@ -812,9 +812,9 @@ git commit -m "feat(core): materialization — relative asset tags, <base>, Buil
 
 ### Task 3: Preview handler — prefix-aware, base-href rewrite, 424
 
-- Create: `crates/oxipage-console/src/preview/handler.rs` (rewrite of the existing file)
-- Modify: `crates/oxipage-console/src/router.rs` (add `/preview/{slug}` redirect route)
-- Modify: `crates/oxipage-console/tests/build_deploy_preview.rs`
+- Create: `crates/oxibuilder-console/src/preview/handler.rs` (rewrite of the existing file)
+- Modify: `crates/oxibuilder-console/src/router.rs` (add `/preview/{slug}` redirect route)
+- Modify: `crates/oxibuilder-console/tests/build_deploy_preview.rs`
 
 **Interfaces:**
 - Consumes: `SiteContext { out_dir, ... }` (post-foundation); `BuildManifest` via `read_from`
@@ -824,7 +824,7 @@ git commit -m "feat(core): materialization — relative asset tags, <base>, Buil
 
 The existing test `preview_endpoint_returns_404_for_missing_out_dir` no longer matches the contract. Replace it.
 
-In `crates/oxipage-console/tests/build_deploy_preview.rs`, rewrite that test:
+In `crates/oxibuilder-console/tests/build_deploy_preview.rs`, rewrite that test:
 
 ```rust
 #[tokio::test]
@@ -846,12 +846,12 @@ async fn preview_endpoint_returns_424_when_manifest_missing() {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cargo test -p oxipage-console --test build_deploy_preview`
+Run: `cargo test -p oxibuilder-console --test build_deploy_preview`
 Expected: FAIL — current handler returns 404, not 424.
 
 - [ ] **Step 3: Rewrite the preview handler**
 
-Replace the entire contents of `crates/oxipage-console/src/preview/handler.rs`:
+Replace the entire contents of `crates/oxibuilder-console/src/preview/handler.rs`:
 
 ```rust
 //! `GET /api/console/preview/{slug}/{*rest}` — serve one site's `out/` build.
@@ -885,7 +885,7 @@ use crate::sites_runtime::SiteRegistry;
 use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::{Response, StatusCode, header};
-use oxipage_core::build_manifest::BuildManifest;
+use oxibuilder_core::build_manifest::BuildManifest;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
@@ -998,10 +998,10 @@ pub(crate) async fn preview_handler(
 
     if is_html {
         builder = builder
-            .header("X-Oxipage-Build-Id", &manifest.build_id)
-            .header("X-Oxipage-Build-Theme", &manifest.theme_id)
-            .header("X-Oxipage-Build-Asset-Revision", &manifest.asset_revision)
-            .header("X-Oxipage-Build-Deployment-Base", &manifest.deployment_base);
+            .header("X-Oxibuilder-Build-Id", &manifest.build_id)
+            .header("X-Oxibuilder-Build-Theme", &manifest.theme_id)
+            .header("X-Oxibuilder-Build-Asset-Revision", &manifest.asset_revision)
+            .header("X-Oxibuilder-Build-Deployment-Base", &manifest.deployment_base);
     }
 
     Ok(builder.body(Body::from(body)).unwrap())
@@ -1065,7 +1065,7 @@ The bare-slug route (no trailing slash) needs a separate handler that returns
 307 to the canonical `/preview/{slug}/` URL. Add it to the top-level console
 router alongside the existing `preview` catch-all.
 
-In `crates/oxipage-console/src/router.rs`, find the line that mounts the
+In `crates/oxibuilder-console/src/router.rs`, find the line that mounts the
 preview route inside `build_top_level_router()`:
 
 ```rust
@@ -1090,7 +1090,7 @@ for route wiring.
 
 - [ ] **Step 4: Add coverage for the new behavior**
 
-Add to `crates/oxipage-console/tests/build_deploy_preview.rs`:
+Add to `crates/oxibuilder-console/tests/build_deploy_preview.rs`:
 
 ```rust
 async fn build_test_app_with_out() -> (tempfile::TempDir, Router) {
@@ -1099,14 +1099,14 @@ async fn build_test_app_with_out() -> (tempfile::TempDir, Router) {
     std::fs::create_dir_all(&out_dir).unwrap();
     // Manifest with deployment_base = "/repo/" — the artifact's canonical base.
     std::fs::write(
-        out_dir.join(".oxipage-build.json"),
+        out_dir.join(".oxibuilder-build.json"),
         r#"{"build_id":"b1","deployment_base":"/repo/","theme_id":"paper","asset_revision":"abc","built_at":"2026-07-31T10:00:00Z"}"#,
     ).unwrap();
     // HTML has the manifest-derived base (`/repo/`); the preview handler
     // must override it to the preview prefix.
     std::fs::write(out_dir.join("index.html"), "<!DOCTYPE html><html><head><base href=\"/repo/\"></head><body>x</body></html>").unwrap();
 
-    let mut sf = oxipage_core::sites::SitesFile::default();
+    let mut sf = oxibuilder_core::sites::SitesFile::default();
     sf.add("blog".into(), path);
     sf.set_default("blog");
     let registry = Arc::new(SiteRegistry::new(sf).await.unwrap());
@@ -1224,10 +1224,10 @@ async fn preview_emits_build_metadata_headers() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let h = resp.headers();
-    assert_eq!(h.get("x-oxipage-build-id").unwrap(), "b1");
-    assert_eq!(h.get("x-oxipage-build-theme").unwrap(), "paper");
-    assert_eq!(h.get("x-oxipage-build-asset-revision").unwrap(), "abc");
-    assert_eq!(h.get("x-oxipage-build-deployment-base").unwrap(), "/repo/");
+    assert_eq!(h.get("x-oxibuilder-build-id").unwrap(), "b1");
+    assert_eq!(h.get("x-oxibuilder-build-theme").unwrap(), "paper");
+    assert_eq!(h.get("x-oxibuilder-build-asset-revision").unwrap(), "abc");
+    assert_eq!(h.get("x-oxibuilder-build-deployment-base").unwrap(), "/repo/");
 }
 ```
 
@@ -1235,13 +1235,13 @@ Add `use axum::body::to_bytes;` at the top of the test file if needed.
 
 - [ ] **Step 5: Run tests**
 
-Run: `cargo test -p oxipage-console --test build_deploy_preview`
+Run: `cargo test -p oxibuilder-console --test build_deploy_preview`
 Expected: PASS — all preview tests pass.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/oxipage-console/src/preview/handler.rs crates/oxipage-console/src/router.rs crates/oxipage-console/tests/build_deploy_preview.rs
+git add crates/oxibuilder-console/src/preview/handler.rs crates/oxibuilder-console/src/router.rs crates/oxibuilder-console/tests/build_deploy_preview.rs
 git commit -m "feat(console): preview prefix-aware + base-rewrite + 424 build_required"
 ```
 
@@ -1250,9 +1250,9 @@ git commit -m "feat(console): preview prefix-aware + base-rewrite + 424 build_re
 ### Task 4: Media upload — multipart, magic bytes, atomic rename
 
 **Files:**
-- Create: `crates/oxipage-console/src/media/mod.rs`
-- Create: `crates/oxipage-console/src/media/upload.rs`
-- Create: `crates/oxipage-console/src/media/serve.rs`
+- Create: `crates/oxibuilder-console/src/media/mod.rs`
+- Create: `crates/oxibuilder-console/src/media/upload.rs`
+- Create: `crates/oxibuilder-console/src/media/serve.rs`
 - Modify: `Cargo.toml` (workspace `axum` features → add `multipart`)
 
 **Interfaces:**
@@ -1267,11 +1267,11 @@ In the root `Cargo.toml`, update the `axum` workspace dependency:
 axum = { version = "0.8", features = ["macros", "multipart"] }
 ```
 
-`crates/oxipage-console/Cargo.toml` consumes the workspace `axum`; no further change needed.
+`crates/oxibuilder-console/Cargo.toml` consumes the workspace `axum`; no further change needed.
 
 - [ ] **Step 2: Create the media module skeleton**
 
-Create `crates/oxipage-console/src/media/mod.rs`:
+Create `crates/oxibuilder-console/src/media/mod.rs`:
 
 ```rust
 //! Media upload and live serving — `/api/console/s/{slug}/media/...`.
@@ -1304,7 +1304,7 @@ pub fn router() -> Router {
 
 - [ ] **Step 3: Register the module in the console lib**
 
-In `crates/oxipage-console/src/lib.rs`, add:
+In `crates/oxibuilder-console/src/lib.rs`, add:
 
 ```rust
 pub mod media;
@@ -1312,7 +1312,7 @@ pub mod media;
 
 - [ ] **Step 4: Implement the upload handler**
 
-Create `crates/oxipage-console/src/media/upload.rs`:
+Create `crates/oxibuilder-console/src/media/upload.rs`:
 
 ```rust
 //! Multipart upload for site media. Spec §9.
@@ -1494,7 +1494,7 @@ pub async fn upload_handler(
 
 - [ ] **Step 5: Implement the serve handler**
 
-Create `crates/oxipage-console/src/media/serve.rs`:
+Create `crates/oxibuilder-console/src/media/serve.rs`:
 
 //! Live serving of uploaded media. Spec §9 (live serving).
 //!
@@ -1580,7 +1580,7 @@ pub async fn serve_handler(
 
 - [ ] **Step 6: Write tests for upload + serve**
 
-Create `crates/oxipage-console/tests/media.rs`:
+Create `crates/oxibuilder-console/tests/media.rs`:
 
 ```rust
 //! Tests for the media upload + serve endpoints.
@@ -1588,9 +1588,9 @@ Create `crates/oxipage-console/tests/media.rs`:
 use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use oxipage_console::router::build_console_router;
-use oxipage_console::sites_runtime::SiteRegistry;
-use oxipage_core::sites::SitesFile;
+use oxibuilder_console::router::build_console_router;
+use oxibuilder_console::sites_runtime::SiteRegistry;
+use oxibuilder_core::sites::SitesFile;
 use std::sync::Arc;
 use tempfile::TempDir;
 use tower::util::ServiceExt;
@@ -1612,8 +1612,8 @@ data_dir = "data"
 }
 
 async fn build_app() -> (TempDir, Router) {
-    let dir = TempDir::with_prefix("oxipage-media-").unwrap();
-    let toml_path = dir.path().join("oxipage.toml");
+    let dir = TempDir::with_prefix("oxibuilder-media-").unwrap();
+    let toml_path = dir.path().join("oxibuilder.toml");
     std::fs::write(&toml_path, minimal_toml("Test")).unwrap();
     let mut sf = SitesFile::default();
     sf.add("blog".into(), dir.path().to_path_buf());
@@ -1636,7 +1636,7 @@ const PNG_1X1: &[u8] = &[
 ];
 
 fn build_multipart(filename: &str, content: &[u8]) -> (String, Vec<u8>) {
-    let boundary = "----oxipage-test-boundary";
+    let boundary = "----oxibuilder-test-boundary";
     let body = format!(
         "--{b}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{f}\"\r\nContent-Type: image/png\r\n\r\n",
         b = boundary,
@@ -1728,13 +1728,13 @@ async fn upload_rejects_invalid_extension_id() {
 
 - [ ] **Step 7: Run tests**
 
-Run: `cargo test -p oxipage-console --test media`
+Run: `cargo test -p oxibuilder-console --test media`
 Expected: PASS — all four tests pass.
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add Cargo.toml crates/oxipage-console/src/media/ crates/oxipage-console/Cargo.toml crates/oxipage-console/src/lib.rs crates/oxipage-console/tests/media.rs
+git add Cargo.toml crates/oxibuilder-console/src/media/ crates/oxibuilder-console/Cargo.toml crates/oxibuilder-console/src/lib.rs crates/oxibuilder-console/tests/media.rs
 git commit -m "feat(console): media upload (multipart + magic bytes) and live serve"
 ```
 
@@ -1743,7 +1743,7 @@ git commit -m "feat(console): media upload (multipart + magic bytes) and live se
 ### Task 5: Wire media routes into per-site router
 
 **Files:**
-- Modify: `crates/oxipage-console/src/per_site.rs`
+- Modify: `crates/oxibuilder-console/src/per_site.rs`
 
 **Interfaces:**
 - Consumes: nothing new
@@ -1755,7 +1755,7 @@ Confirmed earlier — it's at the bottom of `per_site.rs` (lines 743–757). The
 
 - [ ] **Step 2: Add the merge**
 
-In `crates/oxipage-console/src/per_site.rs`, at the top of the file add:
+In `crates/oxibuilder-console/src/per_site.rs`, at the top of the file add:
 
 ```rust
 use crate::media;
@@ -1784,18 +1784,18 @@ pub fn per_site_router() -> Router {
 
 - [ ] **Step 3: Build**
 
-Run: `cargo build -p oxipage-console`
+Run: `cargo build -p oxibuilder-console`
 Expected: success.
 
 - [ ] **Step 4: Re-run media tests**
 
-Run: `cargo test -p oxipage-console --test media`
+Run: `cargo test -p oxibuilder-console --test media`
 Expected: PASS — the routes are now reachable.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/oxipage-console/src/per_site.rs
+git add crates/oxibuilder-console/src/per_site.rs
 git commit -m "feat(console): wire media routes into per-site router"
 ```
 
@@ -1934,7 +1934,7 @@ async function apiFetch<T>(path: string): Promise<T> {
   const isStatic = import.meta.env.VITE_DATA_MODE === 'static';
 
   if (isStatic) {
-    // Map API paths to static JSON files generated by oxipage build.
+    // Map API paths to static JSON files generated by oxibuilder build.
     // We resolve against document.baseURI so the relative URL works under
     // preview prefixes (/api/console/preview/{slug}/...) and project-pages
     // deployments (/{repo}/) without per-context branching.
@@ -1961,7 +1961,7 @@ async function apiFetch<T>(path: string): Promise<T> {
 }
 
 function pathToStaticFile(path: string): string {
-  // Map API paths to the static JSON files `oxipage build` emits.
+  // Map API paths to the static JSON files `oxibuilder build` emits.
   // Collections/singletons map to <segment>.json under data/. Detail routes
   // (blog/<slug>, projects/<slug>) are NOT resolved here — the detail
   // fetchers pull them client-side from the collection (the build emits
@@ -2214,7 +2214,7 @@ git commit -m "feat(admin): uploadImage + previewUrl + ImageField component"
 
 **Files:**
 - Modify: `web/src/admin/deploy/DeployPage.tsx`
-- Modify: `crates/oxipage-console/src/per_site.rs` (extend `build_post` status with manifest summary)
+- Modify: `crates/oxibuilder-console/src/per_site.rs` (extend `build_post` status with manifest summary)
 
 **Interfaces:**
 - Consumes: `build_post` status (now includes `manifest_preview` summary); `listBuilds` for history
@@ -2222,11 +2222,11 @@ git commit -m "feat(admin): uploadImage + previewUrl + ImageField component"
 
 - [ ] **Step 1: Extend `build_post` to include manifest summary**
 
-In `crates/oxipage-console/src/per_site.rs`, find `build_post` (lines 417–472). Read the function and locate the success-path Ok arm. Add a manifest read just before constructing the response, and add a `manifest_preview` field to the JSON body:
+In `crates/oxibuilder-console/src/per_site.rs`, find `build_post` (lines 417–472). Read the function and locate the success-path Ok arm. Add a manifest read just before constructing the response, and add a `manifest_preview` field to the JSON body:
 
 ```rust
 // Just before the Ok((StatusCode::OK, Json(...))) return:
-let manifest_preview = oxipage_core::build_manifest::BuildManifest::read_from(&ctx.out_dir)
+let manifest_preview = oxibuilder_core::build_manifest::BuildManifest::read_from(&ctx.out_dir)
     .ok()
     .flatten()
     .map(|m| serde_json::json!({
@@ -2318,7 +2318,7 @@ Expected: build succeeds.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add web/src/admin/deploy/DeployPage.tsx crates/oxipage-console/src/per_site.rs
+git add web/src/admin/deploy/DeployPage.tsx crates/oxibuilder-console/src/per_site.rs
 git commit -m "feat(admin): Deploy Preview Site button + manifest header"
 ```
 
@@ -2340,7 +2340,7 @@ git commit -m "feat(admin): Deploy Preview Site button + manifest header"
 
 **Foundation cross-checks:**
 - `SiteContext` post-foundation: `out_dir`, `media_dir`, `settings: Arc<RwLock<MutableSiteSettings>>`, `startup_server: ServerConfig`, `config_write_lock` — used consistently in Tasks 3, 4. No `ctx.config.*` references.
-- `BuildManifest::from_site_base` is the ONLY entry point that populates `deployment_base` from `site.base_url`. Every caller (Task 2 `build_writer`, plus reusable by `oxipage-deploy`) goes through `derive_deployment_base`, so the manifest field is shape-stable.
+- `BuildManifest::from_site_base` is the ONLY entry point that populates `deployment_base` from `site.base_url`. Every caller (Task 2 `build_writer`, plus reusable by `oxibuilder-deploy`) goes through `derive_deployment_base`, so the manifest field is shape-stable.
 - `embedded-spa-static` is the only path used for asset extraction (Task 2). No second embed.
 
 **Constraint compliance:**

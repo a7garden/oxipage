@@ -24,9 +24,9 @@
 ### Task 1: Media list + delete endpoints (backend)
 
 **Files:**
-- Create: `crates/oxipage-console/src/media/library.rs`
-- Modify: `crates/oxipage-console/src/media/mod.rs` (wire routes)
-- Test: `crates/oxipage-console/tests/media.rs`
+- Create: `crates/oxibuilder-console/src/media/library.rs`
+- Modify: `crates/oxibuilder-console/src/media/mod.rs` (wire routes)
+- Test: `crates/oxibuilder-console/tests/media.rs`
 
 **Interfaces:**
 - Consumes: `Extension<Arc<SiteContext>>` (same as `serve.rs`), `ctx.media_dir`, `ctx.media_dir.join(extension)`.
@@ -40,7 +40,7 @@
 
 - [ ] **Step 1: Write failing tests for list + delete**
 
-Append to `crates/oxipage-console/tests/media.rs`:
+Append to `crates/oxibuilder-console/tests/media.rs`:
 ```rust
 #[tokio::test]
 async fn list_media_after_upload() {
@@ -139,12 +139,12 @@ Add imports at top if missing: `use axum::body::to_bytes;` (already used elsewhe
 
 - [ ] **Step 2: Run tests to verify they fail (404 / no route)**
 
-Run: `cargo test -p oxipage-console --test media`
+Run: `cargo test -p oxibuilder-console --test media`
 Expected: the new tests FAIL (routes don't exist yet → 404 on list, 404 on delete).
 
 - [ ] **Step 3: Implement `library.rs`**
 
-Create `crates/oxipage-console/src/media/library.rs`:
+Create `crates/oxibuilder-console/src/media/library.rs`:
 ```rust
 //! Media library: enumerate + delete uploaded media (spec §5.3).
 
@@ -336,7 +336,7 @@ pub async fn delete_handler(
 
 - [ ] **Step 4: Wire routes in `media/mod.rs`**
 
-In `crates/oxipage-console/src/media/mod.rs`, add `pub mod library;` and extend `router()`:
+In `crates/oxibuilder-console/src/media/mod.rs`, add `pub mod library;` and extend `router()`:
 ```rust
 pub fn router() -> Router {
     Router::new()
@@ -353,13 +353,13 @@ pub fn router() -> Router {
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `cargo test -p oxipage-console --test media`
+Run: `cargo test -p oxibuilder-console --test media`
 Expected: PASS (list, delete, traversal, plus existing upload/serve tests).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/oxipage-console/src/media/library.rs crates/oxipage-console/src/media/mod.rs crates/oxipage-console/tests/media.rs
+git add crates/oxibuilder-console/src/media/library.rs crates/oxibuilder-console/src/media/mod.rs crates/oxibuilder-console/tests/media.rs
 git commit -m "feat(console): media library list + delete endpoints"
 ```
 
@@ -936,14 +936,14 @@ git commit -m "feat(web): wire MarkdownEditor slug+extension into content tabs"
 
 - [ ] **Step 1: Full Rust build + console tests**
 
-Run: `cargo build --workspace && cargo test -p oxipage-console`
+Run: `cargo build --workspace && cargo test -p oxibuilder-console`
 Expected: build green; all console tests pass (existing + new list/delete).
 
 - [ ] **Step 2: Rebuild embedded SPA**
 
 Run: `cd web && bun run build`
 Expected: success. Then rebuild the Rust console so it re-embeds the fresh SPA:
-Run: `cargo build -p oxipage-console`
+Run: `cargo build -p oxibuilder-console`
 (This picks up the new `embedded-spa/` assets via `build.rs`.)
 
 - [ ] **Step 3: tsc clean**
@@ -953,11 +953,11 @@ Expected: clean.
 
 - [ ] **Step 4: Browser smoke — insert + preview + build correctness**
 
-Start the console: `cargo run -p oxipage -- console` (or the project's run command). In a browser:
+Start the console: `cargo run -p oxibuilder -- console` (or the project's run command). In a browser:
 1. Open Admin → Blog → edit a post → drag a GIF into the body. Confirm `![name](media/blog/<uuid>.gif)` is spliced and the editor Preview shows it.
 2. Save, open the draft/public preview — confirm the GIF renders on `/blog/<slug>/` (nested route) via the public resolver.
 3. Open the MediaPicker from the toolbar — confirm it lists the uploaded GIF, the filter works, delete removes it.
-4. Run `oxipage build` and open the built preview — confirm the GIF renders on the nested detail route (this is the G4 correctness check).
+4. Run `oxibuilder build` and open the built preview — confirm the GIF renders on the nested detail route (this is the G4 correctness check).
 
 - [ ] **Step 5: Final commit if any build artifacts regenerated**
 

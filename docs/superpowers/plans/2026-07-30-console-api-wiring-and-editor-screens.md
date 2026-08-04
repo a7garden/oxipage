@@ -43,7 +43,7 @@ Novel drawer는 제목/시놉시스/커버만 입력 — chapter 생성/편집/�
   `/{slug}/chapters/{order}` (PATCH/DELETE), `/{slug}/chapters/{order}/publish` (POST)
 - `contentClient`에 `chapters: { list, create, update, delete, publish }` 추가
 
-**Backend:** `/novels/{slug}/chapters`, `/novels/{slug}/chapters/{order}` — routes exist in `oxipage-ext-novels`, SPA만 추가.
+**Backend:** `/novels/{slug}/chapters`, `/novels/{slug}/chapters/{order}` — routes exist in `oxibuilder-ext-novels`, SPA만 추가.
 
 ### 8.2 Movies — Series Group 관리
 
@@ -54,7 +54,7 @@ Novel drawer는 제목/시놉시스/커버만 입력 — chapter 생성/편집/�
 - Series group list view (groups as collapsible sections)
 - Route: `/movies/series` (GET list, POST create), `/movies/series/{slug}` (GET group detail)
 
-**Backend:** Routes exist in `oxipage-ext-movies`.
+**Backend:** Routes exist in `oxibuilder-ext-movies`.
 
 ### 8.3 Projects — Screenshot 관리
 
@@ -91,19 +91,19 @@ DeployPage는 build_log 테이블에서 page_count/out_dir만 보여줌.
 - DeployPage에 실시간 로그 뷰어 (terminal-style monospace)
 - `GET /api/console/s/{slug}/build/{buildId}/log` polling fallback
 
-**Backend:** `oxipage-console/src/per_site.rs` build handler 수정.
+**Backend:** `oxibuilder-console/src/per_site.rs` build handler 수정.
 Build output capture + `build_log`에 log_text 칼럼 추가 또는 별도 로그 파일.
 
 ### 9.2 Deploy Action 구현
 
-**Problem:** `POST /api/console/s/{slug}/deploy`는 stub — "use `oxipage deploy --site <slug>`" 메시지.
+**Problem:** `POST /api/console/s/{slug}/deploy`는 stub — "use `oxibuilder deploy --site <slug>`" 메시지.
 
 **Task:**
 - Git worktree + gh-pages deploy 로직을 CLI에서 console로 이전
-- 또는 console이 `oxipage deploy` CLI를 subprocess로 호출
+- 또는 console이 `oxibuilder deploy` CLI를 subprocess로 호출
 - Deploy 상태 폴링: `GET /api/console/s/{slug}/deploy/{id}/status`
 
-**Backend:** `oxipage-cli/src/commands/deploy.rs`에 구현된 로직을 console에서 재사용.
+**Backend:** `oxibuilder-cli/src/commands/deploy.rs`에 구현된 로직을 console에서 재사용.
 
 ### 9.3 Build/Deploy Trigger UX
 
@@ -201,7 +201,7 @@ content 영역이 너무 좁아짐. Spec §8에 명시됨.
 
 **Task:**
 - SiteSelector dropdown을 2-column 레이아웃으로 확장
-- 우측: oxipage 버전, extension 활성화 수, 사이트 상태
+- 우측: oxibuilder 버전, extension 활성화 수, 사이트 상태
 
 ### 12.3 Offline / Unavailable Indicator
 

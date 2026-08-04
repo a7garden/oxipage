@@ -1,22 +1,22 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/oxipage-core",
-    "crates/oxipage-console",
-    "crates/oxipage-cli",
-    "crates/oxipage-deploy",
-    "crates/oxipage-wasm",
+    "crates/oxibuilder-core",
+    "crates/oxibuilder-console",
+    "crates/oxibuilder-cli",
+    "crates/oxibuilder-deploy",
+    "crates/oxibuilder-wasm",
 
-    "crates/oxipage-ext-wasm-demo",
-    "crates/oxipage-ext-activity",
-    "crates/oxipage-ext-blog",
-    "crates/oxipage-ext-books",
-    "crates/oxipage-ext-links",
-    "crates/oxipage-ext-movies",
-    "crates/oxipage-ext-novels",
-    "crates/oxipage-ext-profile",
-    "crates/oxipage-ext-projects",
-    "crates/oxipage-ext-scraps",
+    "crates/oxibuilder-ext-wasm-demo",
+    "crates/oxibuilder-ext-activity",
+    "crates/oxibuilder-ext-blog",
+    "crates/oxibuilder-ext-books",
+    "crates/oxibuilder-ext-links",
+    "crates/oxibuilder-ext-movies",
+    "crates/oxibuilder-ext-novels",
+    "crates/oxibuilder-ext-profile",
+    "crates/oxibuilder-ext-projects",
+    "crates/oxibuilder-ext-scraps",
 ]
 
 [workspace.package]

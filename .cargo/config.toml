@@ -1,6 +1,6 @@
 # 워크스페이스 전역 cargo 설정.
 #
-# wasm32-unknown-unknown 타겟 rustflags 는 데모 확장(oxipage-ext-wasm-demo)의
+# wasm32-unknown-unknown 타겟 rustflags 는 데모 확장(oxibuilder-ext-wasm-demo)의
 # ABI export 를 위해 필요하다. cargo 가 .cargo/config.toml 을 cwd 기준 상향 탐색하므로
 # 워크스페이스 루트에 둔다. 이 플래그는 wasm32 타겟에만 적용되므로 호스트 빌드
 # (aarch64-apple-darwin 등)의 다른 크레이트에는 영향 없음.

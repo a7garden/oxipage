@@ -1,0 +1,26 @@
+[package]
+name = "oxibuilder-ext-blog"
+version = "0.8.0"
+edition = "2024"
+license.workspace = true
+description = "블로그 확장 — 초안/발행, 태그, 언어, FTS5 검색 인덱싱 (doc/02 §2.6)"
+
+[lib]
+name = "oxibuilder_ext_blog"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+axum.workspace = true
+erased-serde.workspace = true
+oxibuilder-core = { version = "0.8.0", path = "../oxibuilder-core" }
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+tower = { version = "0.5", features = ["util"] }

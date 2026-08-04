@@ -15,26 +15,26 @@
 | Phase 5 — OSS 제품화 | deploy + LICENSE + SDK + 레지스트리 + WASM v2 | ✅ 완료 |
 | 파생 — 멀티사이트 | sites.toml, CLI site 명령, 3단계 endpoint 해상도 | ✅ 완료 |
 | 파생 — CLI 확장성 | CliCommand trait, Dynamic subcommand, 5개 확장 CLI | ✅ 완료 |
-| 파생 — 관리 콘솔 | oxipage-admin crate, admin-web SPA, proxy/themes | ✅ 완료 |
+| 파생 — 관리 콘솔 | oxibuilder-admin crate, admin-web SPA, proxy/themes | ✅ 완료 |
 | **Phase 6 — SSG 전환** | **BuildExt / build/deploy/query/schema / 정적 사이트** | **⏳ 계획 완료** |
 | **잔여** | 배포 스모크(자격증명), 브라우저 접근성 실측(수동) | ⏳
 
 **목표:** 빈 사이트라도 실제로 켜져서 접속되는 상태.
 
 - Cargo 워크스페이스 구성 (1장 §1.3 구조 그대로)
-- `oxipage-core`: Axum 서버 부트스트랩, SQLite 연결, `oxipage.toml` 로딩, 확장 레지스트리 골격
+- `oxibuilder-core`: Axum 서버 부트스트랩, SQLite 연결, `oxibuilder.toml` 로딩, 확장 레지스트리 골격
 - `web/`: Vite+React+TS 스캐폴드, 3장 OKLCH 토큰 세트 적용, 다크/라이트 토글
 - `profile` 확장(가장 단순한 싱글턴)만 우선 구현해 "명함 페이지 하나"가 실제로 뜨는지 확인
-- `oxipage-console` 바이너리 로컬 빌드·실행 성공 (container 패키징은 선택, 5장 §5.2-5.3)
+- `oxibuilder-console` 바이너리 로컬 빌드·실행 성공 (container 패키징은 선택, 5장 §5.2-5.3)
 
-**완료 기준:** `oxipage-console` 바이너리를 로컬에서 빌드·실행해 브라우저로 접속, 명함 페이지가 라이트/다크 둘 다 정상 렌더. (container 패키징은 선택 — `container build && container run`으로도 동일 결과가 나오는지 1회 확인만.)
+**완료 기준:** `oxibuilder-console` 바이너리를 로컬에서 빌드·실행해 브라우저로 접속, 명함 페이지가 라이트/다크 둘 다 정상 렌더. (container 패키징은 선택 — `container build && container run`으로도 동일 결과가 나오는지 1회 확인만.)
 
 ## Phase 1 — 핵심 콘텐츠 확장 + CLI
 
 **목표:** 실제로 매일 쓰는 최소 기능.
 
 - `projects`, `blog`, `links` 확장 (요구사항 중 사용 빈도가 가장 높을 것으로 예상되는 3개)
-- Oxipage CLI 첫 버전: `auth`, `init`, `blog`, `project`, `link`, `status`
+- Oxibuilder CLI 첫 버전: `auth`, `init`, `blog`, `project`, `link`, `status`
 - 초안/발행 흐름(§4.3 초안 우선 원칙) 구현
 - Caddy + Cloudflare Tunnel로 실제 도메인에 배포 (5장)
 - SSR 스냅샷(1장 §1.6)까지는 아직 없어도 됨 — 순수 SPA로 우선 배포
@@ -58,7 +58,7 @@
 
 **목표:** "보여주기"의 완성도.
 
-- 로비 레이아웃 3종(`list`/`grid`/`canvas`) 구현, `oxipage lobby layout set`
+- 로비 레이아웃 3종(`list`/`grid`/`canvas`) 구현, `oxibuilder lobby layout set`
 - SSR 스냅샷 파이프라인(§1.6) — 블로그/프로젝트/리뷰 상세 페이지 OG 카드 대응
 - 전문 검색(SQLite FTS5, 한국어 위해 `tokenize='trigram'` — §1.7) 통합, `/search` (토크나이저 결정은 Phase 0에서 이미 마친 상태)
 - 접근성 점검(§3.7 체크리스트 전항목)
@@ -69,7 +69,7 @@
 
 **목표:** "말로 시켜서 올리기"가 실제로 안전하게 동작.
 
-- `.agent/skills/oxipage-cli/SKILL.md` 작성 및 oh-my-pi로 실사용 테스트 (4장 §4.6)
+- `.agent/skills/oxibuilder-cli/SKILL.md` 작성 및 oh-my-pi로 실사용 테스트 (4장 §4.6)
 - API 토큰 스코프(`post:write` / `post:publish`) 분리 적용
 - OpenAPI 문서 자동 생성(`utoipa`) + `/api/console/docs`
 - 레이트리밋, 요청 로깅
@@ -81,8 +81,8 @@
 **목표:** 남도 가져다 쓸 수 있는 형태.
 
 - 개인화 요소 설정으로 이관 완료 (5장 §5.7-1)
-- `oxipage-starter` 템플릿 저장소 + 원클릭 설치 스크립트
-- 확장 레지스트리(curated JSON 인덱스) + `oxipage extension install`
+- `oxibuilder-starter` 템플릿 저장소 + 원클릭 설치 스크립트
+- 확장 레지스트리(curated JSON 인덱스) + `oxibuilder extension install`
 - `Extension` 트레이트를 공개 SDK로 문서화
 - (수요 확인 후) WASM 컴포넌트 기반 런타임 로딩 스파이크
 
@@ -100,14 +100,14 @@
 
 - `BuildExt` 트레이트 추가: `build_pages()`, `build_data()`, `build_search_docs()`
 - 9개 확장에 `BuildExt` 구현체 추가 (각 확장의 DB → 정적 HTML + JSON 생성 로직)
-- `oxipage build` 명령: rayon 병렬 빌드 파이프라인
-- `oxipage deploy` 명령: GitHub Pages 1순위 배포 (git worktree 기반)
-- `oxipage query` / `oxipage schema` 명령: AI 에이전트용 직접 DB 조회
-- `oxipage cache refresh` 명령: 외부 API 수집 (빌드와 분리)
+- `oxibuilder build` 명령: rayon 병렬 빌드 파이프라인
+- `oxibuilder deploy` 명령: GitHub Pages 1순위 배포 (git worktree 기반)
+- `oxibuilder query` / `oxibuilder schema` 명령: AI 에이전트용 직접 DB 조회
+- `oxibuilder cache refresh` 명령: 외부 API 수집 (빌드와 분리)
 - React SPA 데이터 레이어: `VITE_DATA_MODE` 분기 (개발: API → 프로덕션: 정적 JSON)
-- 배포 모델 변경: launchd/systemd 상시 서버 → `oxipage build && oxipage deploy`
-- `oxipage console --preview`: 정적 사이트 로컬 미리보기
+- 배포 모델 변경: launchd/systemd 상시 서버 → `oxibuilder build && oxibuilder deploy`
+- `oxibuilder console --preview`: 정적 사이트 로컬 미리보기
 
-**완료 기준:** `oxipage build && oxipage deploy`로 정적 사이트가 GitHub Pages에서 라이브. CLI로 콘텐츠 관리, 빌드, 배포 전부 한 방에 가능.
+**완료 기준:** `oxibuilder build && oxibuilder deploy`로 정적 사이트가 GitHub Pages에서 라이브. CLI로 콘텐츠 관리, 빌드, 배포 전부 한 방에 가능.
 
 **설계 문서:** `docs/superpowers/specs/2026-07-28-static-site-generator-design.md`

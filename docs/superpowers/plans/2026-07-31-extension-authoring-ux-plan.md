@@ -108,32 +108,32 @@ web/src/
     │   ├── ProjectsTab.tsx              # MOD: ImageField screenshots, links repeater, started/ended dates, atomic screenshot reorder
     │   └── ScrapsTab.tsx                # MOD: ImageField og override, TagInput, read-only/editable split
 
-crates/oxipage-core/src/
+crates/oxibuilder-core/src/
 ├── lib.rs                               # MOD: export validation module
 └── validation.rs                        # NEW: shared server validators
 
-crates/oxipage-ext-profile/src/
+crates/oxibuilder-ext-profile/src/
 ├── model.rs                             # MOD: ProfileInput.expected_updated_at, validate_email/year_order
 ├── repo.rs                              # MOD: upsert_if_unchanged() with stale detection
 └── routes.rs                            # MOD: PUT profile with expected_updated_at → 409 stale_profile
 
-crates/oxipage-ext-novels/src/
+crates/oxibuilder-ext-novels/src/
 ├── model.rs                             # MOD: ChapterOrderInput
 ├── repo.rs                              # MOD: reorder_chapters() in one tx
 ├── routes.rs                            # MOD: PUT /chapters/order; cover_image validation; 409 stale_order
 └── lib.rs                               # MOD: register PUT /chapters/order
 
-crates/oxipage-ext-projects/src/
+crates/oxibuilder-ext-projects/src/
 ├── model.rs                             # MOD: ScreenshotOrderInput
 ├── repo.rs                              # MOD: reorder_screenshots() in one tx
 ├── routes.rs                            # MOD: PUT /screenshots/order; validate url; ended_at >= started_at
 └── lib.rs                               # MOD: register PUT /screenshots/order
 
-crates/oxipage-ext-blog/src/routes.rs    # MOD: title required, lang must be in settings.site.languages
-crates/oxipage-ext-books/src/routes.rs   # MOD: validate ISBN-13 checksum; finished_at >= started_at
-crates/oxipage-ext-movies/src/routes.rs  # MOD: release_year 4-digit bounds; positive series_order; media_type guard
-crates/oxipage-ext-links/src/routes.rs   # MOD: validate url http(s); thumbnail http(s) or media path; integer order
-crates/oxipage-ext-scraps/src/routes.rs  # MOD: source_url http(s); source enum; og_image_url http(s) or media path
+crates/oxibuilder-ext-blog/src/routes.rs    # MOD: title required, lang must be in settings.site.languages
+crates/oxibuilder-ext-books/src/routes.rs   # MOD: validate ISBN-13 checksum; finished_at >= started_at
+crates/oxibuilder-ext-movies/src/routes.rs  # MOD: release_year 4-digit bounds; positive series_order; media_type guard
+crates/oxibuilder-ext-links/src/routes.rs   # MOD: validate url http(s); thumbnail http(s) or media path; integer order
+crates/oxibuilder-ext-scraps/src/routes.rs  # MOD: source_url http(s); source enum; og_image_url http(s) or media path
 ```
 
 ---
@@ -236,7 +236,7 @@ Create the file:
 
 ```ts
 // Shared client-side validators. These mirror the server rules in
-// crates/oxipage-core/src/validation.rs and the spec's "Validation contract"
+// crates/oxibuilder-core/src/validation.rs and the spec's "Validation contract"
 // section. Server is authoritative; client feedback is best-effort UX, never
 // authoritative.
 
@@ -1699,9 +1699,9 @@ git commit -m "refactor: extract *Card and ProjectView presentation components"
 ### Task 11: Profile CRUD APIs (get/upsert with optimistic concurrency)
 
 **Files:**
-- Modify: `crates/oxipage-ext-profile/src/model.rs`
-- Modify: `crates/oxipage-ext-profile/src/repo.rs`
-- Modify: `crates/oxipage-ext-profile/src/routes.rs`
+- Modify: `crates/oxibuilder-ext-profile/src/model.rs`
+- Modify: `crates/oxibuilder-ext-profile/src/repo.rs`
+- Modify: `crates/oxibuilder-ext-profile/src/routes.rs`
 
  **Interfaces:**
  - Produces:
@@ -1723,7 +1723,7 @@ git commit -m "refactor: extract *Card and ProjectView presentation components"
 
 - [ ] **Step 0: Extend `ErrorBody` and add `ApiError::with_data`**
 
-In `crates/oxipage-core/src/error.rs`, extend `ErrorBody` and `ApiError`:
+In `crates/oxibuilder-core/src/error.rs`, extend `ErrorBody` and `ApiError`:
 
 ```rust
 #[derive(Debug, serde::Serialize)]
@@ -1769,14 +1769,14 @@ impl ApiError {
 Verify the workspace builds:
 
 ```bash
-cargo build -p oxipage-core
+cargo build -p oxibuilder-core
 ```
 
 Expected: success.
 
 - [ ] **Step 1: Add `expected_updated_at` to `ProfileInput`**
 
-In `crates/oxipage-ext-profile/src/model.rs`, add the field to `ProfileInput`:
+In `crates/oxibuilder-ext-profile/src/model.rs`, add the field to `ProfileInput`:
 
 ```rust
 #[derive(Debug, Clone, Deserialize)]
@@ -1802,7 +1802,7 @@ pub struct ProfileInput {
 
 - [ ] **Step 2: Add `UpsertError` and `upsert_if_unchanged`**
 
-In `crates/oxipage-ext-profile/src/repo.rs`, append:
+In `crates/oxibuilder-ext-profile/src/repo.rs`, append:
 
 ```rust
 #[derive(Debug, thiserror::Error)]
@@ -1858,7 +1858,7 @@ pub async fn upsert_if_unchanged(
 
 - [ ] **Step 3: Add `validate_email` and `validate_year_range`**
 
-In `crates/oxipage-ext-profile/src/model.rs` (or a new `validate.rs` sibling), add:
+In `crates/oxibuilder-ext-profile/src/model.rs` (or a new `validate.rs` sibling), add:
 
 ```rust
 pub fn validate_email(s: &str) -> bool {
@@ -1881,7 +1881,7 @@ pub fn validate_year_range(start: Option<i32>, end: Option<i32>) -> bool {
 
 - [ ] **Step 4: Update `put_profile` route**
 
-In `crates/oxipage-ext-profile/src/routes.rs`, replace `put_profile`:
+In `crates/oxibuilder-ext-profile/src/routes.rs`, replace `put_profile`:
 
 ```rust
 pub async fn put_profile(
@@ -1928,16 +1928,16 @@ pub async fn put_profile(
 
 - [ ] **Step 5: Build**
 
-Run: `cargo build -p oxipage-ext-profile`
+Run: `cargo build -p oxibuilder-ext-profile`
 Expected: success.
 
 - [ ] **Step 6: Write integration test**
 
-Create `crates/oxipage-ext-profile/tests/stale_put.rs`:
+Create `crates/oxibuilder-ext-profile/tests/stale_put.rs`:
 
 ```rust
-use oxipage_ext_profile::model::ProfileInput;
-use oxipage_ext_profile::repo;
+use oxibuilder_ext_profile::model::ProfileInput;
+use oxibuilder_ext_profile::repo;
 
 #[tokio::test]
 async fn stale_put_returns_409() {
@@ -1977,13 +1977,13 @@ async fn stale_put_returns_409() {
 
 - [ ] **Step 7: Run test**
 
-Run: `cargo test -p oxipage-ext-profile --test stale_put`
+Run: `cargo test -p oxibuilder-ext-profile --test stale_put`
 Expected: PASS.
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add crates/oxipage-ext-profile/
+git add crates/oxibuilder-ext-profile/
 git commit -m "feat(profile): optimistic-concurrency PUT with expected_updated_at"
 ```
 
@@ -2398,10 +2398,10 @@ git commit -m "feat(admin): Profile tab with optimistic-concurrency"
 ### Task 13: Atomic chapter reorder (novels)
 
 **Files:**
-- Modify: `crates/oxipage-ext-novels/src/model.rs`
-- Modify: `crates/oxipage-ext-novels/src/repo.rs`
-- Modify: `crates/oxipage-ext-novels/src/routes.rs`
-- Modify: `crates/oxipage-ext-novels/src/lib.rs`
+- Modify: `crates/oxibuilder-ext-novels/src/model.rs`
+- Modify: `crates/oxibuilder-ext-novels/src/repo.rs`
+- Modify: `crates/oxibuilder-ext-novels/src/routes.rs`
+- Modify: `crates/oxibuilder-ext-novels/src/lib.rs`
 
 **Interfaces:**
 - Produces:
@@ -2412,7 +2412,7 @@ git commit -m "feat(admin): Profile tab with optimistic-concurrency"
 
 - [ ] **Step 1: Add `ChapterOrderInput`**
 
-In `crates/oxipage-ext-novels/src/model.rs`, append:
+In `crates/oxibuilder-ext-novels/src/model.rs`, append:
 
 ```rust
 #[derive(Debug, Clone, Deserialize)]
@@ -2423,7 +2423,7 @@ pub struct ChapterOrderInput {
 
 - [ ] **Step 2: Add `reorder_chapters`**
 
-In `crates/oxipage-ext-novels/src/repo.rs`, append:
+In `crates/oxibuilder-ext-novels/src/repo.rs`, append:
 
 ```rust
 use std::collections::HashSet;
@@ -2469,7 +2469,7 @@ pub async fn reorder_chapters(
 
 - [ ] **Step 3: Add handler `reorder_chapters`**
 
-In `crates/oxipage-ext-novels/src/routes.rs`, append:
+In `crates/oxibuilder-ext-novels/src/routes.rs`, append:
 
 ```rust
 pub async fn reorder_chapters(
@@ -2496,7 +2496,7 @@ pub async fn reorder_chapters(
 
 - [ ] **Step 4: Wire route in `lib.rs`**
 
-In `crates/oxipage-ext-novels/src/lib.rs`, inside `routes(&self) -> Router`, add:
+In `crates/oxibuilder-ext-novels/src/lib.rs`, inside `routes(&self) -> Router`, add:
 
 ```rust
 .route(
@@ -2507,30 +2507,30 @@ In `crates/oxipage-ext-novels/src/lib.rs`, inside `routes(&self) -> Router`, add
 
 - [ ] **Step 5: Server validation for `cover_image`**
 
-In `crates/oxipage-ext-novels/src/routes.rs`, in `create_novel`, append:
+In `crates/oxibuilder-ext-novels/src/routes.rs`, in `create_novel`, append:
 
 ```rust
 if let Some(ref url) = input.cover_image
     && !url.is_empty()
-    && !oxipage_core::validation::is_image_value(url)
+    && !oxibuilder_core::validation::is_image_value(url)
 {
     return Err(ApiError::validation("cover_image", "cover_image must be an http(s) URL or site media path"));
 }
 ```
 
-(The helper `oxipage_core::validation::is_image_value` is added in Task 14.)
+(The helper `oxibuilder_core::validation::is_image_value` is added in Task 14.)
 
 - [ ] **Step 6: Build + test**
 
-Run: `cargo build -p oxipage-ext-novels` then `cargo test -p oxipage-ext-novels`.
+Run: `cargo build -p oxibuilder-ext-novels` then `cargo test -p oxibuilder-ext-novels`.
 Expected: build OK; existing tests still pass.
 
 - [ ] **Step 7: Write integration test for atomic reorder**
 
-Create `crates/oxipage-ext-novels/tests/reorder_chapters.rs`:
+Create `crates/oxibuilder-ext-novels/tests/reorder_chapters.rs`:
 
 ```rust
-use oxipage_ext_novels::repo;
+use oxibuilder_ext_novels::repo;
 
 #[tokio::test]
 async fn reorder_rejects_partial_set() {
@@ -2544,7 +2544,7 @@ async fn reorder_rejects_partial_set() {
 - [ ] **Step 8: Commit**
 
 ```bash
-git add crates/oxipage-ext-novels/
+git add crates/oxibuilder-ext-novels/
 git commit -m "feat(novels): atomic chapter reorder + cover_image validation"
 ```
 
@@ -2553,17 +2553,17 @@ git commit -m "feat(novels): atomic chapter reorder + cover_image validation"
 ### Task 14: Atomic screenshot reorder (projects) + core validators
 
 **Files:**
-- Create: `crates/oxipage-core/src/validation.rs`
-- Modify: `crates/oxipage-core/src/lib.rs` (export new module)
-- Modify: `crates/oxipage-ext-projects/src/model.rs`
-- Modify: `crates/oxipage-ext-projects/src/repo.rs`
-- Modify: `crates/oxipage-ext-projects/src/routes.rs`
-- Modify: `crates/oxipage-ext-projects/src/lib.rs`
+- Create: `crates/oxibuilder-core/src/validation.rs`
+- Modify: `crates/oxibuilder-core/src/lib.rs` (export new module)
+- Modify: `crates/oxibuilder-ext-projects/src/model.rs`
+- Modify: `crates/oxibuilder-ext-projects/src/repo.rs`
+- Modify: `crates/oxibuilder-ext-projects/src/routes.rs`
+- Modify: `crates/oxibuilder-ext-projects/src/lib.rs`
 
 **Interfaces:**
 - Produces:
   ```rust
-  // crates/oxipage-core/src/validation.rs
+  // crates/oxibuilder-core/src/validation.rs
   pub fn is_http_url(s: &str) -> bool;
   pub fn is_media_path(s: &str) -> bool;
   pub fn is_image_value(s: &str) -> bool;
@@ -2577,7 +2577,7 @@ git commit -m "feat(novels): atomic chapter reorder + cover_image validation"
 
 - [ ] **Step 1: Create `validation.rs` in core**
 
-Create `crates/oxipage-core/src/validation.rs`:
+Create `crates/oxibuilder-core/src/validation.rs`:
 
 ```rust
 //! Shared server-side validators. Single source of truth mirrored by
@@ -2660,13 +2660,13 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Export module in `crates/oxipage-core/src/lib.rs`**
+- [ ] **Step 2: Export module in `crates/oxibuilder-core/src/lib.rs`**
 
 Add: `pub mod validation;`
 
 - [ ] **Step 3: Write `ScreenshotOrderInput` in projects model**
 
-In `crates/oxipage-ext-projects/src/model.rs`, append:
+In `crates/oxibuilder-ext-projects/src/model.rs`, append:
 
 ```rust
 #[derive(Debug, Clone, Deserialize)]
@@ -2677,7 +2677,7 @@ pub struct ScreenshotOrderInput {
 
 - [ ] **Step 4: Add `reorder_screenshots` in projects repo**
 
-In `crates/oxipage-ext-projects/src/repo.rs`, append:
+In `crates/oxibuilder-ext-projects/src/repo.rs`, append:
 
 ```rust
 use std::collections::HashSet;
@@ -2721,7 +2721,7 @@ pub async fn reorder_screenshots(
 
 - [ ] **Step 5: Add route handler in projects routes**
 
-In `crates/oxipage-ext-projects/src/routes.rs`, append:
+In `crates/oxibuilder-ext-projects/src/routes.rs`, append:
 
 ```rust
 pub async fn reorder_screenshots(
@@ -2749,7 +2749,7 @@ pub async fn reorder_screenshots(
 
 - [ ] **Step 6: Wire route in projects lib.rs**
 
-In `crates/oxipage-ext-projects/src/lib.rs`, add:
+In `crates/oxibuilder-ext-projects/src/lib.rs`, add:
 
 ```rust
 .route("/{slug}/screenshots/order", axum::routing::put(routes::reorder_screenshots))
@@ -2757,10 +2757,10 @@ In `crates/oxipage-ext-projects/src/lib.rs`, add:
 
 - [ ] **Step 7: Validate screenshot URL and date order in projects routes**
 
-In `crates/oxipage-ext-projects/src/routes.rs`, in `add_screenshot`, after the existing checks, add:
+In `crates/oxibuilder-ext-projects/src/routes.rs`, in `add_screenshot`, after the existing checks, add:
 
 ```rust
-if !oxipage_core::validation::is_image_value(&input.url) {
+if !oxibuilder_core::validation::is_image_value(&input.url) {
     return Err(ApiError::validation("url", "url must be an http(s) URL or site media path"));
 }
 ```
@@ -2768,7 +2768,7 @@ if !oxipage_core::validation::is_image_value(&input.url) {
 Also extend `validate_input` to use the shared date-order helper (replacing the existing inline check):
 
 ```rust
-if !oxipage_core::validation::validate_date_order(
+if !oxibuilder_core::validation::validate_date_order(
     input.started_at.as_deref().filter(|s| !s.is_empty()),
     input.ended_at.as_deref().filter(|s| !s.is_empty()),
 ) {
@@ -2778,13 +2778,13 @@ if !oxipage_core::validation::validate_date_order(
 
 - [ ] **Step 8: Build + test**
 
-Run: `cargo build -p oxipage-core -p oxipage-ext-projects` then `cargo test -p oxipage-core --lib validation && cargo test -p oxipage-ext-projects`.
+Run: `cargo build -p oxibuilder-core -p oxibuilder-ext-projects` then `cargo test -p oxibuilder-core --lib validation && cargo test -p oxibuilder-ext-projects`.
 Expected: success.
 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add crates/oxipage-core/src/validation.rs crates/oxipage-core/src/lib.rs crates/oxipage-ext-projects/
+git add crates/oxibuilder-core/src/validation.rs crates/oxibuilder-core/src/lib.rs crates/oxibuilder-ext-projects/
 git commit -m "feat(projects): atomic screenshot reorder + core validators"
 ```
 
@@ -2911,7 +2911,7 @@ git commit -m "feat(blog): TagInput, language from site config, draft preview"
 
 **Files:**
 - Modify: `web/src/admin/content/BooksTab.tsx`
-- Modify: `crates/oxipage-ext-books/src/routes.rs`
+- Modify: `crates/oxibuilder-ext-books/src/routes.rs`
 
 **Interfaces:**
 - Produces:
@@ -2949,23 +2949,23 @@ import { MarkdownEditor } from "../shared/ui/MarkdownEditor";
 
 - [ ] **Step 2: Add ISBN-13 + date validation in `routes.rs`**
 
-In `crates/oxipage-ext-books/src/routes.rs`, in `validate_create` and `validate_patch`:
+In `crates/oxibuilder-ext-books/src/routes.rs`, in `validate_create` and `validate_patch`:
 
 ```rust
 if let Some(isbn) = &input.isbn13
     && !isbn.is_empty()
-    && !oxipage_core::validation::validate_isbn13(isbn)
+    && !oxibuilder_core::validation::validate_isbn13(isbn)
 {
     return Err(ApiError::validation("isbn13", "isbn13 is not a valid ISBN-13"));
 }
-if !oxipage_core::validation::validate_date_order(input.started_at.as_deref(), input.finished_at.as_deref()) {
+if !oxibuilder_core::validation::validate_date_order(input.started_at.as_deref(), input.finished_at.as_deref()) {
     return Err(ApiError::validation("finished_at", "finished_at must not precede started_at"));
 }
 ```
 
 - [ ] **Step 3: Build + test**
 
-Run: `cargo build -p oxipage-ext-books` then `cargo test -p oxipage-ext-books`.
+Run: `cargo build -p oxibuilder-ext-books` then `cargo test -p oxibuilder-ext-books`.
 Expected: success.
 
 - [ ] **Step 4: Smoke**
@@ -2975,7 +2975,7 @@ Open Books tab; create a book; verify dropdown shows only the four valid statuse
 - [ ] **Step 5: Commit**
 
 ```bash
-git add web/src/admin/content/BooksTab.tsx crates/oxipage-ext-books/
+git add web/src/admin/content/BooksTab.tsx crates/oxibuilder-ext-books/
 git commit -m "feat(books): status enum fix, ImageField cover, ISBN-13 + date validation"
 ```
 
@@ -3075,7 +3075,7 @@ git commit -m "feat(projects): ImageField screenshots, links repeater, dates, at
 
 **Files:**
 - Modify: `web/src/admin/content/MoviesTab.tsx`
-- Modify: `crates/oxipage-ext-movies/src/routes.rs`
+- Modify: `crates/oxibuilder-ext-movies/src/routes.rs`
 - Modify: `web/src/admin/shared/api.ts` (add `searchTmdb`)
 
 **Interfaces:**
@@ -3133,11 +3133,11 @@ import { ImageField } from "../shared/ui/ImageField";
 
 - [ ] **Step 4: Add release_year and series order validation in routes**
 
-In `crates/oxipage-ext-movies/src/routes.rs`, in `create`:
+In `crates/oxibuilder-ext-movies/src/routes.rs`, in `create`:
 
 ```rust
 if let Some(y) = input.release_year
-    && oxipage_core::validation::validate_year(y).is_none()
+    && oxibuilder_core::validation::validate_year(y).is_none()
 {
     return Err(ApiError::validation("release_year", "release_year must be a 4-digit year"));
 }
@@ -3155,7 +3155,7 @@ Run: `cd web && npx tsc --noEmit`; in dev, type a movie title; click a TMDB resu
 - [ ] **Step 6: Commit**
 
 ```bash
-git add web/src/admin/content/MoviesTab.tsx web/src/admin/shared/api.ts crates/oxipage-ext-movies/
+git add web/src/admin/content/MoviesTab.tsx web/src/admin/shared/api.ts crates/oxibuilder-ext-movies/
 git commit -m "feat(movies): wire TMDB search, ImageField series cover, typed API"
 ```
 
@@ -3248,7 +3248,7 @@ git commit -m "feat(novels): ImageField cover, TagInput, atomic chapter reorder"
 
 **Files:**
 - Modify: `web/src/admin/content/LinksTab.tsx`
-- Modify: `crates/oxipage-ext-links/src/routes.rs`
+- Modify: `crates/oxibuilder-ext-links/src/routes.rs`
 
 **Interfaces:**
 - Produces: links form uses `ImageField` for thumbnail and `TagInput` for tags.
@@ -3279,15 +3279,15 @@ interface FormState { title: string; url: string; description_ko: string; descri
 
 - [ ] **Step 2: Add server validation in `routes.rs`**
 
-In `crates/oxipage-ext-links/src/routes.rs`, in the create/update handler, add:
+In `crates/oxibuilder-ext-links/src/routes.rs`, in the create/update handler, add:
 
 ```rust
-if !oxipage_core::validation::is_http_url(&input.url) {
+if !oxibuilder_core::validation::is_http_url(&input.url) {
     return Err(ApiError::validation("url", "url must be an http(s) URL"));
 }
 if let Some(t) = &input.thumbnail_url
     && !t.is_empty()
-    && !oxipage_core::validation::is_image_value(t)
+    && !oxibuilder_core::validation::is_image_value(t)
 {
     return Err(ApiError::validation("thumbnail_url", "thumbnail_url must be an http(s) URL or site media path"));
 }
@@ -3295,7 +3295,7 @@ if let Some(t) = &input.thumbnail_url
 
 - [ ] **Step 3: Type-check + build**
 
-Run: `cd web && npx tsc --noEmit`; `cargo build -p oxipage-ext-links`.
+Run: `cd web && npx tsc --noEmit`; `cargo build -p oxibuilder-ext-links`.
 Expected: success.
 
 - [ ] **Step 4: Smoke + commit**
@@ -3303,7 +3303,7 @@ Expected: success.
 Smoke: open Links; create with an uploaded thumbnail + several tags. Then:
 
 ```bash
-git add web/src/admin/content/LinksTab.tsx crates/oxipage-ext-links/
+git add web/src/admin/content/LinksTab.tsx crates/oxibuilder-ext-links/
 git commit -m "feat(links): ImageField thumbnail, TagInput, http(s) + media path validation"
 ```
 
@@ -3313,7 +3313,7 @@ git commit -m "feat(links): ImageField thumbnail, TagInput, http(s) + media path
 
 **Files:**
 - Modify: `web/src/admin/content/ScrapsTab.tsx`
-- Modify: `crates/oxipage-ext-scraps/src/routes.rs`
+- Modify: `crates/oxibuilder-ext-scraps/src/routes.rs`
 
 **Interfaces:**
 - Produces: scrap drawer shows read-only `source`, `source_item_id`, `scraped_at`, `source_url`, `title`, original `og_image_url`; editable: `notes_ko/en`, `tags`, image override.
@@ -3350,10 +3350,10 @@ In `web/src/admin/content/ScrapsTab.tsx`, replace the drawer body:
 
 - [ ] **Step 2: Add server validation in `routes.rs`**
 
-In `crates/oxipage-ext-scraps/src/routes.rs`, in `create_manual` and `update`:
+In `crates/oxibuilder-ext-scraps/src/routes.rs`, in `create_manual` and `update`:
 
 ```rust
-if !oxipage_core::validation::is_http_url(&input.source_url) {
+if !oxibuilder_core::validation::is_http_url(&input.source_url) {
     return Err(ApiError::validation("source_url", "source_url must be an http(s) URL"));
 }
 if !crate::model::normalize_source(input.source.as_deref()).is_ascii() {
@@ -3361,7 +3361,7 @@ if !crate::model::normalize_source(input.source.as_deref()).is_ascii() {
 }
 if let Some(og) = &input.og_image_url
     && !og.is_empty()
-    && !oxipage_core::validation::is_image_value(og)
+    && !oxibuilder_core::validation::is_image_value(og)
 {
     return Err(ApiError::validation("og_image_url", "og_image_url must be an http(s) URL or site media path"));
 }
@@ -3369,10 +3369,10 @@ if let Some(og) = &input.og_image_url
 
 - [ ] **Step 3: Type-check + build + smoke + commit**
 
-Run: `cd web && npx tsc --noEmit`; `cargo build -p oxipage-ext-scraps`; smoke creating a manual scrap.
+Run: `cd web && npx tsc --noEmit`; `cargo build -p oxibuilder-ext-scraps`; smoke creating a manual scrap.
 
 ```bash
-git add web/src/admin/content/ScrapsTab.tsx crates/oxipage-ext-scraps/
+git add web/src/admin/content/ScrapsTab.tsx crates/oxibuilder-ext-scraps/
 git commit -m "feat(scraps): ImageField override, TagInput, read-only/editable split"
 ```
 
@@ -3381,7 +3381,7 @@ git commit -m "feat(scraps): ImageField override, TagInput, read-only/editable s
 ### Task 22: Blog server validation (title required, lang in site languages)
 
 **Files:**
-- Modify: `crates/oxipage-ext-blog/src/routes.rs`
+- Modify: `crates/oxibuilder-ext-blog/src/routes.rs`
 
 **Interfaces:**
 - Produces: blog create rejects empty title and rejects `lang` outside the site's enabled languages.
@@ -3390,7 +3390,7 @@ The foundation plan keeps `MutableSiteSettings` unchanged; the blog per-site han
 
 - [ ] **Step 1: Tighten blog create validation**
 
-In `crates/oxipage-ext-blog/src/routes.rs`, in `create`, add:
+In `crates/oxibuilder-ext-blog/src/routes.rs`, in `create`, add:
 
 ```rust
 if input.title.trim().is_empty() {
@@ -3414,10 +3414,10 @@ if !enabled.contains(&input.lang) {
 
 - [ ] **Step 2: Build + commit**
 
-Run: `cargo build -p oxipage-ext-blog`. Expected: success.
+Run: `cargo build -p oxibuilder-ext-blog`. Expected: success.
 
 ```bash
-git add crates/oxipage-ext-blog/
+git add crates/oxibuilder-ext-blog/
 git commit -m "feat(blog): server validates title and lang against settings.site.languages"
 ```
 

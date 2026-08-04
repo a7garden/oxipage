@@ -7,14 +7,14 @@
 
 ## S3: Deploy Pipeline (7 tasks)
 
-**의존성:** `oxipage-core` crate 수정 필요. SSE/async 인프라 구축 후 프론트엔드 연결.
+**의존성:** `oxibuilder-core` crate 수정 필요. SSE/async 인프라 구축 후 프론트엔드 연결.
 
 | # | 태스크 | 파일 | 상태 |
 |---|--------|------|------|
-| 1 | Core streaming build (`build_site_with_progress`) | `crates/oxipage-core/src/build.rs` | ❌ |
+| 1 | Core streaming build (`build_site_with_progress`) | `crates/oxibuilder-core/src/build.rs` | ❌ |
 | 2 | Console deps + BuildRun + BuildGuard 인프라 | `Cargo.toml` (+tokio-stream, dashmap, uuid), `build/build_run.rs` 신규 | ❌ |
 | 3 | Build endpoints: POST 202 + GET /stream SSE | `per_site.rs`, `build/site_build.rs` | ❌ |
-| 4 | `oxipage-deploy` crate (CLI deploy 로직 추출) | `crates/oxipage-deploy/` 신규, workspace member | ❌ |
+| 4 | `oxibuilder-deploy` crate (CLI deploy 로직 추출) | `crates/oxibuilder-deploy/` 신규, workspace member | ❌ |
 | 5 | Deploy endpoints (stub → 실제 gh-pages) | `deploy/site_deploy.rs`, `per_site.rs` | ❌ |
 | 6 | 프론트: DeployPage SSE 로그 패널 | `web/src/admin/deploy/DeployPage.tsx` | ❌ |
 | 7 | Wire + smoke | — | ❌ |

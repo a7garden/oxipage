@@ -67,7 +67,7 @@ export function Topbar() {
   return (
     <header className="sticky top-0 z-40 h-12 flex items-center px-4 gap-2 bg-canvas border-b border-line">
       <div className="font-display text-[15px] font-bold text-[#2a6b4a] shrink-0">
-        oxipage
+        oxibuilder
       </div>
       <SiteSelector />
       <div className="w-px h-6 bg-line mx-2" />
@@ -864,7 +864,7 @@ export function ThemesPage() {
         </div>
         <div className="grid grid-cols-3 gap-3">
           {[
-            { title: "Console Redesign", excerpt: "A new era for Oxipage management..." },
+            { title: "Console Redesign", excerpt: "A new era for Oxibuilder management..." },
             { title: "WASM v2 Benchmarks", excerpt: "Performance numbers for the new runtime..." },
             { title: "멀티사이트 가이드", excerpt: "여러 블로그를 한 번에 관리하는 방법..." },
           ].map((item) => (

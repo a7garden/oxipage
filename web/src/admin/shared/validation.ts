@@ -1,5 +1,5 @@
 // Shared client-side validators. These mirror the server rules in
-// crates/oxipage-core/src/validation.rs and the spec's "Validation contract"
+// crates/oxibuilder-core/src/validation.rs and the spec's "Validation contract"
 // section. Server is authoritative; client feedback is best-effort UX, never
 // authoritative.
 

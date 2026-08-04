@@ -34,10 +34,10 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ oxipage-server (feature "wasm")                                 │
+│ oxibuilder-server (feature "wasm")                                 │
 │   run_server_with_extensions:                                   │
 │     all = static_extensions()                                   │
-│     all.extend(oxipage_wasm::load_all_from_dir(ext_dir))       │
+│     all.extend(oxibuilder_wasm::load_all_from_dir(ext_dir))       │
 │   → ExtensionRegistry (RwLock<Vec>, 핫 리로드 가능)             │
 │   build_app:                                                    │
 │     컴파일 확장 → nest(id, routes())                            │
@@ -50,7 +50,7 @@
 └──────────────────────────────┬──────────────────────────────────┘
                                │ loads .wasm
 ┌──────────────────────────────▼──────────────────────────────────┐
-│ oxipage-wasm v2  (WasmExtensionAdapter: impl Extension + RouteDispatcher) │
+│ oxibuilder-wasm v2  (WasmExtensionAdapter: impl Extension + RouteDispatcher) │
 │   Engine (consume_fuel=true) + Module (1회 컴파일, 공유)        │
 │   Mutex<LobbyCache> { Store + Instance } — lobby 카드 재사용    │
 │   dispatch_request: fresh Store per request (fuel isolation)    │
@@ -61,7 +61,7 @@
 └──────────────────────────────┬──────────────────────────────────┘
                                │ core wasm ABI v2
 ┌──────────────────────────────▼──────────────────────────────────┐
-│ oxipage-ext-wasm-demo v2  (cdylib, no_std, wasm32)              │
+│ oxibuilder-ext-wasm-demo v2  (cdylib, no_std, wasm32)              │
 │   export: memory, init, ext_id_*, display_name_*,               │
 │           lobby_card_*,                                         │
 │           alloc, reset_alloc (bump allocator),                  │
@@ -137,16 +137,16 @@ method 코드: 0=GET, 1=POST, 2=PUT, 3=DELETE, 4=PATCH
 ### 데모 `.wasm` 빌드 + 서명
 
 ```sh
-cargo build -p oxipage-ext-wasm-demo --target wasm32-unknown-unknown --release
-cp target/wasm32-unknown-unknown/release/oxipage_ext_wasm_demo.wasm \
-   crates/oxipage-ext-wasm-demo/artifacts/wasm-demo.wasm
+cargo build -p oxibuilder-ext-wasm-demo --target wasm32-unknown-unknown --release
+cp target/wasm32-unknown-unknown/release/oxibuilder_ext_wasm_demo.wasm \
+   crates/oxibuilder-ext-wasm-demo/artifacts/wasm-demo.wasm
 # 서명은 registry/index.json 의 signature 필드에 사전 기록됨.
 ```
 
 ### 호스트 단위 테스트 (6 tests)
 
 ```sh
-cargo test -p oxipage-wasm
+cargo test -p oxibuilder-wasm
 # loads_demo_and_extracts_static_metadata — id/display_name 추출
 # lobby_summary_returns_a_card — 동적 lobby JSON round-trip
 # route_manifest_extracted — route manifest 파싱
@@ -158,7 +158,7 @@ cargo test -p oxipage-wasm
 ### install round-trip (서명 검증 + 파일 쓰기 + DB)
 
 ```sh
-cargo test -p oxipage-core --test http_app install_writes_wasm
+cargo test -p oxibuilder-core --test http_app install_writes_wasm
 # POST /extensions/install → ed25519 서명 검증 → 200, .wasm 파일, extension_state
 ```
 
@@ -166,7 +166,7 @@ cargo test -p oxipage-core --test http_app install_writes_wasm
 
 ```sh
 cargo clippy --workspace --all-targets -- -D warnings   # clean
-cargo clippy -p oxipage-server --features wasm -- -D warnings  # clean
+cargo clippy -p oxibuilder-server --features wasm -- -D warnings  # clean
 cargo test --workspace                                   # backup 테스트(사전 존재 이슈) 제외 통과
 ```
 

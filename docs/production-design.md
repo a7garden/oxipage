@@ -1,12 +1,12 @@
-# Oxipage → Production: Design & Implementation Plan
+# Oxibuilder → Production: Design & Implementation Plan
 
 > Companion to `docs/production-readiness-report.md`. 2026-07-29.
-> Scope: turn the documented `cargo install → oxipage build → oxipage deploy` path into something
+> Scope: turn the documented `cargo install → oxibuilder build → oxibuilder deploy` path into something
 > that produces a working static site. Phased so each phase is independently shippable.
 
 ## 1. Goal & non-goals
 
-**Goal:** `cargo install oxipage && oxipage build && oxipage deploy --target github-pages` deploys a
+**Goal:** `cargo install oxibuilder && oxibuilder build && oxibuilder deploy --target github-pages` deploys a
 public site whose lobby, collection, and **detail** pages all render from static JSON, search works,
 and the SPA bundle is present.
 
@@ -24,7 +24,7 @@ valid `Handle`**. Capture the handle once on the runtime thread (the `async fn b
 before rayon, and pass `&Handle` into every `BuildExt` method.
 
 ```rust
-// oxipage-core/src/builder.rs — trait gains a handle parameter
+// oxibuilder-core/src/builder.rs — trait gains a handle parameter
 pub trait BuildExt: Send + Sync {
     type Error: std::error::Error + Send + 'static;
     fn ext_id(&self) -> &'static str;
@@ -36,7 +36,7 @@ pub trait BuildExt: Send + Sync {
         -> Result<Vec<SearchDoc>, Self::Error>;
 }
 
-// oxipage-core/src/build.rs — capture once, before rayon
+// oxibuilder-core/src/build.rs — capture once, before rayon
 pub fn build_site(db, builders) -> Result<BuildOutput> {
     let rt = tokio::runtime::Handle::current();   // on the runtime thread ✅
     builders.par_iter().map(|ext| {
@@ -74,7 +74,7 @@ pub fn write_build_output(output, out_dir, media_dir, embedded_assets: &Assets) 
 }
 ```
 
-`oxipage_core::http::Assets` already supports `iter()`/`get()` via `rust-embed`. Add a thin
+`oxibuilder_core::http::Assets` already supports `iter()`/`get()` via `rust-embed`. Add a thin
 `pub fn embedded_files() -> Vec<(String, Vec<u8>)>` helper.
 
 ## 4. P0-3 fix — ship the SPA in the published crate
@@ -85,7 +85,7 @@ excludes them → `cargo install` gets a placeholder.
 **Design (two-part, both needed):**
 
 1. **Source the SPA into the package at publish time.** Add `include` to
-   `crates/oxipage-core/Cargo.toml` (and `oxipage-console`) so the built `embedded-spa/` is packaged:
+   `crates/oxibuilder-core/Cargo.toml` (and `oxibuilder-console`) so the built `embedded-spa/` is packaged:
    ```toml
    include = ["src/**", "migrations/**", "embedded-spa/**", "_registry.json", "_wasm-demo.wasm", "build.rs", "Cargo.toml"]
    ```
@@ -95,8 +95,8 @@ excludes them → `cargo install` gets a placeholder.
    populated `embedded-spa/` already on disk (build.rs copies `web/dist`→`embedded-spa` before
    packaging). Add a CI assertion that `cargo package --list` contains `embedded-spa/index.html`.
 
-2. **Ship prebuilt release binaries** (deferred, P2): `release.yml` cross-builds `oxipage` +
-   `oxipage-console` and attaches them to the GitHub release. This is the path most users want
+2. **Ship prebuilt release binaries** (deferred, P2): `release.yml` cross-builds `oxibuilder` +
+   `oxibuilder-console` and attaches them to the GitHub release. This is the path most users want
    (avoids a Rust toolchain entirely). Tracked, not in the P0 cut.
 
 **Decision recorded for the report:** P0 cut = option (1) build-in-CI + `include` + CI assertion.
@@ -128,10 +128,10 @@ This keeps the live/REST mode untouched (`VITE_DATA_MODE !== 'static'` path is u
 
 ## 6. P1-1 fix — flatten the `build` command
 
-**Problem:** `Build(BuildCommand)` + `#[command(subcommand)]` forces `oxipage build build`.
+**Problem:** `Build(BuildCommand)` + `#[command(subcommand)]` forces `oxibuilder build build`.
 
 **Design:** change `BuildCommand` from an `enum { Run { out_dir } }` to a `struct { out_dir }`
-with `#[derive(Args)]`. `Command::Build(BuildCommand)` then flattens → `oxipage build [--out-dir X]`.
+with `#[derive(Args)]`. `Command::Build(BuildCommand)` then flattens → `oxibuilder build [--out-dir X]`.
 Update the `build()` dispatch arm to read `c.out_dir` directly.
 
 ## 7. P1-2 / docs — deploy targets & doc-vs-code reconciliation
@@ -139,10 +139,10 @@ Update the `build()` dispatch arm to read `c.out_dir` directly.
 - Either implement cloudflare/netlify (wrangler/netlify CLI shell-out, mirroring the github-pages
   flow) **or** correct README:14/207 to "GitHub Pages (Cloudflare/Netlify planned)". P0 cut: correct
   the docs (don't advertise what doesn't exist).
-- Fix README binary name `oxipage-server` → `oxipage-console` (install + usage).
+- Fix README binary name `oxibuilder-server` → `oxibuilder-console` (install + usage).
 - Fix README:31 + `doc/06` Phase 6 status to "implemented".
-- Rewrite `.agent/skills/oxipage-cli/SKILL.md` and `docs/extension-sdk.md` to drop `auth`/`AdminAuth`/
-  `oxipage-server`.
+- Rewrite `.agent/skills/oxibuilder-cli/SKILL.md` and `docs/extension-sdk.md` to drop `auth`/`AdminAuth`/
+  `oxibuilder-server`.
 
 ## 8. Hardening roadmap (P2, after the P0 cut)
 
@@ -161,20 +161,20 @@ Update the `build()` dispatch arm to read `c.out_dir` directly.
 
 The build panic shipped because **nothing exercised `build_site`**. Add:
 
-1. **`oxipage-core` build integration test:** seed a temp DB with a published blog post, run
+1. **`oxibuilder-core` build integration test:** seed a temp DB with a published blog post, run
    `build_site` (with the captured handle), assert `output.pages` contains `blog/<slug>/index.html`
    and `output.search_docs` is non-empty. This would have caught P0-1.
 2. **`build_writer` test:** write to a temp dir, assert `out/data/blog.json`,
    `out/data/blog/<slug>.json`, `out/assets/index.html` (from embedded) exist.
-3. **CLI e2e:** `oxipage build` (flattened) against a temp DB → assert `out/` non-empty and a known
-   file present. Runs in the existing `crates/oxipage-cli/tests/e2e.rs`.
+3. **CLI e2e:** `oxibuilder build` (flattened) against a temp DB → assert `out/` non-empty and a known
+   file present. Runs in the existing `crates/oxibuilder-cli/tests/e2e.rs`.
 
 Frontend unit tests (P3) deferred.
 
 ## 10. Phased rollout
 
 - **Phase A (P0 cut, this branch):** §2 (runtime handle), §3 (embedded assets), §5 (SPA data
-  contract), §6 (flatten build), §9 (tests). Outcome: `oxipage build` works repo-locally and produces
+  contract), §6 (flatten build), §9 (tests). Outcome: `oxibuilder build` works repo-locally and produces
   a correct static site.
 - **Phase B (distribution):** §4 (build-in-CI + `include` + assertion). Outcome: `cargo install`
   works.

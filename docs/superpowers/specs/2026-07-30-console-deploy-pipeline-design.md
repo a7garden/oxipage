@@ -28,13 +28,13 @@ Turn the Deploy page from a fire-and-forget button over a stub into a live, obse
 
 | Concern | Current state | File |
 |---------|--------------|------|
-| Build core | `build_site(db, builders)` — rayon `par_iter`, sync, **no progress callback**; returns `BuildOutput` | `oxipage-core/src/build.rs:15-64` |
+| Build core | `build_site(db, builders)` — rayon `par_iter`, sync, **no progress callback**; returns `BuildOutput` | `oxibuilder-core/src/build.rs:15-64` |
 | `build_post` | runs `build_site` **directly in the async handler** (blocks tokio worker); no concurrency guard | `per_site.rs:410-449` |
 | `build_log` schema | `id, status, created_at, page_count, out_dir` — **no `finished_at`** | `per_site.rs:424-431` |
 | `deploy_post` | pure **stub** — returns `status:"queued"` + a note pointing to the CLI | `per_site.rs:451-462`, `deploy/site_deploy.rs` |
-| CLI deploy | `deploy_github_pages(out_dir, dry_run, out)` — gh check, git worktree/orphan branch, `cp`, commit+push; ~120 lines of subprocess orchestration; prints via `Output` (CLI-specific) | `oxipage-cli/src/commands/deploy.rs:32-152` |
+| CLI deploy | `deploy_github_pages(out_dir, dry_run, out)` — gh check, git worktree/orphan branch, `cp`, commit+push; ~120 lines of subprocess orchestration; prints via `Output` (CLI-specific) | `oxibuilder-cli/src/commands/deploy.rs:32-152` |
 | DeployPage | Build/Deploy mutations fire POSTs; no streaming, no in-progress guard | `web/src/admin/deploy/DeployPage.tsx` |
-| Console deps | no `futures` / `tokio-stream` / `dashmap` | `oxipage-console/Cargo.toml` |
+| Console deps | no `futures` / `tokio-stream` / `dashmap` | `oxibuilder-console/Cargo.toml` |
 
 ### Why the build guard is load-bearing
 `build_post` writes to the shared `ctx.path/out` directory and inserts into `build_log`. Two concurrent `POST /build` for the same site interleave `write_build_output` (corrupted output) and race `build_log` rows. **SSE streaming lengthens the build window**, so without a guard collisions become *more* likely, not less. The guard is therefore a prerequisite of streaming, not a nicety.
@@ -70,7 +70,7 @@ Build runs **lazily** to avoid an event-loss race: `POST /build` only creates th
 
 ### 5.2 Core streaming build
 
-Add to `oxipage-core/src/build.rs`:
+Add to `oxibuilder-core/src/build.rs`:
 ```rust
 pub enum BuildEvent {
     BuildStarted   { total: usize },
@@ -107,7 +107,7 @@ ALTER TABLE build_log ADD COLUMN finished_at TEXT;  -- guarded: column already e
 
 ### 5.5 Deploy — port gh-pages into a shared module
 
-- Extract `deploy_github_pages` from `oxipage-cli` into a shared module that emits events instead of printing. **New crate `oxipage-deploy`** (or `oxipage-core::deploy`) — recommended a thin crate to keep core free of git/gh subprocess concerns:
+- Extract `deploy_github_pages` from `oxibuilder-cli` into a shared module that emits events instead of printing. **New crate `oxibuilder-deploy`** (or `oxibuilder-core::deploy`) — recommended a thin crate to keep core free of git/gh subprocess concerns:
 ```rust
 pub enum DeployEvent { GhCheck, AuthCheck, WorktreeReady, FilesCopied, Pushing, Deployed { url }, Failed { error } }
 pub fn deploy_github_pages(out_dir: &Path, tx: &Sender<DeployEvent>) -> Result<()>;
@@ -127,13 +127,13 @@ New client fns in `api.ts`: `startBuild(slug): Promise<{build_id}>`, `startDeplo
 
 ## 7. Dependencies
 
-`oxipage-console/Cargo.toml`:
+`oxibuilder-console/Cargo.toml`:
 - `tokio-stream` (BroadcastStream → SSE)
 - `futures` (if axum's `Sse` body needs it)
 - `dashmap` (build guard map) — check workspace; add if absent.
 - axum SSE (`axum::response::sse::Sse`) is available on the workspace `axum` version; confirm no feature flag needed.
 
-New crate `oxipage-deploy` (or module) added to the workspace.
+New crate `oxibuilder-deploy` (or module) added to the workspace.
 
 ## 8. Constraints
 
@@ -147,26 +147,26 @@ New crate `oxipage-deploy` (or module) added to the workspace.
 
 - **Server:** concurrent `POST /build` for one site → first 202, second 409; `finished_at` populated on success and on failure; `build_site_with_progress` emits one `ExtensionDone` per builder and a `BuildComplete` with the correct total; SSE stream delivers events in order and closes on terminal.
 - **Deploy:** shared `deploy_github_pages` emits the expected `DeployEvent` sequence in dry-run (mock gh/git) and surfaces `Failed` cleanly when gh is missing.
-- **Manual smoke:** `oxipage console` → Deploy page: trigger build, watch live per-extension log, disable buttons during build, trigger deploy, watch step stream; second build tab → "already running" + attach.
+- **Manual smoke:** `oxibuilder console` → Deploy page: trigger build, watch live per-extension log, disable buttons during build, trigger deploy, watch step stream; second build tab → "already running" + attach.
 
 ## 10. File map
 
 ```
-crates/oxipage-core/src/
+crates/oxibuilder-core/src/
 └── build.rs        # +BuildEvent, +build_site_with_progress (build_site unchanged)
 
-crates/oxipage-deploy/            # NEW shared deploy crate
+crates/oxibuilder-deploy/            # NEW shared deploy crate
 ├── Cargo.toml
 └── src/lib.rs      # DeployEvent + deploy_github_pages(out_dir, tx)  [ported from CLI]
 
-crates/oxipage-cli/src/commands/
-└── deploy.rs       # call oxipage-deploy; translate DeployEvent→Output (behavior unchanged)
+crates/oxibuilder-cli/src/commands/
+└── deploy.rs       # call oxibuilder-deploy; translate DeployEvent→Output (behavior unchanged)
 
-crates/oxipage-console/src/
+crates/oxibuilder-console/src/
 ├── build/site_build.rs   # +build guard, +spawn_blocking, +SSE stream endpoint, +finished_at
-├── deploy/site_deploy.rs # replace stub: real deploy via oxipage-deploy + SSE
+├── deploy/site_deploy.rs # replace stub: real deploy via oxibuilder-deploy + SSE
 ├── per_site.rs           # build_post/deploy_post → async job + stream wiring
-└── Cargo.toml            # +tokio-stream, +futures, +dashmap, +oxipage-deploy
+└── Cargo.toml            # +tokio-stream, +futures, +dashmap, +oxibuilder-deploy
 
 web/src/admin/
 ├── shared/api.ts                 # +startBuild, +startDeploy

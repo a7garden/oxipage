@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Single served embed: `crates/oxipage-core/embedded-spa` only.
+- Single served embed: `crates/oxibuilder-core/embedded-spa` only.
 - Admin SPA stays root-hosted; no `BrowserRouter` basename.
 - `server.host`, `server.port`, `server.data_dir` are startup-immutable — excluded from `ConfigUpdate`.
 - All site paths resolve through `SiteContext` fields, never from CWD or config strings at runtime.
@@ -22,7 +22,7 @@
 ## File Structure
 
 ```text
-crates/oxipage-core/
+crates/oxibuilder-core/
 ├── Cargo.toml                      # add embedded-spa-static to include
 ├── build.rs                        # dual-mode validation, revision marker
 ├── embedded-spa/                   # sole live Admin embed
@@ -33,7 +33,7 @@ crates/oxipage-core/
     ├── site_paths.rs               # NEW: resolved path + settings types
     └── config.rs                   # DeployConfig addition (consumed by subproject 4)
 
-crates/oxipage-console/
+crates/oxibuilder-console/
 ├── Cargo.toml                      # remove build dep if any
 ├── build.rs                        # DELETE
 ├── embedded-spa/                   # DELETE
@@ -57,9 +57,9 @@ web/
 ### Task 1: Delete dead console embed and build script
 
 **Files:**
-- Delete: `crates/oxipage-console/build.rs`
-- Delete: `crates/oxipage-console/embedded-spa/` (entire directory)
-- Modify: `crates/oxipage-console/Cargo.toml`
+- Delete: `crates/oxibuilder-console/build.rs`
+- Delete: `crates/oxibuilder-console/embedded-spa/` (entire directory)
+- Modify: `crates/oxibuilder-console/Cargo.toml`
 
 **Interfaces:**
 - Consumes: nothing
@@ -67,14 +67,14 @@ web/
 
 - [ ] **Step 1: Verify nothing in console src references the embed**
 
-Run: `grep -r "embedded-spa\|RustEmbed\|Assets::get" crates/oxipage-console/src/`
+Run: `grep -r "embedded-spa\|RustEmbed\|Assets::get" crates/oxibuilder-console/src/`
 Expected: no matches (the console crate never embeds; core does)
 
 - [ ] **Step 2: Delete the dead files**
 
 ```bash
-rm crates/oxipage-console/build.rs
-rm -rf crates/oxipage-console/embedded-spa/
+rm crates/oxibuilder-console/build.rs
+rm -rf crates/oxibuilder-console/embedded-spa/
 ```
 
 - [ ] **Step 3: Verify the workspace still builds**
@@ -84,10 +84,10 @@ Expected: success — the console binary compiles without its build script
 
 - [ ] **Step 4: Verify the console unit tests still pass**
 
-Run: `cargo test -p oxipage-console --lib`
+Run: `cargo test -p oxibuilder-console --lib`
 Expected: 4/4 unit tests pass
 
-Note: `cargo test -p oxipage-console` (integration tests) currently FAILS to
+Note: `cargo test -p oxibuilder-console` (integration tests) currently FAILS to
 compile due to a pre-existing `SiteRegistry::new` arity drift — the four
 integration test files call `SiteRegistry::new(sf)` with one argument, but
 the signature requires three. This predates Task 1. Task 5 fixes the arity
@@ -97,7 +97,7 @@ uses `--lib` or `--test <specific>` only after Task 5.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add -A crates/oxipage-console/
+git add -A crates/oxibuilder-console/
 git commit -m "refactor(console): remove dead duplicate embed and build script"
 ```
 
@@ -106,8 +106,8 @@ git commit -m "refactor(console): remove dead duplicate embed and build script"
 ### Task 2: Core build.rs — dual-mode validation and revision marker
 
 **Files:**
-- Modify: `crates/oxipage-core/build.rs`
-- Modify: `crates/oxipage-core/Cargo.toml`
+- Modify: `crates/oxibuilder-core/build.rs`
+- Modify: `crates/oxibuilder-core/Cargo.toml`
 
 **Interfaces:**
 - Consumes: `../../web/dist/`, `../../web/dist-static/` (workspace mode) or packaged embeds (crate mode)
@@ -115,7 +115,7 @@ git commit -m "refactor(console): remove dead duplicate embed and build script"
 
 - [ ] **Step 1: Add `embedded-spa-static` to the Cargo.toml include list**
 
-In `crates/oxipage-core/Cargo.toml`, change the `include` array:
+In `crates/oxibuilder-core/Cargo.toml`, change the `include` array:
 
 ```toml
 include = [
@@ -132,7 +132,7 @@ include = [
 
 - [ ] **Step 2: Rewrite build.rs with dual-mode validation and revision marker**
 
-Replace the entire contents of `crates/oxipage-core/build.rs`:
+Replace the entire contents of `crates/oxibuilder-core/build.rs`:
 
 ```rust
 use std::collections::BTreeMap;
@@ -162,7 +162,7 @@ fn main() {
         let revision = compute_revision(&web_dist);
         std::fs::write(root.join("embedded-spa/.build-revision"), &revision)
             .expect("write embedded-spa/.build-revision");
-        println!("cargo:rustc-env=OXIPAGE_SPA_REVISION={revision}");
+        println!("cargo:rustc-env=OXIBUILDER_SPA_REVISION={revision}");
     } else if root.join("embedded-spa").exists() || root.join("embedded-spa-static").exists() {
         // Mode 2: Published crate — packaged embeds must already be populated.
         require_packaged(root.join("embedded-spa"), "admin.html");
@@ -171,7 +171,7 @@ fn main() {
         let revision = std::fs::read_to_string(&rev_path)
             .unwrap_or_else(|_| panic!("packaged embed is missing {}", rev_path.display()));
         let revision = revision.trim();
-        println!("cargo:rustc-env=OXIPAGE_SPA_REVISION={revision}");
+        println!("cargo:rustc-env=OXIBUILDER_SPA_REVISION={revision}");
     } else {
         // Fresh development clone: no web build and no packaged embeds yet.
         // Fail with the exact command that produces the required output.
@@ -184,7 +184,7 @@ fn main() {
     copy_or_stub(root.join("_registry.json"), root.join("../../../registry/index.json"), "[]");
     copy_or_stub(
         root.join("_wasm-demo.wasm"),
-        root.join("../../../crates/oxipage-ext-wasm-demo/artifacts/wasm-demo.wasm"),
+        root.join("../../../crates/oxibuilder-ext-wasm-demo/artifacts/wasm-demo.wasm"),
         b"",
     );
 }
@@ -292,7 +292,7 @@ fn collect_sorted_files(base: &Path, out: &mut Vec<std::fs::DirEntry>) {
 
 - [ ] **Step 2b: Add sha2 as a build-dependency**
 
-In `crates/oxipage-core/Cargo.toml`, add a `[build-dependencies]` section (it is used by build.rs only, so NOT `[dependencies]`):
+In `crates/oxibuilder-core/Cargo.toml`, add a `[build-dependencies]` section (it is used by build.rs only, so NOT `[dependencies]`):
 
 ```toml
 [build-dependencies]
@@ -301,7 +301,7 @@ sha2.workspace = true
 
 - [ ] **Step 3: Build and verify**
 
-Run: `cargo build -p oxipage-core`
+Run: `cargo build -p oxibuilder-core`
 Expected: success
 
 - [ ] **Step 4: Verify failure when web/dist is missing admin.html**
@@ -309,7 +309,7 @@ Expected: success
 ```bash
 # Temporarily rename admin.html to simulate a stale build
 mv web/dist/admin.html web/dist/admin.html.bak
-cargo build -p oxipage-core 2>&1 | grep "admin.html is missing"
+cargo build -p oxibuilder-core 2>&1 | grep "admin.html is missing"
 mv web/dist/admin.html.bak web/dist/admin.html
 ```
 Expected: the panic message appears
@@ -317,7 +317,7 @@ Expected: the panic message appears
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/oxipage-core/build.rs crates/oxipage-core/Cargo.toml
+git add crates/oxibuilder-core/build.rs crates/oxibuilder-core/Cargo.toml
 git commit -m "build(core): dual-mode embed validation — fail on missing admin.html"
 ```
 
@@ -326,29 +326,29 @@ git commit -m "build(core): dual-mode embed validation — fail on missing admin
 ### Task 3: Static response policy — cache headers, ETag, revision
 
 **Files:**
-- Modify: `crates/oxipage-core/src/http.rs`
+- Modify: `crates/oxibuilder-core/src/http.rs`
 
 **Interfaces:**
 - Consumes: `Assets` (rust-embed)
-- Produces: `serve_asset` with `Cache-Control`, `ETag`, `X-Oxipage-SPA-Revision` headers; proper `HEAD` support
+- Produces: `serve_asset` with `Cache-Control`, `ETag`, `X-Oxibuilder-SPA-Revision` headers; proper `HEAD` support
 
 - [ ] **Step 1: Write a test for cache headers**
 
-Create `crates/oxipage-core/tests/cache_headers.rs`:
+Create `crates/oxibuilder-core/tests/cache_headers.rs`:
 
 ```rust
 //! Tests for static asset cache policy.
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use oxipage_core::http::build_app;
-use oxipage_core::state::AppState;
+use oxibuilder_core::http::build_app;
+use oxibuilder_core::state::AppState;
 use tower::util::ServiceExt;
 
 async fn build_test_app() -> axum::Router {
-    use oxipage_core::config::Config;
-    use oxipage_core::extension::{Extension, Lang, LobbyCard, Migration};
-    use oxipage_core::registry::ExtensionRegistry;
+    use oxibuilder_core::config::Config;
+    use oxibuilder_core::extension::{Extension, Lang, LobbyCard, Migration};
+    use oxibuilder_core::registry::ExtensionRegistry;
 
     struct DummyExt;
     #[async_trait::async_trait]
@@ -364,7 +364,7 @@ async fn build_test_app() -> axum::Router {
         async fn lobby_summary(&self, _ctx: &AppState) -> Option<LobbyCard> { None }
     }
 
-    let pool = oxipage_core::db::connect_memory().await.unwrap();
+    let pool = oxibuilder_core::db::connect_memory().await.unwrap();
     let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(DummyExt)]));
     registry.run_migrations(&pool, &[]).await.unwrap();
     let state = AppState {
@@ -375,7 +375,7 @@ async fn build_test_app() -> axum::Router {
         site_override: Arc::new(tokio::sync::RwLock::new(None)),
         builders: Arc::new(vec![]),
     };
-    oxipage_core::http::build_app(state)
+    oxibuilder_core::http::build_app(state)
 }
 
 #[tokio::test]
@@ -395,7 +395,7 @@ async fn hashed_asset_has_immutable_cache() {
     let app = build_test_app().await;
     // Extract the hashed JS asset URI from the embedded admin.html so the
     // test is robust to hash changes across builds.
-    let html = oxipage_core::http::spa_index_html().unwrap_or_default();
+    let html = oxibuilder_core::http::spa_index_html().unwrap_or_default();
     let asset = html
         .split("src=\"")
         .nth(1)
@@ -425,7 +425,7 @@ async fn admin_html_has_revision_meta_and_header() {
     let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
     let body = String::from_utf8(bytes.to_vec()).unwrap();
     assert!(
-        body.contains("oxipage-spa-revision"),
+        body.contains("oxibuilder-spa-revision"),
         "admin.html must carry the revision meta tag"
     );
 }
@@ -433,12 +433,12 @@ async fn admin_html_has_revision_meta_and_header() {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cargo test -p oxipage-core --test cache_headers`
+Run: `cargo test -p oxibuilder-core --test cache_headers`
 Expected: FAIL — `serve_asset` currently sets no cache headers
 
 - [ ] **Step 3: Implement cache classification in `serve_asset`**
 
-In `crates/oxipage-core/src/http.rs`, replace `serve_asset`:
+In `crates/oxibuilder-core/src/http.rs`, replace `serve_asset`:
 
 ```rust
 fn serve_asset(path: &str) -> Option<Response> {
@@ -450,7 +450,7 @@ fn serve_asset(path: &str) -> Option<Response> {
         // reads this meta tag; the header is for debugging.
         if path == "admin.html" {
             let meta = format!(
-                "<meta name=\"oxipage-spa-revision\" content=\"{}\">",
+                "<meta name=\"oxibuilder-spa-revision\" content=\"{}\">",
                 spa_revision()
             );
             let html = String::from_utf8_lossy(&bytes);
@@ -468,7 +468,7 @@ fn serve_asset(path: &str) -> Option<Response> {
             .header(header::ETAG, etag);
 
         if is_html_entry(path) {
-            builder = builder.header("X-Oxipage-SPA-Revision", spa_revision());
+            builder = builder.header("X-Oxibuilder-SPA-Revision", spa_revision());
         }
         builder.body(Body::from(bytes)).unwrap()
     })
@@ -498,8 +498,8 @@ fn has_hash_suffix(path: &str) -> bool {
 
 fn spa_revision() -> &'static str {
     // Compiled-in from build.rs (Task 2): the SHA-256 over the live Admin
-    // embed, emitted as cargo:rustc-env=OXIPAGE_SPA_REVISION.
-    option_env!("OXIPAGE_SPA_REVISION").unwrap_or("unknown")
+    // embed, emitted as cargo:rustc-env=OXIBUILDER_SPA_REVISION.
+    option_env!("OXIBUILDER_SPA_REVISION").unwrap_or("unknown")
 }
 
 fn content_hash(data: &[u8]) -> String {
@@ -518,17 +518,17 @@ Task 3 adds it to the regular `[dependencies]` too:
 sha2.workspace = true
 ```
 
-Verify the addition compiles: `cargo build -p oxipage-core`.
+Verify the addition compiles: `cargo build -p oxibuilder-core`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cargo test -p oxipage-core --test cache_headers`
+Run: `cargo test -p oxibuilder-core --test cache_headers`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/oxipage-core/src/http.rs crates/oxipage-core/build.rs crates/oxipage-core/Cargo.toml crates/oxipage-core/tests/cache_headers.rs
+git add crates/oxibuilder-core/src/http.rs crates/oxibuilder-core/build.rs crates/oxibuilder-core/Cargo.toml crates/oxibuilder-core/tests/cache_headers.rs
 git commit -m "feat(core): cache headers, ETag, SPA revision for static assets"
 ```
 
@@ -564,7 +564,7 @@ interface State {
 /** Compiled SPA revision, injected into admin.html by serve_asset as a meta tag. */
 function getSpaRevision(): string {
   return (
-    document.querySelector('meta[name="oxipage-spa-revision"]')?.getAttribute("content") ??
+    document.querySelector('meta[name="oxibuilder-spa-revision"]')?.getAttribute("content") ??
     "unknown"
   );
 }
@@ -691,8 +691,8 @@ git commit -m "feat(admin): ErrorBoundary with stale-chunk recovery UI"
 ### Task 5: SiteContext path model — resolved absolute paths
 
 **Files:**
-- Modify: `crates/oxipage-console/src/sites_runtime.rs`
-- Modify: `crates/oxipage-console/src/loader.rs`
+- Modify: `crates/oxibuilder-console/src/sites_runtime.rs`
+- Modify: `crates/oxibuilder-console/src/loader.rs`
 - Modify: all files that reference `ctx.path` for DB/out/media resolution
 
 **Interfaces:**
@@ -701,19 +701,19 @@ git commit -m "feat(admin): ErrorBoundary with stale-chunk recovery UI"
 
 - [ ] **Step 1: Write a test for resolved paths**
 
-Add to `crates/oxipage-console/tests/site_paths.rs`:
+Add to `crates/oxibuilder-console/tests/site_paths.rs`:
 
 ```rust
 //! Tests for SiteContext resolved paths.
 
-use oxipage_console::sites_runtime::{SiteContext, SiteRegistry};
-use oxipage_core::sites::SitesFile;
+use oxibuilder_console::sites_runtime::{SiteContext, SiteRegistry};
+use oxibuilder_core::sites::SitesFile;
 use std::sync::Arc;
 use tempfile::TempDir;
 
 #[tokio::test]
 async fn site_context_resolves_absolute_data_dir() {
-    let dir = TempDir::with_prefix("oxipage-paths-").unwrap();
+    let dir = TempDir::with_prefix("oxibuilder-paths-").unwrap();
     let toml = format!(
         r#"[site]
 name = "Test"
@@ -727,7 +727,7 @@ port = 8787
 data_dir = "data"
 "#,
     );
-    std::fs::write(dir.path().join("oxipage.toml"), toml).unwrap();
+    std::fs::write(dir.path().join("oxibuilder.toml"), toml).unwrap();
 
     let mut sf = SitesFile::default();
     sf.add("test".into(), dir.path().to_path_buf());
@@ -746,12 +746,12 @@ data_dir = "data"
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cargo test -p oxipage-console --test site_paths`
+Run: `cargo test -p oxibuilder-console --test site_paths`
 Expected: FAIL — `data_dir`, `out_dir`, `media_dir` fields don't exist yet
 
 - [ ] **Step 3: Add path fields to SiteContext and resolve in SiteLoader**
 
-In `crates/oxipage-console/src/sites_runtime.rs`, replace the `path: PathBuf` field:
+In `crates/oxibuilder-console/src/sites_runtime.rs`, replace the `path: PathBuf` field:
 
 ```rust
 pub struct SiteContext {
@@ -760,10 +760,10 @@ pub struct SiteContext {
     pub data_dir: PathBuf,
     pub out_dir: PathBuf,
     pub media_dir: PathBuf,
-    pub startup_server: oxipage_core::config::ServerConfig,
+    pub startup_server: oxibuilder_core::config::ServerConfig,
     // config: Arc<Config> is KEPT for now. Task 6 adds `settings`,
     // migrates all readers, THEN removes this field.
-    pub config: Arc<oxipage_core::config::Config>,
+    pub config: Arc<oxibuilder_core::config::Config>,
     pub db: SqlitePool,
     pub registry: Arc<ExtensionRegistry>,
     pub builders: Arc<Vec<Box<dyn BuildExt>>>,
@@ -773,11 +773,11 @@ pub struct SiteContext {
 }
 ```
 
-In `crates/oxipage-console/src/loader.rs`, resolve paths:
+In `crates/oxibuilder-console/src/loader.rs`, resolve paths:
 
 ```rust
 pub async fn load(slug: String, path: PathBuf, build_guard: Arc<BuildGuard>, deploy_guard: Arc<DeployGuard>) -> anyhow::Result<SiteContext> {
-    let toml_path = path.join("oxipage.toml");
+    let toml_path = path.join("oxibuilder.toml");
     let cfg = Config::load(&toml_path)?;
 
     let project_dir = path.canonicalize().unwrap_or(path);
@@ -790,8 +790,8 @@ pub async fn load(slug: String, path: PathBuf, build_guard: Arc<BuildGuard>, dep
     let out_dir = data_dir.join("out");
     let media_dir = data_dir.join("media");
 
-    let db_path = data_dir.join("oxipage.db");
-    let db = oxipage_core::db::connect(&db_path).await?;
+    let db_path = data_dir.join("oxibuilder.db");
+    let db = oxibuilder_core::db::connect(&db_path).await?;
     let toml_enabled = cfg.extensions.enabled.clone();
     let extensions = crate::all_extensions();
     let registry = Arc::new(ExtensionRegistry::new(extensions));
@@ -818,12 +818,12 @@ pub async fn load(slug: String, path: PathBuf, build_guard: Arc<BuildGuard>, dep
 
 - [ ] **Step 4: Migrate all `ctx.path` references to resolved path fields**
 
-Search and replace across `crates/oxipage-console/src/`:
+Search and replace across `crates/oxibuilder-console/src/`:
 
-Run: `grep -rn "ctx\.path" crates/oxipage-console/src/`
+Run: `grep -rn "ctx\.path" crates/oxibuilder-console/src/`
 Replace each:
 - `ctx.path.join("out")` → `ctx.out_dir.clone()`
-- `ctx.path.join("oxipage.toml")` → `ctx.project_dir.join("oxipage.toml")`
+- `ctx.path.join("oxibuilder.toml")` → `ctx.project_dir.join("oxibuilder.toml")`
 - `ctx.path.join("data")` → `ctx.data_dir.clone()`
 - bare `ctx.path` → `ctx.project_dir.clone()`
 
@@ -846,22 +846,22 @@ let registry = Arc::new(SiteRegistry::new(sf, Default::default(), Default::defau
 Check each file's exact call shape and adjust imports if needed (the guard
 types are console-crate types; `Default::default()` avoids importing them).
 
-Run: `cargo test -p oxipage-console`
+Run: `cargo test -p oxibuilder-console`
 Expected: all integration tests compile and pass
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `cargo test -p oxipage-console --test site_paths`
+Run: `cargo test -p oxibuilder-console --test site_paths`
 Expected: PASS
 
 - [ ] **Step 6: Run full console test suite**
 
-Run: `cargo test -p oxipage-console`
+Run: `cargo test -p oxibuilder-console`
 Expected: all tests pass
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add -A crates/oxipage-console/src/ crates/oxipage-console/tests/site_paths.rs
+git add -A crates/oxibuilder-console/src/ crates/oxibuilder-console/tests/site_paths.rs
 git commit -m "refactor(console): SiteContext resolved absolute paths (project_dir/data_dir/out_dir/media_dir)"
 ```
 
@@ -870,19 +870,19 @@ git commit -m "refactor(console): SiteContext resolved absolute paths (project_d
 ### Task 6: MutableSiteSettings and atomic config_write_lock
 
 **Files:**
-- Create: `crates/oxipage-core/src/site_paths.rs`
-- Modify: `crates/oxipage-core/src/lib.rs`
-- Modify: `crates/oxipage-console/src/sites_runtime.rs`
-- Modify: `crates/oxipage-console/src/loader.rs`
-- Modify: `crates/oxipage-console/src/per_site.rs`
+- Create: `crates/oxibuilder-core/src/site_paths.rs`
+- Modify: `crates/oxibuilder-core/src/lib.rs`
+- Modify: `crates/oxibuilder-console/src/sites_runtime.rs`
+- Modify: `crates/oxibuilder-console/src/loader.rs`
+- Modify: `crates/oxibuilder-console/src/per_site.rs`
 
 **Interfaces:**
-- Consumes: `Config` from `oxipage-core::config`
+- Consumes: `Config` from `oxibuilder-core::config`
 - Produces: `MutableSiteSettings`, `config_write_lock` pattern, updated `config_put` handler
 
 - [ ] **Step 1: Define MutableSiteSettings**
 
-Create `crates/oxipage-core/src/site_paths.rs`:
+Create `crates/oxibuilder-core/src/site_paths.rs`:
 
 ```rust
 //! Runtime-mutable site settings (display, languages, lobby, integrations, deploy).
@@ -971,7 +971,7 @@ impl MutableSiteSettings {
 }
 ```
 
-In `crates/oxipage-console/src/sites_runtime.rs`, the final `SiteContext` struct (combining Task 5 + Task 6) is:
+In `crates/oxibuilder-console/src/sites_runtime.rs`, the final `SiteContext` struct (combining Task 5 + Task 6) is:
 
 ```rust
 pub struct SiteContext {
@@ -980,7 +980,7 @@ pub struct SiteContext {
     pub data_dir: PathBuf,
     pub out_dir: PathBuf,
     pub media_dir: PathBuf,
-    pub startup_server: oxipage_core::config::ServerConfig,
+    pub startup_server: oxibuilder_core::config::ServerConfig,
     pub settings: Arc<RwLock<MutableSiteSettings>>,
     pub config_write_lock: Arc<Mutex<()>>,
     pub db: SqlitePool,
@@ -994,7 +994,7 @@ pub struct SiteContext {
 
 There is NO `config: Arc<Config>` field. Server fields are in `startup_server`; mutable fields are in `settings`.
 
-Add to `crates/oxipage-core/src/lib.rs`:
+Add to `crates/oxibuilder-core/src/lib.rs`:
 
 ```rust
 pub mod site_paths;
@@ -1002,23 +1002,23 @@ pub mod site_paths;
 
 - [ ] **Step 2: Wire settings into SiteContext**
 
-In `crates/oxipage-console/src/sites_runtime.rs`, add:
+In `crates/oxibuilder-console/src/sites_runtime.rs`, add:
 
 ```rust
-use oxipage_core::site_paths::MutableSiteSettings;
+use oxibuilder_core::site_paths::MutableSiteSettings;
 use tokio::sync::RwLock;
 use std::sync::Mutex;
 
 pub struct SiteContext {
     // ... existing path/db/registry/guard fields from Task 5 ...
     // config: Arc<Config> still present alongside settings during migration.
-    pub config: Arc<oxipage_core::config::Config>,
+    pub config: Arc<oxibuilder_core::config::Config>,
     pub settings: Arc<RwLock<MutableSiteSettings>>,
     pub config_write_lock: Arc<Mutex<()>>,
 }
 ```
 
-In `crates/oxipage-console/src/loader.rs`, construct:
+In `crates/oxibuilder-console/src/loader.rs`, construct:
 
 ```rust
 let settings = Arc::new(RwLock::new(MutableSiteSettings::from_config(&cfg)));
@@ -1035,7 +1035,7 @@ Ok(SiteContext {
 
 Now that `settings` exists alongside `config`, migrate every reader. After this step, `config` has zero consumers and can be removed.
 
-Run: `grep -rn "ctx\.config" crates/oxipage-console/src/`
+Run: `grep -rn "ctx\.config" crates/oxibuilder-console/src/`
 Replace each:
 - `ctx.config.server.host` → `ctx.startup_server.host`
 - `ctx.config.server.port` → `ctx.startup_server.port`
@@ -1067,14 +1067,14 @@ Expected: success — `config` field is gone, `settings` + `startup_server` cove
 
 - [ ] **Step 3: Update config_put to use lock + reread + allowlisted patch**
 
-In `crates/oxipage-console/src/per_site.rs`, update `config_put`:
+In `crates/oxibuilder-console/src/per_site.rs`, update `config_put`:
 
 ```rust
 pub async fn config_put(
     Extension(ctx): Extension<Arc<SiteContext>>,
     Json(update): Json<ConfigUpdate>,
 ) -> Result<Json<ConfigResponse>, (StatusCode, String)> {
-    let toml_path = ctx.project_dir.join("oxipage.toml");
+    let toml_path = ctx.project_dir.join("oxibuilder.toml");
 
     // Lock to serialize concurrent config writes for this site.
     let _guard = ctx.config_write_lock.lock().unwrap();
@@ -1136,13 +1136,13 @@ pub async fn config_put(
 Run: `cargo build --workspace`
 Expected: success
 
-Run: `cargo test -p oxipage-console`
+Run: `cargo test -p oxibuilder-console`
 Expected: all tests pass
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add -A crates/oxipage-core/src/site_paths.rs crates/oxipage-core/src/lib.rs crates/oxipage-console/src/
+git add -A crates/oxibuilder-core/src/site_paths.rs crates/oxibuilder-core/src/lib.rs crates/oxibuilder-console/src/
 git commit -m "feat(console): MutableSiteSettings with atomic config_write_lock"
 ```
 
@@ -1151,12 +1151,12 @@ git commit -m "feat(console): MutableSiteSettings with atomic config_write_lock"
 ### Task 7: Remove legacy top-level build/deploy routes
 
 **Files:**
-- Delete: `crates/oxipage-console/src/build/site_build.rs`
-- Delete: `crates/oxipage-console/src/deploy/site_deploy.rs`
-- Modify: `crates/oxipage-console/src/router.rs`
-- Modify: `crates/oxipage-console/src/build/mod.rs`
-- Modify: `crates/oxipage-console/src/deploy/mod.rs`
-- Modify: `crates/oxipage-console/tests/build_deploy_preview.rs`
+- Delete: `crates/oxibuilder-console/src/build/site_build.rs`
+- Delete: `crates/oxibuilder-console/src/deploy/site_deploy.rs`
+- Modify: `crates/oxibuilder-console/src/router.rs`
+- Modify: `crates/oxibuilder-console/src/build/mod.rs`
+- Modify: `crates/oxibuilder-console/src/deploy/mod.rs`
+- Modify: `crates/oxibuilder-console/tests/build_deploy_preview.rs`
 
 **Interfaces:**
 - Consumes: site-scoped routes at `/api/console/s/{slug}/build|deploy` (already mounted via `per_site_router`)
@@ -1164,7 +1164,7 @@ git commit -m "feat(console): MutableSiteSettings with atomic config_write_lock"
 
 - [ ] **Step 1: Update tests to remove references to top-level routes**
 
-In `crates/oxipage-console/tests/build_deploy_preview.rs`, remove or rewrite tests that hit `/build/{slug}` and `/deploy/{slug}`:
+In `crates/oxibuilder-console/tests/build_deploy_preview.rs`, remove or rewrite tests that hit `/build/{slug}` and `/deploy/{slug}`:
 
 ```rust
 // Remove build_endpoint_rejects_unknown_slug and deploy_endpoint_returns_stub_response
@@ -1174,7 +1174,7 @@ In `crates/oxipage-console/tests/build_deploy_preview.rs`, remove or rewrite tes
 
 - [ ] **Step 2: Remove the top-level routes from router.rs**
 
-In `crates/oxipage-console/src/router.rs`, remove from `build_top_level_router`:
+In `crates/oxibuilder-console/src/router.rs`, remove from `build_top_level_router`:
 
 ```rust
 // DELETE these two lines:
@@ -1200,30 +1200,30 @@ Remove the `use` statements for `site_build` and `site_deploy`.
 - [ ] **Step 3: Delete the dead handler files**
 
 ```bash
-rm crates/oxipage-console/src/build/site_build.rs
-rm crates/oxipage-console/src/deploy/site_deploy.rs
+rm crates/oxibuilder-console/src/build/site_build.rs
+rm crates/oxibuilder-console/src/deploy/site_deploy.rs
 ```
 
-Update `crates/oxipage-console/src/build/mod.rs` to remove `pub mod site_build;`.
-Update `crates/oxipage-console/src/deploy/mod.rs` to remove `pub mod site_deploy;`.
+Update `crates/oxibuilder-console/src/build/mod.rs` to remove `pub mod site_build;`.
+Update `crates/oxibuilder-console/src/deploy/mod.rs` to remove `pub mod site_deploy;`.
 
 - [ ] **Step 4: Build and test**
 
 Run: `cargo build --workspace`
 Expected: success
 
-Run: `cargo test -p oxipage-console`
+Run: `cargo test -p oxibuilder-console`
 Expected: remaining tests pass (preview test, site routes test)
 
 - [ ] **Step 5: Verify the SPA still builds and deploys work via per-site routes**
 
-Run: `cd web && bun run build && cd .. && cargo test -p oxipage-console --test site_routes`
+Run: `cd web && bun run build && cd .. && cargo test -p oxibuilder-console --test site_routes`
 Expected: per-site route tests pass
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add -A crates/oxipage-console/
+git add -A crates/oxibuilder-console/
 git commit -m "refactor(console): remove legacy top-level build/deploy routes"
 ```
 
@@ -1253,7 +1253,7 @@ cd web && bun run build && cd .. && cargo build --workspace
 - [ ] **Step 3: Start console and verify deep links**
 
 ```bash
-cargo run -p oxipage-cli -- console &
+cargo run -p oxibuilder-cli -- console &
 sleep 2
 curl -s -D - http://127.0.0.1:8787/sites | head -20
 curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8787/api/console/sites
@@ -1264,7 +1264,7 @@ Expected: `/sites` returns 200 with `Content-Type: text/html` and `Cache-Control
 - [ ] **Step 4: Verify cache headers on a hashed asset**
 
 ```bash
-cargo run -p oxipage-cli -- console &
+cargo run -p oxibuilder-cli -- console &
 sleep 2
 ASSET=$(curl -s http://127.0.0.1:8787/sites | grep -o '/assets/admin-[^"]*\.js' | head -1)
 curl -s -D - "http://127.0.0.1:8787$ASSET" | grep -i cache-control

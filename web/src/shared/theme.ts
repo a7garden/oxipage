@@ -1,19 +1,19 @@
 // Console appearance vs public site theme — kept distinct on purpose.
 //
 //  - Console appearance (the Admin shell's <html data-theme>)
-//      localStorage["oxipage-console-appearance"] = "system" | "light" | "dark"
+//      localStorage["oxibuilder-console-appearance"] = "system" | "light" | "dark"
 //      Resolution: explicit light/dark → that mode; "system" or missing/invalid →
 //      window.matchMedia('(prefers-color-scheme: dark)').
 //
 //  - Public site theme (the per-site SQLite singleton)
-//      Shared catalog: oxipage_core::theme in Rust; ThemeDefinition here.
+//      Shared catalog: oxibuilder_core::theme in Rust; ThemeDefinition here.
 //      applyServerTheme() publishes palette variables to the document, but
 //      NEVER mutates the console's data-theme or sets console mode.
 
 export type ConsoleAppearance = "system" | "light" | "dark";
 export type ResolvedMode = "light" | "dark";
 
-export const STORAGE_KEY = "oxipage-console-appearance";
+export const STORAGE_KEY = "oxibuilder-console-appearance";
 
 export interface ThemeDefinition {
   id: string;

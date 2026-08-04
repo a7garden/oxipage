@@ -1,0 +1,49 @@
+[package]
+name = "oxibuilder-console"
+version = "0.8.0"
+edition = "2024"
+license.workspace = true
+description = "Oxibuilder 관리 콘솔 — 로컬 HTTP 서버 (admin UI + API, v2 SSG 모드)"
+
+[[bin]]
+name = "oxibuilder-console"
+path = "src/main.rs"
+
+[features]
+# doc/08 §8.4: WASM 런타임 적재 스파이크. 기본 off — 활성화 시 data/extensions/*.wasm
+# 을 부팅 시 스캔해 확장 목록에 추가한다 (oxibuilder-wasm / wasmtime 링크).
+wasm = ["dep:oxibuilder-wasm"]
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+oxibuilder-core = { version = "0.8.0", path = "../oxibuilder-core" }
+oxibuilder-deploy = { version = "0.8.0", path = "../oxibuilder-deploy" }
+oxibuilder-wasm = { version = "0.8.0", path = "../oxibuilder-wasm", optional = true }
+oxibuilder-ext-activity = { version = "0.8.0", path = "../oxibuilder-ext-activity" }
+oxibuilder-ext-blog = { version = "0.8.0", path = "../oxibuilder-ext-blog" }
+oxibuilder-ext-books = { version = "0.8.0", path = "../oxibuilder-ext-books" }
+oxibuilder-ext-links = { version = "0.8.0", path = "../oxibuilder-ext-links" }
+oxibuilder-ext-movies = { version = "0.8.0", path = "../oxibuilder-ext-movies" }
+oxibuilder-ext-novels = { version = "0.8.0", path = "../oxibuilder-ext-novels" }
+oxibuilder-ext-profile = { version = "0.8.0", path = "../oxibuilder-ext-profile" }
+oxibuilder-ext-projects = { version = "0.8.0", path = "../oxibuilder-ext-projects" }
+oxibuilder-ext-scraps = { version = "0.8.0", path = "../oxibuilder-ext-scraps" }
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+directories.workspace = true
+rust-embed.workspace = true
+mime_guess.workspace = true
+
+dashmap.workspace = true
+tokio-stream = { workspace = true, features = ["sync"] }
+uuid.workspace = true
+[dev-dependencies]
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }

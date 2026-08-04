@@ -1,6 +1,6 @@
 # 13장 — 첫 부팅 UX (First-Run Setup Wizard)
 
-> 2026-07-28 작성. `cargo install oxipage` → 브라우저에서 초기 설정 완료까지
+> 2026-07-28 작성. `cargo install oxibuilder` → 브라우저에서 초기 설정 완료까지
 > **한 번의 흐름**으로 끝나는 UX를 설계한다.
 
 ## 13.1 문제 정의
@@ -8,19 +8,19 @@
 현재 `cargo install`부터 "블로그가 보이는 상태"까지 사용자가 겪는 경로:
 
 ```
-cargo install oxipage-cli          # ← 패키지명 불일치 (oxipage 아님)
-oxipage init                       # ← TOML 생성 (profile만 enabled)
-export OXIPAGE_ADMIN_TOKEN=xxx     # ← 어디서? 어떻게?
-oxipage console                      # ← 서버 기동
+cargo install oxibuilder-cli          # ← 패키지명 불일치 (oxibuilder 아님)
+oxibuilder init                       # ← TOML 생성 (profile만 enabled)
+export OXIBUILDER_ADMIN_TOKEN=xxx     # ← 어디서? 어떻게?
+oxibuilder console                      # ← 서버 기동
 # 브라우저 수동 오픈 http://127.0.0.1:8787
 # 빈 로비만 보임 — 뭘 해야 할지 모름
-# admin 콘솔? oxipage admin? 별도 포트?
+# admin 콘솔? oxibuilder admin? 별도 포트?
 # CLI로 blog new? 토이 없어서 401
 ```
 
 **6개의 구멍:**
-1. `cargo install oxipage` 실패 (crate명 = `oxipage-cli`)
-2. `oxipage open` / 브라우저 자동 오픈 없음
+1. `cargo install oxibuilder` 실패 (crate명 = `oxibuilder-cli`)
+2. `oxibuilder open` / 브라우저 자동 오픈 없음
 3. 첫 부팅 감지 + 웹 설정 마법사 없음
 4. Auth chicken-and-egg (토큰 없으면 write 불가, 토 만들려면 write 필요)
 5. `extensions.enabled` 기본값이 `["profile"]`만
@@ -30,8 +30,8 @@ oxipage console                      # ← 서버 기동
 
 | # | 목표 | 측정 |
 |---|---|---|
-| G1 | `cargo install oxipage` 한 줄로 설치 | crates.io에 `oxipage` 패키지 존재, 바이너리명 `oxipage` |
-| G2 | `oxipage console` 한 줄로 서버 + 브라우저 자동 오픈 | 첫 부팅 시 `/setup`으로 자동 이동 |
+| G1 | `cargo install oxibuilder` 한 줄로 설치 | crates.io에 `oxibuilder` 패키지 존재, 바이너리명 `oxibuilder` |
+| G2 | `oxibuilder console` 한 줄로 서버 + 브라우저 자동 오픈 | 첫 부팅 시 `/setup`으로 자동 이동 |
 | G3 | 웹 마법사 6-step으로 초기 설정 완료 | 사이트명, admin 비밀번호, 확장, 프로필, 테마/레이아웃, 샘플글+API키 |
 | G4 | 마법사 완료 후 즉시 사용 가능 | 로비에 콘텐츠 표시, CLI 토큰 자동 저장 |
 | G5 | Admin 콘솔 발견 가능 | 메인 UI 헤더 "관리" 버튼 |
@@ -43,13 +43,13 @@ oxipage console                      # ← 서버 기동
 
 | 컴포넌트 | 포트 | 바인딩 | 역할 |
 |---|---|---|---|
-| **메인 서버** (`oxipage console`) | 8787 (configurable) | config.host | Public SPA + API + **`/setup` 마법사** |
-| **Admin 콘솔** (`oxipage admin`) | 8788 (configurable) | **127.0.0.1 강제** | 멀티사이트 컨트롤 플레인 (sites.toml + 프록시) |
+| **메인 서버** (`oxibuilder console`) | 8787 (configurable) | config.host | Public SPA + API + **`/setup` 마법사** |
+| **Admin 콘솔** (`oxibuilder admin`) | 8788 (configurable) | **127.0.0.1 강제** | 멀티사이트 컨트롤 플레인 (sites.toml + 프록시) |
 
-**합치지 않는 이유:** Admin 콘솔의 본질은 "여러 oxipage 인스턴스를 관리하는 로컬 컨트롤 플레인" (doc/09, doc/12). 마법사가 만드는 결과물(site name, admin 비밀번호, 확장 enable, 프로필, 테마)은 **이 인스턴스 자신의 로컬 상태**이다. 둘은 다른 concern. 억지로 합치면 보안 경계가 흐려진다(메인 서버는 인터넷 노출 가능, admin은 loopback 전용).
+**합치지 않는 이유:** Admin 콘솔의 본질은 "여러 oxibuilder 인스턴스를 관리하는 로컬 컨트롤 플레인" (doc/09, doc/12). 마법사가 만드는 결과물(site name, admin 비밀번호, 확장 enable, 프로필, 테마)은 **이 인스턴스 자신의 로컬 상태**이다. 둘은 다른 concern. 억지로 합치면 보안 경계가 흐려진다(메인 서버는 인터넷 노출 가능, admin은 loopback 전용).
 
 **발견성 해결:**
-- `oxipage console` 첫 부팅 → 브라우저 `:8787/setup` 자동 오픈
+- `oxibuilder console` 첫 부팅 → 브라우저 `:8787/setup` 자동 오픈
 - 설정 완료 후 메인 UI 헤더 "관리 콘솔" 버튼 → `:8788` 안내/오픈
 
 ### chicken-and-egg 해법: Setup 모드
@@ -62,39 +62,39 @@ oxipage console                      # ← 서버 기동
 
 ### Admin 인증 모델
 
-현재 `OXIPAGE_ADMIN_TOKEN` env-only → 마법사가 **argon2id 비밀번호** 모델로 전환:
+현재 `OXIBUILDER_ADMIN_TOKEN` env-only → 마법사가 **argon2id 비밀번호** 모델로 전환:
 
 1. 마법사에서 admin 비밀번호 입력 → 서버 argon2id 해시 저장 (`admin_auth` 테이블 신규)
-2. 완료 시 첫 PAT(`admin` scope) 자동 생성 → CLI credentials 파일(`~/.config/oxipage/credentials`, 0600)에 자동 저장 + 화면에 한 번 표시
+2. 완료 시 첫 PAT(`admin` scope) 자동 생성 → CLI credentials 파일(`~/.config/oxibuilder/credentials`, 0600)에 자동 저장 + 화면에 한 번 표시
 3. 결과: 비밀번호 = 향후 admin 콘솔 로그인용, PAT = CLI/에이전트용
-4. `OXIPAGE_ADMIN_TOKEN` env는 **하위 호환**으로 유지 (설정되면 비밀번호 검증 대신 사용)
+4. `OXIBUILDER_ADMIN_TOKEN` env는 **하위 호환**으로 유지 (설정되면 비밀번호 검증 대신 사용)
 
 ## 13.4 패키지 & CLI 변경
 
 ### 13.4.1 crates.io 패키지명
 
 ```toml
-# crates/oxipage-cli/Cargo.toml
+# crates/oxibuilder-cli/Cargo.toml
 [package]
-name = "oxipage"           # ← "oxipage-cli" → "oxipage" 로 변경
+name = "oxibuilder"           # ← "oxibuilder-cli" → "oxibuilder" 로 변경
 # workspace 멤버 경로는 그대로 유지
 ```
 
 - workspace `members` 경로 변경 불필요 (경로 기반 의존)
-- `[[bin]] name = "oxipage"` 유지
-- crates.io에 `oxipage` 이름으로 publish
-- `cargo install oxipage` → 바이너리 `oxipage` 설치
+- `[[bin]] name = "oxibuilder"` 유지
+- crates.io에 `oxibuilder` 이름으로 publish
+- `cargo install oxibuilder` → 바이너리 `oxibuilder` 설치
 
 ### 13.4.2 CLI 명령 변경
 
 | 명령 | 변경 | 설명 |
 |---|---|---|
-| `oxipage console` | **수정** | 첫 부팅 감지 시 브라우저 자동 오픈 (`/setup` 또는 `/`) |
-| `oxipage open` | **신규** | 실행 중 서버의 URL을 브라우저로 오픈. `--admin` 플래그 시 :8788 |
-| `oxipage init` | **수정** | `--wizard` 플래그 추가: init + console + 브라우저 오픈을 한 방에 |
-| `oxipage admin` | **유지** | 별도 프로세스. 단, `127.0.0.1` 바인딩 강제 |
+| `oxibuilder console` | **수정** | 첫 부팅 감지 시 브라우저 자동 오픈 (`/setup` 또는 `/`) |
+| `oxibuilder open` | **신규** | 실행 중 서버의 URL을 브라우저로 오픈. `--admin` 플래그 시 :8788 |
+| `oxibuilder init` | **수정** | `--wizard` 플래그 추가: init + console + 브라우저 오픈을 한 방에 |
+| `oxibuilder admin` | **유지** | 별도 프로세스. 단, `127.0.0.1` 바인딩 강제 |
 
-#### `oxipage console` 변경 상세
+#### `oxibuilder console` 변경 상세
 
 ```rust
 // console 시작 후:
@@ -105,14 +105,14 @@ if is_first_boot(&db).await {
     tracing::info!("first boot detected — setup wizard opened at {url}");
 } else {
     let url = format!("http://{}:{}", config.consoler.host, config.consoler.port);
-    tracing::info!("oxipage ready at {url}");
+    tracing::info!("oxibuilder ready at {url}");
 }
 ```
 
-#### `oxipage open` 신규
+#### `oxibuilder open` 신규
 
 ```rust
-/// 실행 중인 oxipage 서버의 URL을 기본 브라우저로 오픈.
+/// 실행 중인 oxibuilder 서버의 URL을 기본 브라우저로 오픈.
 /// --admin: admin 콘솔 (:8788) 오픈
 #[derive(Args)]
 pub struct OpenArgs {
@@ -125,11 +125,11 @@ pub struct OpenArgs {
 }
 ```
 
-#### `oxipage init --wizard`
+#### `oxibuilder init --wizard`
 
 ```bash
-$ oxipage init --wizard
-# → oxipage.toml 생성 (없으면) + oxipage console + 브라우저 자동 오픈
+$ oxibuilder init --wizard
+# → oxibuilder.toml 생성 (없으면) + oxibuilder console + 브라우저 자동 오픈
 # = "한 줄로 시작하기"
 ```
 
@@ -174,7 +174,7 @@ INSERT OR IGNORE INTO setup_state (id) VALUES (1);
 > `/setup/profile`, `/setup/content`, `/setup/admin` 엔드포인트와 Step 3/4/6 하드코딩이
 > **모두 제거**됐고, `Extension::setup_wizard_step` / `external_api_keys` /
 > `seed_sample_data` 트레이트 훅으로 대체됐다. 본문은 즉시 동기화하지 않았으므로
-> **현재 동작 코드는 `docs/extension-sdk.md` §3.5 + `crates/oxipage-core/src/setup.rs`를 참고하라.**
+> **현재 동작 코드는 `docs/extension-sdk.md` §3.5 + `crates/oxibuilder-core/src/setup.rs`를 참고하라.**
 > §13.3 §13.4 §13.5.1 §13.5의 동적 조립 모델 / setup_completed_at 의미 / loopback 게이트는 그대로 유효.
 
 ### 13.5.2 Setup API 엔드포인트 (v1 — 미사용)
@@ -254,7 +254,7 @@ async fn setup_gate(request: Request, next: Next) -> Response {
 {"data": {"ok": true}}
 ```
 
-- `oxipage.toml` 파일을 디스크에 갱신 (재시작 시 영속 반영)
+- `oxibuilder.toml` 파일을 디스크에 갱신 (재시작 시 영속 반영)
 - 런타임 즉시 반영: `AppState`에 `site_name`/`base_url` 오버라이드 필드
   (`Arc<tokio::sync::RwLock<SiteOverride>>`) 추가. lobby manifest 등
   사이트명 표시부는 오버라이드 → config.site 순으로 읽음.
@@ -272,7 +272,7 @@ async fn setup_gate(request: Request, next: Next) -> Response {
 
 - 비밀번호 ≥ 4자 검증 (PIN 허용)
 - argon2id 해시 → `setup_state.admin_password_hash` 저장
-- `OXIPAGE_ADMIN_TOKEN` env 하위 호환: env가 설정되어 있으면 비밀번호 검증 대신 env 토큰 사용
+- `OXIBUILDER_ADMIN_TOKEN` env 하위 호환: env가 설정되어 있으면 비밀번호 검증 대신 env 토큰 사용
 
 #### POST /api/console/setup/extensions
 
@@ -371,7 +371,7 @@ async fn setup_gate(request: Request, next: Next) -> Response {
 ### 13.6.2 Admin 인증 전환
 
 ```
-현재:  OXIPAGE_ADMIN_TOKEN env → constant_time_eq 비교
+현재:  OXIBUILDER_ADMIN_TOKEN env → constant_time_eq 비교
 목표:  admin_password_hash (argon2id) + PAT 체계
 호환:  env 설정 시 → env 우선 (하위 호환), 미설정 시 → 비밀번호 검증
 ```
@@ -396,9 +396,9 @@ async fn setup_gate(request: Request, next: Next) -> Response {
 
 ```rust
 // setup/complete 핸들러 내부 (인터랙티브 실행 시에만)
-let creds_path = directories::ProjectDirs::from("", "", "oxipage")
+let creds_path = directories::ProjectDirs::from("", "", "oxibuilder")
     .map(|d| d.config_dir().join("credentials"))
-    .unwrap_or_else(|| PathBuf::from(".oxipage-credentials"));
+    .unwrap_or_else(|| PathBuf::from(".oxibuilder-credentials"));
 std::fs::write(&creds_path, &plain_token)?;
 #[cfg(unix)]
 set_permissions(&creds_path, 0o600)?;
@@ -407,11 +407,11 @@ set_permissions(&creds_path, 0o600)?;
 **소유권 caveat:** 프로덕션(launchd/systemd)에서 서비스 유저 ≠ 인터랙티브
 유저인 경우 서비스 유저의 home에 credentials가 저장되어 CLI가 못 읽는
 문제가 발생. **v1 대응**:
-- 자동 저장은 **인터랙티브 실행**(터미널에서 `oxipage console`)일 때만 시도
-  — `isatty(stdout)` 또는 `OXIPAGE_AUTO_CREDS=1` env로 판별
+- 자동 저장은 **인터랙티브 실행**(터미널에서 `oxibuilder console`)일 때만 시도
+  — `isatty(stdout)` 또는 `OXIBUILDER_AUTO_CREDS=1` env로 판별
 - launchd 백그라운드 실행이면 자동 저장 skip
 - `setup/complete` 응답에 항상 PAT 평문 포함 → 완료 화면에서 수동
-  `oxipage auth set` 안내 표시
+  `oxibuilder auth set` 안내 표시
 
 ## 13.7 마법사 UI — 웹 프론트엔드
 
@@ -438,7 +438,7 @@ set_permissions(&creds_path, 0o600)?;
 
 ```
 ┌──────────────────────────────────────┐
-│  Oxipage 설정                        │
+│  Oxibuilder 설정                        │
 │  ─────────────────────────────────── │
 │  ① 사이트 이름                       │
 │                                      │
@@ -669,7 +669,7 @@ function AdminLink() {
 
 - 항상 표시 (setup 완료 후)
 - 클릭 시 `:8788` 새 탭 오픈
-- admin 서버 미실행 시 → 에러 페이지 (admin SPA 자체에서 "oxipage admin을 실행하세요" 안내)
+- admin 서버 미실행 시 → 에러 페이지 (admin SPA 자체에서 "oxibuilder admin을 실행하세요" 안내)
 
 ### 13.8.2 Admin 콘솔 첫 화면 개선
 
@@ -723,7 +723,7 @@ INSERT OR IGNORE INTO setup_state (id) VALUES (1);
 
 ```rust
 const DEFAULT_TOML: &str = r#"[site]
-name = "내 Oxipage"
+name = "내 Oxibuilder"
 base_url = "http://127.0.0.1:8787"
 default_lang = "ko"
 languages = ["ko", "en"]
@@ -749,16 +749,16 @@ default_mode = "grid"
 ```markdown
 # 환영합니다!
 
-Oxipage 설치가 완료되었습니다. 🎉
+Oxibuilder 설치가 완료되었습니다. 🎉
 
 이 글은 설정 마법사가 생성한 샘플 글입니다.
 삭제하거나 수정해도 됩니다.
 
 ## 다음 단계
 
-- **CLI**로 글 쓰기: `oxipage blog new "제목" --file draft.md`
+- **CLI**로 글 쓰기: `oxibuilder blog new "제목" --file draft.md`
 - **관리 콘솔**에서 콘텐츠 관리: 헤더의 ⚙️ 버튼
-- **프로젝트** 추가: `oxipage project add --title-ko "..." --title-en "..."`
+- **프로젝트** 추가: `oxibuilder project add --title-ko "..." --title-en "..."`
 
 즐거운 블로그 생활 되세요!
 ```
@@ -779,22 +779,22 @@ Oxipage 설치가 완료되었습니다. 🎉
 | 잘못된 테마 ID | 400 `invalid_theme` |
 | 존재하지 않는 확장 ID | 400 `unknown_extension` |
 | step 순서 위반 (admin 전에 extensions) | 허용 — step은 독립적, 순서 강제 안 함 |
-| `oxipage console` 중 브라우저 오픈 실 | 경고 로그만, 서버는 계속 |
+| `oxibuilder console` 중 브라우저 오픈 실 | 경고 로그만, 서버는 계속 |
 
 ## 13.12 전체 흐름 다이어그램
 
 ```mermaid
 sequenceDiagram
     participant U as 사용자
-    participant CLI as oxipage CLI
+    participant CLI as oxibuilder CLI
     participant S as 메인 서버 :8787
     participant B as 브라우저
     participant A as Admin :8788
 
-    U->>CLI: cargo install oxipage
-    U->>CLI: oxipage init --wizard
-    CLI->>CLI: oxipage.toml 생성
-    CLI->>S: oxipage console (내부)
+    U->>CLI: cargo install oxibuilder
+    U->>CLI: oxibuilder init --wizard
+    CLI->>CLI: oxibuilder.toml 생성
+    CLI->>S: oxibuilder console (내부)
     S->>S: DB 마이그레이션 + setup_state 확인
     S->>S: setup_completed_at = NULL → setup 모드
     S->>B: open http://127.0.0.1:8787/setup
@@ -835,7 +835,7 @@ sequenceDiagram
 | 샘플 글 생성 | setup/content 후 blog_post 1건 |
 | 브라우저 오픈 | mock Command로 open/open/xdg-open 호출 확인 |
 | 마법사 리다이렉트 | setup_mode=true/false에 따른 라우팅 |
-| E2E | `oxipage init --wizard` → 브라우저 자동 오픈 → 마법사 완료 → 로비 표시 |
+| E2E | `oxibuilder init --wizard` → 브라우저 자동 오픈 → 마법사 완료 → 로비 표시 |
 
 ## 13.14 구현 우선순위
 
@@ -843,10 +843,10 @@ sequenceDiagram
 |---|---|---|
 | **P1** | setup_state 테이블 + setup API 8개 + loopback 게이트 | core 마이그레이션 |
 | **P2** | 마법사 UI 6-step (web/ SPA) | P1 API |
-| **P3** | `oxipage console` 첫 부팅 감지 + 브라우저 자동 오픈 | P1 |
-| **P4** | `oxipage open` 신규 명령 | 없음 |
-| **P5** | `oxipage init --wizard` 단축 | P3 |
-| **P6** | crates.io 패키지명 `oxipage` 변경 | Cargo.toml |
+| **P3** | `oxibuilder console` 첫 부팅 감지 + 브라우저 자동 오픈 | P1 |
+| **P4** | `oxibuilder open` 신규 명령 | 없음 |
+| **P5** | `oxibuilder init --wizard` 단축 | P3 |
+| **P6** | crates.io 패키지명 `oxibuilder` 변경 | Cargo.toml |
 | **P7** | 메인 UI "관리" 버튼 + admin "사이트 보기" 링크 | 없음 |
 | **P8** | DEFAULT_TOML 기본 확장 변경 | 없음 |
 | **P9** | argon2id 비밀번호 모델 (admin 로그인 UI는 후속) | P1 |
@@ -860,4 +860,4 @@ P4~P8은 polish. P9는 보안 강화 (v1에서는 loopback-only로 충분).
 - `setup_expires_at` (24h 자동 만료) — v1에서는 무한 setup 모드 허용 (loopback 게이트로 충분)
 - 다국어 마법사 UI — v1은 한국어 고정, i18n은 후속
 - 마법사 "되돌리기" — 완료 후 setup 모드 재진입 불가 (의도적)
-- `oxipage reset` (setup 상태 초기화) — 위험하므로 v1 제외, 수동 DB 삭제로 대체
+- `oxibuilder reset` (setup 상태 초기화) — 위험하므로 v1 제외, 수동 DB 삭제로 대체

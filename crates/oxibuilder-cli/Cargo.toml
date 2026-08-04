@@ -1,0 +1,42 @@
+[package]
+name = "oxibuilder"
+version = "0.8.0"
+edition = "2024"
+license.workspace = true
+description = "Oxibuilder CLI — 블로그/프로젝트/링크/사이트 관리 커맨드라인 도구 (doc/04)"
+
+[[bin]]
+name = "oxibuilder"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+clap.workspace = true
+directories.workspace = true
+oxibuilder-core = { version = "0.8.0", path = "../oxibuilder-core" }
+oxibuilder-console = { version = "0.8.0", path = "../oxibuilder-console" }
+oxibuilder-deploy = { version = "0.8.0", path = "../oxibuilder-deploy" }
+oxibuilder-ext-blog = { version = "0.8.0", path = "../oxibuilder-ext-blog" }
+oxibuilder-ext-projects = { version = "0.8.0", path = "../oxibuilder-ext-projects" }
+oxibuilder-ext-links = { version = "0.8.0", path = "../oxibuilder-ext-links" }
+rusqlite = { version = "0.32", features = ["serde_json"] }
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+toml.workspace = true
+tower-http = { version = "0.6", features = ["fs"] }
+
+# `cargo install oxibuilder` ships only this member crate's manifest — the
+# workspace-root [profile.release] does NOT travel in the published .crate
+# tarball. macOS 27 dyld rejects the default `-C strip=debuginfo` output
+# (mis-aligned LINKEDIT string pool, rust-lang/rust#157750), so the fix
+# MUST live here for standalone installs to work. The workspace-build
+# "profile in non-root package ignored" warning is the price of covering
+# both paths.
+[profile.release]
+lto = true
+codegen-units = 1
+strip = "none"

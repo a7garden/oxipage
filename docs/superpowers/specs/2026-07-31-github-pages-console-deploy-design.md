@@ -18,7 +18,7 @@ DeployPage
 → POST /api/console/s/{slug}/deploy
 → DeployGuard
 → GET /deploy/{run_id}/stream
-→ oxipage_deploy::deploy_github_pages
+→ oxibuilder_deploy::deploy_github_pages
 ```
 
 The named `deploy/site_deploy.rs` file is a separate dead top-level stub; the SPA does not use it.
@@ -26,7 +26,7 @@ The named `deploy/site_deploy.rs` file is a separate dead top-level stub; the SP
 Load-bearing defects:
 
 - deploy core assumes process CWD is the site Git repository,
-- `/tmp/oxipage-deploy-{pid}` collides across concurrent sites,
+- `/tmp/oxibuilder-deploy-{pid}` collides across concurrent sites,
 - branch is hard-coded,
 - shell commands interpolate strings through `bash -c`,
 - no owner/repository/base config exists,
@@ -58,12 +58,12 @@ Load-bearing defects:
 
 ## 4. Configuration
 
-Add to `oxipage.toml`:
+Add to `oxibuilder.toml`:
 
 ```toml
 [deploy.github_pages]
 owner = "a7garden"
-repo = "oxipage-site"
+repo = "oxibuilder-site"
 branch = "gh-pages"
 ```
 
@@ -146,8 +146,8 @@ Response:
     "git_repository": true,
     "origin_matches": true,
     "build_compatible": true,
-    "pages_url": "https://a7garden.github.io/oxipage-site/",
-    "base_path": "/oxipage-site/",
+    "pages_url": "https://a7garden.github.io/oxibuilder-site/",
+    "base_path": "/oxibuilder-site/",
     "problems": []
   }
 }
@@ -160,7 +160,7 @@ Checks:
 3. `gh auth status`,
 4. `project_dir/.git` is a repository,
 5. origin points to configured owner/repo,
-6. `out_dir/.oxipage-build.json` exists,
+6. `out_dir/.oxibuilder-build.json` exists,
 7. manifest deployment base equals target base,
 8. manifest theme ID equals current site theme,
 9. `out/index.html` and referenced assets exist.
@@ -291,7 +291,7 @@ Behavior:
 
 ## 11. CLI convergence
 
-`oxipage deploy --site <slug>`:
+`oxibuilder deploy --site <slug>`:
 
 - reads `SitesFile`,
 - resolves the selected `project_dir` and config through the same path resolver,
@@ -304,14 +304,14 @@ Without `--site`, use the registered default site when a SitesFile exists; legac
 ## 12. File map
 
 ```text
-crates/oxipage-core/src/config.rs              # deploy config
-crates/oxipage-deploy/src/lib.rs                # repo-scoped safe deploy
-crates/oxipage-console/src/
+crates/oxibuilder-core/src/config.rs              # deploy config
+crates/oxibuilder-deploy/src/lib.rs                # repo-scoped safe deploy
+crates/oxibuilder-console/src/
 ├── operations.rs                               # shared guard/current run
 ├── deploy/deploy_run.rs                        # history/outcome/SSE
 ├── per_site.rs                                 # preflight/deploys/current routes
 └── router.rs                                   # no legacy stub
-crates/oxipage-cli/src/commands/deploy.rs        # honor --site/shared core
+crates/oxibuilder-cli/src/commands/deploy.rs        # honor --site/shared core
 web/src/admin/
 ├── shared/api.ts                               # config/preflight/history/current
 ├── settings/SettingsPage.tsx                   # Deployment section

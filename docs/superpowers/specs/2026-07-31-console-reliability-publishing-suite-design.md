@@ -2,7 +2,7 @@
 
 > **Date:** 2026-07-31
 > **Status:** Approved design; implementation planning not started
-> **Scope:** oxipage console routing, Admin themes, static preview/media, GitHub Pages deployment, and extension authoring UX
+> **Scope:** oxibuilder console routing, Admin themes, static preview/media, GitHub Pages deployment, and extension authoring UX
 
 ## 1. Goal
 
@@ -85,12 +85,12 @@ repo == "<owner>.github.io"  → "/"
 otherwise                    → "/<repo>/"
 ```
 
-The build writes `out/.oxipage-build.json`:
+The build writes `out/.oxibuilder-build.json`:
 
 ```json
 {
   "build_id": "5a8b…",
-  "deployment_base": "/oxipage-site/",
+  "deployment_base": "/oxibuilder-site/",
   "theme_id": "paper",
   "asset_revision": "4b57…",
   "built_at": "2026-07-31T02:00:00Z"
@@ -127,12 +127,12 @@ Canonical URLs remain derived from `site.base_url`, not from the HTML `<base>` e
 |Built preview|build manifest + `out_dir`|filesystem|last successful static build|
 |Draft preview|local form state|none until Save|single unsaved content item|
 |Media source|site media service|`media_dir` filesystem; logical path in content row|Admin, draft preview, built preview, deployed site|
-|Deploy target|per-site config|`oxipage.toml`|build base, preflight, deploy destination|
+|Deploy target|per-site config|`oxibuilder.toml`|build base, preflight, deploy destination|
 |Operation history|site DB|`build_log`, `deploy_log`|Dashboard and DeployPage|
 
 ## 7. Clean-cutover rules
 
-- Only `crates/oxipage-core/embedded-spa` is served. The console crate's duplicate embed and copy build script are removed.
+- Only `crates/oxibuilder-core/embedded-spa` is served. The console crate's duplicate embed and copy build script are removed.
 - Only site-scoped build/deploy routes under `/api/console/s/{slug}` remain. Legacy top-level build/deploy routes and the `site_deploy.rs` stub are removed.
 - Only `SiteContext` resolved paths are used; old `<project>/out` assumptions are not retained as aliases.
 - Public static URLs are relative to `document.baseURI`; root-absolute `/assets`, `/data`, and `/media` strings are removed from the public static path. Admin asset URLs stay absolute.

@@ -1,16 +1,16 @@
 # Contributing
 
-How to contribute to Oxipage. For basics, read the [`README`](README.md) first.
+How to contribute to Oxibuilder. For basics, read the [`README`](README.md) first.
 
 ## Development environment
 
 ```bash
 # Backend (:8787) + frontend dev server (:5173, /api → :8787 proxy)
-cargo run -p oxipage-console &
+cargo run -p oxibuilder-console &
 cd web && bun install && bun run dev
 
 # Or start the server via the CLI (`console` boots the server process directly — doc/04 §4.1)
-cargo run -p oxipage-cli -- console
+cargo run -p oxibuilder-cli -- console
 ```
 
 A `debug` build reads `web/dist` from disk, so run it alongside the frontend dev server. A
@@ -32,10 +32,10 @@ A PR must pass all four. Don't break dependency or test isolation.
 
 ```
 crates/
-├── oxipage-core/      # shared runtime: HTTP, auth, search, scheduler, registry, snapshot, config
-├── oxipage-console/    # binary (oxipage-console): statically links all extensions, assembles registry
-├── oxipage-cli/       # binary (oxipage): the API's reference client (every command = an HTTP call)
-└── oxipage-ext-*/     # 9 extensions. Each owns its DB tables, routes, CLI, background jobs.
+├── oxibuilder-core/      # shared runtime: HTTP, auth, search, scheduler, registry, snapshot, config
+├── oxibuilder-console/    # binary (oxibuilder-console): statically links all extensions, assembles registry
+├── oxibuilder-cli/       # binary (oxibuilder): the API's reference client (every command = an HTTP call)
+└── oxibuilder-ext-*/     # 9 extensions. Each owns its DB tables, routes, CLI, background jobs.
 ```
 
 **Core boundary:** an extension writes and reads **only its own tables**. It never JOINs another
@@ -50,16 +50,16 @@ maintainer's internal design notes.)*
 
 [`docs/extension-sdk.md`](docs/extension-sdk.md) walks through it from scratch. Summary:
 
-1. Create `crates/oxipage-ext-<id>/` and add it to the workspace `members`.
+1. Create `crates/oxibuilder-ext-<id>/` and add it to the workspace `members`.
 2. Implement the `Extension` trait (`id`/`display_name`/`migrations`/`routes`/`lobby_summary`/…).
 3. **Register it in the server:** add a line to `all_extensions()` in
-   `crates/oxipage-console/src/lib.rs`.
+   `crates/oxibuilder-console/src/lib.rs`.
    > ⚠ Rewrite `all_extensions()` **wholesale with `write`** — partial `edit`/`SWAP` keeps
    > dropping or duplicating `vec![` (doc/08 §8.9).
 4. Add metadata to `registry/index.json`.
 
-Reference implementations: `oxipage-ext-blog` (simple), `oxipage-ext-projects` (forced bilingual
-+ screenshots), `oxipage-ext-movies` (TMDB integration + SeriesGroup).
+Reference implementations: `oxibuilder-ext-blog` (simple), `oxibuilder-ext-projects` (forced bilingual
++ screenshots), `oxibuilder-ext-movies` (TMDB integration + SeriesGroup).
 
 ## Key conventions (implementation deviations — must follow)
 
@@ -73,17 +73,17 @@ Original list: doc/08 §8.9.
 | **`order` reserved word** | Always use `display_order` (`order` is a SQL reserved word). |
 | **Draft-first** | `create` always sets `published_at = NULL`. Publishing is a separate `POST /{id}/publish` action only. Same for the CLI (`add`/`new` = draft). |
 | **Write-route auth** | A handler taking `_auth: AdminAuth` enforces `post:write` at entry. Publish actions call `auth.require_scope("post:publish")?;` first. Token management calls `require_scope("admin")?`. |
-| **PAT vs ADMIN_TOKEN** | `OXIPAGE_ADMIN_TOKEN` = superuser (scopes `["admin"]`). PATs have `post:write`/`post:publish`/`read`. |
-| **FTS5 shared index** | On publish, upsert into `search_documents` via `oxipage_core::search::upsert(...)`. On delete/disable, immediately `delete`/`delete_extension` (doc/02 §2.13). |
-| **External API keys** | Store only the **env-var name** in `oxipage.toml [integrations]` (never the plaintext key). Read via `Config::integrations` helpers (`tmdb_key()`/`aladin_key()`/`github_username()`). If a key is absent, that integration silently disables (doc/01 §1.9). |
+| **PAT vs ADMIN_TOKEN** | `OXIBUILDER_ADMIN_TOKEN` = superuser (scopes `["admin"]`). PATs have `post:write`/`post:publish`/`read`. |
+| **FTS5 shared index** | On publish, upsert into `search_documents` via `oxibuilder_core::search::upsert(...)`. On delete/disable, immediately `delete`/`delete_extension` (doc/02 §2.13). |
+| **External API keys** | Store only the **env-var name** in `oxibuilder.toml [integrations]` (never the plaintext key). Read via `Config::integrations` helpers (`tmdb_key()`/`aladin_key()`/`github_username()`). If a key is absent, that integration silently disables (doc/01 §1.9). |
 | **OpenAPI / SSR** | Hand-rolled `serde_json` spec and hand-rolled templates instead of `utoipa`/Askama (saves dependencies; fine at single-user scale). |
-| **CLI flag quirks** | `auth token create` uses `--scopes` (plural, comma-separated). `lobby layout` takes the extension as a positional: `oxipage lobby layout <ext> --mode <m>` (no `set`). Multi-value args like `--tech` repeat: `--tech rust --tech react`. |
+| **CLI flag quirks** | `auth token create` uses `--scopes` (plural, comma-separated). `lobby layout` takes the extension as a positional: `oxibuilder lobby layout <ext> --mode <m>` (no `set`). Multi-value args like `--tech` repeat: `--tech rust --tech react`. |
 | **macOS 27 build** | The release profile pins `strip = "none"` (rust-lang/rust#157750). New crates inherit it. |
 
 ## Working with agents
 
 When an AI agent (oh-my-pi, etc.) manages content via the CLI, the safety rules and workflow are
-in [`.agent/skills/oxipage-cli/SKILL.md`](.agent/skills/oxipage-cli/SKILL.md). Core rule:
+in [`.agent/skills/oxibuilder-cli/SKILL.md`](.agent/skills/oxibuilder-cli/SKILL.md). Core rule:
 **drafts are automatic, but publishing (`publish`/`--publish`) always requires explicit human
 approval.** Give agent tokens only `post:write`, never `post:publish`.
 

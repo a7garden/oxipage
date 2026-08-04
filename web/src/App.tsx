@@ -84,7 +84,7 @@ function Shell() {
   }, []);
   const { data: manifest } = useQuery({ queryKey: ["manifest"], queryFn: fetchManifest });
   const defaultLang: Lang = manifest?.site.default_lang === "en" ? "en" : "ko";
-  const siteName = manifest?.site.name ?? "Oxipage";
+  const siteName = manifest?.site.name ?? "Oxibuilder";
 
   return (
     <LanguageProvider key={defaultLang} defaultLang={defaultLang}>
@@ -213,7 +213,7 @@ function Shell() {
         <footer className="border-t border-line py-6">
           <Container>
             <p className="text-center text-sm text-subtle">
-              {siteName} · Oxipage
+              {siteName} · Oxibuilder
             </p>
           </Container>
         </footer>

@@ -1,25 +1,25 @@
 # 12장 — Admin Console (관리 GUI)
-> **v2 변경 (2026-07-28):** "Admin Console"이 "Management Console"(`oxipage console`)로 통합되었다.
-> 이전 `oxipage admin` 서브커맨드 + `oxipage-console` 바이너리가 단일 `oxipage console` 명령으로 합쳐졌고,
-> `oxipage-admin` crate는 `oxipage-console` crate의 admin 모듈로 흡수되었다.
+> **v2 변경 (2026-07-28):** "Admin Console"이 "Management Console"(`oxibuilder console`)로 통합되었다.
+> 이전 `oxibuilder admin` 서브커맨드 + `oxibuilder-console` 바이너리가 단일 `oxibuilder console` 명령으로 합쳐졌고,
+> `oxibuilder-admin` crate는 `oxibuilder-console` crate의 admin 모듈로 흡수되었다.
 > 이 장의 개념은 그대로 유효하다 (관리 GUI + 사이트 프록시 + 테마 카탈로그).
 
 
 ## 12.1 동기
 
-oxipage는 CLI가 유일한 관리 인터페이스다. 확장 활성/비활성, 게시물 작성·발행, 데이터 조회, 로비 설정 변경 — 모든 작업이 터미널에서 이루어진다. 이는 스크립트·자동화에는 이상적이지만, 시각적 탐색(게시물 목록 스크롤, 스크린샷 미리보기, 확장 상태 한눈에 보기)이나 복잡한 편집(마크다운 에디터, 태그 관리, 테마 미리보기)에는 부적합하다.
+oxibuilder는 CLI가 유일한 관리 인터페이스다. 확장 활성/비활성, 게시물 작성·발행, 데이터 조회, 로비 설정 변경 — 모든 작업이 터미널에서 이루어진다. 이는 스크립트·자동화에는 이상적이지만, 시각적 탐색(게시물 목록 스크롤, 스크린샷 미리보기, 확장 상태 한눈에 보기)이나 복잡한 편집(마크다운 에디터, 태그 관리, 테마 미리보기)에는 부적합하다.
 
 이 장은 **로컬 전용 관리 GUI**를 도입한다. 핵심 원칙:
 
-- **호스트 바이너리(`oxipage`)가 도는 로컬에서만 실행.** 원격 접근 불필요, 불허.
-- **사이트별 관리.** `~/.config/oxipage/sites.toml`(doc/09)에 등록된 여러 사이트(로컬 self-host, 클라우드 VM, fly.io 등)를 GUI에서 전환하며 각각 관리.
+- **호스트 바이너리(`oxibuilder`)가 도는 로컬에서만 실행.** 원격 접근 불필요, 불허.
+- **사이트별 관리.** `~/.config/oxibuilder/sites.toml`(doc/09)에 등록된 여러 사이트(로컬 self-host, 클라우드 VM, fly.io 등)를 GUI에서 전환하며 각각 관리.
 - **서버에 얹지 않는다.** `/admin`을 공개 서버에 마운트하면 0.0.0.0 노출 시 함께 노출되고, 단일 서버 인스턴스만 관리 가능해 "사이트별로"가 성립하지 않는다.
 
 ## 12.2 아키텍처 개요
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  oxipage admin (로컬 전용, 127.0.0.1:8788)                      │
+│  oxibuilder admin (로컬 전용, 127.0.0.1:8788)                      │
 │                                                                 │
 │  ┌──────────────┐    ┌──────────────────────────────────────┐   │
 │  │  Admin SPA   │◄──►│  Admin Backend (axum)                │   │
@@ -55,7 +55,7 @@ oxipage는 CLI가 유일한 관리 인터페이스다. 확장 활성/비활성, 
 |------|-----|
 | 기본 포트 | **8788** (공개 서버 8787의 +1, 직관적) |
 | 바인딩 주소 | `127.0.0.1` 고정 (변경 불가 — 보안 경계) |
-| 변경 방법 | `--port <N>` flag 또는 `OXIPAGE_ADMIN_PORT` env |
+| 변경 방법 | `--port <N>` flag 또는 `OXIBUILDER_ADMIN_PORT` env |
 | 충돌 시 | 즉시 에러 + 대안 포트 제안 (`8789`, `8790`, ...) |
 
 ## 12.4 보안 모델
@@ -68,12 +68,12 @@ oxipage는 CLI가 유일한 관리 인터페이스다. 확장 활성/비활성, 
 4. **CSRF 무관.** SameSite 쿠키 없음, 모든 요청은 `Content-Type: application/json` + 커스텀 헤더(`X-Admin-Request: 1`).
 5. **CORS 없음.** 동일 오리진(127.0.0.1:8788)에서만 SPA 서빙.
 
-## 12.5 백엔드 — `oxipage-admin` 크레이트
+## 12.5 백엔드 — `oxibuilder-admin` 크레이트
 
 ### 구조
 
 ```
-crates/oxipage-admin/
+crates/oxibuilder-admin/
 ├── Cargo.toml
 └── src/
     ├── lib.rs          # run_admin() 진입점
@@ -100,10 +100,10 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 ```
 
-`oxipage-cli`의 `sites.rs` 모듈을 **공유 라이브러리로 추출**하지 않고, `oxipage-admin`에서 동일 로직을 재구현한다. 이유:
+`oxibuilder-cli`의 `sites.rs` 모듈을 **공유 라이브러리로 추출**하지 않고, `oxibuilder-admin`에서 동일 로직을 재구현한다. 이유:
 
 - `sites.rs`는 130줄, 의존성 제로(serde + toml + directories)
-- 추출 시 `oxipage-sites` 크레이트 신설 → 워크스페이스 멤버 +1, 양쪽 의존성 변경
+- 추출 시 `oxibuilder-sites` 크레이트 신설 → 워크스페이스 멤버 +1, 양쪽 의존성 변경
 - 재구현 비용 < 추출 비용 (한 번 쓰고 마는 코드 아님 — 양쪽이 독립적으로 진화할 수 있음)
 
 ### `run_admin()` 진입점
@@ -206,7 +206,7 @@ CREATE TABLE IF NOT EXISTS theme_config (
 );
 ```
 
-### API (공개 서버 측, `oxipage-core`에 추가)
+### API (공개 서버 측, `oxibuilder-core`에 추가)
 
 ```
 GET  /api/console/theme          → 현재 테마 설정 (인증 불요, 공개 웹이 읽음)
@@ -393,21 +393,21 @@ admin-web/
 
 ## 12.9 CLI 통합
 
-### `oxipage admin` 서브커맨드
+### `oxibuilder admin` 서브커맨드
 
 ```
-oxipage admin [--port <N>]
+oxibuilder admin [--port <N>]
 ```
 
-- `oxipage-cli/src/main.rs`의 `Command` enum에 `Admin { port: Option<u16> }` 추가
-- `oxipage-admin::run_admin(port.unwrap_or(8788))` 호출
+- `oxibuilder-cli/src/main.rs`의 `Command` enum에 `Admin { port: Option<u16> }` 추가
+- `oxibuilder-admin::run_admin(port.unwrap_or(8788))` 호출
 - `serve`와 동일하게 "HTTP를 거치지 않는 예외" — 로컬 프로세스 직접 기동
 
 ### 출력
 
 ```
-$ oxipage admin
-oxipage management console listening on http://127.0.0.1:8788
+$ oxibuilder admin
+oxibuilder management console listening on http://127.0.0.1:8788
 sites: 3 registered (selfhost*, alibaba, flyio)
 open http://127.0.0.1:8788 in your browser
 ```
@@ -429,7 +429,7 @@ open http://127.0.0.1:8788 in your browser
 | GET | `/api/admin/themes` | 테마 카탈로그 (내장) |
 | ANY | `/api/admin/proxy/{site}/*` | 사이트 프록시 |
 
-### 공개 서버 추가 (oxipage-core)
+### 공개 서버 추가 (oxibuilder-core)
 
 | Method | Path | 설명 |
 |--------|------|------|
@@ -442,11 +442,11 @@ open http://127.0.0.1:8788 in your browser
 
 | 경로 | 설명 |
 |------|------|
-| `crates/oxipage-admin/` | Admin Backend 크레이트 |
-| `crates/oxipage-admin/src/lib.rs` | `run_admin()` 진입점 |
-| `crates/oxipage-admin/src/proxy.rs` | 사이트 프록시 |
-| `crates/oxipage-admin/src/sites_api.rs` | sites.toml CRUD |
-| `crates/oxipage-admin/src/themes.rs` | 테마 카탈로그 |
+| `crates/oxibuilder-admin/` | Admin Backend 크레이트 |
+| `crates/oxibuilder-admin/src/lib.rs` | `run_admin()` 진입점 |
+| `crates/oxibuilder-admin/src/proxy.rs` | 사이트 프록시 |
+| `crates/oxibuilder-admin/src/sites_api.rs` | sites.toml CRUD |
+| `crates/oxibuilder-admin/src/themes.rs` | 테마 카탈로그 |
 | `admin-web/` | Admin SPA (React + Vite) |
 | `admin-web/src/**` | 프론트엔드 소스 |
 
@@ -454,28 +454,28 @@ open http://127.0.0.1:8788 in your browser
 
 | 경로 | 변경 |
 |------|------|
-| `Cargo.toml` | workspace members에 `oxipage-admin` 추가 |
-| `crates/oxipage-cli/Cargo.toml` | `oxipage-admin` 의존성 추가 |
-| `crates/oxipage-cli/src/main.rs` | `Command::Admin` 추가 |
-| `crates/oxipage-cli/src/commands/mod.rs` | admin dispatch 추가 |
-| `crates/oxipage-core/src/http.rs` | `/api/console/theme` GET/PUT 라우트 추가 |
-| `crates/oxipage-core/src/migrate.rs` | `theme_config` 테이블 마이그레이션 |
+| `Cargo.toml` | workspace members에 `oxibuilder-admin` 추가 |
+| `crates/oxibuilder-cli/Cargo.toml` | `oxibuilder-admin` 의존성 추가 |
+| `crates/oxibuilder-cli/src/main.rs` | `Command::Admin` 추가 |
+| `crates/oxibuilder-cli/src/commands/mod.rs` | admin dispatch 추가 |
+| `crates/oxibuilder-core/src/http.rs` | `/api/console/theme` GET/PUT 라우트 추가 |
+| `crates/oxibuilder-core/src/migrate.rs` | `theme_config` 테이블 마이그레이션 |
 | `web/src/shared/theme.ts` | 부팅 시 테마 API 호출 + CSS 변수 주입 |
 
 ### 미변경
 
-- `oxipage-console` — 공개 서버 로직 변경 없음
+- `oxibuilder-console` — 공개 서버 로직 변경 없음
 - 기존 확장 크레이트 — 라우트/스키마 변경 없음
-- `oxipage.toml` 스키마 — 테마는 DB 저장, toml 불변
+- `oxibuilder.toml` 스키마 — 테마는 DB 저장, toml 불변
 
 ## 12.12 구현 순서
 
 ```
 Phase 1: 백엔드 기초
-  ├─ oxipage-admin 크레이트 스캐폴드
+  ├─ oxibuilder-admin 크레이트 스캐폴드
   ├─ sites.toml CRUD API
   ├─ 사이트 프록시 레이어
-  └─ CLI `oxipage admin` 서브커맨드
+  └─ CLI `oxibuilder admin` 서브커맨드
 
 Phase 2: 테마 시스템
   ├─ theme_config 마이그레이션 (core)

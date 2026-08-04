@@ -96,7 +96,7 @@ export function ThemesPage() {
         </div>
         <div className="grid grid-cols-3 gap-3">
           {[
-            { title: "Console Redesign", excerpt: "A new era for Oxipage management..." },
+            { title: "Console Redesign", excerpt: "A new era for Oxibuilder management..." },
             { title: "WASM v2 Benchmarks", excerpt: "Performance numbers..." },
             { title: "멀티사이트 가이드", excerpt: "여러 블로그를 한 번에 관리하는 방법..." },
           ].map((item) => (

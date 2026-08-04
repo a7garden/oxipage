@@ -1,0 +1,16 @@
+[package]
+name = "oxibuilder-deploy"
+version = "0.8.0"
+edition = "2024"
+license.workspace = true
+description = "Shared deploy pipeline (GitHub Pages) for oxibuilder CLI + console"
+
+[dependencies]
+oxibuilder-core = { version = "0.8.0", path = "../oxibuilder-core" }
+serde.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

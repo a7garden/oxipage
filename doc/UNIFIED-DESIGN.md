@@ -1,26 +1,26 @@
 > Canonical unified design system: project-oxi/.github/DESIGN.md — this file is project-specific.
 
-# oxipage — Unified Design System (Project Adaptation)
+# oxibuilder — Unified Design System (Project Adaptation)
 
 > **정규 문서:** `oxinot/doc/UNIFIED-DESIGN.md` (oxi 생태계 통합 디자인 시스템 v1.0).
-> 이 파일은 oxipage가 그 위에 갖는 **고유 표면 정체성 + 마이그레이션 경로**만 다룬다. 공통 토큰·컴포넌트·철학은 정규 문서를 따른다.
+> 이 파일은 oxibuilder가 그 위에 갖는 **고유 표면 정체성 + 마이그레이션 경로**만 다룬다. 공통 토큰·컴포넌트·철학은 정규 문서를 따른다.
 >
 > **버전:** v1.0 · **작성일:** 2026-07-31
 
 ---
 
-## oxipage의 정체성
+## oxibuilder의 정체성
 
-oxipage는 한 사람의 여러 자아(개발자·소설가·비평가·큐레이터)를 모으는 다중 확장 개인 사이트다. "밤에 코드를 짜다가 문득 다음 문장을 이어 쓰는 조용한 작업실"이 컨셉이다. 공통 문법(ink on paper, 6-hue OKLCH)을 따르되, **로비 3모드와 별점 골드**가 oxipage만의 시그니처다.
+oxibuilder는 한 사람의 여러 자아(개발자·소설가·비평가·큐레이터)를 모으는 다중 확장 개인 사이트다. "밤에 코드를 짜다가 문득 다음 문장을 이어 쓰는 조용한 작업실"이 컨셉이다. 공통 문법(ink on paper, 6-hue OKLCH)을 따르되, **로비 3모드와 별점 골드**가 oxibuilder만의 시그니처다.
 
 ---
 
 ## 공통 시스템에서 변경 없는 것
 
-아래는 정규 문서(§1–10)를 그대로 따른다 — oxipage 고유값이 아님:
+아래는 정규 문서(§1–10)를 그대로 따른다 — oxibuilder 고유값이 아님:
 
 - OKLCH 3-tier 토큰 (primitive → semantic → component)
-- 중성 warm paper / cool ink 램프 (hue 95 light / 265 dark) — oxipage v1과 동일
+- 중성 warm paper / cool ink 램프 (hue 95 light / 265 dark) — oxibuilder v1과 동일
 - 6-hue 라벨 팔레트 (L≈0.70–0.75, C≈0.12–0.15)
 - 상태색 (APCA 최적화)
 - SUIT(본문) + SUITE(헤드라인) + Geist Mono(코드)
@@ -29,7 +29,7 @@ oxipage는 한 사람의 여러 자아(개발자·소설가·비평가·큐레�
 
 ---
 
-## oxipage 고유값 (공통 시스템 위에 유지)
+## oxibuilder 고유값 (공통 시스템 위에 유지)
 
 ### 1. 로비 3모드 (`LobbyConfig.display_mode`)
 
@@ -50,12 +50,12 @@ type CanvasParams = {
 
 초기 배치는 단순 충돌 회피 패스(전체 물리 시뮬 아님). 드리프트는 CSS `transform` 키프레임 — JS rAF 아님.
 
-### 2. 별점 골드 (oxipage 전용, 유지)
+### 2. 별점 골드 (oxibuilder 전용, 유지)
 
 별점 전용 "잉크에 찍은 금박" 톤. 6-hue 라벨과 분리된 독립 토큰.
 
 ```css
-/* primitives — oxipage 로컬 */
+/* primitives — oxibuilder 로컬 */
 --p-gold-400: oklch(82% 0.15 85);
 --p-gold-500: oklch(78% 0.15 85);
 --p-gold-600: oklch(68% 0.15 85);
@@ -69,7 +69,7 @@ type CanvasParams = {
 
 ### 3. 퍼블릭 테마 축 (6테마 — 독립 변형 축)
 
-oxipage는 공개 사이트에 6가지 퍼블릭 테마(`paper`/`midnight`/`sepia`/`forest`/`neon`/`canvas`)를 제공한다. 이는 `.dark` light/dark 축과 **직교**하는 독립 변형 축이다 (정규 문서 §8.4와 동일 원리).
+oxibuilder는 공개 사이트에 6가지 퍼블릭 테마(`paper`/`midnight`/`sepia`/`forest`/`neon`/`canvas`)를 제공한다. 이는 `.dark` light/dark 축과 **직교**하는 독립 변형 축이다 (정규 문서 §8.4와 동일 원리).
 
 ```css
 [data-public-theme="paper"],
@@ -106,7 +106,7 @@ oxipage는 공개 사이트에 6가지 퍼블릭 테마(`paper`/`midnight`/`sepi
 - jsDelivr에서 로드: `@import url('https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2/...')`
 
 ### Step 3: 반경 정렬
-- oxipage v1: `--radius-md: 0.75rem` (12px). 정규 시스템: `--radius-md: 0.5rem` (8px).
+- oxibuilder v1: `--radius-md: 0.75rem` (12px). 정규 시스템: `--radius-md: 0.5rem` (8px).
 - 카드는 `--radius-lg`(12px)로 정렬. 버튼/인풋은 `--radius-md`(8px). 컴포넌트별 토큰(`--card-radius` 등) 도입으로 일원화.
 
 ### Step 4: FOUC 스크립트
@@ -132,4 +132,4 @@ oxipage는 공개 사이트에 6가지 퍼블릭 테마(`paper`/`midnight`/`sepi
 
 ---
 
-*공통 토큰 값·컴포넌트 스펙·철학은 `oxinot/doc/UNIFIED-DESIGN.md`를 따른다. 이 파일은 oxipage 고유 영역만.*
+*공통 토큰 값·컴포넌트 스펙·철학은 `oxinot/doc/UNIFIED-DESIGN.md`를 따른다. 이 파일은 oxibuilder 고유 영역만.*

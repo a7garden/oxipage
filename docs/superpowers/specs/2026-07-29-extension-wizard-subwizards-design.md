@@ -6,10 +6,10 @@
 - **우선순위**: High
 - **선행 문서**: `docs/superpowers/specs/2026-07-29-extension-native-treatment-design.md` (본 문서가 §2.2 비목표를 해제·확장)
 - **관련 코드**:
-  - `crates/oxipage-core/src/extension.rs` (트레이트 + `SetupStep`/`SetupField` 타입)
-  - `crates/oxipage-core/src/setup.rs` (setup API 핸들러)
+  - `crates/oxibuilder-core/src/extension.rs` (트레이트 + `SetupStep`/`SetupField` 타입)
+  - `crates/oxibuilder-core/src/setup.rs` (setup API 핸들러)
   - `web/src/setup/` (위자드 프론트엔드)
-  - `crates/oxipage-core/tests/setup_wizard.rs` (통합 테스트)
+  - `crates/oxibuilder-core/tests/setup_wizard.rs` (통합 테스트)
 
 ---
 
@@ -74,7 +74,7 @@
 
 ---
 
-## 4. 코어 타입 변경 — `crates/oxipage-core/src/extension.rs`
+## 4. 코어 타입 변경 — `crates/oxibuilder-core/src/extension.rs`
 
 ### 4.1 트레이트 (D1, D4)
 
@@ -205,7 +205,7 @@ pub struct ExtensionStepInfo {
 
 ---
 
-## 5. API 변경 — `crates/oxipage-core/src/setup.rs`
+## 5. API 변경 — `crates/oxibuilder-core/src/setup.rs`
 
 ### 5.1 `GET /api/console/setup/status` 응답
 
@@ -389,7 +389,7 @@ sequenceDiagram
 
 ## 10. 테스트 전략
 
-`crates/oxipage-core/tests/setup_wizard.rs` 확장 (기존 테스트는 새 시그니처로 갱신):
+`crates/oxibuilder-core/tests/setup_wizard.rs` 확장 (기존 테스트는 새 시그니처로 갱신):
 
 - **status 조립**: 활성 확장의 `extension_wizards`만 노출, 비활성은 제외 (기존 `disabled_extension_excluded_from_status` 회귀 유지).
 - **다중 step**: 한 확장이 2+ step을 반환할 때 모두 `extension_wizards[].steps`에 순서대로 직렬화.

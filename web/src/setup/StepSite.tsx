@@ -1,7 +1,7 @@
 // Step 1: 사이트 디렉토리 결정 (v2 SSG site-picker, spec D5).
 //
 // 위저드 시작 = 사이트 시작. 사용자가 신규 디렉토리를 만들거나
-// 기존 oxipage 디렉토리를 등록한다. Step 완료 시 dashboard로 진입한다.
+// 기존 oxibuilder 디렉토리를 등록한다. Step 완료 시 dashboard로 진입한다.
 
 import { useState } from "react";
 import { Button } from "../shared/ui/button";
@@ -15,7 +15,7 @@ interface Props {
 }
 
 export function StepSite({ onNext, loading, setLoading }: Props) {
-  const [sitePath, setSitePath] = useState("~/oxipage/blog");
+  const [sitePath, setSitePath] = useState("~/oxibuilder/blog");
   const [error, setError] = useState<string | null>(null);
   const valid = sitePath.trim().length > 0;
 
@@ -37,12 +37,12 @@ export function StepSite({ onNext, loading, setLoading }: Props) {
     <div>
       <h2 className="text-xl font-semibold mb-6 text-center">사이트 디렉토리</h2>
       <p className="text-sm text-subtle text-center mb-6">
-        새 디렉토리를 만들거나 기존 oxipage 디렉토리를 등록합니다.
+        새 디렉토리를 만들거나 기존 oxibuilder 디렉토리를 등록합니다.
       </p>
 
       <label className="block text-sm font-medium mb-2">경로</label>
       <Input
-        placeholder="~/oxipage/blog"
+        placeholder="~/oxibuilder/blog"
         value={sitePath}
         onChange={(e) => setSitePath(e.target.value)}
         onKeyDown={(e) => {
@@ -51,7 +51,7 @@ export function StepSite({ onNext, loading, setLoading }: Props) {
         autoFocus
       />
       <p className="text-xs text-subtle mt-1">
-        oxipage.toml이 없는 경로는 자동 생성됩니다.
+        oxibuilder.toml이 없는 경로는 자동 생성됩니다.
       </p>
 
       {error && (

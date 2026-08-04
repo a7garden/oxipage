@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace v1's split :8787/:8788 console shape and inactive SiteSwitcher with one :8787 management console that owns all registered oxipage project directories. Each site = its own oxipage.toml + oxipage.db; the backend mounts `/s/<slug>/<ext>` for every site at startup and resolves per-request DB pool through middleware.
+**Goal:** Replace v1's split :8787/:8788 console shape and inactive SiteSwitcher with one :8787 management console that owns all registered oxibuilder project directories. Each site = its own oxibuilder.toml + oxibuilder.db; the backend mounts `/s/<slug>/<ext>` for every site at startup and resolves per-request DB pool through middleware.
 
-**Architecture:** SiteRegistry (startup-loaded, no swap), per-site `SiteScopedDb` injected via middleware into `Request::extensions()`, admin-web SPA absorbed into `web/src/admin/` so the wizard, the sites picker, and the per-site console share one shell. Setup state moves from per-site DB to `~/.config/oxipage/console.db`. Public preview is `out/<slug>/` served at `/preview/:slug/*`.
+**Architecture:** SiteRegistry (startup-loaded, no swap), per-site `SiteScopedDb` injected via middleware into `Request::extensions()`, admin-web SPA absorbed into `web/src/admin/` so the wizard, the sites picker, and the per-site console share one shell. Setup state moves from per-site DB to `~/.config/oxibuilder/console.db`. Public preview is `out/<slug>/` served at `/preview/:slug/*`.
 
 **Tech Stack:** Rust 1.96+, axum 0.8, sqlx (SqlitePool), serde, walkdir, directories; React 19 + Vite 7 + TanStack Query 5 (consumed by SPA, no new dependency); all extensions modified minimally via one-line state.db → SiteScopedDb swap.
 
@@ -26,17 +26,17 @@
 ## File Structure
 
 ### New files
-- `crates/oxipage-console/src/sites_runtime.rs` — SiteRegistry + SiteLoader
-- `crates/oxipage-console/src/console_state.rs` — console.db connection + setup_state migrations
-- `crates/oxipage-console/src/router.rs` — site-prefixed route builder
-- `crates/oxipage-console/src/middleware/site_db.rs` — db_for_middleware
-- `crates/oxipage-console/src/middleware/setup_gate.rs` — (moved from core, opt-in re-export)
-- `crates/oxipage-console/tests/sites_registry.rs`
-- `crates/oxipage-console/tests/site_routes.rs`
-- `crates/oxipage-console/tests/setup_site_create.rs`
-- `crates/oxipage-console/tests/console_state.rs`
-- `crates/oxipage-cli/src/commands/console.rs` — (refactored; replaces init_console)
-- `crates/oxipage-cli/src/commands/site.rs` — path-based variant
+- `crates/oxibuilder-console/src/sites_runtime.rs` — SiteRegistry + SiteLoader
+- `crates/oxibuilder-console/src/console_state.rs` — console.db connection + setup_state migrations
+- `crates/oxibuilder-console/src/router.rs` — site-prefixed route builder
+- `crates/oxibuilder-console/src/middleware/site_db.rs` — db_for_middleware
+- `crates/oxibuilder-console/src/middleware/setup_gate.rs` — (moved from core, opt-in re-export)
+- `crates/oxibuilder-console/tests/sites_registry.rs`
+- `crates/oxibuilder-console/tests/site_routes.rs`
+- `crates/oxibuilder-console/tests/setup_site_create.rs`
+- `crates/oxibuilder-console/tests/console_state.rs`
+- `crates/oxibuilder-cli/src/commands/console.rs` — (refactored; replaces init_console)
+- `crates/oxibuilder-cli/src/commands/site.rs` — path-based variant
 - `web/src/admin/shell/SiteShell.tsx`
 - `web/src/admin/shell/SiteSwitcher.tsx`
 - `web/src/admin/shell/TopBar.tsx`
@@ -56,27 +56,27 @@
 - `web/src/admin/themes/ThemesPage.tsx`
 - `web/src/admin/build/BuildPage.tsx`
 - `web/src/admin/deploy/DeployPage.tsx`
-- `crates/oxipage-core/tests/per_site_handler_smoke.rs` (one-line swap integration)
+- `crates/oxibuilder-core/tests/per_site_handler_smoke.rs` (one-line swap integration)
 
 ### Modified files
 - `Cargo.toml` (workspace deps)
-- `crates/oxipage-console/Cargo.toml`
-- `crates/oxipage-console/src/lib.rs` (entry; remove run_admin)
-- `crates/oxipage-console/src/admin/mod.rs` (delete)
-- `crates/oxipage-core/src/extension.rs` (no trait change; sites_runtime depends on existing trait surface)
-- `crates/oxipage-core/src/http.rs::build_app` (move into oxipage-console/src/router.rs)
-- `crates/oxipage-core/src/setup.rs` (read setup_state from console.db, not site DB)
-- `crates/oxipage-cli/src/commands/mod.rs`
-- `crates/oxipage-cli/src/commands/init_console.rs` → renamed to `console.rs`
-- `crates/oxipage-cli/src/sites.rs` (SiteEntry renamed: `path: PathBuf`)
-- `crates/oxipage-cli/src/main.rs`
-- `crates/oxipage-ext-blog/src/http.rs` (state.db → SiteScopedDb)
+- `crates/oxibuilder-console/Cargo.toml`
+- `crates/oxibuilder-console/src/lib.rs` (entry; remove run_admin)
+- `crates/oxibuilder-console/src/admin/mod.rs` (delete)
+- `crates/oxibuilder-core/src/extension.rs` (no trait change; sites_runtime depends on existing trait surface)
+- `crates/oxibuilder-core/src/http.rs::build_app` (move into oxibuilder-console/src/router.rs)
+- `crates/oxibuilder-core/src/setup.rs` (read setup_state from console.db, not site DB)
+- `crates/oxibuilder-cli/src/commands/mod.rs`
+- `crates/oxibuilder-cli/src/commands/init_console.rs` → renamed to `console.rs`
+- `crates/oxibuilder-cli/src/sites.rs` (SiteEntry renamed: `path: PathBuf`)
+- `crates/oxibuilder-cli/src/main.rs`
+- `crates/oxibuilder-ext-blog/src/http.rs` (state.db → SiteScopedDb)
 - `web/src/setup/SetupWizard.tsx` (StepSite adds site-directory choice)
 - `web/src/setup/api.ts` (create-site added)
 - `web/src/App.tsx` (remove the public-shell route — it now lives in admin shell)
 
 ### Deleted files
-- `crates/oxipage-console/src/admin/` directory
+- `crates/oxibuilder-console/src/admin/` directory
 - `admin-web/` directory (only after web/src/admin/ is wired up)
 
 ---
@@ -84,9 +84,9 @@
 ## Task 1: sites.toml schema migration + SiteRegistry skeleton
 
 **Files:**
-- Modify: `crates/oxipage-cli/src/sites.rs`
-- Create: `crates/oxipage-console/src/sites_runtime.rs`
-- Create: `crates/oxipage-console/tests/sites_registry.rs`
+- Modify: `crates/oxibuilder-cli/src/sites.rs`
+- Create: `crates/oxibuilder-console/src/sites_runtime.rs`
+- Create: `crates/oxibuilder-console/tests/sites_registry.rs`
 
 **Interfaces:**
 - `SitesFile::add(slug, path)`, `SitesFile::remove(slug)`, `SitesFile::set_default(slug)` (already exist for CRUD — adapt to new schema)
@@ -97,33 +97,33 @@
 - [ ] **Step 1: Write the failing test for SitesFile new schema**
 
 ```rust
-// crates/oxipage-cli/src/sites.rs (test module, adjust if already exists)
+// crates/oxibuilder-cli/src/sites.rs (test module, adjust if already exists)
 #[test]
 fn site_entry_round_trips_path_only() {
     let sf = SitesFile {
         default_site: Some("blog".into()),
         sites: BTreeMap::from([(
             "blog".into(),
-            SiteEntry { path: PathBuf::from("/tmp/oxipage/test-blog") },
+            SiteEntry { path: PathBuf::from("/tmp/oxibuilder/test-blog") },
         )]),
     };
     let raw = toml::to_string(&sf).unwrap();
     assert!(raw.contains("path"));
     assert!(!raw.contains("endpoint"));
     let back: SitesFile = toml::from_str(&raw).unwrap();
-    assert_eq!(back.sites["blog"].path, PathBuf::from("/tmp/oxipage/test-blog"));
+    assert_eq!(back.sites["blog"].path, PathBuf::from("/tmp/oxibuilder/test-blog"));
 }
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cargo test -p oxipage-cli --lib site_entry_round_trips_path_only -v`
+Run: `cargo test -p oxibuilder-cli --lib site_entry_round_trips_path_only -v`
 Expected: FAIL — `endpoint`/`token` fields still in struct.
 
 - [ ] **Step 3: Edit SiteEntry schema**
 
 ```rust
-// crates/oxipage-cli/src/sites.rs
+// crates/oxibuilder-cli/src/sites.rs
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SiteEntry {
     pub path: PathBuf,
@@ -132,19 +132,19 @@ pub struct SiteEntry {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cargo test -p oxipage-cli --lib site_entry_round_trips_path_only -v`
+Run: `cargo test -p oxibuilder-cli --lib site_entry_round_trips_path_only -v`
 Expected: PASS.
 
 - [ ] **Step 5: Write failing test for SiteRegistry load-and-lookup**
 
 ```rust
-// crates/oxipage-console/tests/sites_registry.rs
+// crates/oxibuilder-console/tests/sites_registry.rs
 #[tokio::test]
 async fn registry_loads_each_valid_site_and_lookups_db() {
     let dir_a = tempdir().unwrap();
     let dir_b = tempdir().unwrap();
-    std::fs::write(dir_a.path().join("oxipage.toml"), "[site]\nname = \"A\"\nbase_url = \"http://a\"\n").unwrap();
-    std::fs::write(dir_b.path().join("oxipage.toml"), "[site]\nname = \"B\"\nbase_url = \"http://b\"\n").unwrap();
+    std::fs::write(dir_a.path().join("oxibuilder.toml"), "[site]\nname = \"A\"\nbase_url = \"http://a\"\n").unwrap();
+    std::fs::write(dir_b.path().join("oxibuilder.toml"), "[site]\nname = \"B\"\nbase_url = \"http://b\"\n").unwrap();
 
     let mut sf = SitesFile::default();
     sf.add("a", dir_a.path().to_path_buf()).unwrap();
@@ -161,15 +161,15 @@ async fn registry_loads_each_valid_site_and_lookups_db() {
 
 - [ ] **Step 6: Run test to verify it fails**
 
-Run: `cargo test -p oxipage-console --test sites_registry registry_loads_each_valid_site_and_lookups_db -v`
-Expected: FAIL — `oxipage-console` has no `SiteRegistry` yet.
+Run: `cargo test -p oxibuilder-console --test sites_registry registry_loads_each_valid_site_and_lookups_db -v`
+Expected: FAIL — `oxibuilder-console` has no `SiteRegistry` yet.
 
 - [ ] **Step 7: Define SiteContext and SiteRegistry**
 
 ```rust
-// crates/oxipage-console/src/sites_runtime.rs
+// crates/oxibuilder-console/src/sites_runtime.rs
 use crate::loader::SiteLoader;
-use oxipage_cli::sites::{SitesFile, SiteEntry};
+use oxibuilder_cli::sites::{SitesFile, SiteEntry};
 use sqlx::SqlitePool;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -179,11 +179,11 @@ use tokio::sync::RwLock;
 pub struct SiteContext {
     pub slug: String,
     pub path: PathBuf,
-    pub config: Arc<oxipage_core::config::Config>,
+    pub config: Arc<oxibuilder_core::config::Config>,
     pub db: SqlitePool,
-    pub registry: Arc<oxipage_core::registry::ExtensionRegistry>,
-    pub builders: Arc<Vec<Box<dyn oxipage_core::builder::BuildExt>>>,
-    pub wasm_loader: Option<Arc<dyn oxipage_core::extension::WasmLoader>>,
+    pub registry: Arc<oxibuilder_core::registry::ExtensionRegistry>,
+    pub builders: Arc<Vec<Box<dyn oxibuilder_core::builder::BuildExt>>>,
+    pub wasm_loader: Option<Arc<dyn oxibuilder_core::extension::WasmLoader>>,
 }
 
 pub struct SiteRegistry {
@@ -224,11 +224,11 @@ impl SiteRegistry {
 - [ ] **Step 8: Implement SiteLoader**
 
 ```rust
-// crates/oxipage-console/src/loader.rs
+// crates/oxibuilder-console/src/loader.rs
 use crate::sites_runtime::SiteContext;
-use oxipage_core::builder::BuildExt;
-use oxipage_core::config::Config;
-use oxipage_core::registry::ExtensionRegistry;
+use oxibuilder_core::builder::BuildExt;
+use oxibuilder_core::config::Config;
+use oxibuilder_core::registry::ExtensionRegistry;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -236,32 +236,32 @@ pub struct SiteLoader;
 
 impl SiteLoader {
     pub async fn load(slug: String, path: PathBuf) -> anyhow::Result<SiteContext> {
-        let cfg = Config::load(&path.join("oxipage.toml"))?;
-        let db_path = cfg.server.data_dir.join("oxipage.db");
-        let db = oxipage_core::db::connect(&db_path).await?;
+        let cfg = Config::load(&path.join("oxibuilder.toml"))?;
+        let db_path = cfg.server.data_dir.join("oxibuilder.db");
+        let db = oxibuilder_core::db::connect(&db_path).await?;
         let toml_enabled = cfg.extensions.enabled.clone();
-        let extensions = oxipage_console::all_extensions();
+        let extensions = oxibuilder_console::all_extensions();
         let registry = Arc::new(ExtensionRegistry::new(extensions));
         registry.run_migrations(&db, &toml_enabled).await?;
-        let wasm_loader: Option<Arc<dyn oxipage_core::extension::WasmLoader>> = None;
+        let wasm_loader: Option<Arc<dyn oxibuilder_core::extension::WasmLoader>> = None;
         Ok(SiteContext {
             slug,
             path,
             config: Arc::new(cfg),
             db,
             registry,
-            builders: Arc::new(oxipage_console::all_builders()),
+            builders: Arc::new(oxibuilder_console::all_builders()),
             wasm_loader,
         })
     }
 }
 ```
 
-(Note: `all_extensions` and `all_builders` are moved out of `oxipage-console::lib` to a shared module so loader can call them — see also T3.)
+(Note: `all_extensions` and `all_builders` are moved out of `oxibuilder-console::lib` to a shared module so loader can call them — see also T3.)
 
 - [ ] **Step 9: Run test to verify it passes**
 
-Run: `cargo test -p oxipage-console --test sites_registry -v`
+Run: `cargo test -p oxibuilder-console --test sites_registry -v`
 Expected: PASS.
 
 - [ ] **Step 10: Commit**
@@ -276,10 +276,10 @@ git commit -m "feat(console): SiteRegistry skeleton + SiteLoader (sites.toml pat
 ## Task 2: console.db + setup_state migration
 
 **Files:**
-- Create: `crates/oxipage-console/src/console_state.rs`
-- Create: `crates/oxipage-console/tests/console_state.rs`
-- Modify: `crates/oxipage-core/src/setup.rs` (read setup_state from console.db)
-- Modify: `crates/oxipage-console/src/lib.rs` (wire console.db connection at startup)
+- Create: `crates/oxibuilder-console/src/console_state.rs`
+- Create: `crates/oxibuilder-console/tests/console_state.rs`
+- Modify: `crates/oxibuilder-core/src/setup.rs` (read setup_state from console.db)
+- Modify: `crates/oxibuilder-console/src/lib.rs` (wire console.db connection at startup)
 
 **Interfaces:**
 - `ConsoleState::open(data_dir: &Path) -> Result<Self>` — opens or creates `console.db`, runs migrations
@@ -289,8 +289,8 @@ git commit -m "feat(console): SiteRegistry skeleton + SiteLoader (sites.toml pat
 - [ ] **Step 1: Write failing test for console.db migrations**
 
 ```rust
-// crates/oxipage-console/tests/console_state.rs
-use oxipage_console::console_state::ConsoleState;
+// crates/oxibuilder-console/tests/console_state.rs
+use oxibuilder_console::console_state::ConsoleState;
 
 #[tokio::test]
 async fn console_state_migrates_setup_state_table() {
@@ -306,13 +306,13 @@ async fn console_state_migrates_setup_state_table() {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cargo test -p oxipage-console --test console_state -v`
+Run: `cargo test -p oxibuilder-console --test console_state -v`
 Expected: FAIL — module missing.
 
 - [ ] **Step 3: Implement ConsoleState**
 
 ```rust
-// crates/oxipage-console/src/console_state.rs
+// crates/oxibuilder-console/src/console_state.rs
 use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::SqlitePool;
 use std::path::Path;
@@ -358,17 +358,17 @@ impl ConsoleState {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cargo test -p oxipage-console --test console_state -v`
+Run: `cargo test -p oxibuilder-console --test console_state -v`
 Expected: PASS.
 
 - [ ] **Step 5: Switch setup.rs to read from console.db**
 
-In `crates/oxipage-core/src/setup.rs`:
+In `crates/oxibuilder-core/src/setup.rs`:
 - Replace `is_setup_needed(db: &SqlitePool)` to take `ConsoleState`-like source instead.
-- During lib refactor (T2 includes this), mark the function `#[deprecated]` and route callers through the new one inside `oxipage-console`.
+- During lib refactor (T2 includes this), mark the function `#[deprecated]` and route callers through the new one inside `oxibuilder-console`.
 
 ```rust
-#[deprecated(note = "Use oxipage_console::console_state::ConsoleState::is_setup_needed")]
+#[deprecated(note = "Use oxibuilder_console::console_state::ConsoleState::is_setup_needed")]
 pub async fn is_setup_needed(db: &sqlx::SqlitePool) -> bool {
     let row: (Option<String>,) = sqlx::query_as(
         "SELECT setup_completed_at FROM setup_state WHERE id = 1",
@@ -389,11 +389,11 @@ git commit -m "feat(console): console.db with setup_state table — replaces per
 ## Task 3: Site-prefixed route builder + SiteScopedDb middleware
 
 **Files:**
-- Create: `crates/oxipage-console/src/router.rs`
-- Create: `crates/oxipage-console/src/middleware/mod.rs`
-- Create: `crates/oxipage-console/src/middleware/site_db.rs`
-- Create: `crates/oxipage-console/tests/site_routes.rs`
-- Modify: `crates/oxipage-console/src/lib.rs`
+- Create: `crates/oxibuilder-console/src/router.rs`
+- Create: `crates/oxibuilder-console/src/middleware/mod.rs`
+- Create: `crates/oxibuilder-console/src/middleware/site_db.rs`
+- Create: `crates/oxibuilder-console/tests/site_routes.rs`
+- Modify: `crates/oxibuilder-console/src/lib.rs`
 
 **Interfaces:**
 - `pub fn build_console_router(state: AppState) -> Router`
@@ -403,7 +403,7 @@ git commit -m "feat(console): console.db with setup_state table — replaces per
 - [ ] **Step 1: Write failing test for site-prefixed routes**
 
 ```rust
-// crates/oxipage-console/tests/site_routes.rs
+// crates/oxibuilder-console/tests/site_routes.rs
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 
@@ -420,13 +420,13 @@ async fn unknown_slug_returns_404() {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cargo test -p oxipage-console --test site_routes -v`
+Run: `cargo test -p oxibuilder-console --test site_routes -v`
 Expected: FAIL — `build_test_app` helper missing.
 
 - [ ] **Step 3: Implement SiteScopedDb middleware**
 
 ```rust
-// crates/oxipage-console/src/middleware/site_db.rs
+// crates/oxibuilder-console/src/middleware/site_db.rs
 use crate::console_state::AppState;
 use crate::sites_runtime::SiteScopedDb;
 use axum::extract::{Request, State};
@@ -450,7 +450,7 @@ pub async fn db_for_middleware(
 - [ ] **Step 4: Implement build_console_router**
 
 ```rust
-// crates/oxipage-console/src/router.rs
+// crates/oxibuilder-console/src/router.rs
 use crate::console_state::AppState;
 use crate::middleware::site_db::db_for_middleware;
 use crate::sites_runtime::SiteScopedDb;
@@ -490,7 +490,7 @@ pub fn build_console_router(state: AppState) -> Router {
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `cargo test -p oxipage-console --test site_routes -v`
+Run: `cargo test -p oxibuilder-console --test site_routes -v`
 Expected: PASS (one assertion only — additional coverage comes from T4).
 
 - [ ] **Step 6: Commit**
@@ -505,17 +505,17 @@ git commit -m "feat(console): site-prefixed router + SiteScopedDb middleware"
 ## Task 4: Blog extension — first per-extension handler swap to SiteScopedDb
 
 **Files:**
-- Modify: `crates/oxipage-ext-blog/src/http.rs` (and any other handler modules in the extension)
-- Create: `crates/oxipage-core/tests/per_site_handler_smoke.rs` (integration)
-- Modify: `crates/oxipage-console/tests/site_routes.rs` (add blog post listing assertion)
+- Modify: `crates/oxibuilder-ext-blog/src/http.rs` (and any other handler modules in the extension)
+- Create: `crates/oxibuilder-core/tests/per_site_handler_smoke.rs` (integration)
+- Modify: `crates/oxibuilder-console/tests/site_routes.rs` (add blog post listing assertion)
 
 **Interfaces:**
-- All blog handlers: `state: State<AppState>` → `pool: Extension<SiteScopedDb>` (and add the `use oxipage_console::sites_runtime::SiteScopedDb;` import).
+- All blog handlers: `state: State<AppState>` → `pool: Extension<SiteScopedDb>` (and add the `use oxibuilder_console::sites_runtime::SiteScopedDb;` import).
 
 - [ ] **Step 1: Write failing integration test**
 
 ```rust
-// crates/oxipage-console/tests/site_routes.rs
+// crates/oxibuilder-console/tests/site_routes.rs
 #[tokio::test]
 async fn blog_list_returns_under_site_prefix() {
     let app = build_test_app().await;
@@ -531,12 +531,12 @@ async fn blog_list_returns_under_site_prefix() {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cargo test -p oxipage-console --test site_routes blog_list_returns_under_site_prefix -v`
+Run: `cargo test -p oxibuilder-console --test site_routes blog_list_returns_under_site_prefix -v`
 Expected: FAIL — blog route still mounted at `/api/console/blog/posts` and reading from `state.db` (which exists only in test app, not the registered site).
 
 - [ ] **Step 3: Bulk-swap blog handlers' `state.db` access**
 
-For every async handler in `crates/oxipage-ext-blog/src/`:
+For every async handler in `crates/oxibuilder-ext-blog/src/`:
 - Change signature `state: State<AppState>` → `Extension(pool): Extension<SiteScopedDb>` (keep `State` if and only if the handler also touches non-db globals — for blog, only `db` is touched).
 - Replace `&state.db` → `&pool.db`.
 
@@ -556,12 +556,12 @@ pub async fn list_posts(Extension(pool): Extension<SiteScopedDb>) -> Result<Json
 
 - [ ] **Step 4: Run blog lib tests**
 
-Run: `cargo test -p oxipage-ext-blog --lib -v`
+Run: `cargo test -p oxibuilder-ext-blog --lib -v`
 Expected: PASS.
 
 - [ ] **Step 5: Re-run failing site_routes test — now passes**
 
-Run: `cargo test -p oxipage-console --test site_routes blog_list_returns_under_site_prefix -v`
+Run: `cargo test -p oxibuilder-console --test site_routes blog_list_returns_under_site_prefix -v`
 Expected: PASS.
 
 - [ ] **Step 6: Run full workspace check**
@@ -600,8 +600,8 @@ git commit -m "refactor(blog): handlers consume SiteScopedDb; routes mountable u
 - Create: `web/src/admin/build/BuildPage.tsx`
 - Create: `web/src/admin/deploy/DeployPage.tsx`
 - Modify: `web/vite.config.ts` (add admin entry; keep main public entry)
-- Modify: `crates/oxipage-console/Cargo.toml` (rust-embed target: `web/dist-admin` + `web/dist-static` distinct)
-- Modify: `crates/oxipage-console/build.rs` (compile both SPA bundles)
+- Modify: `crates/oxibuilder-console/Cargo.toml` (rust-embed target: `web/dist-admin` + `web/dist-static` distinct)
+- Modify: `crates/oxibuilder-console/build.rs` (compile both SPA bundles)
 
 **Interfaces:**
 - `web/src/admin/shared/api.ts`: `ADMIN_BASE = "/api/console"`; `siteScopedFetch(slug, path)` adds `Bearer` only if and when remote auth exists.
@@ -635,7 +635,7 @@ export default defineConfig({
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Oxipage Console</title>
+    <title>Oxibuilder Console</title>
   </head>
   <body>
     <div id="root"></div>
@@ -768,10 +768,10 @@ Copy and adapt the corresponding `admin-web/src/{sites,dashboard,content,extensi
 Run: `cd web && bun run build`
 Expected: `dist/index.html` and `dist-admin/admin.html` written; no tsc errors.
 
-- [ ] **Step 9: Update rust-embed in oxipage-console**
+- [ ] **Step 9: Update rust-embed in oxibuilder-console**
 
 ```rust
-// crates/oxipage-console/src/admin_bundle.rs
+// crates/oxibuilder-console/src/admin_bundle.rs
 #[derive(RustEmbed)]
 #[folder = "../../web/dist-admin/"]
 pub struct AdminAssets;
@@ -781,7 +781,7 @@ pub struct AdminAssets;
 pub struct PublicAssets;
 ```
 
-Add `pub mod admin_bundle;` to `crates/oxipage-console/src/lib.rs`.
+Add `pub mod admin_bundle;` to `crates/oxibuilder-console/src/lib.rs`.
 
 - [ ] **Step 10: Commit**
 
@@ -797,19 +797,19 @@ git commit -m "feat(admin): migrate admin-web SPA into web/src/admin and serve f
 **Files:**
 - Modify: `web/src/setup/SetupWizard.tsx` (StepSite: add directory choice)
 - Modify: `web/src/setup/api.ts` (createSite + completeSetup wired)
-- Create: `crates/oxipage-console/src/setup/create_site.rs`
-- Create: `crates/oxipage-console/src/setup/router.rs` (re-export from core)
-- Modify: `crates/oxipage-core/src/setup.rs` (route handler exposes create-site)
-- Create: `crates/oxipage-console/tests/setup_site_create.rs`
+- Create: `crates/oxibuilder-console/src/setup/create_site.rs`
+- Create: `crates/oxibuilder-console/src/setup/router.rs` (re-export from core)
+- Modify: `crates/oxibuilder-core/src/setup.rs` (route handler exposes create-site)
+- Create: `crates/oxibuilder-console/tests/setup_site_create.rs`
 
 **Interfaces:**
-- `POST /api/console/setup/create-site { path: "~/oxipage/blog" }` → `{ data: { slug, path } }`
+- `POST /api/console/setup/create-site { path: "~/oxibuilder/blog" }` → `{ data: { slug, path } }`
 - StepSite becomes the wizard's first step (already is, but now also accepts path).
 
 - [ ] **Step 1: Write failing test**
 
 ```rust
-// crates/oxipage-console/tests/setup_site_create.rs
+// crates/oxibuilder-console/tests/setup_site_create.rs
 #[tokio::test]
 async fn create_site_handler_seeds_toml_and_registers_in_sites_file() {
     let tmp = tempdir().unwrap();
@@ -823,25 +823,25 @@ async fn create_site_handler_seeds_toml_and_registers_in_sites_file() {
             .body(Body::from(body.to_string())).unwrap(),
     ).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
-    assert!(target.join("oxipage.toml").exists());
+    assert!(target.join("oxibuilder.toml").exists());
     assert!(sites_file.exists());
 }
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cargo test -p oxipage-console --test setup_site_create -v`
+Run: `cargo test -p oxibuilder-console --test setup_site_create -v`
 Expected: FAIL — endpoint missing.
 
 - [ ] **Step 3: Implement create-site handler**
 
 ```rust
-// crates/oxipage-console/src/setup/create_site.rs
+// crates/oxibuilder-console/src/setup/create_site.rs
 use crate::console_state::AppState;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::Json;
-use oxipage_cli::sites::{SiteEntry, SitesFile};
+use oxibuilder_cli::sites::{SiteEntry, SitesFile};
 use serde::Deserialize;
 use std::fs;
 use std::path::PathBuf;
@@ -858,7 +858,7 @@ pub async fn create_site_handler(
     let path = PathBuf::from(input.path);
     fs::create_dir_all(&path).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     fs::write(
-        path.join("oxipage.toml"),
+        path.join("oxibuilder.toml"),
         r#"[site]
 name = "New Site"
 base_url = "http://127.0.0.1:8787"
@@ -883,7 +883,7 @@ data_dir = "./data"
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cargo test -p oxipage-console --test setup_site_create -v`
+Run: `cargo test -p oxibuilder-console --test setup_site_create -v`
 Expected: PASS.
 
 - [ ] **Step 5: Update wizard StepSite UI**
@@ -922,27 +922,27 @@ git commit -m "feat(setup): Step 1 site-directory decision + create-site handler
 
 
 
-## Task 7: Remove :8788 / run_admin / OXIPAGE_ADMIN_PORT
+## Task 7: Remove :8788 / run_admin / OXIBUILDER_ADMIN_PORT
 
 **Files:**
-- Modify: `crates/oxipage-console/src/lib.rs` (delete `pub fn run_admin`, stop embedding `admin_bundle`)
-- Modify: `crates/oxipage-console/src/admin/mod.rs` (delete file)
-- Modify: `crates/oxipage-cli/src/commands/init_console.rs` (delete `--admin-port` arg)
-- Modify: `crates/oxipage-cli/src/commands/mod.rs` (drop admin-bind branch)
+- Modify: `crates/oxibuilder-console/src/lib.rs` (delete `pub fn run_admin`, stop embedding `admin_bundle`)
+- Modify: `crates/oxibuilder-console/src/admin/mod.rs` (delete file)
+- Modify: `crates/oxibuilder-cli/src/commands/init_console.rs` (delete `--admin-port` arg)
+- Modify: `crates/oxibuilder-cli/src/commands/mod.rs` (drop admin-bind branch)
 - Delete: `admin-web/` directory (post T5)
 
 - [ ] **Step 1: Verify no remaining callers of `run_admin`**
 
-Run: `grep -rn "run_admin\|OXIPAGE_ADMIN_PORT\|admin_bundle" crates/ web/ 2>/dev/null`
+Run: `grep -rn "run_admin\|OXIBUILDER_ADMIN_PORT\|admin_bundle" crates/ web/ 2>/dev/null`
 Expected: only deletion targets left; if any live reference remains, refactor it to use the new router and update this step's grep.
 
 - [ ] **Step 2: Write smoke test that 8788 binds are gone**
 
 ```rust
-// crates/oxipage-console/tests/no_8788.rs
+// crates/oxibuilder-console/tests/no_8788.rs
 #[tokio::test]
 async fn run_console_does_not_bind_8788() {
-    let cfg = oxipage_core::config::Config::default();
+    let cfg = oxibuilder_core::config::Config::default();
     let bound = try_bind("127.0.0.1:8788").await;
     let _ = bound;
     // After this task, even if nothing is binding 8788 internally, no code path
@@ -955,23 +955,23 @@ async fn run_console_does_not_bind_8788() {
 
 - [ ] **Step 3: Run test to verify it fails (before deletion)**
 
-Run: `cargo test -p oxipage-console --test no_8788 -v`
+Run: `cargo test -p oxibuilder-console --test no_8788 -v`
 Expected: FAIL — `src/lib.rs` still mentions 8788.
 
 - [ ] **Step 4: Delete run_admin and admin/mod.rs**
 
 ```bash
-git rm crates/oxipage-console/src/admin/mod.rs
-git rm crates/oxipage-console/src/admin/sites_api.rs
-git rm crates/oxipage-console/src/admin/themes.rs
+git rm crates/oxibuilder-console/src/admin/mod.rs
+git rm crates/oxibuilder-console/src/admin/sites_api.rs
+git rm crates/oxibuilder-console/src/admin/themes.rs
 ```
 
-Edit `crates/oxipage-console/src/lib.rs`: remove the `pub mod admin;`, the `pub async fn run_admin(port: u16)`, and the `pub fn run_admin` deprecated alias.
+Edit `crates/oxibuilder-console/src/lib.rs`: remove the `pub mod admin;`, the `pub async fn run_admin(port: u16)`, and the `pub fn run_admin` deprecated alias.
 
-- [ ] **Step 5: Remove OXIPAGE_ADMIN_PORT usage**
+- [ ] **Step 5: Remove OXIBUILDER_ADMIN_PORT usage**
 
-Run: `grep -rn OXIPAGE_ADMIN_PORT crates/`
-Expected: no matches. If CLI had `env::var("OXIPAGE_ADMIN_PORT")` plumbing, remove those lines.
+Run: `grep -rn OXIBUILDER_ADMIN_PORT crates/`
+Expected: no matches. If CLI had `env::var("OXIBUILDER_ADMIN_PORT")` plumbing, remove those lines.
 
 - [ ] **Step 6: Delete admin-web/ after T5 landed**
 
@@ -979,7 +979,7 @@ Run: `git rm -r admin-web/`
 
 - [ ] **Step 7: Re-run smoke test**
 
-Run: `cargo test -p oxipage-console --test no_8788 -v`
+Run: `cargo test -p oxibuilder-console --test no_8788 -v`
 Expected: PASS.
 
 - [ ] **Step 8: Run full verification**
@@ -999,21 +999,21 @@ git commit -m "chore(console): remove run_admin / :8788 / admin-web directory"
 ## Task 8: Remaining extensions — state.db → SiteScopedDb line swap
 
 **Files (one PR per extension, all identical pattern):**
-- `crates/oxipage-ext-projects/src/http.rs`
-- `crates/oxipage-ext-links/src/http.rs`
-- `crates/oxipage-ext-movies/src/http.rs`
-- `crates/oxipage-ext-books/src/http.rs`
-- `crates/oxipage-ext-scraps/src/http.rs`
-- `crates/oxipage-ext-activity/src/http.rs`
-- `crates/oxipage-ext-novels/src/http.rs`
-- `crates/oxipage-ext-profile/src/http.rs`
+- `crates/oxibuilder-ext-projects/src/http.rs`
+- `crates/oxibuilder-ext-links/src/http.rs`
+- `crates/oxibuilder-ext-movies/src/http.rs`
+- `crates/oxibuilder-ext-books/src/http.rs`
+- `crates/oxibuilder-ext-scraps/src/http.rs`
+- `crates/oxibuilder-ext-activity/src/http.rs`
+- `crates/oxibuilder-ext-novels/src/http.rs`
+- `crates/oxibuilder-ext-profile/src/http.rs`
 
 **For each extension:**
 
 - [ ] **Step 1: Write a regression test confirming the route returns 200 under `/s/<slug>/<ext>/...`**
 
 ```rust
-// crates/oxipage-ext-<name>/tests/site_prefixed.rs
+// crates/oxibuilder-ext-<name>/tests/site_prefixed.rs
 #[tokio::test]
 async fn list_under_site_prefix_returns_200() {
     let app = build_test_app().await;
@@ -1026,7 +1026,7 @@ async fn list_under_site_prefix_returns_200() {
 
 - [ ] **Step 2: Run test, observe failure with the unmodified handler**
 
-Run: `cargo test -p oxipage-ext-<name> --test site_prefixed -v`
+Run: `cargo test -p oxibuilder-ext-<name> --test site_prefixed -v`
 Expected: FAIL — handler reads `state.db` which is not populated.
 
 - [ ] **Step 3: Swap handlers' `state.db` → `Extension(SiteScopedDb).db`**
@@ -1035,12 +1035,12 @@ Identical pattern to T4 Step 3 (one-line replacement per handler).
 
 - [ ] **Step 4: Re-run test, observe pass**
 
-Run: `cargo test -p oxipage-ext-<name> --test site_prefixed -v`
+Run: `cargo test -p oxibuilder-ext-<name> --test site_prefixed -v`
 Expected: PASS.
 
 - [ ] **Step 5: Run extension lib tests**
 
-Run: `cargo test -p oxipage-ext-<name> --lib -v`
+Run: `cargo test -p oxibuilder-ext-<name> --lib -v`
 Expected: PASS.
 
 - [ ] **Step 6: One PR per extension**
@@ -1057,17 +1057,17 @@ After all eight are merged: run `cargo test --workspace && cargo clippy -- -D wa
 ## Task 9: Build/deploy triggers + preview route
 
 **Files:**
-- Create: `crates/oxipage-console/src/build/site_build.rs`
-- Create: `crates/oxipage-console/src/deploy/site_deploy.rs`
-- Create: `crates/oxipage-console/src/preview/handler.rs`
-- Modify: `crates/oxipage-console/src/router.rs` (wire new endpoints)
+- Create: `crates/oxibuilder-console/src/build/site_build.rs`
+- Create: `crates/oxibuilder-console/src/deploy/site_deploy.rs`
+- Create: `crates/oxibuilder-console/src/preview/handler.rs`
+- Modify: `crates/oxibuilder-console/src/router.rs` (wire new endpoints)
 - Modify: `web/src/admin/build/BuildPage.tsx`
 - Modify: `web/src/admin/deploy/DeployPage.tsx`
 
 - [ ] **Step 1: Write failing test for build trigger**
 
 ```rust
-// crates/oxipage-console/tests/site_build.rs
+// crates/oxibuilder-console/tests/site_build.rs
 #[tokio::test]
 async fn site_build_handler_writes_out_dir() {
     let app = build_test_app().await;
@@ -1081,13 +1081,13 @@ async fn site_build_handler_writes_out_dir() {
 
 - [ ] **Step 2: Run test, observe failure**
 
-Run: `cargo test -p oxipage-console --test site_build -v`
+Run: `cargo test -p oxibuilder-console --test site_build -v`
 Expected: FAIL — handler missing.
 
 - [ ] **Step 3: Implement site_build_handler**
 
 ```rust
-// crates/oxipage-console/src/build/site_build.rs
+// crates/oxibuilder-console/src/build/site_build.rs
 use crate::console_state::AppState;
 use axum::extract::{Path, State};
 use axum::Json;
@@ -1099,7 +1099,7 @@ pub async fn site_build_handler(
     let ctx = state.sites.ctx_for(&slug).await.ok_or(axum::http::StatusCode::NOT_FOUND)?;
     let out_dir = ctx.path.join("out");
     std::fs::create_dir_all(&out_dir).map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
-    oxipage_core::build::build_site(&ctx.db, &ctx.builders)
+    oxibuilder_core::build::build_site(&ctx.db, &ctx.builders)
         .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
     crate::build::write_static_outputs(&out_dir, &ctx.builders).map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(serde_json::json!({ "data": { "out_dir": out_dir.to_string_lossy() } })))
@@ -1115,7 +1115,7 @@ Analogous; dispatches `--target github-pages` (existing behavior) using `ctx.pat
 - [ ] **Step 5: Implement /preview/:slug/* static handler**
 
 ```rust
-// crates/oxipage-console/src/preview/handler.rs
+// crates/oxibuilder-console/src/preview/handler.rs
 pub async fn preview_handler(
     State(state): State<AppState>,
     Path((slug, rest)): Path<(String, String)>,
@@ -1151,18 +1151,18 @@ Similar for `DeployPage`.
 
 - [ ] **Step 7: Re-run integration test**
 
-Run: `cargo test -p oxipage-console --test site_build -v`
+Run: `cargo test -p oxibuilder-console --test site_build -v`
 Expected: PASS.
 
 - [ ] **Step 8: Update CLI `--preview` flow**
 
-In `crates/oxipage-cli/src/commands/init_console.rs` (or its renamed successor): when `--preview --site <slug>` is passed, the console still serves :8787 but `/preview/:slug/*` is enabled. Add a flag wiring test:
+In `crates/oxibuilder-cli/src/commands/init_console.rs` (or its renamed successor): when `--preview --site <slug>` is passed, the console still serves :8787 but `/preview/:slug/*` is enabled. Add a flag wiring test:
 
 ```rust
-// crates/oxipage-cli/tests/preview_flag.rs
+// crates/oxibuilder-cli/tests/preview_flag.rs
 #[test]
 fn preview_flag_parses_with_site() {
-    let parsed = oxipage_cli::parse_preview_args(["--preview", "--site", "blog"]).unwrap();
+    let parsed = oxibuilder_cli::parse_preview_args(["--preview", "--site", "blog"]).unwrap();
     assert!(parsed.preview);
     assert_eq!(parsed.site.as_deref(), Some("blog"));
 }
@@ -1193,7 +1193,7 @@ After T1–T9, do not declare "done" until the smoke checklist below passes. The
 
 - [ ] **Cleanup step 1: README updates**
 
-Edit `README.md`: remove `oxipage admin` references, remove ":8788 admin console" mentions, update "Open http://127.0.0.1:8787" to say "관리 콘솔 셸" (instead of "admin console and API"). Add a "여러 oxipage 사이트 관리" subsection citing `oxipage site add --path`.
+Edit `README.md`: remove `oxibuilder admin` references, remove ":8788 admin console" mentions, update "Open http://127.0.0.1:8787" to say "관리 콘솔 셸" (instead of "admin console and API"). Add a "여러 oxibuilder 사이트 관리" subsection citing `oxibuilder site add --path`.
 
 - [ ] **Cleanup step 2: doc/09 + doc/12 stub updates**
 
@@ -1201,18 +1201,18 @@ In `doc/09-multi-site.md`: replace endpoint/token model with path-only schema; a
 
 - [ ] **Cleanup step 3: E2E harness update**
 
-`crates/oxipage-cli/tests/e2e.rs`: update any test referencing `:8788` or `OXIPAGE_ADMIN_PORT`. Add an e2e that calls `oxipage site add blog --path /tmp/blog`, expects OK; then `oxipage console &`, expects `:8787` reachable; then `curl /api/console/s/blog/blog/posts` expects 200.
+`crates/oxibuilder-cli/tests/e2e.rs`: update any test referencing `:8788` or `OXIBUILDER_ADMIN_PORT`. Add an e2e that calls `oxibuilder site add blog --path /tmp/blog`, expects OK; then `oxibuilder console &`, expects `:8787` reachable; then `curl /api/console/s/blog/blog/posts` expects 200.
 
 - [ ] **Cleanup step 4: Smoke checklist**
 
 ```bash
 cargo build --release --workspace
-./target/release/oxipage site add blog --path /tmp/blog
-./target/release/oxipage console &
+./target/release/oxibuilder site add blog --path /tmp/blog
+./target/release/oxibuilder console &
 sleep 1
 curl -fsS http://127.0.0.1:8787/api/console/s/blog/blog/posts | jq .
-./target/release/oxipage build --site blog
-./target/release/oxipage deploy --target github-pages --dry-run --site blog
+./target/release/oxibuilder build --site blog
+./target/release/oxibuilder deploy --target github-pages --dry-run --site blog
 kill %1
 ```
 

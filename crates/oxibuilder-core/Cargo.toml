@@ -1,0 +1,57 @@
+[package]
+name = "oxibuilder-core"
+version = "0.8.0"
+edition = "2024"
+license.workspace = true
+description = "Oxibuilder 코어 라이브러리 — Axum 서버 부트스트랩, SQLite 마이그레이션, Extension trait, SSR 스냅샷, 레이트리밋"
+
+# Files packaged with `cargo publish`. Without `include`, Cargo respects
+# `.gitignore`, which excludes `embedded-spa/` and the build-artifact WASM demo.
+# The SPA must ship inside the published crate, otherwise `cargo install oxibuilder`
+# produces a binary with a placeholder SPA and a broken `oxibuilder build` (P0-3).
+include = [
+    "src/**",
+    "migrations/**",
+    "embedded-spa/**",
+    "embedded-spa-static/**",
+    "_registry.json",
+    "_wasm-demo.wasm",
+    "build.rs",
+    "Cargo.toml",
+]
+
+[lib]
+name = "oxibuilder_core"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+futures-core.workspace = true
+axum.workspace = true
+base64.workspace = true
+ed25519-dalek.workspace = true
+erased-serde.workspace = true
+mime_guess.workspace = true
+reqwest.workspace = true
+rayon.workspace = true
+rust-embed.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+toml.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+sha2.workspace = true
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+url = "2"
+uuid.workspace = true
+
+[build-dependencies]
+sha2.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }

@@ -20,7 +20,7 @@ This is dependency-layer-0. Later sub-projects (extension feature gaps P8, deplo
 - **P10 — Settings:** integrations editing (3 fields), language array management, Danger Zone "Delete Site" activation.
 
 ### Out of scope (flagged, deferred)
-- **Server-side full-text search:** the FTS5 `search_documents` index (`oxipage-core/src/search.rs`, migration `0002_search_documents.sql`) is populated at **publish** time and indexes published content only. It powers a future "global search" sub-project. Per-tab search in this spec is client-side filter only.
+- **Server-side full-text search:** the FTS5 `search_documents` index (`oxibuilder-core/src/search.rs`, migration `0002_search_documents.sql`) is populated at **publish** time and indexes published content only. It powers a future "global search" sub-project. Per-tab search in this spec is client-side filter only.
 - **"Purge All Data":** the second Danger Zone button stays `disabled`. Bulk content deletion is a separate destructive action.
 - **`set_default` server stub:** `router.rs::set_default` returns `{"ok":true}` without persisting. Separate issue.
 - **P8, P9, P12, P14:** subsequent sub-projects.
@@ -31,16 +31,16 @@ This is dependency-layer-0. Later sub-projects (extension feature gaps P8, deplo
 |---------|--------------|------|
 | Dashboard counts | 7 parallel `contentClient.list(...).then(r => r.length)` | `web/src/admin/dashboard/DashboardPage.tsx:38-53` |
 | Dashboard recent | fetch `/blog`, slice 5 (blog-only) | `DashboardPage.tsx:27-36` |
-| `config_put` | accepts only `site?` + `lobby?` | `crates/oxipage-console/src/per_site.rs:59-63` |
+| `config_put` | accepts only `site?` + `lobby?` | `crates/oxibuilder-console/src/per_site.rs:59-63` |
 | `SiteUpdate` | `name`, `base_url`, `default_lang` — no `languages` | `per_site.rs:65-70` |
 | Integrations UI | read-only display, no inputs | `web/src/admin/settings/SettingsPage.tsx:136-148` |
 | Danger Zone | both buttons `disabled` | `SettingsPage.tsx:150-161` |
 | `removeSite` client | exists, calls `DELETE /api/console/sites/{slug}` | `web/src/admin/shared/api.ts:38-40` |
 | DELETE server handler | **absent** — no route, `SiteRegistry` has no `remove_site` | `router.rs`, `sites_runtime.rs` |
 | Build history | `build_log` table read by `builds_list` | `per_site.rs:179-202` |
-| Extension tables | each extension declares `table_names()`; validated by `is_safe_ident` | `oxipage-core/src/extension.rs:172-175`, `http.rs:521-529` |
-| FTS5 search index | `search_documents(extension_id, doc_id, title, body, lang, published_at)`; populated at publish via `reindex()`; drafts excluded | `oxipage-core/src/search.rs`, ext `routes.rs` reindex calls |
-| Extension schemas | heterogeneous: blog `blog_post` & books `book_entry` have published_at+updated_at; links `link_card` has updated_at but **no published_at** | `oxipage-ext-*/migrations/0001_init.sql` |
+| Extension tables | each extension declares `table_names()`; validated by `is_safe_ident` | `oxibuilder-core/src/extension.rs:172-175`, `http.rs:521-529` |
+| FTS5 search index | `search_documents(extension_id, doc_id, title, body, lang, published_at)`; populated at publish via `reindex()`; drafts excluded | `oxibuilder-core/src/search.rs`, ext `routes.rs` reindex calls |
+| Extension schemas | heterogeneous: blog `blog_post` & books `book_entry` have published_at+updated_at; links `link_card` has updated_at but **no published_at** | `oxibuilder-ext-*/migrations/0001_init.sql` |
 
 ## 4. Architecture
 
@@ -188,12 +188,12 @@ New client functions in `api.ts`: `getStats(slug): Promise<Stats>` and `getRecen
   - `delete_site` removes the slug from an in-memory registry + writes the sites file; 404 for unknown slug; site directory files untouched.
   - `config_put` with `integrations` + `languages` round-trips through TOML and the response carries the full `ConfigResponse` shape.
 - **Client (TS):** `useRowFilter` filters by substring, empty query passes through, is case-insensitive.
-- **Manual smoke:** `oxipage console` → dashboard loads in ≤2 requests; each content tab filters live; settings integrations + languages save and round-trip; Danger Zone deletes a throwaway site and redirects to `/sites`.
+- **Manual smoke:** `oxibuilder console` → dashboard loads in ≤2 requests; each content tab filters live; settings integrations + languages save and round-trip; Danger Zone deletes a throwaway site and redirects to `/sites`.
 
 ## 11. File map
 
 ```
-crates/oxipage-console/src/
+crates/oxibuilder-console/src/
 ├── per_site.rs              # +stats_get, +recent_get; extend ConfigUpdate/SiteUpdate + IntegrationsUpdate; fix config_put response
 ├── router.rs                # +delete_site handler + route; register in build_top_level_router
 └── sites_runtime.rs         # +SiteRegistry::remove_site

@@ -1,7 +1,7 @@
 # Console Reliability & Publishing Suite — 완료 보고
 
 > **작성:** 2026-07-31
-> **목표:** oxipage console의 라우팅/테마/프리뷰/배포/작성 UX 5개 서브프로젝트 완료
+> **목표:** oxibuilder console의 라우팅/테마/프리뷰/배포/작성 UX 5개 서브프로젝트 완료
 > **상태: ✅ 전 서브프로젝트 완료**
 
 ## 1. 최종 상태
@@ -19,10 +19,10 @@
 ## 2. 커밋 요약 (5개 plan 주요 커밋)
 
 - Foundation: embed 통합, dual-mode build.rs, cache/ETag/revision, ErrorBoundary, SiteContext resolved paths, MutableSiteSettings + config_write_lock, 레거시 라우트 제거, favicon + e2e
-- Theme: `oxipage_core::theme` 카탈로그, default-site `/api/console/theme`, theme-boot.js, 3-state appearance, `[data-theme]` scoped tokens, `--accent-hue` OKLCH
+- Theme: `oxibuilder_core::theme` 카탈로그, default-site `/api/console/theme`, theme-boot.js, 3-state appearance, `[data-theme]` scoped tokens, `--accent-hue` OKLCH
 - Preview/Media: `BuildManifest` + `derive_deployment_base`, build_writer relative tags + `<base>`, prefix-aware preview handler(424/404 fallback/base rewrite), multipart media upload(magic bytes/10MiB/UUID), AssetResolver + ImageField + Preview Site 버튼
 - GitHub Pages: `DeployConfig`/`GitHubPagesTarget` 검증+URL/기반 파생, atomic deploy config patch, repo-scoped `deploy_github_pages`(UUID worktree/RAII), `SiteOperationGuard` 단일 슬롯, deploy_log 히스토리, preflight/current APIs, CLI `--site`, DeployPage preflight+history+reattach, Settings/Dashboard 배포 섹션
-- Authoring: `ApiValidationError` + `jsonOrThrow` field 보존, validation.ts, TagInput, EditorPreviewDrawer/DraftPreviewPane, `*View`/`*Card` 분리, Profile CRUD(`expected_updated_at` 409), novels/projects atomic reorder, `oxipage_core::validation`, 7개 탭 개선(TagInput/ImageField/검증), blog 서버 검증
+- Authoring: `ApiValidationError` + `jsonOrThrow` field 보존, validation.ts, TagInput, EditorPreviewDrawer/DraftPreviewPane, `*View`/`*Card` 분리, Profile CRUD(`expected_updated_at` 409), novels/projects atomic reorder, `oxibuilder_core::validation`, 7개 탭 개선(TagInput/ImageField/검증), blog 서버 검증
 
 ## 3. 실행 방식 메모
 
@@ -45,6 +45,6 @@
 
 ```bash
 cargo build --workspace
-cargo test -p oxipage-core -p oxipage-console -p oxipage -p oxipage-deploy -p oxipage-ext-profile -p oxipage-ext-novels -p oxipage-ext-projects -p oxipage-ext-blog -p oxipage-ext-books -p oxipage-ext-movies -p oxipage-ext-links -p oxipage-ext-scraps
+cargo test -p oxibuilder-core -p oxibuilder-console -p oxibuilder -p oxibuilder-deploy -p oxibuilder-ext-profile -p oxibuilder-ext-novels -p oxibuilder-ext-projects -p oxibuilder-ext-blog -p oxibuilder-ext-books -p oxibuilder-ext-movies -p oxibuilder-ext-links -p oxibuilder-ext-scraps
 cd web && npx tsc --noEmit && bun run build
 ```

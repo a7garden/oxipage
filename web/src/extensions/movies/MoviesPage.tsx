@@ -33,8 +33,8 @@ export function MoviesPage() {
           </EmptyStateTitle>
           <EmptyStateDescription>
             {lang === "ko"
-              ? "`oxipage movies add` 로 작품을 추가하세요."
-              : "Add a title with `oxipage movies add`."}
+              ? "`oxibuilder movies add` 로 작품을 추가하세요."
+              : "Add a title with `oxibuilder movies add`."}
           </EmptyStateDescription>
         </EmptyState>
       </div>

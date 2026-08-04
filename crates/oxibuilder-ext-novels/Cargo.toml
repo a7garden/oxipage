@@ -1,0 +1,25 @@
+[package]
+name = "oxibuilder-ext-novels"
+version = "0.8.0"
+edition = "2024"
+license.workspace = true
+description = "소설 확장 — 챕터, 공백제외 자수 자동 계산 (doc/02 §2.5)"
+
+[lib]
+name = "oxibuilder_ext_novels"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+axum.workspace = true
+erased-serde.workspace = true
+oxibuilder-core = { version = "0.8.0", path = "../oxibuilder-core" }
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }

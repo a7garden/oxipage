@@ -2,7 +2,7 @@
 
 ## 11.1 문제
 
-현재 CLI는 모든 서브커맨드가 `oxipage-cli` 바이너리에 **하드코딩**되어 있다.
+현재 CLI는 모든 서브커맨드가 `oxibuilder-cli` 바이너리에 **하드코딩**되어 있다.
 
 ```rust
 // main.rs — 확장이 추가돼도 CLI 명령은 따로 추가해야 함
@@ -26,7 +26,7 @@ pub enum Command {
 | DB 스키마 | `fn migrations() -> Vec<Migration>` | 각 확장이 자유롭게 등록 |
 | 백그라운드 잡 | `fn background_jobs() -> Vec<ScheduledJob>` | 각 확장이 자유롭게 등록 |
 | 로비 카드 | `fn lobby_summary() -> Option<LobbyCard>` | 각 확장이 자유롭게 등록 |
-| **CLI 명령** | **없음** | **oxipage-cli 바이너리에서 하드코딩, 확장이 등록 불가** |
+| **CLI 명령** | **없음** | **oxibuilder-cli 바이너리에서 하드코딩, 확장이 등록 불가** |
 
 novels/movies/books/scraps/activity 확장의 서버 API(`routes.rs` + `repo.rs` + SQL migrations)는 모두 완성되어 있지만, **CLI 명령이 없는 이유는 시스템적 설계 결함이 아닌 사람이 하드코딩을 추가하지 않았기 때문**이다. 이는 확장 시스템의 일관성을 깨는 구조적 문제다.
 
@@ -37,19 +37,19 @@ novels/movies/books/scraps/activity 확장의 서버 API(`routes.rs` + `repo.rs`
 기존 등록 패턴(`routes()`, `migrations()`)과 동일한 인터페이스:
 
 ```rust
-// oxipage-core/src/extension.rs
+// oxibuilder-core/src/extension.rs
 
 /// CLI 서브커맨드 하나의 정의.
 pub struct CliCommand {
     /// 명령 이름 (예: "novel"). 확장 id와 동일할 필요는 없지만 관례상 일치 권장.
     pub name: &'static str,
-    /// `oxipage novel --help` 상단에 표시될 설명.
+    /// `oxibuilder novel --help` 상단에 표시될 설명.
     pub about: &'static str,
     /// 이 명령의 하위 서브커맨드들.
     pub subcommands: Vec<CliSubcommand>,
 }
 
-/// 단일 서브커맨드 (예: "oxipage novel new").
+/// 단일 서브커맨드 (예: "oxibuilder novel new").
 pub struct CliSubcommand {
     pub name: &'static str,
     pub about: &'static str,
@@ -103,7 +103,7 @@ pub enum Command {
     Blog(commands::BlogCommand),
     // ...나머지 정적 명령...
 
-    /// 확장이 등록한 동적 명령. `oxipage novel new --title "X" --genre "g"` →
+    /// 확장이 등록한 동적 명령. `oxibuilder novel new --title "X" --genre "g"` →
     /// `Dynamic { name: "novel", sub: "new", args: ["--title","X","--genre","g"] }`.
     /// clap derive가 매칭하지 못한 명령을 raw args 배열로 잡는다.
     #[clap(external_subcommand)]
@@ -111,7 +111,7 @@ pub enum Command {
 }
 ```
 
-`#[clap(external_subcommand)]`는 derive가 알지 못하는 서브커맨드를 `Vec<String>`으로 포착하는 clap 기능이다. `oxipage novel new --title "X"` → `Dynamic(["novel", "new", "--title", "X"])`.
+`#[clap(external_subcommand)]`는 derive가 알지 못하는 서브커맨드를 `Vec<String>`으로 포착하는 clap 기능이다. `oxibuilder novel new --title "X"` → `Dynamic(["novel", "new", "--title", "X"])`.
 
 dispatch에서:
 
@@ -150,7 +150,7 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
 
 ```
 resolve_command_registry():
-  1. 컴파일 확장: oxipage_server::all_extensions().iter().flat_map(cli_commands)
+  1. 컴파일 확장: oxibuilder_server::all_extensions().iter().flat_map(cli_commands)
      → local cache, online/offline 둘 다 작동
   2. 런타임 디스커버리: GET /api/console/cli/commands
      → 서버가 WASM 확장을 포함한 전체 CLI 명령 정의 반환
@@ -192,7 +192,7 @@ pub struct CliArgSpec {
 서버 측: core `build_app()`가 `/api/console/cli/commands` 엔드포인트를 자동 마운트. 모든 활성 확장의 `cli_commands()`를 수집해 `CliCommandManifest`로 응답.
 
 ```rust
-// oxipage-core/src/http.rs — build_app() 내부
+// oxibuilder-core/src/http.rs — build_app() 내부
 Router::new()
     .route("/api/console/cli/commands", get(cli_commands_handler))
     // ...기존 라우트...
@@ -210,7 +210,7 @@ async fn cli_commands_handler(State(state): State<Arc<AppState>>) -> Json<CliCom
 CLI 측 해상(resolution) 순서:
 
 ```
-1. --endpoint flag / OXIPAGE_ENDPOINT / site / default → endpoint
+1. --endpoint flag / OXIBUILDER_ENDPOINT / site / default → endpoint
 2. 컴파일 확장 목록 (all_extensions) → offline 가능
 3. GET {endpoint}/api/console/cli/commands → WASM 확장 포함
    실패 시 컴파일 목록만으로 진행 (server offline tolerant)
@@ -223,10 +223,10 @@ CLI 측 해상(resolution) 순서:
 
 | 항목 | 효과 |
 |------|------|
-| `--help` | 정적 명령만 나열. "Run `oxipage help <name>` for more..." 유도 |
-| `oxipage help novel` | Dynamic args로 진입 → resolve 후 인자 안내 |
-| `oxipage novel` | args = `["novel"]` → "missing subcommand" 에러 |
-| `oxipage novel new --title "X" --genre g` | 정상 파싱, handler 호출 |
+| `--help` | 정적 명령만 나열. "Run `oxibuilder help <name>` for more..." 유도 |
+| `oxibuilder help novel` | Dynamic args로 진입 → resolve 후 인자 안내 |
+| `oxibuilder novel` | args = `["novel"]` → "missing subcommand" 에러 |
+| `oxibuilder novel new --title "X" --genre g` | 정상 파싱, handler 호출 |
 
 derive와 builder를 섞지 않음. 정적 명령은 derive 유지, 동적 명령은 `Vec<String>`으로 원시 수신 후 수동 파싱. clap 내부와 충돌 없음.
 
@@ -238,7 +238,7 @@ derive와 builder를 섞지 않음. 정적 명령은 derive 유지, 동적 명�
 | **기존 확장과의 역호환성** | 기본 구현이 빈 vec이므로 기존 확장에 영향 없음 |
 | **정적 명령 공존** | `#[clap(external_subcommand)]` 하나만 추가. blog/project/link 등 derive 기반 명령은 그대로 |
 | **WASM 확장 CLI 명령** | 서버 `/api/console/cli/commands` 엔드포인트로 런타임 확장의 명령도 자동 노출 |
-| **오프라인 대응** | 서버 미기동 시 컴파일 확장 목록으로 폴백. `oxipage --help`는 서버 없이도 동적 명령 나열 가능 |
+| **오프라인 대응** | 서버 미기동 시 컴파일 확장 목록으로 폴백. `oxibuilder --help`는 서버 없이도 동적 명령 나열 가능 |
 | **테스트 용이성** | 각 확장의 CLI 핸들러를 확장 자체의 crate에서 단위 테스트 (`Client` mock 주입) |
 
 ## 11.4 단점 및 대응
@@ -255,7 +255,7 @@ derive와 builder를 섞지 않음. 정적 명령은 derive 유지, 동적 명�
 
 ### Phase 1: 코어 인터페이스 + 서버 엔드포인트
 
-**파일:** `crates/oxipage-core/src/extension.rs`, `crates/oxipage-core/src/http.rs`
+**파일:** `crates/oxibuilder-core/src/extension.rs`, `crates/oxibuilder-core/src/http.rs`
 
 - `CliCommand`, `CliSubcommand`, `CliArg`, `CliHandler` 타입 정의
 - `Extension::cli_commands()` 메서드 추가 (기본 구현: 빈 vec)
@@ -264,7 +264,7 @@ derive와 builder를 섞지 않음. 정적 명령은 derive 유지, 동적 명�
 
 ### Phase 2: CLI 측 `external_subcommand` + 디스커버리
 
-**파일:** `crates/oxipage-cli/src/main.rs`, `crates/oxipage-cli/src/commands/mod.rs`
+**파일:** `crates/oxibuilder-cli/src/main.rs`, `crates/oxibuilder-cli/src/commands/mod.rs`
 
 - `Command::Dynamic(Vec<String>)` variant + `#[clap(external_subcommand)]` 추가
 - `resolve_command_registry()`: 컴파일 목록 + `GET /api/console/cli/commands` merge (오프라인 폴백)
@@ -273,7 +273,7 @@ derive와 builder를 섞지 않음. 정적 명령은 derive 유지, 동적 명�
 
 ### Phase 3: 확장 마이그레이션
 
-**파일:** 각 `crates/oxipage-ext-*/src/lib.rs`
+**파일:** 각 `crates/oxibuilder-ext-*/src/lib.rs`
 
 ```yaml
 novels:   novel new, novel list, novel chapter add
@@ -287,7 +287,7 @@ activity: activity sync
 
 ### Phase 4: 핸들러 공통 헬퍼
 
-**파일:** `crates/oxipage-core/src/cli.rs` (신규)
+**파일:** `crates/oxibuilder-core/src/cli.rs` (신규)
 
 - 인자 역직렬화 헬퍼 (`args_from_map::<T: Deserialize>()`)
 - HTTP 응답 포맷팅 헬퍼 (output.rs와 유사)

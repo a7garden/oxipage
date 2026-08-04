@@ -13,7 +13,7 @@ interface State {
 /** Compiled SPA revision, injected into admin.html by serve_asset as a meta tag. */
 function getSpaRevision(): string {
   return (
-    document.querySelector('meta[name="oxipage-spa-revision"]')?.getAttribute("content") ??
+    document.querySelector('meta[name="oxibuilder-spa-revision"]')?.getAttribute("content") ??
     "unknown"
   );
 }

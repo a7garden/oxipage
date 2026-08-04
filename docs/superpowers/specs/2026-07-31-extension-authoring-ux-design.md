@@ -301,10 +301,10 @@ web/src/
     │       └── TagInput.tsx
     └── shared content primitives
 
-crates/oxipage-ext-profile/src/routes.rs
-crates/oxipage-ext-projects/src/{routes.rs,repo.rs}
-crates/oxipage-ext-novels/src/{routes.rs,repo.rs}
-crates/oxipage-ext-*/src/routes.rs              # missing validation
+crates/oxibuilder-ext-profile/src/routes.rs
+crates/oxibuilder-ext-projects/src/{routes.rs,repo.rs}
+crates/oxibuilder-ext-novels/src/{routes.rs,repo.rs}
+crates/oxibuilder-ext-*/src/routes.rs              # missing validation
 ```
 
 ## 12. Explicit non-goals

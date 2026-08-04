@@ -7,8 +7,8 @@
 
 | 작업 | 상태 | 변경 요약 |
 |------|------|-----------|
-| **T1** SitesFile 스키마 + SiteRegistry | ✅ | path-only, `oxipage-core`로 이동, SiteLoader |
-| **T2** console.db + setup_state | ✅ | `~/.config/oxipage/console.db`, 마이그레이션 |
+| **T1** SitesFile 스키마 + SiteRegistry | ✅ | path-only, `oxibuilder-core`로 이동, SiteLoader |
+| **T2** console.db + setup_state | ✅ | `~/.config/oxibuilder/console.db`, 마이그레이션 |
 | **T3** Site-prefixed 라우터 + 미들웨어 | ✅ | `/s/{slug}/build,deploy`, `SiteScopedDb` 주입 |
 | **T4+T8** 전체 확장 핸들러 전환 | ✅ | 9개 확장 `State<AppState>` → `Extension<SiteScopedDb>` |
 | **T5** Admin SPA 골격 | ✅ | `web/src/admin/` + dual vite + RustEmbed |
@@ -22,7 +22,7 @@
 
 1. **`web/src/setup/StepSite.tsx`** — 사이트 디렉토리 입력 UI
    - 현재: 사이트명/URL 입력 (v1 레거시)
-   - 변경: 경로 입력 (`~/oxipage/blog`) + "신설" / "기존 등록" 선택
+   - 변경: 경로 입력 (`~/oxibuilder/blog`) + "신설" / "기존 등록" 선택
    - POST `/api/console/setup/create-site` 호출
    - 응답의 `slug`를 이후 step에 전달
 
@@ -42,7 +42,7 @@
 
 **해야 할 일:**
 
-1. **`crates/oxipage-console/src/admin/mod.rs`** 삭제
+1. **`crates/oxibuilder-console/src/admin/mod.rs`** 삭제
    - `pub mod admin;`를 `lib.rs`에서 제거
    - `sites_api.rs`, `themes.rs`도 함께 삭제
    - `Embedded SPA` 관련 `Assets` (`admin-web/dist`) 제거
@@ -51,11 +51,11 @@
    - 모든 파일 `git rm`
    - `build.rs`의 `admin-web/dist` 참조 제거 (이미 `web/dist`로 변경됨)
 
-3. **`crates/oxipage-cli/src/commands/init_console.rs`**
+3. **`crates/oxibuilder-cli/src/commands/init_console.rs`**
    - `--admin-port` 인자 제거
    - `Command::Admin` 정리
 
-4. **`grep -rn "8788\|OXIPAGE_ADMIN_PORT\|run_admin"`** 로 잔재 확인
+4. **`grep -rn "8788\|OXIBUILDER_ADMIN_PORT\|run_admin"`** 로 잔재 확인
 
 **주의:** `setup_gate`와 `extension_gate` 미들웨어가 콘솔 라우트를 커버하지 않음 (T6에서 남긴 이슈). 콘솔 라우트는 `build_app`의 `api` 라우터가 아닌 별도 `nest("/api/console", ...)`로 마운트되므로, `setup_gate`(loopback 체크)와 `extension_gate`(비활성 확장 차단)의 적용을 받지 않음. 이는 보안 경계가 약해짐을 의미 — 콘솔 라우트도 같은 게이트를 적용해야 함.
 
@@ -66,11 +66,11 @@
 1. **Build 트리거** — `POST /api/console/s/{slug}/build`
    - 현재: stub (`{"ok":true}` 반환)
    - 필요: `SiteRegistry.ctx_for(slug)`로 `SiteContext` 획득 → `build_site()` 호출 → `out/` 디렉토리 생성
-   - `oxipage_core::build::build_site()`와 `write_static_outputs()` 호출
+   - `oxibuilder_core::build::build_site()`와 `write_static_outputs()` 호출
 
 2. **Deploy 트리거** — `POST /api/console/s/{slug}/deploy`
    - 현재: stub
-   - 필요: 기존 `oxipage deploy` CLI 로직 재사용
+   - 필요: 기존 `oxibuilder deploy` CLI 로직 재사용
 
 3. **Preview 핸들러** — `GET /api/console/preview/:slug/*`
    - 현재: 없음
@@ -78,10 +78,10 @@
    - MIME 타입은 `mime_guess`
 
 **참고 파일:**
-- `crates/oxipage-console/src/router.rs` (라우트 등록)
-- `crates/oxipage-console/src/build/` (신규 모듈)
-- `crates/oxipage-console/src/deploy/` (신규 모듈)
-- `crates/oxipage-console/src/preview/` (신규 모듈)
+- `crates/oxibuilder-console/src/router.rs` (라우트 등록)
+- `crates/oxibuilder-console/src/build/` (신규 모듈)
+- `crates/oxibuilder-console/src/deploy/` (신규 모듈)
+- `crates/oxibuilder-console/src/preview/` (신규 모듈)
 
 ### 🟢 Cleanup
 
@@ -90,10 +90,10 @@
 1. `cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings` 통과 확인
 2. `cd web && bun run build` 통과 확인 (TypeScript 오류 수정)
 3. `cargo build --release --workspace` 로 릴리스 빌드
-4. `oxipage site add blog --path /tmp/blog` 로 사이트 등록
-5. `oxipage console` 실행 → `:8787` 접속 확인
+4. `oxibuilder site add blog --path /tmp/blog` 로 사이트 등록
+5. `oxibuilder console` 실행 → `:8787` 접속 확인
 6. `curl /api/console/sites` 가 JSON 반환하는지 확인
-7. README 업데이트: `:8788` 제거, `oxipage site add --path` 설명
+7. README 업데이트: `:8788` 제거, `oxibuilder site add --path` 설명
 
 ---
 
@@ -108,7 +108,7 @@
 ## 파일 맵 (변경 대상)
 
 ```
-crates/oxipage-console/
+crates/oxibuilder-console/
 ├── src/
 │   ├── lib.rs              # app.nest("/api/console", console_router) → 게이트 추가
 │   ├── router.rs           # build/deploy/preview 라우트 추가

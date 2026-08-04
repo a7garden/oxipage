@@ -37,37 +37,37 @@ jobs:
       - name: Test
         run: cargo test --workspace
 
-      - name: Publish — oxipage-core (Tier 0)
-        run: cargo publish -p oxipage-core --no-verify --allow-dirty
+      - name: Publish — oxibuilder-core (Tier 0)
+        run: cargo publish -p oxibuilder-core --no-verify --allow-dirty
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-      - name: Publish — oxipage-wasm (Tier 0)
-        run: cargo publish -p oxipage-wasm --no-verify --allow-dirty
+      - name: Publish — oxibuilder-wasm (Tier 0)
+        run: cargo publish -p oxibuilder-wasm --no-verify --allow-dirty
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
       - name: Publish — extensions (Tier 1)
         run: |
-          cargo publish -p oxipage-ext-activity --no-verify --allow-dirty
-          cargo publish -p oxipage-ext-blog --no-verify --allow-dirty
-          cargo publish -p oxipage-ext-books --no-verify --allow-dirty
-          cargo publish -p oxipage-ext-links --no-verify --allow-dirty
-          cargo publish -p oxipage-ext-movies --no-verify --allow-dirty
-          cargo publish -p oxipage-ext-novels --no-verify --allow-dirty
-          cargo publish -p oxipage-ext-profile --no-verify --allow-dirty
-          cargo publish -p oxipage-ext-projects --no-verify --allow-dirty
-          cargo publish -p oxipage-ext-scraps --no-verify --allow-dirty
+          cargo publish -p oxibuilder-ext-activity --no-verify --allow-dirty
+          cargo publish -p oxibuilder-ext-blog --no-verify --allow-dirty
+          cargo publish -p oxibuilder-ext-books --no-verify --allow-dirty
+          cargo publish -p oxibuilder-ext-links --no-verify --allow-dirty
+          cargo publish -p oxibuilder-ext-movies --no-verify --allow-dirty
+          cargo publish -p oxibuilder-ext-novels --no-verify --allow-dirty
+          cargo publish -p oxibuilder-ext-profile --no-verify --allow-dirty
+          cargo publish -p oxibuilder-ext-projects --no-verify --allow-dirty
+          cargo publish -p oxibuilder-ext-scraps --no-verify --allow-dirty
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-      - name: Publish — oxipage-console (Tier 2)
-        run: cargo publish -p oxipage-console --no-verify --allow-dirty
+      - name: Publish — oxibuilder-console (Tier 2)
+        run: cargo publish -p oxibuilder-console --no-verify --allow-dirty
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-      - name: Publish — oxipage-cli (Tier 3)
-        run: cargo publish -p oxipage --no-verify --allow-dirty
+      - name: Publish — oxibuilder-cli (Tier 3)
+        run: cargo publish -p oxibuilder --no-verify --allow-dirty
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 

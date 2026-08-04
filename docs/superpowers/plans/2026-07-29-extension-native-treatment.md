@@ -15,15 +15,15 @@
 
 - [ ] **Step 0.1:** `git status` 깨끗한지, `cargo test --workspace` baseline 통과 (163 tests) 확인
 - [ ] **Step 0.2:** 변경 대상 파일 트리 캐시. 각 파일의 현재 라인 수를 기록해 회귀 비교 기준으로 둠
-  - `crates/oxipage-core/src/extension.rs`
-  - `crates/oxipage-core/src/setup.rs`
-  - `crates/oxipage-core/src/openapi.rs`
-  - `crates/oxipage-core/src/http.rs`
-  - `crates/oxipage-ext-profile/src/lib.rs`
-  - `crates/oxipage-ext-blog/src/lib.rs`
-  - `crates/oxipage-ext-movies/src/lib.rs`
-  - `crates/oxipage-ext-books/src/lib.rs`
-  - `crates/oxipage-ext-activity/src/lib.rs`
+  - `crates/oxibuilder-core/src/extension.rs`
+  - `crates/oxibuilder-core/src/setup.rs`
+  - `crates/oxibuilder-core/src/openapi.rs`
+  - `crates/oxibuilder-core/src/http.rs`
+  - `crates/oxibuilder-ext-profile/src/lib.rs`
+  - `crates/oxibuilder-ext-blog/src/lib.rs`
+  - `crates/oxibuilder-ext-movies/src/lib.rs`
+  - `crates/oxibuilder-ext-books/src/lib.rs`
+  - `crates/oxibuilder-ext-activity/src/lib.rs`
   - `web/src/setup/SetupWizard.tsx`
   - `web/src/setup/api.ts`
 
@@ -36,7 +36,7 @@
 ### Task P1.1: `Extension` 트레이트에 hook 추가
 
 **Files:**
-- Modify: `crates/oxipage-core/src/extension.rs`
+- Modify: `crates/oxibuilder-core/src/extension.rs`
 
 **Changes:**
 1. 트레이트 `Extension` 본문 끝에 4개 메서드 추가 (모두 기본 impl):
@@ -54,9 +54,9 @@
 3. `set_extension_config`는 이미 `setup.rs`에 존재하지만 trait 기본 impl에서 호출하려면 `extension.rs`가 아닌 `setup.rs`에 있음. 트레이트 기본 impl은 `setup::set_extension_config(&ctx, ...)`을 호출하도록 한다.
 
 **Acceptance:**
-- `cargo build -p oxipage-core` 성공
+- `cargo build -p oxibuilder-core` 성공
 - 모든 기존 9개 확장 `cargo build --workspace` 성공 (트레이트 기본 impl만 사용하면 됨)
-- `cargo clippy -p oxipage-core --all-targets -- -D warnings` 깨끗
+- `cargo clippy -p oxibuilder-core --all-targets -- -D warnings` 깨끗
 
 ---
 
@@ -67,7 +67,7 @@
 ### Task P2.1: setup 응답 확장 + 핸들러 리팩토링
 
 **Files:**
-- Modify: `crates/oxipage-core/src/setup.rs`
+- Modify: `crates/oxibuilder-core/src/setup.rs`
 
 **Changes:**
 1. `StatusResult`에 `pub extension_steps: Vec<ExtensionStepInfo>`, `pub external_api_keys: Vec<ExternalApiKey>` 추가.
@@ -132,14 +132,14 @@
 9. `SAMPLE_POST_TITLE/SLUG/BODY` 상수 제거.
 
 **Acceptance:**
-- `cargo build -p oxipage-core` 성공
-- `cargo test -p oxipage-core` 성공 (기존 setup 테스트 없음 — 다만 setup_status에서 동적 step이 잘 노출되는지 새 테스트 추가)
-- `cargo clippy -p oxipage-core --all-targets -- -D warnings` 깨끗
+- `cargo build -p oxibuilder-core` 성공
+- `cargo test -p oxibuilder-core` 성공 (기존 setup 테스트 없음 — 다만 setup_status에서 동적 step이 잘 노출되는지 새 테스트 추가)
+- `cargo clippy -p oxibuilder-core --all-targets -- -D warnings` 깨끗
 
 ### Task P2.2: setup 통합 테스트 추가
 
 **Files:**
-- Create: `crates/oxipage-core/tests/setup_wizard.rs`
+- Create: `crates/oxibuilder-core/tests/setup_wizard.rs`
 
 **Tests:**
 1. `extension_steps_excluded_for_disabled` — registry에 blog 확장이 있어도 enabled=false면 `extension_steps`에 없음
@@ -150,7 +150,7 @@
 6. `unknown_step_returns_404` — 등록되지 않은 step_id는 404
 
 **Acceptance:**
-- `cargo test -p oxipage-core --test setup_wizard` 6개 모두 통과
+- `cargo test -p oxibuilder-core --test setup_wizard` 6개 모두 통과
 
 ---
 
@@ -161,9 +161,9 @@
 ### Task P3.1: openapi_spec 시그니처 변경
 
 **Files:**
-- Modify: `crates/oxipage-core/src/openapi.rs`
-- Modify: `crates/oxipage-core/src/http.rs` (또는 build_app 호출자)
-- Modify: `crates/oxipage-core/src/lib.rs` (외부에서 호출되는 곳)
+- Modify: `crates/oxibuilder-core/src/openapi.rs`
+- Modify: `crates/oxibuilder-core/src/http.rs` (또는 build_app 호출자)
+- Modify: `crates/oxibuilder-core/src/lib.rs` (외부에서 호출되는 곳)
 
 **Changes:**
 1. `openapi_spec(base_url: &str)` → `openapi_spec(base_url: &str, registry: &ExtensionRegistry)`.
@@ -209,7 +209,7 @@
 ### Task P4.1: ProfileExtension::setup_wizard_step
 
 **Files:**
-- Modify: `crates/oxipage-ext-profile/src/lib.rs`
+- Modify: `crates/oxibuilder-ext-profile/src/lib.rs`
 
 **Changes:**
 1. `SetupStep` 구조체 생성: id="profile", title_ko="프로필", title_en="Profile", description_ko="사이트에 표시할 신상 정보", description_en="Profile info displayed on your site"
@@ -224,58 +224,58 @@
 4. `Extension::setup_wizard_step`이 Some(step) 반환.
 
 **Acceptance:**
-- `cargo build -p oxipage-ext-profile` 성공
-- `cargo test -p oxipage-ext-profile` 기존 테스트 통과
+- `cargo build -p oxibuilder-ext-profile` 성공
+- `cargo test -p oxibuilder-ext-profile` 기존 테스트 통과
 
 ### Task P4.2: BlogExtension::seed_sample_data
 
 **Files:**
-- Modify: `crates/oxipage-ext-blog/src/lib.rs`
-- Modify: `crates/oxipage-ext-blog/src/repo.rs` (필요 시)
+- Modify: `crates/oxibuilder-ext-blog/src/lib.rs`
+- Modify: `crates/oxibuilder-ext-blog/src/repo.rs` (필요 시)
 
 **Changes:**
 1. `repo.rs`에 `seed_welcome_post(pool: &SqlitePool) -> anyhow::Result<()>` 추가 — SAMPLE_POST 데이터와 동일한 INSERT (slug="환영합니다", title="환영합니다", body=markdown) 단, 블로그 repo가 작성. body는 blog_extension에 `const WELCOME_POST_BODY: &str = ...`로 두거나 별도 `content/welcome.md` include_str.
 2. `Extension::seed_sample_data`가 그 함수 호출.
-3. 기존 `oxipage-core/src/setup.rs`의 `SAMPLE_POST_*` 상수/INSERT SQL 전부 제거.
+3. 기존 `oxibuilder-core/src/setup.rs`의 `SAMPLE_POST_*` 상수/INSERT SQL 전부 제거.
 
 **Acceptance:**
-- `cargo build -p oxipage-ext-blog` 성공
-- `cargo test -p oxipage-ext-blog` 기존 테스트 통과
+- `cargo build -p oxibuilder-ext-blog` 성공
+- `cargo test -p oxibuilder-ext-blog` 기존 테스트 통과
 
 ### Task P4.3: MoviesExtension::external_api_keys
 
 **Files:**
-- Modify: `crates/oxipage-ext-movies/src/lib.rs`
+- Modify: `crates/oxibuilder-ext-movies/src/lib.rs`
 
 **Changes:**
-1. `external_api_keys()`가 `vec![ExternalApiKey { id: "tmdb_key", label_ko: "TMDB API 키", label_en: "TMDB API key", env_var: "OXIPAGE_TMDB_KEY", required: false, scope: ExtensionConfig }]` 반환.
+1. `external_api_keys()`가 `vec![ExternalApiKey { id: "tmdb_key", label_ko: "TMDB API 키", label_en: "TMDB API key", env_var: "OXIBUILDER_TMDB_KEY", required: false, scope: ExtensionConfig }]` 반환.
 2. 기본 `save_external_key` impl이 작동 (env + extension_state.config). 추가로 `tmdb_api_key_env` 환경변수가 set 되어 있으면 그쪽을 우선 (기존 `IntegrationsConfig::tmdb_key()` 동작). 기본 impl은 env_var에 set한 이름을 config JSON에 저장하지만, movies 확장은 이 키가 이미 `IntegrationsConfig`에 등록되어 있음을 활용할 수도 있음. v1에서는 기본 impl 그대로 사용.
 
 **Acceptance:**
-- `cargo build -p oxipage-ext-movies` 성공
+- `cargo build -p oxibuilder-ext-movies` 성공
 
 ### Task P4.4: BooksExtension::external_api_keys
 
 **Files:**
-- Modify: `crates/oxipage-ext-books/src/lib.rs`
+- Modify: `crates/oxibuilder-ext-books/src/lib.rs`
 
 **Changes:**
-1. `external_api_keys()`가 `vec![ExternalApiKey { id: "aladin_key", label_ko: "알라딘 TTBKey", label_en: "Aladin TTBKey", env_var: "OXIPAGE_ALADIN_TTBKEY", required: false, scope: ExtensionConfig }]` 반환.
+1. `external_api_keys()`가 `vec![ExternalApiKey { id: "aladin_key", label_ko: "알라딘 TTBKey", label_en: "Aladin TTBKey", env_var: "OXIBUILDER_ALADIN_TTBKEY", required: false, scope: ExtensionConfig }]` 반환.
 
 **Acceptance:**
-- `cargo build -p oxipage-ext-books` 성공
+- `cargo build -p oxibuilder-ext-books` 성공
 
 ### Task P4.5: ActivityExtension::external_api_keys
 
 **Files:**
-- Modify: `crates/oxipage-ext-activity/src/lib.rs`
+- Modify: `crates/oxibuilder-ext-activity/src/lib.rs`
 
 **Changes:**
-1. `external_api_keys()`가 `vec![ExternalApiKey { id: "github_username", label_ko: "GitHub 사용자명", label_en: "GitHub username", env_var: "OXIPAGE_GITHUB_USERNAME", required: false, scope: EnvOnly }]` 반환.
+1. `external_api_keys()`가 `vec![ExternalApiKey { id: "github_username", label_ko: "GitHub 사용자명", label_en: "GitHub username", env_var: "OXIBUILDER_GITHUB_USERNAME", required: false, scope: EnvOnly }]` 반환.
 2. `EnvOnly` scope이라 env에만 set, config JSON에는 저장 안 함.
 
 **Acceptance:**
-- `cargo build -p oxipage-ext-activity` 성공
+- `cargo build -p oxibuilder-ext-activity` 성공
 
 ---
 
@@ -447,7 +447,7 @@ P5 ──▶ P6.2 doc/13 문서
 ## 위험 / 주의
 
 1. **Extension trait 변경 = 컴파일 시 모든 9개 확장 깨짐 가능.** default impl로 안전망 제공하면 영향 없음. P1 끝나면 `cargo build --workspace`로 즉시 확인.
-2. **`set_extension_config` 위치.** trait default impl에서 `setup::set_extension_config` 호출하려면 `oxipage_core::setup` 모듈이 `extension.rs`보다 먼저 정의됨. 현재 setup.rs가 extension.rs를 import하므로 cycle 가능성. 해결: trait default impl이 `set_extension_config` 호출 안 하고 in-place SQL 작성 (env_var set + extension_state.config UPDATE). 또는 `set_extension_config`을 별도 모듈(`config.rs` 등)로 이동.
+2. **`set_extension_config` 위치.** trait default impl에서 `setup::set_extension_config` 호출하려면 `oxibuilder_core::setup` 모듈이 `extension.rs`보다 먼저 정의됨. 현재 setup.rs가 extension.rs를 import하므로 cycle 가능성. 해결: trait default impl이 `set_extension_config` 호출 안 하고 in-place SQL 작성 (env_var set + extension_state.config UPDATE). 또는 `set_extension_config`을 별도 모듈(`config.rs` 등)로 이동.
    - **결정**: `set_extension_config`을 `crate::config` 또는 별도 `crate::extension_config` 모듈로 이동. setup.rs에서 re-export.
 3. **ExtensionStepInfo와 SetupStep의 중복.** SetupStep이 `save_handler: Arc<dyn SetupSaveHandler>`를 가지지만 ExtensionStepInfo(클라이언트로 보낼 JSON)는 save_handler를 빼야 함. SetupStep의 fields 부분만 직렬화하도록 별도 타입 필요. 본 계획 §3.3에 반영.
 4. **OpenAPI 동적 생성 후 응답 형식 미세 변경.** 테스트가 정확한 summary 텍스트를 단언하면 깨짐. 현재는 summary 자유도가 낮으니 신규는 `format!("{name} list")` 같은 일반 패턴으로. 기존 테스트가 summary를 단언하는지 확인 필요.

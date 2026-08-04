@@ -25,18 +25,18 @@
 
 | 항목 | 필요 작업 |
 |------|----------|
-| **Novels chapter CRUD** | 현재 `NovelsTab.tsx`는 소설 목록만 관리. `novel_chapter` 테이블의 CRUD가 없음. 새 tab 또는 drawer 내 chapter 리스트 + 생성/편집/삭제. 엔드포인트는 `POST/PATCH/DELETE /extensions/novels/{id}/chapters` 형태로 `oxipage-ext-novels`에서 제공돼야 함. |
+| **Novels chapter CRUD** | 현재 `NovelsTab.tsx`는 소설 목록만 관리. `novel_chapter` 테이블의 CRUD가 없음. 새 tab 또는 drawer 내 chapter 리스트 + 생성/편집/삭제. 엔드포인트는 `POST/PATCH/DELETE /extensions/novels/{id}/chapters` 형태로 `oxibuilder-ext-novels`에서 제공돼야 함. |
 | **Movies series groups** | `movie_entry`에 `series_group_id` FK 있으나 UI 없음. 그룹 생성/편집/멤버 관리. `series_group` 테이블 CRUD. |
 | **Projects screenshots** | `screenshot` 테이블 존재 (`project_id, url, alt, display_order`). ProjectsTab에 스크린샷 업로드/순서 관리 UI. |
-| **WASM extension install** | WASM 확장(`oxipage-core`의 `WasmLoader`)을 console에서 설치/관리하는 UI. 현재 CLI 전용. |
+| **WASM extension install** | WASM 확장(`oxibuilder-core`의 `WasmLoader`)을 console에서 설치/관리하는 UI. 현재 CLI 전용. |
 
 **참고 파일:**
 - `web/src/admin/content/NovelsTab.tsx`
 - `web/src/admin/content/MoviesTab.tsx`
 - `web/src/admin/content/ProjectsTab.tsx`
-- `crates/oxipage-ext-novels/src/` (routes.rs, repo.rs — 챕터 엔드포인트 확인)
-- `crates/oxipage-ext-movies/src/` (시리즈 그룹 엔드포인트 확인)
-- `crates/oxipage-core/src/extension.rs` (WasmLoader)
+- `crates/oxibuilder-ext-novels/src/` (routes.rs, repo.rs — 챕터 엔드포인트 확인)
+- `crates/oxibuilder-ext-movies/src/` (시리즈 그룹 엔드포인트 확인)
+- `crates/oxibuilder-core/src/extension.rs` (WasmLoader)
 
 ---
 
@@ -48,18 +48,18 @@
 | 항목 | 필요 작업 |
 |------|----------|
 | **Build log streaming** | 현재: build 완료 후 `build_log` INSERT만. 필요: 빌드 진행상황을 SSE(`text/event-stream`)로 클라이언트에 스트리밍. `POST /build`가 `Channel<BuildEvent>`를 열고, `GET /build/stream`이 SSE로 푸시. DeployPage에서 실시간 로그 표시. |
-| **Deploy action** | 현재 `deploy_post`는 **stub** (`"Deploy is currently invoked via \`oxipage deploy --site <slug>\`"` 반환). `oxipage deploy` CLI 로직을 console 라우트로 포팅. |
+| **Deploy action** | 현재 `deploy_post`는 **stub** (`"Deploy is currently invoked via \`oxibuilder deploy --site <slug>\`"` 반환). `oxibuilder deploy` CLI 로직을 console 라우트로 포팅. |
 | **Trigger UX** | DeployPage의 Build/Deploy 버튼 → 로그 스트리밍 표시 → 결과. 빌드 중 버튼 비활성화, 프로그레스 인디케이터. |
 
 **참고 파일:**
-- `crates/oxipage-console/src/per_site.rs` (build_post, deploy_post)
-- `crates/oxipage-console/src/build/site_build.rs`
-- `crates/oxipage-console/src/deploy/site_deploy.rs`
+- `crates/oxibuilder-console/src/per_site.rs` (build_post, deploy_post)
+- `crates/oxibuilder-console/src/build/site_build.rs`
+- `crates/oxibuilder-console/src/deploy/site_deploy.rs`
 - `web/src/admin/deploy/DeployPage.tsx`
 
 **기술 노트:**
 - SSE는 `axum::response::sse::Sse` 사용. 기존 의존성에 `axum-extra` 필요할 수 있음.
-- 빌드는 동기 blocking 작업 (`oxipage_core::build::build_site`). `tokio::task::spawn_blocking`에서 실행 + 채널로 진행도 전송.
+- 빌드는 동기 blocking 작업 (`oxibuilder_core::build::build_site`). `tokio::task::spawn_blocking`에서 실행 + 채널로 진행도 전송.
 
 ---
 
@@ -94,7 +94,7 @@
 - `web/src/admin/shell/Sidebar.tsx`, `Topbar.tsx`
 - `web/src/admin/shell/SiteSelector.tsx`
 - `web/src/admin/shared/ui/` (new components: MarkdownPreview, OfflineBanner)
-- `crates/oxipage-console/src/per_site.rs` (build_post — `finished_at` UPDATE)
+- `crates/oxibuilder-console/src/per_site.rs` (build_post — `finished_at` UPDATE)
 
 ---
 
@@ -118,7 +118,7 @@ Sub-project 4와 5는 병렬 가능. Sub-project 2와 3은 S1 위에서 독립�
 
 ```
 미변경 파일 (첫 서브프로젝트 완료 후 상태):
-crates/oxipage-console/src/
+crates/oxibuilder-console/src/
 ├── per_site.rs              # +stats_get, +recent_get, config_put 확장됨
 ├── router.rs                # +delete_site handler + route
 └── sites_runtime.rs         # +remove_site
@@ -132,7 +132,7 @@ web/src/admin/
 └── content/*Tab.tsx             # search 와이어링됨
 
 향후 변경 대상 (Sub-project 2-5):
-crates/oxipage-console/src/
+crates/oxibuilder-console/src/
 ├── per_site.rs              # build finished_at, SSE channel
 ├── build/site_build.rs      # 진행도 콜백/채널
 └── deploy/site_deploy.rs    # 실제 deploy 로직

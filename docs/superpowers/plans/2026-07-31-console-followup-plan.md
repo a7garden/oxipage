@@ -24,15 +24,15 @@
 ### Task 1: 빌드 경고 2건 제거 (Item C)
 
 **Files:**
-- Modify: `crates/oxipage-ext-books/src/repo.rs:50`
-- Modify: `crates/oxipage-ext-projects/src/repo.rs:98`
+- Modify: `crates/oxibuilder-ext-books/src/repo.rs:50`
+- Modify: `crates/oxibuilder-ext-projects/src/repo.rs:98`
 
 **Interfaces:**
 - Produces: 두 크레이트 경고 0건. 동작 불변.
 
 - [ ] **Step 1: 수정 적용**
 
-`crates/oxipage-ext-books/src/repo.rs:50`:
+`crates/oxibuilder-ext-books/src/repo.rs:50`:
 
 ```rust
 // before
@@ -41,17 +41,17 @@
     let sql = if status.is_some() {
 ```
 
-`crates/oxipage-ext-projects/src/repo.rs:98` — 동일 치환 (문맥: `list` 함수의 `published_clause` 직후).
+`crates/oxibuilder-ext-projects/src/repo.rs:98` — 동일 치환 (문맥: `list` 함수의 `published_clause` 직후).
 
 - [ ] **Step 2: 경고 0건 확인**
 
-Run: `cargo check -p oxipage-ext-books -p oxipage-ext-projects 2>&1 | grep -c warning`
+Run: `cargo check -p oxibuilder-ext-books -p oxibuilder-ext-projects 2>&1 | grep -c warning`
 Expected: `1` (profiles for non-root package 경고 1건만 — 이건 기존 workspace 경고로 무해). `unused variable: s` 0건.
 
 - [ ] **Step 3: 커밋**
 
 ```bash
-git add crates/oxipage-ext-books/src/repo.rs crates/oxipage-ext-projects/src/repo.rs
+git add crates/oxibuilder-ext-books/src/repo.rs crates/oxibuilder-ext-projects/src/repo.rs
 git commit -m "fix: remove unused-variable warnings in books/projects list"
 ```
 
@@ -60,9 +60,9 @@ git commit -m "fix: remove unused-variable warnings in books/projects list"
 ### Task 2: Books 레거시 status 읽기 정규화 (Item A)
 
 **Files:**
-- Modify: `crates/oxipage-ext-books/src/model.rs` (Book struct 뒤, `default_status` fn 앞)
-- Modify: `crates/oxipage-ext-books/src/repo.rs` (create/find_by_id/list/update/publish)
-- Test: `crates/oxipage-ext-books/src/model.rs` `#[cfg(test)] mod tests` + `crates/oxipage-ext-books/src/repo.rs` `#[cfg(test)] mod tests`
+- Modify: `crates/oxibuilder-ext-books/src/model.rs` (Book struct 뒤, `default_status` fn 앞)
+- Modify: `crates/oxibuilder-ext-books/src/repo.rs` (create/find_by_id/list/update/publish)
+- Test: `crates/oxibuilder-ext-books/src/model.rs` `#[cfg(test)] mod tests` + `crates/oxibuilder-ext-books/src/repo.rs` `#[cfg(test)] mod tests`
 
 **Interfaces:**
 - Consumes: `Book` (16필드, `#[derive(sqlx::FromRow)]`), repo 함수 5개.
@@ -140,12 +140,12 @@ mod tests {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use oxipage_core::extension::Extension;
+    use oxibuilder_core::extension::Extension;
 
     /// CHECK 제약 우회가 필요한 레거시 행 삽입용 풀. 프로덕션 마이그레이션은
     /// 4값만 허용하므로 PRAGMA로 우회한다 (max_connections=1이라 단일 커넥션 적용).
     async fn test_pool() -> SqlitePool {
-        let pool = oxipage_core::db::connect_memory().await.unwrap();
+        let pool = oxibuilder_core::db::connect_memory().await.unwrap();
         sqlx::query("PRAGMA ignore_check_constraints = ON")
             .execute(&pool)
             .await
@@ -179,13 +179,13 @@ mod tests {
 
 - [ ] **Step 5: 테스트 실행**
 
-Run: `cargo test -p oxipage-ext-books`
+Run: `cargo test -p oxibuilder-ext-books`
 Expected: 신규 테스트 3건 포함 전체 PASS.
 
 - [ ] **Step 6: 커밋**
 
 ```bash
-git add crates/oxipage-ext-books/src/model.rs crates/oxipage-ext-books/src/repo.rs
+git add crates/oxibuilder-ext-books/src/model.rs crates/oxibuilder-ext-books/src/repo.rs
 git commit -m "fix(books): normalize legacy read/dnf status on read"
 ```
 
@@ -248,7 +248,7 @@ import { Link } from "react-router";
         <p className="mt-1 text-xs text-muted max-w-56">
           TMDB 검색 비활성 —{" "}
           <Link className="underline" to={`/s/${slug}/settings`}>Settings</Link>
-          에서 TMDB Key Env를 확인하거나 <code>OXIPAGE_TMDB_KEY</code> 환경변수를
+          에서 TMDB Key Env를 확인하거나 <code>OXIBUILDER_TMDB_KEY</code> 환경변수를
           설정하세요. 제목/포스터는 수동 입력할 수 있습니다.
         </p>
       )}
@@ -271,11 +271,11 @@ git commit -m "fix(web): surface TMDB-disabled hint in movies search"
 ### Task 4: 비-API `/preview/*` 404 라우트 (Item D)
 
 **Files:**
-- Modify: `crates/oxipage-console/src/lib.rs` (앱 조립 추출 + 라우트 추가, 173-176행)
-- Create: `crates/oxipage-console/tests/preview_legacy_404.rs`
+- Modify: `crates/oxibuilder-console/src/lib.rs` (앱 조립 추출 + 라우트 추가, 173-176행)
+- Create: `crates/oxibuilder-console/tests/preview_legacy_404.rs`
 
 **Interfaces:**
-- Consumes: `oxipage_core::http::build_app(state) -> Router<AppState>`, `crate::router::build_console_router(registry) -> Router<()>`.
+- Consumes: `oxibuilder_core::http::build_app(state) -> Router<AppState>`, `crate::router::build_console_router(registry) -> Router<()>`.
 - Produces: `pub fn build_console_app(state: AppState, registry: Arc<SiteRegistry>) -> Router<AppState>` — `run_console_with_extensions`과 테스트가 공용.
 
 - [ ] **Step 1: lib.rs에 build_console_app 추출 + 404 핸들러**
@@ -289,7 +289,7 @@ pub fn build_console_app(
     registry: Arc<SiteRegistry>,
 ) -> axum::Router<AppState> {
     let console = crate::router::build_console_router(registry);
-    let mut app = oxipage_core::http::build_app(state);
+    let mut app = oxibuilder_core::http::build_app(state);
     app = app.nest("/api/console", console);
     // canonical 경로는 /api/console/preview/{slug}/. 비-API /preview/* 는
     // SPA fallback(admin.html 200) 대신 명시적 404를 반환한다 (design §6).
@@ -307,7 +307,7 @@ async fn preview_legacy_404() -> (StatusCode, &'static str) {
 
 ```rust
     let console = crate::router::build_console_router(site_registry.clone());
-    let mut app = oxipage_core::http::build_app(state);
+    let mut app = oxibuilder_core::http::build_app(state);
     app = app.nest("/api/console", console);
 ```
 
@@ -321,7 +321,7 @@ import 추가: `use axum::http::StatusCode;` + `use axum::routing::get;`
 
 - [ ] **Step 2: 통합 테스트 작성**
 
-`crates/oxipage-console/tests/preview_legacy_404.rs`:
+`crates/oxibuilder-console/tests/preview_legacy_404.rs`:
 
 ```rust
 //! 비-API `/preview/*` 404 가드 + canonical preview 경로 불변 (design §6).
@@ -329,12 +329,12 @@ import 추가: `use axum::http::StatusCode;` + `use axum::routing::get;`
 use axum::body::Body;
 use axum::body::to_bytes;
 use axum::http::{Request, StatusCode};
-use oxipage_console::operations::SiteOperationGuard;
-use oxipage_console::sites_runtime::SiteRegistry;
-use oxipage_core::config::Config;
-use oxipage_core::registry::ExtensionRegistry;
-use oxipage_core::sites::SitesFile;
-use oxipage_core::state::AppState;
+use oxibuilder_console::operations::SiteOperationGuard;
+use oxibuilder_console::sites_runtime::SiteRegistry;
+use oxibuilder_core::config::Config;
+use oxibuilder_core::registry::ExtensionRegistry;
+use oxibuilder_core::sites::SitesFile;
+use oxibuilder_core::state::AppState;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -358,14 +358,14 @@ enabled = ["profile", "blog"]
 }
 
 fn create_site_dir(name: &str) -> (TempDir, PathBuf) {
-    let dir = TempDir::with_prefix(format!("oxipage-followup-{name}-")).unwrap();
-    let toml_path = dir.path().join("oxipage.toml");
+    let dir = TempDir::with_prefix(format!("oxibuilder-followup-{name}-")).unwrap();
+    let toml_path = dir.path().join("oxibuilder.toml");
     std::fs::write(&toml_path, minimal_toml(name)).unwrap();
     (dir, dir.path().to_path_buf())
 }
 
 async fn build_console_app() -> axum::Router<AppState> {
-    let pool = oxipage_core::db::connect_memory().await.unwrap();
+    let pool = oxibuilder_core::db::connect_memory().await.unwrap();
     let state = AppState {
         db: pool,
         config: Arc::new(Config::default()),
@@ -380,7 +380,7 @@ async fn build_console_app() -> axum::Router<AppState> {
     sf.add("blog".into(), path);
     let guard = Arc::new(SiteOperationGuard::new());
     let site_registry = Arc::new(SiteRegistry::new(sf, guard).await.unwrap());
-    oxipage_console::build_console_app(state, site_registry)
+    oxibuilder_console::build_console_app(state, site_registry)
 }
 
 #[tokio::test]
@@ -417,13 +417,13 @@ async fn api_preview_canonical_path_unaffected() {
 
 - [ ] **Step 3: 테스트 실행**
 
-Run: `cargo test -p oxipage-console --test preview_legacy_404`
+Run: `cargo test -p oxibuilder-console --test preview_legacy_404`
 Expected: 2건 PASS.
 
 - [ ] **Step 4: 커밋**
 
 ```bash
-git add crates/oxipage-console/src/lib.rs crates/oxipage-console/tests/preview_legacy_404.rs
+git add crates/oxibuilder-console/src/lib.rs crates/oxibuilder-console/tests/preview_legacy_404.rs
 git commit -m "feat(console): 404 for non-API /preview/* instead of SPA fallback"
 ```
 
@@ -432,9 +432,9 @@ git commit -m "feat(console): 404 for non-API /preview/* instead of SPA fallback
 ## 최종 검증
 
 ```bash
-cargo check -p oxipage-ext-books -p oxipage-ext-projects 2>&1 | grep -c "unused variable"   # 0
+cargo check -p oxibuilder-ext-books -p oxibuilder-ext-projects 2>&1 | grep -c "unused variable"   # 0
 cargo build --workspace
-cargo test -p oxipage-ext-books -p oxipage-console
+cargo test -p oxibuilder-ext-books -p oxibuilder-console
 cd web && npx tsc --noEmit && bun run build
 ```
 

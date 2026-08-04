@@ -33,8 +33,8 @@ export function ScrapsPage() {
           </EmptyStateTitle>
           <EmptyStateDescription>
             {lang === "ko"
-              ? "`oxipage scraps add` 로 스크랩을 추가하세요."
-              : "Add a scrap with `oxipage scraps add`."}
+              ? "`oxibuilder scraps add` 로 스크랩을 추가하세요."
+              : "Add a scrap with `oxibuilder scraps add`."}
           </EmptyStateDescription>
         </EmptyState>
       </div>

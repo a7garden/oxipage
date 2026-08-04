@@ -46,8 +46,8 @@ export function ActivityPage() {
           </EmptyStateTitle>
           <EmptyStateDescription>
             {lang === "ko"
-              ? "`oxipage cache refresh --extension activity` 로 동기화하세요."
-              : "Sync with `oxipage cache refresh --extension activity`."}
+              ? "`oxibuilder cache refresh --extension activity` 로 동기화하세요."
+              : "Sync with `oxibuilder cache refresh --extension activity`."}
           </EmptyStateDescription>
         </EmptyState>
       </div>

@@ -7,14 +7,14 @@
 
 ## 1. 동기
 
-Oxipage의 핵심 아키텍처 원칙은 **확장(`oxipage-ext-*`)이 자기 도메인의 시민**이라는 것이다 (doc/01 §1.2, §1.4).
+Oxibuilder의 핵심 아키텍처 원칙은 **확장(`oxibuilder-ext-*`)이 자기 도메인의 시민**이라는 것이다 (doc/01 §1.2, §1.4).
 
 ```
 코어가 아는 것: id, display_name, migrations, routes, lobby_summary, CLI, background_jobs, public_pages, table_names, on_startup, on_disable
 코어가 모르는 것: 확장의 도메인 컬럼, UI 폼 필드, 외부 API 키 이름, 샘플 데이터
 ```
 
-**Audit 결과, 두 곳에 native treatment가 새어 들어왔다**: setup 마법사(`oxipage-core/src/setup.rs` + `web/src/setup/`)와 OpenAPI 스펙(`oxipage-core/src/openapi.rs`).
+**Audit 결과, 두 곳에 native treatment가 새어 들어왔다**: setup 마법사(`oxibuilder-core/src/setup.rs` + `web/src/setup/`)와 OpenAPI 스펙(`oxibuilder-core/src/openapi.rs`).
 
 ### 1.1 Setup 마법사 위반 카탈로그
 
@@ -66,7 +66,7 @@ CLI 서브커맨드(`cli_commands`), 라우트(`routes`), 로비 카드(`lobby_s
 
 ### 3.1 새 트레이트 메서드
 
-`oxipage-core/src/extension.rs`의 `Extension` 트레이트에 세 가지 기본 메서드를 추가한다 (모두 기본은 "참여 안 함").
+`oxibuilder-core/src/extension.rs`의 `Extension` 트레이트에 세 가지 기본 메서드를 추가한다 (모두 기본은 "참여 안 함").
 
 ```rust
 pub trait Extension: Send + Sync {
@@ -92,7 +92,7 @@ pub trait Extension: Send + Sync {
 }
 ```
 
-### 3.2 새 타입 — `oxipage-core/src/setup.rs` (또는 `extension.rs`로 분리)
+### 3.2 새 타입 — `oxibuilder-core/src/setup.rs` (또는 `extension.rs`로 분리)
 
 ```rust
 /// setup wizard 한 step의 선언적 정의.
@@ -145,7 +145,7 @@ pub struct ExternalApiKey {
     pub id: String,                  // "tmdb_key", "aladin_key", "github_username" 등
     pub label_ko: String,
     pub label_en: String,
-    pub env_var: String,             // "OXIPAGE_TMDB_KEY" — 저장 시 process env에도 세팅
+    pub env_var: String,             // "OXIBUILDER_TMDB_KEY" — 저장 시 process env에도 세팅
     pub required: bool,              // false면 "선택"
     /// 키 값을 어떤 식으로 보존할지. env_var만, 또는 env_var + extension_state.config JSON
     pub scope: ExternalKeyScope,
@@ -395,8 +395,8 @@ async fn setup_external_keys_handler(
 
 ### 4.2 새 확장 추가 시 (참고)
 
-1. `oxipage-ext-X/Cargo.toml` + 마이그레이션 + routes
-2. `crates/oxipage-console/src/lib.rs`의 `all_extensions()` vec에 한 줄 추가
+1. `oxibuilder-ext-X/Cargo.toml` + 마이그레이션 + routes
+2. `crates/oxibuilder-console/src/lib.rs`의 `all_extensions()` vec에 한 줄 추가
 3. (선택) `impl Extension for XExtension { fn setup_wizard_step() -> Some(SetupStep { ... }) }`
 4. (선택) `impl Extension for XExtension { fn external_api_keys() -> vec![...] }`
 5. (선택) `impl Extension for XExtension { async fn seed_sample_data(...) }`
@@ -420,9 +420,9 @@ async fn setup_external_keys_handler(
 
 ### 5.3 기존 테스트
 
-- `crates/oxipage-ext-profile/tests/api.rs` — 영향 없음. profile API 라우트는 그대로.
-- `crates/oxipage-ext-blog/tests/api.rs` — 영향 없음.
-- `crates/oxipage-core/src/setup.rs` (현재 테스트 없음) — 신규 테스트 추가:
+- `crates/oxibuilder-ext-profile/tests/api.rs` — 영향 없음. profile API 라우트는 그대로.
+- `crates/oxibuilder-ext-blog/tests/api.rs` — 영향 없음.
+- `crates/oxibuilder-core/src/setup.rs` (현재 테스트 없음) — 신규 테스트 추가:
   - `extension_step_dispatch_routes_to_correct_handler`
   - `external_keys_dispatch_to_correct_extension`
   - `seed_sample_data_called_only_for_active_extensions`
@@ -445,15 +445,15 @@ async fn setup_external_keys_handler(
 
 | 파일 | 변경 |
 |------|------|
-| `crates/oxipage-core/src/extension.rs` | 트레이트에 `setup_wizard_step`, `external_api_keys`, `seed_sample_data`, `save_external_key` 추가. `SetupStep`/`SetupField`/`SetupFieldKind`/`SetupSaveHandler`/`ExternalApiKey`/`ExternalKeyScope` 타입 추가 |
-| `crates/oxipage-core/src/setup.rs` | `setup_status_handler` 응답에 `extension_steps`, `external_api_keys` 추가. `/setup/extension-step/{id}` + `/setup/external-keys` 라우트 추가. `setup_profile_handler`, `setup_content_handler` 제거. `setup_complete_handler`에 seed 호출 추가 |
-| `crates/oxipage-core/src/openapi.rs` | `openapi_spec` 시그니처에 `&ExtensionRegistry` 추가. 경로 자동 조립 |
-| `crates/oxipage-core/src/http.rs` | `build_app`에서 `openapi_spec(base_url, &state.registry)` 호출 |
-| `crates/oxipage-ext-profile/src/lib.rs` | `setup_wizard_step()` 구현 (display_name/tagline_ko/tagline_en/github_username + bio_ko/bio_en). `save_external_key`는 사용 안 함 (github_username은 profile 필드) |
-| `crates/oxipage-ext-blog/src/lib.rs` | `seed_sample_data()` 구현 (환영 글 INSERT) |
-| `crates/oxipage-ext-movies/src/lib.rs` | `external_api_keys()`에 `tmdb_key` 노출. `save_external_key`는 기본 impl (env + config) |
-| `crates/oxipage-ext-books/src/lib.rs` | `external_api_keys()`에 `aladin_key` 노출. 동일 |
-| `crates/oxipage-ext-activity/src/lib.rs` | `external_api_keys()`에 `github_username`(EnvOnly) 노출 |
+| `crates/oxibuilder-core/src/extension.rs` | 트레이트에 `setup_wizard_step`, `external_api_keys`, `seed_sample_data`, `save_external_key` 추가. `SetupStep`/`SetupField`/`SetupFieldKind`/`SetupSaveHandler`/`ExternalApiKey`/`ExternalKeyScope` 타입 추가 |
+| `crates/oxibuilder-core/src/setup.rs` | `setup_status_handler` 응답에 `extension_steps`, `external_api_keys` 추가. `/setup/extension-step/{id}` + `/setup/external-keys` 라우트 추가. `setup_profile_handler`, `setup_content_handler` 제거. `setup_complete_handler`에 seed 호출 추가 |
+| `crates/oxibuilder-core/src/openapi.rs` | `openapi_spec` 시그니처에 `&ExtensionRegistry` 추가. 경로 자동 조립 |
+| `crates/oxibuilder-core/src/http.rs` | `build_app`에서 `openapi_spec(base_url, &state.registry)` 호출 |
+| `crates/oxibuilder-ext-profile/src/lib.rs` | `setup_wizard_step()` 구현 (display_name/tagline_ko/tagline_en/github_username + bio_ko/bio_en). `save_external_key`는 사용 안 함 (github_username은 profile 필드) |
+| `crates/oxibuilder-ext-blog/src/lib.rs` | `seed_sample_data()` 구현 (환영 글 INSERT) |
+| `crates/oxibuilder-ext-movies/src/lib.rs` | `external_api_keys()`에 `tmdb_key` 노출. `save_external_key`는 기본 impl (env + config) |
+| `crates/oxibuilder-ext-books/src/lib.rs` | `external_api_keys()`에 `aladin_key` 노출. 동일 |
+| `crates/oxibuilder-ext-activity/src/lib.rs` | `external_api_keys()`에 `github_username`(EnvOnly) 노출 |
 | `web/src/setup/SetupWizard.tsx` | step 조립을 status 응답 기반으로 변경 |
 | `web/src/setup/SetupWizard.tsx` (StepProfile/StepContent 호출 제거) | 동적 step으로 |
 | `web/src/setup/GenericStep.tsx` | 신규. `SetupField[]` 받아 input 렌더 |

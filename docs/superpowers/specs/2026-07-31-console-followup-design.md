@@ -12,10 +12,10 @@
 
 | # | 항목 | 계층 | 크기 |
 |---|---|---|---|
-| A | Books 레거시 status 읽기 정규화 | `oxipage-ext-books` | 중 |
+| A | Books 레거시 status 읽기 정규화 | `oxibuilder-ext-books` | 중 |
 | B | TMDB 키 미설정 인라인 힌트 | `web/` (Admin SPA) | 소 |
-| C | 빌드 경고 2건 제거 | `oxipage-ext-books`/`oxipage-ext-projects` | 극소 |
-| D | 비-API `/preview/*` 404 라우트 | `oxipage-console` | 소 |
+| C | 빌드 경고 2건 제거 | `oxibuilder-ext-books`/`oxibuilder-ext-projects` | 극소 |
+| D | 비-API `/preview/*` 404 라우트 | `oxibuilder-console` | 소 |
 
 ## 2. 확정 결정 (사용자, 2026-07-31 ask)
 
@@ -34,7 +34,7 @@
 
 ### 변경
 
-`crates/oxipage-ext-books/src/model.rs`:
+`crates/oxibuilder-ext-books/src/model.rs`:
 
 ```rust
 /// 레거시 status 값 정규화. 구 DB의 `read`/`dnf`를 현재 4값 체계로 매핑한다.
@@ -49,7 +49,7 @@ pub fn normalize_status(s: &str) -> &str {
 
 `Book`에 `pub fn normalize_status(mut self) -> Self { self.status = normalize_status(&self.status).to_string(); self }` 메서드 추가.
 
-`crates/oxipage-ext-books/src/repo.rs` — Book 행을 반환하는 5개 지점에 적용:
+`crates/oxibuilder-ext-books/src/repo.rs` — Book 행을 반환하는 5개 지점에 적용:
 
 | 함수 | 행 |
 |---|---|
@@ -76,7 +76,7 @@ pub fn normalize_status(s: &str) -> &str {
 
 ### 배경
 
-- 키 미설정 시 `tmdb_search`는 503 `tmdb_disabled` 반환 (`oxipage-ext-movies/src/routes.rs:227`).
+- 키 미설정 시 `tmdb_search`는 503 `tmdb_disabled` 반환 (`oxibuilder-ext-movies/src/routes.rs:227`).
 - 프론트 `TmdbSearchRow`는 성공·빈 배열일 때만 드롭다운을 렌더 → 에러 시 **조용히 무반응** (`MoviesTab.tsx:479-497`).
 - 원인: `jsonOrThrow`가 field 없는 에러에 `code`를 보존하지 않음 → `tmdb_disabled` 구분 불가 (`api.ts:70-88`).
 
@@ -111,7 +111,7 @@ throw new Error(msg);                                      // code 없음(네트
 
 - `import { ApiError } from "../shared/api"` 추가 (기존 import에 병합).
 - `search.isError && (search.error as ApiError)?.code === "tmdb_disabled"`일 때 인풋 아래 인라인 노트 렌더:
-  - 텍스트: "TMDB 검색 비활성 — Settings에서 TMDB Key Env를 확인하거나 `OXIPAGE_TMDB_KEY` 환경변수를 설정하세요. 제목/포스터 수동 입력은 계속 사용할 수 있습니다."
+  - 텍스트: "TMDB 검색 비활성 — Settings에서 TMDB Key Env를 확인하거나 `OXIBUILDER_TMDB_KEY` 환경변수를 설정하세요. 제목/포스터 수동 입력은 계속 사용할 수 있습니다."
   - 링크: `<Link to={`/s/${slug}/settings`}>Settings</Link>` (SPA 라우트 `s/:slug/settings` 존재, `admin/App.tsx:148`).
 - 성공/기타 에러(네트워크 등) 분기는 기존 동작 유지 — code 없는 에러는 힌트 미표시.
 
@@ -127,7 +127,7 @@ throw new Error(msg);                                      // code 없음(네트
 
 ## 5. Item C — 빌드 경고 2건 제거
 
-`crates/oxipage-ext-projects/src/repo.rs:98`와 `crates/oxipage-ext-books/src/repo.rs:50`:
+`crates/oxibuilder-ext-projects/src/repo.rs:98`와 `crates/oxibuilder-ext-books/src/repo.rs:50`:
 
 ```rust
 // before
@@ -138,28 +138,28 @@ let sql = if status.is_some() {
 
 2줄 기계적 수정, 동작 불변.
 
-**검증:** `cargo check -p oxipage-ext-books -p oxipage-ext-projects`에서 경고 0건.
+**검증:** `cargo check -p oxibuilder-ext-books -p oxibuilder-ext-projects`에서 경고 0건.
 
 ## 6. Item D — 비-API `/preview/*` 404 라우트
 
 ### 배경
 
 - canonical preview URL은 `/api/console/preview/{slug}/` (프론트 `CONSOLE_BASE = "/api/console"` 고정, `web/src/admin/shared/api.ts:1`).
-- top-level(비-API) `/preview/{slug}/`는 콘솔 라우터에 매치되지 않아 `.fallback(static_handler)`가 **admin.html 200**을 반환 (`oxipage-core/src/http.rs:354-363`). 등록 여부와 무관하게 SPA HTML이 나가는 죽은 네임스페이스.
+- top-level(비-API) `/preview/{slug}/`는 콘솔 라우터에 매치되지 않아 `.fallback(static_handler)`가 **admin.html 200**을 반환 (`oxibuilder-core/src/http.rs:354-363`). 등록 여부와 무관하게 SPA HTML이 나가는 죽은 네임스페이스.
 - 등록 사이트의 `/api/console/preview/{slug}/`는 이미 정상(미등록 404 `site_not_found`, 무빌드 424 `build_required`, 테스트 검증됨) — 변경 대상 아님.
 
 ### 변경
 
-`crates/oxipage-console/src/lib.rs` — 앱 조립을 테스트 가능한 함수로 추출하고 404 라우트 추가:
+`crates/oxibuilder-console/src/lib.rs` — 앱 조립을 테스트 가능한 함수로 추출하고 404 라우트 추가:
 
 ```rust
 /// 전체 콘솔 앱 조립: core 앱 + /api/console nest + 비-API /preview/* 404 가드.
 pub fn build_console_app(
-    state: oxipage_core::state::AppState,
+    state: oxibuilder_core::state::AppState,
     registry: Arc<SiteRegistry>,
 ) -> axum::Router {
     let console = crate::router::build_console_router(registry);
-    let mut app = oxipage_core::http::build_app(state);
+    let mut app = oxibuilder_core::http::build_app(state);
     app = app.nest("/api/console", console);
     // canonical 경로는 /api/console/preview/{slug}/. 비-API /preview/* 는
     // SPA fallback(admin.html 200) 대신 명시적 404를 반환한다.
@@ -179,9 +179,9 @@ async fn preview_legacy_404() -> (StatusCode, &'static str) {
 
 ### 테스트
 
-`crates/oxipage-console/tests/preview_legacy_404.rs`:
+`crates/oxibuilder-console/tests/preview_legacy_404.rs`:
 
-- `AppState`는 `oxipage-core/tests/cache_headers.rs:10-32` 레시피 재사용(메모리 DB + dummy 확장 레지스트리 + `Config::default`).
+- `AppState`는 `oxibuilder-core/tests/cache_headers.rs:10-32` 레시피 재사용(메모리 DB + dummy 확장 레지스트리 + `Config::default`).
 - 레지스트리는 기존 콘솔 테스트의 `create_site_dir("Test")` + `SitesFile::add` 패턴으로 등록 사이트 1개 구성 (`build_deploy_preview.rs:39-50`).
 - Assert:
   1. `GET /preview/nope/` → 404, 본문이 admin.html 아님 (`preview_missing`).
@@ -191,9 +191,9 @@ async fn preview_legacy_404() -> (StatusCode, &'static str) {
 ## 7. 검증 명령
 
 ```bash
-cargo check -p oxipage-ext-books -p oxipage-ext-projects   # 경고 0건 (Item C)
+cargo check -p oxibuilder-ext-books -p oxibuilder-ext-projects   # 경고 0건 (Item C)
 cargo build --workspace
-cargo test -p oxipage-ext-books -p oxipage-console          # Item A, D 테스트
+cargo test -p oxibuilder-ext-books -p oxibuilder-console          # Item A, D 테스트
 cd web && npx tsc --noEmit && bun run build                # Item B
 ```
 

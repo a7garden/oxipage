@@ -11,7 +11,7 @@ Complete the Admin theme system without conflating two different preferences: th
 
 ## 2. Current state
 
-- `admin.html` performs early FOUC prevention using `oxipage-theme` and system preference.
+- `admin.html` performs early FOUC prevention using `oxibuilder-theme` and system preference.
 - Public `App.tsx` calls `applyServerTheme()`; `AdminApp` does not.
 - `Topbar.tsx` defines a private toggle that writes `data-theme` and localStorage directly.
 - Shared `ThemeToggle` already uses `shared/theme.ts` and follows system changes when no explicit stored value exists.
@@ -32,7 +32,7 @@ type ConsoleAppearance = "system" | "light" | "dark";
 Persistence:
 
 ```text
-localStorage["oxipage-console-appearance"]
+localStorage["oxibuilder-console-appearance"]
 ```
 
 Resolution:
@@ -61,13 +61,13 @@ When the selected slug changes, it loads that site's theme. At `/sites` it loads
 
 ## 4. Early FOUC boot
 
-Both HTML entries load one shared early boot helper before CSS. For Admin, it reads `oxipage-console-appearance`. For the public static SPA, generated build metadata supplies the public default theme/mode. The helper is dependency-free and executes before React.
+Both HTML entries load one shared early boot helper before CSS. For Admin, it reads `oxibuilder-console-appearance`. For the public static SPA, generated build metadata supplies the public default theme/mode. The helper is dependency-free and executes before React.
 
 The duplicated inline scripts are removed. The boot helper and runtime controller share keys and parsing rules.
 
 ## 5. Single theme catalog
 
-Create `oxipage-core::theme`:
+Create `oxibuilder-core::theme`:
 
 ```rust
 pub struct ThemeDefinition {
@@ -180,11 +180,11 @@ A build after theme change is required to update deployment. Deploy preflight re
 ## 11. File map
 
 ```text
-crates/oxipage-core/src/
+crates/oxibuilder-core/src/
 ├── theme.rs
 ├── http.rs                          # catalog; remove global DB theme handler
 └── setup.rs
-crates/oxipage-console/src/
+crates/oxibuilder-console/src/
 ├── router.rs                        # default-site GET /theme
 └── per_site.rs                      # selected-site GET/PUT
 web/

@@ -19,7 +19,7 @@
 *.sqlite
 *.sqlite-*
 # SSR/test에서 생성된 snapshots 산출물 — 어디에 생겨도 무시.
-# 예: crates/oxipage-ext-*/data/snapshots/
+# 예: crates/oxibuilder-ext-*/data/snapshots/
 snapshots/
 
 # build.rs가 생성하는 crate-내장 SPA/리소스

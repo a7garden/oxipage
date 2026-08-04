@@ -19,8 +19,8 @@
 ### Task 1: Backend — fix set_default
 
 **Files:**
-- Modify: `crates/oxipage-console/src/router.rs` (set_default handler + route)
-- Modify: `crates/oxipage-console/src/sites_runtime.rs` (+SiteRegistry::set_default)
+- Modify: `crates/oxibuilder-console/src/router.rs` (set_default handler + route)
+- Modify: `crates/oxibuilder-console/src/sites_runtime.rs` (+SiteRegistry::set_default)
 
 - [ ] **Add `SiteRegistry::set_default`**
 
@@ -32,7 +32,7 @@ pub async fn set_default(&self, slug: &str) -> anyhow::Result<()> {
         anyhow::bail!("unknown site: {slug}");
     }
     // 2. Read/write sites.toml (mirror remove_site lines 178-201)
-    let sites_path = directories::ProjectDirs::from("dev", "oxipage", "oxipage")
+    let sites_path = directories::ProjectDirs::from("dev", "oxibuilder", "oxibuilder")
         .map(|p| p.config_dir().join("sites.toml"))
         .ok_or_else(|| anyhow::anyhow!("no config dir"))?;
     let mut sf = if sites_path.exists() {
@@ -71,7 +71,7 @@ async fn set_default(
 }
 ```
 
-- [ ] `cargo check -p oxipage-console`
+- [ ] `cargo check -p oxibuilder-console`
 
 ---
 

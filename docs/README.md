@@ -1,6 +1,6 @@
-# Oxipage documentation
+# Oxibuilder documentation
 
-Oxipage's documentation is split across two directories.
+Oxibuilder's documentation is split across two directories.
 
 | Location | Role | Audience |
 |---|---|---|
@@ -18,7 +18,7 @@ Oxipage's documentation is split across two directories.
 
 ## Agent skill
 
-- **[`../.agent/skills/oxipage-cli/SKILL.md`](../.agent/skills/oxipage-cli/SKILL.md)** — the CLI
+- **[`../.agent/skills/oxibuilder-cli/SKILL.md`](../.agent/skills/oxibuilder-cli/SKILL.md)** — the CLI
   skill read by AI coding agents (oh-my-pi, etc.). Covers the draft-first principle, the auth flow,
   and example workflows.
 

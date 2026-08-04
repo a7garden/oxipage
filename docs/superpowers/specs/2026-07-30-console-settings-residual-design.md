@@ -28,7 +28,7 @@ Close the two Settings items left dangling after S1: the `set_default` handler i
 | sites.toml write pattern | established by `remove_site` (read → modify → `toml::to_string_pretty` → `fs::write` → sync in-memory) | `sites_runtime.rs:174-204` |
 | `default_slug()` / `get_default` | read `default_site`; `all_sites` flags the active one | `sites_runtime.rs:80-130` |
 | Client `setDefaultSite` | exists, fires `PUT /sites/default` | `api.ts:42-48` |
-| `backup_snapshot` endpoint | exists (future purge safety net) | `oxipage-core/src/http.rs:63` |
+| `backup_snapshot` endpoint | exists (future purge safety net) | `oxibuilder-core/src/http.rs:63` |
 
 ## 4. Design
 
@@ -77,7 +77,7 @@ async fn set_default(
 ## 7. File map
 
 ```
-crates/oxipage-console/src/
+crates/oxibuilder-console/src/
 ├── router.rs            # set_default: accept body, delegate to registry, 404 unknown
 └── sites_runtime.rs     # +SiteRegistry::set_default(slug) — mirror remove_site write path
 

@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 빈 사이트라도 실제로 켜져서 접속되는 상태 — Cargo 워크스페이스 + oxipage-core(Axum/SQLite/확장 레지스트리) + profile 확장(명함 페이지) + React SPA(OKLCH 토큰, 다크/라이트)가 단일 바이너리로 빌드·실행된다.
+**Goal:** 빈 사이트라도 실제로 켜져서 접속되는 상태 — Cargo 워크스페이스 + oxibuilder-core(Axum/SQLite/확장 레지스트리) + profile 확장(명함 페이지) + React SPA(OKLCH 토큰, 다크/라이트)가 단일 바이너리로 빌드·실행된다.
 
-**Architecture:** `oxipage-core`(lib: config, db, Extension 트레이트, 레지스트리, HTTP, 인증) ← `oxipage-ext-profile`(lib) ← `oxipage-server`(bin name `oxipage-core`: 확장을 링크해 서버 기동). 프론트엔드는 Vite+React+TS SPA로 빌드해 `rust-embed`로 바이너리에 내장. DB는 SQLite(WAL).
+**Architecture:** `oxibuilder-core`(lib: config, db, Extension 트레이트, 레지스트리, HTTP, 인증) ← `oxibuilder-ext-profile`(lib) ← `oxibuilder-server`(bin name `oxibuilder-core`: 확장을 링크해 서버 기동). 프론트엔드는 Vite+React+TS SPA로 빌드해 `rust-embed`로 바이너리에 내장. DB는 SQLite(WAL).
 
 **Tech Stack:** Rust 1.96 (edition 2024), axum 0.8, sqlx 0.8 (SQLite), rust-embed 8, tracing / Vite 7, React 19, TypeScript, react-router 7, TanStack Query 5, markdown-it, bun.
 
@@ -19,8 +19,8 @@
 - OKLCH 토큰 값은 `doc/03-design-system.md` §3.3에서 verbatim 복사.
 - 웹 패키지 매니저는 bun (`bun install`, `bun run build`). 프론트 테스트 프레임워크는 Phase 0에서 도입하지 않음(브라우저 검증으로 대체).
 - Phase 0에서는 CLI 크레이트를 만들지 않는다 (doc/06 Phase 1에서 추가 — §1.3 레이아웃 대비 명시적 지연).
-- 인증은 v0 임시: 쓰기 API는 `OXIPAGE_ADMIN_TOKEN` 환경변수와 Bearer 토큰 constant-time 비교. PAT 체계(doc §1.8)는 Phase 1/4에서 교체.
-- 워크스페이스 멤버: `crates/oxipage-core`(lib), `crates/oxipage-ext-profile`(lib), `crates/oxipage-server`(bin, 바이너리명 `oxipage-core`).
+- 인증은 v0 임시: 쓰기 API는 `OXIBUILDER_ADMIN_TOKEN` 환경변수와 Bearer 토큰 constant-time 비교. PAT 체계(doc §1.8)는 Phase 1/4에서 교체.
+- 워크스페이스 멤버: `crates/oxibuilder-core`(lib), `crates/oxibuilder-ext-profile`(lib), `crates/oxibuilder-server`(bin, 바이너리명 `oxibuilder-core`).
 - `lobby_config.display_order` 컬럼명 사용 (doc §2.12의 `order`는 SQL 예약어라 변경 — 명시적 편차).
 - 커밋 메시지는 Conventional Commits (`feat:`, `chore:`, `test:` 등).
 - 각 태스크 종료 시 해당 범위 테스트 전부 통과 + 커밋.
@@ -32,23 +32,23 @@
 
 **Files:**
 - Create: `Cargo.toml` (workspace root)
-- Create: `crates/oxipage-core/Cargo.toml`
-- Create: `crates/oxipage-core/src/lib.rs`
-- Create: `crates/oxipage-core/src/config.rs`
-- Create: `oxipage.toml` (repo root, 개발용 예시 설정)
+- Create: `crates/oxibuilder-core/Cargo.toml`
+- Create: `crates/oxibuilder-core/src/lib.rs`
+- Create: `crates/oxibuilder-core/src/config.rs`
+- Create: `oxibuilder.toml` (repo root, 개발용 예시 설정)
 - Modify: `.gitignore` (이미 `/target`, `/data` 포함 확인만)
 
 **Interfaces:**
-- Produces: `oxipage_core::config::{Config, SiteConfig, ServerConfig, ExtensionsConfig, LobbySection, ConfigError}` — 이후 모든 태스크가 사용.
+- Produces: `oxibuilder_core::config::{Config, SiteConfig, ServerConfig, ExtensionsConfig, LobbySection, ConfigError}` — 이후 모든 태스크가 사용.
   - `Config::from_toml_str(&str) -> Result<Config, toml::de::Error>`
   - `Config::load(&Path) -> Result<Config, ConfigError>`
-  - `Config::apply_env_overrides(&mut self)` (pub; `OXIPAGE_PORT`, `OXIPAGE_DATA_DIR` 적용)
-  - `impl Default for Config` — site.name `"Oxipage"`, base_url `"http://127.0.0.1:8787"`, default_lang `"ko"`, languages `["ko","en"]`
+  - `Config::apply_env_overrides(&mut self)` (pub; `OXIBUILDER_PORT`, `OXIBUILDER_DATA_DIR` 적용)
+  - `impl Default for Config` — site.name `"Oxibuilder"`, base_url `"http://127.0.0.1:8787"`, default_lang `"ko"`, languages `["ko","en"]`
   - `ServerConfig` 기본값: host `127.0.0.1`, port `8787`, data_dir `data`, api_endpoint `None`
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
-`crates/oxipage-core/src/config.rs` 남은 부분은 아래 Step 3 구현을 참고해 우선 테스트만 `#[cfg(test)] mod tests`로 작성:
+`crates/oxibuilder-core/src/config.rs` 남은 부분은 아래 Step 3 구현을 참고해 우선 테스트만 `#[cfg(test)] mod tests`로 작성:
 
 ```rust
 #[cfg(test)]
@@ -82,7 +82,7 @@ languages = ["en", "ko"]
 
 [server]
 port = 9999
-data_dir = "/var/oxipage"
+data_dir = "/var/oxibuilder"
 
 [extensions]
 enabled = ["profile", "blog"]
@@ -92,7 +92,7 @@ default_mode = "canvas"
 "#).unwrap();
         assert_eq!(cfg.site.default_lang, "en");
         assert_eq!(cfg.server.port, 9999);
-        assert_eq!(cfg.server.data_dir, std::path::PathBuf::from("/var/oxipage"));
+        assert_eq!(cfg.server.data_dir, std::path::PathBuf::from("/var/oxibuilder"));
         assert_eq!(cfg.extensions.enabled, vec!["profile", "blog"]);
         assert_eq!(cfg.lobby.default_mode, "canvas");
     }
@@ -105,16 +105,16 @@ default_mode = "canvas"
     #[test]
     fn env_overrides_port_and_data_dir() {
         unsafe {
-            std::env::set_var("OXIPAGE_PORT", "1234");
-            std::env::set_var("OXIPAGE_DATA_DIR", "/tmp/oxi-test");
+            std::env::set_var("OXIBUILDER_PORT", "1234");
+            std::env::set_var("OXIBUILDER_DATA_DIR", "/tmp/oxi-test");
         }
         let mut cfg = Config::default();
         cfg.apply_env_overrides();
         assert_eq!(cfg.server.port, 1234);
         assert_eq!(cfg.server.data_dir, std::path::PathBuf::from("/tmp/oxi-test"));
         unsafe {
-            std::env::remove_var("OXIPAGE_PORT");
-            std::env::remove_var("OXIPAGE_DATA_DIR");
+            std::env::remove_var("OXIBUILDER_PORT");
+            std::env::remove_var("OXIBUILDER_DATA_DIR");
         }
     }
 }
@@ -122,7 +122,7 @@ default_mode = "canvas"
 
 - [ ] **Step 2: 테스트 실행 — 실패 확인**
 
-Run: `cargo test -p oxipage-core`
+Run: `cargo test -p oxibuilder-core`
 Expected: FAIL (컴파일 에러 — config 모듈 미구현)
 
 - [ ] **Step 3: 구현**
@@ -133,7 +133,7 @@ Expected: FAIL (컴파일 에러 — config 모듈 미구현)
 [workspace]
 resolver = "2"
 members = [
-    "crates/oxipage-core",
+    "crates/oxibuilder-core",
 ]
 
 [workspace.dependencies]
@@ -157,16 +157,16 @@ lto = true
 codegen-units = 1
 ```
 
-`crates/oxipage-core/Cargo.toml`:
+`crates/oxibuilder-core/Cargo.toml`:
 
 ```toml
 [package]
-name = "oxipage-core"
+name = "oxibuilder-core"
 version = "0.1.0"
 edition = "2024"
 
 [lib]
-name = "oxipage_core"
+name = "oxibuilder_core"
 path = "src/lib.rs"
 
 [dependencies]
@@ -188,13 +188,13 @@ tracing.workspace = true
 tower = { version = "0.5", features = ["util"] }
 ```
 
-`crates/oxipage-core/src/lib.rs`:
+`crates/oxibuilder-core/src/lib.rs`:
 
 ```rust
 pub mod config;
 ```
 
-`crates/oxipage-core/src/config.rs`:
+`crates/oxibuilder-core/src/config.rs`:
 
 ```rust
 use serde::Deserialize;
@@ -215,7 +215,7 @@ impl Default for Config {
     fn default() -> Self {
         Config {
             site: SiteConfig {
-                name: "Oxipage".into(),
+                name: "Oxibuilder".into(),
                 base_url: "http://127.0.0.1:8787".into(),
                 default_lang: default_lang(),
                 languages: default_languages(),
@@ -308,12 +308,12 @@ impl Config {
     }
 
     pub fn apply_env_overrides(&mut self) {
-        if let Ok(port) = std::env::var("OXIPAGE_PORT") {
+        if let Ok(port) = std::env::var("OXIBUILDER_PORT") {
             if let Ok(port) = port.parse::<u16>() {
                 self.server.port = port;
             }
         }
-        if let Ok(dir) = std::env::var("OXIPAGE_DATA_DIR") {
+        if let Ok(dir) = std::env::var("OXIBUILDER_DATA_DIR") {
             self.server.data_dir = PathBuf::from(dir);
         }
     }
@@ -322,7 +322,7 @@ impl Config {
 
 (Step 1의 테스트 모듈을 이 파일 끝에 둔다.)
 
-`oxipage.toml` (repo root):
+`oxibuilder.toml` (repo root):
 
 ```toml
 [site]
@@ -345,14 +345,14 @@ default_mode = "grid"
 
 - [ ] **Step 4: 테스트 실행 — 통과 확인**
 
-Run: `cargo test -p oxipage-core`
+Run: `cargo test -p oxibuilder-core`
 Expected: PASS (4 tests)
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Cargo.toml crates/oxipage-core oxipage.toml
-git commit -m "feat(core): workspace scaffold and oxipage.toml config loading"
+git add Cargo.toml crates/oxibuilder-core oxibuilder.toml
+git commit -m "feat(core): workspace scaffold and oxibuilder.toml config loading"
 ```
 
 ---
@@ -360,15 +360,15 @@ git commit -m "feat(core): workspace scaffold and oxipage.toml config loading"
 ### Task 2: DB 풀 + 마이그레이션 러너 + Extension 트레이트 + 레지스트리 + AppState + 인증
 
 **Files:**
-- Create: `crates/oxipage-core/src/db.rs`
-- Create: `crates/oxipage-core/src/migrate.rs`
-- Create: `crates/oxipage-core/src/extension.rs`
-- Create: `crates/oxipage-core/src/registry.rs`
-- Create: `crates/oxipage-core/src/state.rs`
-- Create: `crates/oxipage-core/src/error.rs`
-- Create: `crates/oxipage-core/src/auth.rs`
-- Create: `crates/oxipage-core/migrations/core/0001_lobby_config.sql`
-- Modify: `crates/oxipage-core/src/lib.rs`
+- Create: `crates/oxibuilder-core/src/db.rs`
+- Create: `crates/oxibuilder-core/src/migrate.rs`
+- Create: `crates/oxibuilder-core/src/extension.rs`
+- Create: `crates/oxibuilder-core/src/registry.rs`
+- Create: `crates/oxibuilder-core/src/state.rs`
+- Create: `crates/oxibuilder-core/src/error.rs`
+- Create: `crates/oxibuilder-core/src/auth.rs`
+- Create: `crates/oxibuilder-core/migrations/core/0001_lobby_config.sql`
+- Modify: `crates/oxibuilder-core/src/lib.rs`
 
 **Interfaces:**
 - Consumes: Task 1의 `Config`.
@@ -390,11 +390,11 @@ git commit -m "feat(core): workspace scaffold and oxipage.toml config loading"
   - `CORE_MIGRATIONS: &[Migration]` (extension id `"_core"`로 실행, lobby_config 생성)
   - `state::AppState { db: SqlitePool, config: Arc<Config>, admin_token: Option<Arc<str>>, registry: Arc<ExtensionRegistry> }` (Clone)
   - `error::{ApiError, ErrorBody, ErrorDetail}` — `ApiError::new(status, code, message)`, `ApiError::validation(field, message)` (422), `ApiError::internal(anyhow::Error)` (500, 메시지는 "internal server error"로 고정 + tracing::error 로그), IntoResponse 구현
-  - `auth::AdminAuth` — `FromRequestParts<AppState>` 구현 extractor. `OXIPAGE_ADMIN_TOKEN` 미설정(admin_token None) → 503 `admin_not_configured`; 헤더 없음/불일치 → 401 `unauthorized`; 일치 시 통과. constant-time 비교.
+  - `auth::AdminAuth` — `FromRequestParts<AppState>` 구현 extractor. `OXIBUILDER_ADMIN_TOKEN` 미설정(admin_token None) → 503 `admin_not_configured`; 헤더 없음/불일치 → 401 `unauthorized`; 일치 시 통과. constant-time 비교.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
-`crates/oxipage-core/src/migrate.rs` 끝에:
+`crates/oxibuilder-core/src/migrate.rs` 끝에:
 
 ```rust
 #[cfg(test)]
@@ -438,7 +438,7 @@ mod tests {
 }
 ```
 
-`crates/oxipage-core/src/auth.rs` 끝에 (extractor 동작 테스트는 Task 3 통합 테스트에서 커버하므로 여기선 constant-time 비교 단위 테스트만):
+`crates/oxibuilder-core/src/auth.rs` 끝에 (extractor 동작 테스트는 Task 3 통합 테스트에서 커버하므로 여기선 constant-time 비교 단위 테스트만):
 
 ```rust
 #[cfg(test)]
@@ -457,12 +457,12 @@ mod tests {
 
 - [ ] **Step 2: 테스트 실행 — 실패 확인**
 
-Run: `cargo test -p oxipage-core`
+Run: `cargo test -p oxibuilder-core`
 Expected: FAIL (컴파일 에러 — 모듈 미구현)
 
 - [ ] **Step 3: 구현**
 
-`crates/oxipage-core/src/lib.rs`:
+`crates/oxibuilder-core/src/lib.rs`:
 
 ```rust
 pub mod auth;
@@ -475,7 +475,7 @@ pub mod registry;
 pub mod state;
 ```
 
-`crates/oxipage-core/src/db.rs`:
+`crates/oxibuilder-core/src/db.rs`:
 
 ```rust
 use anyhow::Context;
@@ -510,7 +510,7 @@ pub async fn connect_memory() -> anyhow::Result<SqlitePool> {
 }
 ```
 
-`crates/oxipage-core/src/extension.rs`:
+`crates/oxibuilder-core/src/extension.rs`:
 
 ```rust
 use crate::state::AppState;
@@ -554,7 +554,7 @@ pub trait Extension: Send + Sync {
 }
 ```
 
-`crates/oxipage-core/src/migrate.rs`:
+`crates/oxibuilder-core/src/migrate.rs`:
 
 ```rust
 use crate::extension::Migration;
@@ -613,7 +613,7 @@ pub async fn run_migrations(
 
 (Step 1 테스트 모듈 포함)
 
-`crates/oxipage-core/migrations/core/0001_lobby_config.sql`:
+`crates/oxibuilder-core/migrations/core/0001_lobby_config.sql`:
 
 ```sql
 CREATE TABLE IF NOT EXISTS lobby_config (
@@ -625,7 +625,7 @@ CREATE TABLE IF NOT EXISTS lobby_config (
 );
 ```
 
-`crates/oxipage-core/src/registry.rs`:
+`crates/oxibuilder-core/src/registry.rs`:
 
 ```rust
 use crate::extension::Extension;
@@ -660,7 +660,7 @@ impl ExtensionRegistry {
 }
 ```
 
-`crates/oxipage-core/src/state.rs`:
+`crates/oxibuilder-core/src/state.rs`:
 
 ```rust
 use crate::config::Config;
@@ -677,7 +677,7 @@ pub struct AppState {
 }
 ```
 
-`crates/oxipage-core/src/error.rs`:
+`crates/oxibuilder-core/src/error.rs`:
 
 ```rust
 use axum::Json;
@@ -736,7 +736,7 @@ impl IntoResponse for ApiError {
 }
 ```
 
-`crates/oxipage-core/src/auth.rs`:
+`crates/oxibuilder-core/src/auth.rs`:
 
 ```rust
 use crate::error::ApiError;
@@ -759,7 +759,7 @@ impl FromRequestParts<AppState> for AdminAuth {
             return Err(ApiError::new(
                 StatusCode::SERVICE_UNAVAILABLE,
                 "admin_not_configured",
-                "server has no OXIPAGE_ADMIN_TOKEN configured",
+                "server has no OXIBUILDER_ADMIN_TOKEN configured",
             ));
         };
         let provided = parts
@@ -790,52 +790,52 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 
 - [ ] **Step 4: 테스트 실행 — 통과 확인**
 
-Run: `cargo test -p oxipage-core`
+Run: `cargo test -p oxibuilder-core`
 Expected: PASS (기존 4 + 신규 3)
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/oxipage-core
+git add crates/oxibuilder-core
 git commit -m "feat(core): db pool, migration runner, extension trait, registry, admin auth"
 ```
 
 ---
 
-### Task 3: `oxipage-ext-profile` — 스키마 + 모델 + 리포지토리 + 라우트
+### Task 3: `oxibuilder-ext-profile` — 스키마 + 모델 + 리포지토리 + 라우트
 
 **Files:**
-- Create: `crates/oxipage-ext-profile/Cargo.toml`
-- Create: `crates/oxipage-ext-profile/src/lib.rs`
-- Create: `crates/oxipage-ext-profile/src/model.rs`
-- Create: `crates/oxipage-ext-profile/src/repo.rs`
-- Create: `crates/oxipage-ext-profile/src/routes.rs`
-- Create: `crates/oxipage-ext-profile/migrations/0001_init.sql`
-- Create: `crates/oxipage-ext-profile/tests/api.rs`
-- Modify: `Cargo.toml` (root — members에 `"crates/oxipage-ext-profile"` 추가)
+- Create: `crates/oxibuilder-ext-profile/Cargo.toml`
+- Create: `crates/oxibuilder-ext-profile/src/lib.rs`
+- Create: `crates/oxibuilder-ext-profile/src/model.rs`
+- Create: `crates/oxibuilder-ext-profile/src/repo.rs`
+- Create: `crates/oxibuilder-ext-profile/src/routes.rs`
+- Create: `crates/oxibuilder-ext-profile/migrations/0001_init.sql`
+- Create: `crates/oxibuilder-ext-profile/tests/api.rs`
+- Modify: `Cargo.toml` (root — members에 `"crates/oxibuilder-ext-profile"` 추가)
 
 **Interfaces:**
 - Consumes: Task 2 전체 (`Extension`, `AppState`, `AdminAuth`, `ApiError`, `db::connect_memory`).
-- Produces: `oxipage_ext_profile::{ProfileExtension, model::{Profile, ProfileInput, Education, CustomLink}}`. 라우트: `GET /` (공개), `PUT /` (AdminAuth). Task 4가 `ProfileExtension`을 레지스트리에 등록.
+- Produces: `oxibuilder_ext_profile::{ProfileExtension, model::{Profile, ProfileInput, Education, CustomLink}}`. 라우트: `GET /` (공개), `PUT /` (AdminAuth). Task 4가 `ProfileExtension`을 레지스트리에 등록.
 - API 경로 (Task 4에서 `/api/v1/profile` 아래 nest됨): `GET /api/v1/profile`, `PUT /api/v1/profile`.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
-`crates/oxipage-ext-profile/tests/api.rs`:
+`crates/oxibuilder-ext-profile/tests/api.rs`:
 
 ```rust
 use axum::Router;
 use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};
-use oxipage_core::config::Config;
-use oxipage_core::registry::ExtensionRegistry;
-use oxipage_core::state::AppState;
-use oxipage_ext_profile::ProfileExtension;
+use oxibuilder_core::config::Config;
+use oxibuilder_core::registry::ExtensionRegistry;
+use oxibuilder_core::state::AppState;
+use oxibuilder_ext_profile::ProfileExtension;
 use std::sync::Arc;
 use tower::ServiceExt;
 
 async fn test_app(admin_token: Option<&str>) -> Router {
-    let pool = oxipage_core::db::connect_memory().await.unwrap();
+    let pool = oxibuilder_core::db::connect_memory().await.unwrap();
     let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(ProfileExtension)]));
     registry.run_migrations(&pool).await.unwrap();
     let state = AppState {
@@ -867,7 +867,7 @@ async fn get_profile_returns_seeded_singleton() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let json = body_json(res).await;
-    assert_eq!(json["data"]["display_name"], "Oxipage"); // Config::default().site.name
+    assert_eq!(json["data"]["display_name"], "Oxibuilder"); // Config::default().site.name
 }
 
 #[tokio::test]
@@ -965,18 +965,18 @@ async fn put_with_empty_display_name_is_422() {
 
 - [ ] **Step 2: 테스트 실행 — 실패 확인**
 
-Run: `cargo test -p oxipage-ext-profile`
+Run: `cargo test -p oxibuilder-ext-profile`
 Expected: FAIL (크레이트 미구현)
 
 - [ ] **Step 3: 구현**
 
-Root `Cargo.toml` members에 `"crates/oxipage-ext-profile"` 추가.
+Root `Cargo.toml` members에 `"crates/oxibuilder-ext-profile"` 추가.
 
-`crates/oxipage-ext-profile/Cargo.toml`:
+`crates/oxibuilder-ext-profile/Cargo.toml`:
 
 ```toml
 [package]
-name = "oxipage-ext-profile"
+name = "oxibuilder-ext-profile"
 version = "0.1.0"
 edition = "2024"
 
@@ -984,7 +984,7 @@ edition = "2024"
 anyhow.workspace = true
 async-trait.workspace = true
 axum.workspace = true
-oxipage-core = { path = "../oxipage-core" }
+oxibuilder-core = { path = "../oxibuilder-core" }
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true
@@ -995,7 +995,7 @@ tokio.workspace = true
 tower = { version = "0.5", features = ["util"] }
 ```
 
-`crates/oxipage-ext-profile/migrations/0001_init.sql`:
+`crates/oxibuilder-ext-profile/migrations/0001_init.sql`:
 
 ```sql
 CREATE TABLE IF NOT EXISTS profile (
@@ -1015,7 +1015,7 @@ CREATE TABLE IF NOT EXISTS profile (
 );
 ```
 
-`crates/oxipage-ext-profile/src/model.rs`:
+`crates/oxibuilder-ext-profile/src/model.rs`:
 
 ```rust
 use serde::{Deserialize, Serialize};
@@ -1073,7 +1073,7 @@ pub struct ProfileInput {
 }
 ```
 
-`crates/oxipage-ext-profile/src/repo.rs`:
+`crates/oxibuilder-ext-profile/src/repo.rs`:
 
 ```rust
 use crate::model::{Profile, ProfileInput};
@@ -1131,16 +1131,16 @@ pub async fn ensure_singleton(pool: &SqlitePool, display_name: &str) -> anyhow::
 }
 ```
 
-`crates/oxipage-ext-profile/src/routes.rs`:
+`crates/oxibuilder-ext-profile/src/routes.rs`:
 
 ```rust
 use crate::model::{Profile, ProfileInput};
 use crate::repo;
 use axum::Json;
 use axum::extract::State;
-use oxipage_core::auth::AdminAuth;
-use oxipage_core::error::ApiError;
-use oxipage_core::state::AppState;
+use oxibuilder_core::auth::AdminAuth;
+use oxibuilder_core::error::ApiError;
+use oxibuilder_core::state::AppState;
 
 #[derive(serde::Serialize)]
 pub struct DataEnvelope<T: serde::Serialize> {
@@ -1179,7 +1179,7 @@ pub async fn put_profile(
 }
 ```
 
-`crates/oxipage-ext-profile/src/lib.rs`:
+`crates/oxibuilder-ext-profile/src/lib.rs`:
 
 ```rust
 pub mod model;
@@ -1189,8 +1189,8 @@ pub mod routes;
 use async_trait::async_trait;
 use axum::Router;
 use axum::routing::get;
-use oxipage_core::extension::{Extension, Lang, LobbyCard, Migration};
-use oxipage_core::state::AppState;
+use oxibuilder_core::extension::{Extension, Lang, LobbyCard, Migration};
+use oxibuilder_core::state::AppState;
 
 pub struct ProfileExtension;
 
@@ -1231,27 +1231,27 @@ impl Extension for ProfileExtension {
 
 - [ ] **Step 4: 테스트 실행 — 통과 확인**
 
-Run: `cargo test -p oxipage-ext-profile`
+Run: `cargo test -p oxibuilder-ext-profile`
 Expected: PASS (5 tests)
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Cargo.toml crates/oxipage-ext-profile
+git add Cargo.toml crates/oxibuilder-ext-profile
 git commit -m "feat(ext-profile): profile singleton schema, repo, and REST routes"
 ```
 
 ---
 
-### Task 4: `oxipage-server` 바이너리 + HTTP 앱 (healthz, manifest, SPA 정적 서빙)
+### Task 4: `oxibuilder-server` 바이너리 + HTTP 앱 (healthz, manifest, SPA 정적 서빙)
 
 **Files:**
-- Create: `crates/oxipage-server/Cargo.toml`
-- Create: `crates/oxipage-server/src/main.rs`
-- Create: `crates/oxipage-core/src/http.rs`
-- Create: `crates/oxipage-core/tests/http_app.rs`
-- Modify: `Cargo.toml` (root — members에 `"crates/oxipage-server"` 추가)
-- Modify: `crates/oxipage-core/src/lib.rs` (`pub mod http;` 추가)
+- Create: `crates/oxibuilder-server/Cargo.toml`
+- Create: `crates/oxibuilder-server/src/main.rs`
+- Create: `crates/oxibuilder-core/src/http.rs`
+- Create: `crates/oxibuilder-core/tests/http_app.rs`
+- Modify: `Cargo.toml` (root — members에 `"crates/oxibuilder-server"` 추가)
+- Modify: `crates/oxibuilder-core/src/lib.rs` (`pub mod http;` 추가)
 - Create: `web/dist/index.html` (플레이스홀더 — rust-embed 컴파일타임 요구사항, gitignored 로컬 파일, Task 6의 실제 빌드가 대체)
 
 **Interfaces:**
@@ -1263,7 +1263,7 @@ git commit -m "feat(ext-profile): profile singleton schema, repo, and REST route
     { "data": { "site": { "name": "...", "base_url": "...", "default_lang": "ko", "languages": ["ko","en"] },
                 "extensions": [ { "id": "profile", "display_name": { "ko": "프로필", "en": "Profile" } } ] } }
     ```
-  - 바이너리 `oxipage-core` (package `oxipage-server`): 설정 로드(`OXIPAGE_CONFIG` 또는 `./oxipage.toml`, 없으면 Default + 경고) → enabled 필터링된 레지스트리 → DB 연결(`{data_dir}/oxipage.db`) → 마이그레이션 → 각 확장 `on_startup` → `OXIPAGE_ADMIN_TOKEN` 읽기(없으면 경고) → `http://{host}:{port}` serve + graceful shutdown.
+  - 바이너리 `oxibuilder-core` (package `oxibuilder-server`): 설정 로드(`OXIBUILDER_CONFIG` 또는 `./oxibuilder.toml`, 없으면 Default + 경고) → enabled 필터링된 레지스트리 → DB 연결(`{data_dir}/oxibuilder.db`) → 마이그레이션 → 각 확장 `on_startup` → `OXIBUILDER_ADMIN_TOKEN` 읽기(없으면 경고) → `http://{host}:{port}` serve + graceful shutdown.
 
 - [ ] **Step 1: 플레이스홀더 + 실패하는 테스트 작성**
 
@@ -1272,21 +1272,21 @@ git commit -m "feat(ext-profile): profile singleton schema, repo, and REST route
 ```bash
 mkdir -p web/dist
 cat > web/dist/index.html <<'EOF'
-<!doctype html><html><head><meta charset="utf-8"><title>Oxipage</title></head><body>placeholder</body></html>
+<!doctype html><html><head><meta charset="utf-8"><title>Oxibuilder</title></head><body>placeholder</body></html>
 EOF
 ```
 
 (`web/dist`는 이미 gitignored — 커밋되지 않는 로컬 파일로 둔다.)
 
-`crates/oxipage-core/tests/http_app.rs`:
+`crates/oxibuilder-core/tests/http_app.rs`:
 
 ```rust
 use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};
-use oxipage_core::config::Config;
-use oxipage_core::extension::{Extension, Lang, LobbyCard, Migration};
-use oxipage_core::registry::ExtensionRegistry;
-use oxipage_core::state::AppState;
+use oxibuilder_core::config::Config;
+use oxibuilder_core::extension::{Extension, Lang, LobbyCard, Migration};
+use oxibuilder_core::registry::ExtensionRegistry;
+use oxibuilder_core::state::AppState;
 use std::sync::Arc;
 use tower::ServiceExt;
 
@@ -1319,7 +1319,7 @@ impl Extension for DummyExt {
 }
 
 async fn test_app() -> axum::Router {
-    let pool = oxipage_core::db::connect_memory().await.unwrap();
+    let pool = oxibuilder_core::db::connect_memory().await.unwrap();
     let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(DummyExt)]));
     registry.run_migrations(&pool).await.unwrap();
     let state = AppState {
@@ -1328,7 +1328,7 @@ async fn test_app() -> axum::Router {
         admin_token: None,
         registry,
     };
-    oxipage_core::http::build_app(state)
+    oxibuilder_core::http::build_app(state)
 }
 
 async fn body_string(res: axum::response::Response) -> String {
@@ -1400,16 +1400,16 @@ async fn unknown_api_path_returns_404_json() {
 
 - [ ] **Step 2: 테스트 실행 — 실패 확인**
 
-Run: `cargo test -p oxipage-core`
+Run: `cargo test -p oxibuilder-core`
 Expected: FAIL (`http` 모듈 미구현)
 
 - [ ] **Step 3: 구현**
 
-Root `Cargo.toml` members에 `"crates/oxipage-server"` 추가.
+Root `Cargo.toml` members에 `"crates/oxibuilder-server"` 추가.
 
-`crates/oxipage-core/src/lib.rs`에 `pub mod http;` 추가.
+`crates/oxibuilder-core/src/lib.rs`에 `pub mod http;` 추가.
 
-`crates/oxipage-core/src/http.rs`:
+`crates/oxibuilder-core/src/http.rs`:
 
 ```rust
 use crate::error::ApiError;
@@ -1522,35 +1522,35 @@ fn serve_asset(path: &str) -> Option<Response> {
 }
 ```
 
-`crates/oxipage-server/Cargo.toml`:
+`crates/oxibuilder-server/Cargo.toml`:
 
 ```toml
 [package]
-name = "oxipage-server"
+name = "oxibuilder-server"
 version = "0.1.0"
 edition = "2024"
 
 [[bin]]
-name = "oxipage-core"
+name = "oxibuilder-core"
 path = "src/main.rs"
 
 [dependencies]
 anyhow.workspace = true
-oxipage-core = { path = "../oxipage-core" }
-oxipage-ext-profile = { path = "../oxipage-ext-profile" }
+oxibuilder-core = { path = "../oxibuilder-core" }
+oxibuilder-ext-profile = { path = "../oxibuilder-ext-profile" }
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 ```
 
-`crates/oxipage-server/src/main.rs`:
+`crates/oxibuilder-server/src/main.rs`:
 
 ```rust
-use oxipage_core::config::Config;
-use oxipage_core::extension::Extension;
-use oxipage_core::registry::ExtensionRegistry;
-use oxipage_core::state::AppState;
-use oxipage_ext_profile::ProfileExtension;
+use oxibuilder_core::config::Config;
+use oxibuilder_core::extension::Extension;
+use oxibuilder_core::registry::ExtensionRegistry;
+use oxibuilder_core::state::AppState;
+use oxibuilder_ext_profile::ProfileExtension;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -1564,9 +1564,9 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    let config_path = std::env::var("OXIPAGE_CONFIG")
+    let config_path = std::env::var("OXIBUILDER_CONFIG")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("oxipage.toml"));
+        .unwrap_or_else(|_| PathBuf::from("oxibuilder.toml"));
     let config = if config_path.exists() {
         Config::load(&config_path)?
     } else {
@@ -1588,16 +1588,16 @@ async fn main() -> anyhow::Result<()> {
     };
     let registry = Arc::new(ExtensionRegistry::new(enabled));
 
-    let db_path = config.server.data_dir.join("oxipage.db");
-    let db = oxipage_core::db::connect(&db_path).await?;
+    let db_path = config.server.data_dir.join("oxibuilder.db");
+    let db = oxibuilder_core::db::connect(&db_path).await?;
     registry.run_migrations(&db).await?;
 
-    let admin_token: Option<Arc<str>> = std::env::var("OXIPAGE_ADMIN_TOKEN")
+    let admin_token: Option<Arc<str>> = std::env::var("OXIBUILDER_ADMIN_TOKEN")
         .ok()
         .filter(|t| !t.is_empty())
         .map(Arc::from);
     if admin_token.is_none() {
-        tracing::warn!("OXIPAGE_ADMIN_TOKEN is not set; write APIs will return 503 admin_not_configured");
+        tracing::warn!("OXIBUILDER_ADMIN_TOKEN is not set; write APIs will return 503 admin_not_configured");
     }
 
     let state = AppState {
@@ -1610,10 +1610,10 @@ async fn main() -> anyhow::Result<()> {
         ext.on_startup(&state).await?;
     }
 
-    let app = oxipage_core::http::build_app(state);
+    let app = oxibuilder_core::http::build_app(state);
     let addr = SocketAddr::new(config.server.host.parse()?, config.server.port);
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    tracing::info!("oxipage listening on http://{addr}");
+    tracing::info!("oxibuilder listening on http://{addr}");
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
@@ -1633,13 +1633,13 @@ Expected: PASS (전부)
 
 - [ ] **Step 5: 바이너리 스모크**
 
-Run: `OXIPAGE_DATA_DIR=$(mktemp -d) cargo run -p oxipage-server` 를 백그라운드로 띄우고 `curl -s localhost:8787/healthz` → `{"status":"ok"}` 확인 후 프로세스 종료.
+Run: `OXIBUILDER_DATA_DIR=$(mktemp -d) cargo run -p oxibuilder-server` 를 백그라운드로 띄우고 `curl -s localhost:8787/healthz` → `{"status":"ok"}` 확인 후 프로세스 종료.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add Cargo.toml crates/oxipage-server crates/oxipage-core
-git commit -m "feat(server): oxipage-core binary with http app, manifest, and embedded SPA serving"
+git add Cargo.toml crates/oxibuilder-server crates/oxibuilder-core
+git commit -m "feat(server): oxibuilder-core binary with http app, manifest, and embedded SPA serving"
 ```
 
 ---
@@ -1663,7 +1663,7 @@ git commit -m "feat(server): oxipage-core binary with http app, manifest, and em
 - Produces (Task 6가 사용):
   - `shared/theme.ts`: `type Theme = 'light' | 'dark'`; `getStoredTheme(): Theme | null`; `getSystemTheme(): Theme`; `getEffectiveTheme(): Theme`; `applyTheme(t: Theme): void` (`document.documentElement.dataset.theme = t`); `setStoredTheme(t: Theme | null): void`; `toggleTheme(): Theme` (현재 effective 반전 + 저장 + 적용 + 반환); `watchSystemTheme(cb: (t: Theme) => void): () => void` (저장값 없을 때만 미디어 쿼리 추적, unsubscribe 반환).
   - `shared/ThemeToggle.tsx`: `<ThemeToggle />` — 현재 테마 기준 반대 모드로 전환하는 텍스트 버튼 ("Light"/"Dark" 표시), 클릭 시 `toggleTheme()`.
-  - `index.html`: `<head>` 최상단에 FOUC 방지 인라인 스크립트 (localStorage `oxipage-theme` → 없으면 `prefers-color-scheme` → `data-theme` 설정).
+  - `index.html`: `<head>` 최상단에 FOUC 방지 인라인 스크립트 (localStorage `oxibuilder-theme` → 없으면 `prefers-color-scheme` → `data-theme` 설정).
   - 토큰: `--color-*` 시맨틱 토큰 전부 (light/dark), `.card`, `.btn-primary` 클래스.
 
 - [ ] **Step 1: 스캐폴드 파일 작성**
@@ -1672,7 +1672,7 @@ git commit -m "feat(server): oxipage-core binary with http app, manifest, and em
 
 ```json
 {
-  "name": "oxipage-web",
+  "name": "oxibuilder-web",
   "private": true,
   "type": "module",
   "scripts": {
@@ -1745,7 +1745,7 @@ export default defineConfig({
     <script>
       (function () {
         try {
-          var t = localStorage.getItem('oxipage-theme');
+          var t = localStorage.getItem('oxibuilder-theme');
           if (t !== 'light' && t !== 'dark') {
             t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
           }
@@ -1755,7 +1755,7 @@ export default defineConfig({
         }
       })();
     </script>
-    <title>Oxipage</title>
+    <title>Oxibuilder</title>
   </head>
   <body>
     <div id="root"></div>
@@ -1924,7 +1924,7 @@ a:hover { text-decoration: underline; }
 ```ts
 export type Theme = 'light' | 'dark';
 
-const STORAGE_KEY = 'oxipage-theme';
+const STORAGE_KEY = 'oxibuilder-theme';
 
 export function getStoredTheme(): Theme | null {
   try {
@@ -2027,7 +2027,7 @@ export function App() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <span className="site-name">Oxipage</span>
+        <span className="site-name">Oxibuilder</span>
         <div className="header-actions">
           <ThemeToggle />
         </div>
@@ -2427,7 +2427,7 @@ function Shell() {
       <div className="app-shell">
         <header className="app-header">
           <Link to="/" className="site-name">
-            {manifest?.site.name ?? 'Oxipage'}
+            {manifest?.site.name ?? 'Oxibuilder'}
           </Link>
           <div className="header-actions">
             <LangToggle />
@@ -2509,23 +2509,23 @@ Expected: 전부 통과. clippy 경고는 수정하고 통과시킨다.
 
 - [ ] **Step 2: 릴리스 바이너리 빌드**
 
-Run: `cargo build --release -p oxipage-server`
-Expected: `target/release/oxipage-core` 생성 (web/dist가 임베드됨).
+Run: `cargo build --release -p oxibuilder-server`
+Expected: `target/release/oxibuilder-core` 생성 (web/dist가 임베드됨).
 
 - [ ] **Step 3: 실행 + API 스모크**
 
 ```bash
-export OXIPAGE_DATA_DIR=$(mktemp -d)
-export OXIPAGE_ADMIN_TOKEN=phase0-smoke-token
-./target/release/oxipage-core &
+export OXIBUILDER_DATA_DIR=$(mktemp -d)
+export OXIBUILDER_ADMIN_TOKEN=phase0-smoke-token
+./target/release/oxibuilder-core &
 sleep 1
 curl -sf localhost:8787/healthz                                          # {"status":"ok"}
 curl -sf localhost:8787/api/v1/lobby/manifest                            # extensions에 profile 포함
-curl -sf localhost:8787/api/v1/profile                                  # display_name = "내 작업실" (oxipage.toml site.name)
+curl -sf localhost:8787/api/v1/profile                                  # display_name = "내 작업실" (oxibuilder.toml site.name)
 curl -s -o /dev/null -w '%{http_code}' -X PUT localhost:8787/api/v1/profile \
   -H 'content-type: application/json' -d '{"display_name":"x"}'          # 401
 curl -sf -X PUT localhost:8787/api/v1/profile \
-  -H "authorization: Bearer $OXIPAGE_ADMIN_TOKEN" -H 'content-type: application/json' \
+  -H "authorization: Bearer $OXIBUILDER_ADMIN_TOKEN" -H 'content-type: application/json' \
   -d '{"display_name":"내 작업실","tagline_ko":"밤에 코드를 짜다가 문장을 잇는 작업실","tagline_en":"a quiet studio","bio_ko":"**개발자**이자 작가.","github_username":"toru-ver4"}'
 curl -sf localhost:8787/ | grep -qi 'doctype html'                       # SPA index.html 서빙
 curl -sf localhost:8787/some/spa/route | grep -qi 'doctype html'         # SPA 폭백
@@ -2535,7 +2535,7 @@ Expected: 전부 기대값대로. 확인 후 서버 프로세스 종료.
 - [ ] **Step 4: README.md 작성**
 
 ````markdown
-# Oxipage
+# Oxibuilder
 
 개인 창작 작업실 — 개발자·작가·비평가·큐레이터로서의 "나"를 한곳에 모으는 셀프호스팅 개인 홈페이지.
 설계 문서: `doc/00-overview.md` ~ `doc/06-roadmap.md`.
@@ -2549,18 +2549,18 @@ Expected: 전부 기대값대로. 확인 후 서버 프로세스 종료.
 
 ```bash
 cd web && bun install && bun run build && cd ..   # 프론트엔드 빌드 (바이너리에 임베드)
-cargo build --release -p oxipage-server            # → target/release/oxipage-core
-OXIPAGE_ADMIN_TOKEN=<랜덤 토큰> ./target/release/oxipage-core
+cargo build --release -p oxibuilder-server            # → target/release/oxibuilder-core
+OXIBUILDER_ADMIN_TOKEN=<랜덤 토큰> ./target/release/oxibuilder-core
 # http://127.0.0.1:8787
 ```
 
-- 설정: `oxipage.toml` (없으면 기본값으로 기동). `OXIPAGE_CONFIG`, `OXIPAGE_PORT`, `OXIPAGE_DATA_DIR` 환경변수로 오버라이드.
-- 쓰기 API: `Authorization: Bearer $OXIPAGE_ADMIN_TOKEN` (v0 임시 인증; PAT 체계는 로드맵 Phase 1/4).
+- 설정: `oxibuilder.toml` (없으면 기본값으로 기동). `OXIBUILDER_CONFIG`, `OXIBUILDER_PORT`, `OXIBUILDER_DATA_DIR` 환경변수로 오버라이드.
+- 쓰기 API: `Authorization: Bearer $OXIBUILDER_ADMIN_TOKEN` (v0 임시 인증; PAT 체계는 로드맵 Phase 1/4).
 
 ## 개발 워크플로우
 
 ```bash
-cargo run -p oxipage-server     # 백엔드 :8787 (debug 빌드는 web/dist를 디스크에서 읽음)
+cargo run -p oxibuilder-server     # 백엔드 :8787 (debug 빌드는 web/dist를 디스크에서 읽음)
 cd web && bun run dev           # 프론트엔드 개발 서버 :5173 (/api → :8787 프록시)
 ```
 
@@ -2584,6 +2584,6 @@ git commit -m "docs: quickstart README"
 ## Self-Review 결과 (계획 작성자 검토)
 
 - 스펙 커버리지 (doc/06 Phase 0 완료 기준 매핑): Cargo 워크스페이스 → T1; core 부트스트랩/SQLite/설정/레지스트리 → T1~T4; Vite+React+TS + OKLCH + 다크/라이트 → T5; profile 확장 + 명함 페이지 → T3, T6; 바이너리 빌드·실행 → T4, T7; 라이트/다크 렌더 검증 → T7 + 컨트롤러 브라우저 확인. container 패키징은 "선택"이라 Phase 0에서 제외 (deploy/ 는 Phase 1).
-- 의도적 편차 3건: ① CLI 크레이트 미포함(Phase 1), ② `lobby_config.order` → `display_order` (SQL 예약어), ③ 임시 인증 OXIPAGE_ADMIN_TOKEN (PAT는 Phase 1/4). 전부 Global Constraints에 명시.
+- 의도적 편차 3건: ① CLI 크레이트 미포함(Phase 1), ② `lobby_config.order` → `display_order` (SQL 예약어), ③ 임시 인증 OXIBUILDER_ADMIN_TOKEN (PAT는 Phase 1/4). 전부 Global Constraints에 명시.
 - 타입 일관성: `ProfileExtension`, `AppState` 필드, `AdminAuth`, `DataEnvelope`, 매니페스트 JSON 필드(snake_case) ↔ 프론트 타입 일치 확인.
 - rust-embed 컴파일타임 디렉토리 요구: Task 4 Step 1에서 `web/dist/index.html` 플레이스홀더를 cargo 실행 전에 생성. Task 5/6의 `vite build`가 dist를 비우고 실제 산출물로 대체.

@@ -4,7 +4,7 @@
 
 **Goal:** Implement the Static Site Generator (v2) pivot — `BuildExt` trait, build pipeline, CLI commands (build/deploy/query/schema/cache refresh), React data layer switch, and preview mode.
 
-**Architecture:** Three new subsystems layered on the existing code: `BuildExt` trait (oxipage-core) + per-extension implementations → rayon parallel build pipeline → CLI commands (build → deploy). The React SPA switches from live API to static JSON files at build time. The management server (`oxipage serve`) stays unchanged; a `--preview` mode serves `out/` locally.
+**Architecture:** Three new subsystems layered on the existing code: `BuildExt` trait (oxibuilder-core) + per-extension implementations → rayon parallel build pipeline → CLI commands (build → deploy). The React SPA switches from live API to static JSON files at build time. The management server (`oxibuilder serve`) stays unchanged; a `--preview` mode serves `out/` locally.
 
 **Tech Stack:** Rust Edition 2024, rayon (parallel iteration), sqlx (direct DB reads), serde (JSON dump), git2 or `gh` CLI (GitHub Pages deploy), git worktree, clap derive (CLI subcommands).
 
@@ -22,18 +22,18 @@
 
 ---
 
-### Task 1: Define BuildExt trait in oxipage-core
+### Task 1: Define BuildExt trait in oxibuilder-core
 
 **Files:**
-- Modify: `crates/oxipage-core/src/extension.rs`
-- Create: `crates/oxipage-core/src/builder.rs`
+- Modify: `crates/oxibuilder-core/src/extension.rs`
+- Create: `crates/oxibuilder-core/src/builder.rs`
 
 **Interfaces:**
 - Produces: `pub trait BuildExt`, `pub struct StaticPage`, `pub struct SearchDoc`, `pub struct BuildOutput`
 
 **Context:** Build pipeline types and trait definition.
 
-- [ ] **Step 1: Create `crates/oxipage-core/src/builder.rs`**
+- [ ] **Step 1: Create `crates/oxibuilder-core/src/builder.rs`**
 
 ```rust
 use crate::db;
@@ -105,7 +105,7 @@ Edit `Cargo.toml` workspace dependencies:
 erased-serde = "0.4"
 ```
 
-Add to `oxipage-core/Cargo.toml`:
+Add to `oxibuilder-core/Cargo.toml`:
 ```toml
 erased-serde.workspace = true
 rayon.workspace = true
@@ -114,13 +114,13 @@ rayon.workspace = true
 - [ ] **Step 3: Check it compiles**
 
 ```bash
-cargo check -p oxipage-core
+cargo check -p oxibuilder-core
 ```
 
 - [ ] **Step 4: Git commit**
 
 ```
-git add Cargo.toml crates/oxipage-core/Cargo.toml crates/oxipage-core/src/extension.rs crates/oxipage-core/src/builder.rs
+git add Cargo.toml crates/oxibuilder-core/Cargo.toml crates/oxibuilder-core/src/extension.rs crates/oxibuilder-core/src/builder.rs
 git commit -m "feat(core): add BuildExt trait and build pipeline types"
 ```
 
@@ -129,14 +129,14 @@ git commit -m "feat(core): add BuildExt trait and build pipeline types"
 ### Task 2: Build pipeline (registry + rayon dispatch)
 
 **Files:**
-- Modify: `crates/oxipage-core/src/registry.rs` (add `RegisterBuild` method)
-- Create: `crates/oxipage-core/src/build.rs`
+- Modify: `crates/oxibuilder-core/src/registry.rs` (add `RegisterBuild` method)
+- Create: `crates/oxibuilder-core/src/build.rs`
 
 **Interfaces:**
 - Consumes: `BuildExt` trait, `BuildOutput`
 - Produces: `pub fn build_site(db: &Pool, builders: &[Box<dyn BuildExt>]) -> Result<BuildOutput>`
 
-- [ ] **Step 1: Create `crates/oxipage-core/src/build.rs`**
+- [ ] **Step 1: Create `crates/oxibuilder-core/src/build.rs`**
 
 ```rust
 use crate::builder::{BuildExt, BuildOutput, ExtBuildOutput};
@@ -196,7 +196,7 @@ pub trait BuildExt: Send + Sync {
 
 - [ ] **Step 2: Add `BuildExtRegistry` to registry module**
 
-In `crates/oxipage-core/src/registry.rs`, add a method to collect `BuildExt` instances from all extensions. Each extension crate exports both its `Extension` impl and its `BuildExt` impl. The server binary (`oxipage-server/src/main.rs`) collects both.
+In `crates/oxibuilder-core/src/registry.rs`, add a method to collect `BuildExt` instances from all extensions. Each extension crate exports both its `Extension` impl and its `BuildExt` impl. The server binary (`oxibuilder-server/src/main.rs`) collects both.
 
 Add:
 ```rust
@@ -207,22 +207,22 @@ pub fn collect_builders(enabled: &[Box<dyn BuildExt>]) -> Vec<Box<dyn BuildExt>>
 }
 ```
 
-- [ ] **Step 3: Wire in `oxipage-server/src/main.rs`**
+- [ ] **Step 3: Wire in `oxibuilder-server/src/main.rs`**
 
 The server binary already links all extensions. Add a `collect_builders()` call alongside the existing `registry::register()`.
 
-In `oxipage-server/src/main.rs`, after creating the extension registry, also collect BuildExt instances for use by the CLI build command.
+In `oxibuilder-server/src/main.rs`, after creating the extension registry, also collect BuildExt instances for use by the CLI build command.
 
 - [ ] **Step 4: Verify compilation**
 
 ```bash
-cargo check -p oxipage-core -p oxipage-server
+cargo check -p oxibuilder-core -p oxibuilder-server
 ```
 
 - [ ] **Step 5: Git commit**
 
 ```
-git add crates/oxipage-core/src/build.rs crates/oxipage-core/src/registry.rs
+git add crates/oxibuilder-core/src/build.rs crates/oxibuilder-core/src/registry.rs
 git commit -m "feat(core): add rayon parallel build pipeline"
 ```
 
@@ -231,10 +231,10 @@ git commit -m "feat(core): add rayon parallel build pipeline"
 ### Task 3: BuildExt impl for profile extension
 
 **Files:**
-- Modify: `crates/oxipage-ext-profile/src/lib.rs`
+- Modify: `crates/oxibuilder-ext-profile/src/lib.rs`
 
 **Interfaces:**
-- Consumes: `BuildExt` trait from oxipage-core
+- Consumes: `BuildExt` trait from oxibuilder-core
 - Produces: `impl BuildExt` for profile
 
 **Context:** Profile is a singleton — one page at `/profile/`. The data file at `out/data/profile.json` contains the full profile object.
@@ -242,7 +242,7 @@ git commit -m "feat(core): add rayon parallel build pipeline"
 - [ ] **Step 1: Read current lib.rs**
 
 ```bash
-cat crates/oxipage-ext-profile/src/lib.rs
+cat crates/oxibuilder-ext-profile/src/lib.rs
 ```
 
 - [ ] **Step 2: Implement BuildExt**
@@ -282,13 +282,13 @@ Add `anyhow` dep if not present in extension's Cargo.toml. Most extensions alrea
 - [ ] **Step 4: Verify**
 
 ```bash
-cargo check -p oxipage-ext-profile
+cargo check -p oxibuilder-ext-profile
 ```
 
 - [ ] **Step 5: Git commit**
 
 ```
-git add crates/oxipage-ext-profile/src/lib.rs
+git add crates/oxibuilder-ext-profile/src/lib.rs
 git commit -m "feat(profile): add BuildExt implementation"
 ```
 
@@ -297,7 +297,7 @@ git commit -m "feat(profile): add BuildExt implementation"
 ### Task 4: BuildExt impl for blog extension
 
 **Files:**
-- Modify: `crates/oxipage-ext-blog/src/lib.rs`
+- Modify: `crates/oxibuilder-ext-blog/src/lib.rs`
 
 **Interfaces:**
 - Produces: `impl BuildExt` for blog
@@ -338,13 +338,13 @@ One SearchDoc per published post.
 - [ ] **Step 4: Verify**
 
 ```bash
-cargo check -p oxipage-ext-blog
+cargo check -p oxibuilder-ext-blog
 ```
 
 - [ ] **Step 5: Git commit**
 
 ```
-git add crates/oxipage-ext-blog/src/lib.rs
+git add crates/oxibuilder-ext-blog/src/lib.rs
 git commit -m "feat(blog): add BuildExt with markdown source output"
 ```
 
@@ -353,7 +353,7 @@ git commit -m "feat(blog): add BuildExt with markdown source output"
 ### Task 5: BuildExt impl for projects extension
 
 **Files:**
-- Modify: `crates/oxipage-ext-projects/src/lib.rs`
+- Modify: `crates/oxibuilder-ext-projects/src/lib.rs`
 
 **Context:** Projects with screenshots. `build_pages` generates `projects/{slug}/index.html` (prerendered with tech stack, description, screenshot gallery). `build_data` returns the project list with full details. `build_search_docs` indexes title + description.
 
@@ -378,12 +378,12 @@ git commit -m "feat(projects): add BuildExt implementation"
 ### Task 6: BuildExt impl for remaining 6 extensions (novels, movies, books, scraps, links, activity)
 
 **Files:**
-- Modify: `crates/oxipage-ext-novels/src/lib.rs`
-- Modify: `crates/oxipage-ext-movies/src/lib.rs`
-- Modify: `crates/oxipage-ext-books/src/lib.rs`
-- Modify: `crates/oxipage-ext-scraps/src/lib.rs`
-- Modify: `crates/oxipage-ext-links/src/lib.rs`
-- Modify: `crates/oxipage-ext-activity/src/lib.rs`
+- Modify: `crates/oxibuilder-ext-novels/src/lib.rs`
+- Modify: `crates/oxibuilder-ext-movies/src/lib.rs`
+- Modify: `crates/oxibuilder-ext-books/src/lib.rs`
+- Modify: `crates/oxibuilder-ext-scraps/src/lib.rs`
+- Modify: `crates/oxibuilder-ext-links/src/lib.rs`
+- Modify: `crates/oxibuilder-ext-activity/src/lib.rs`
 
 **Context:** Same pattern as Tasks 3-5. Each extension:
 - `build_pages`: published content → HTML with OG tags
@@ -407,13 +407,13 @@ git commit -m "feat(projects): add BuildExt implementation"
 ### Task 7: Wire all BuildExt impls into server binary
 
 **Files:**
-- Modify: `crates/oxipage-server/src/main.rs`
+- Modify: `crates/oxibuilder-server/src/main.rs`
 
 **Context:** The server binary statically links all extensions. It already has a list of all extension instances. Add a function that returns all BuildExt instances from the same list.
 
 - [ ] **Step 1: Find where extensions are registered**
 
-Read `crates/oxipage-server/src/main.rs` to see the registration pattern.
+Read `crates/oxibuilder-server/src/main.rs` to see the registration pattern.
 
 - [ ] **Step 2: Add `builders()` function**
 
@@ -430,18 +430,18 @@ pub fn builders() -> Vec<Box<dyn BuildExt>> {
 
 - [ ] **Step 3: Export this list for CLI use**
 
-The CLI doesn't import the server binary. Instead, create a new shared crate or expose through oxipage-core. Better approach: the CLI talks to the server's API for build, and the server has a `/api/v1/build` endpoint that triggers the build pipeline.
+The CLI doesn't import the server binary. Instead, create a new shared crate or expose through oxibuilder-core. Better approach: the CLI talks to the server's API for build, and the server has a `/api/v1/build` endpoint that triggers the build pipeline.
 
-Actually, rethinking: the build pipeline should run locally against the local DB. The CLI launches it via `oxipage build` which calls into `oxipage-core`'s build module.
+Actually, rethinking: the build pipeline should run locally against the local DB. The CLI launches it via `oxibuilder build` which calls into `oxibuilder-core`'s build module.
 
-Simpler: create `crates/oxipage-build/` that links all extensions and exposes a single `fn build_all(db: &Pool) -> Result<BuildOutput>`.
+Simpler: create `crates/oxibuilder-build/` that links all extensions and exposes a single `fn build_all(db: &Pool) -> Result<BuildOutput>`.
 
-Or even simpler: the CLI binary itself links all extensions (it already links them via `oxipage-cli` depending on the extensions).
+Or even simpler: the CLI binary itself links all extensions (it already links them via `oxibuilder-cli` depending on the extensions).
 
-Let me check: does `oxipage-cli` depend on each extension crate?
+Let me check: does `oxibuilder-cli` depend on each extension crate?
 
 ```bash
-grep -r "oxipage-ext" crates/oxipage-cli/Cargo.toml
+grep -r "oxibuilder-ext" crates/oxibuilder-cli/Cargo.toml
 ```
 
 If yes, the CLI can run build logic directly. If not, we need a shared binary or a build sub-crate.
@@ -468,11 +468,11 @@ git commit -m "feat(server): wire BuildExt registry and /api/v1/build endpoint"
 
 ---
 
-### Task 8: `oxipage build` CLI command
+### Task 8: `oxibuilder build` CLI command
 
 **Files:**
-- Create: `crates/oxipage-cli/src/commands/build.rs`
-- Modify: `crates/oxipage-cli/src/commands/mod.rs`
+- Create: `crates/oxibuilder-cli/src/commands/build.rs`
+- Modify: `crates/oxibuilder-cli/src/commands/mod.rs`
 
 - [ ] **Step 1: Create build command**
 
@@ -499,18 +499,18 @@ Add `BuildCommand` to the clap enum and dispatch table in `mod.rs`.
 - [ ] **Step 3: Test**
 
 ```bash
-cargo check -p oxipage-cli
+cargo check -p oxibuilder-cli
 ```
 
 - [ ] **Step 4: Git commit**
 
 ---
 
-### Task 9: `oxipage deploy` CLI command
+### Task 9: `oxibuilder deploy` CLI command
 
 **Files:**
-- Create: `crates/oxipage-cli/src/commands/deploy.rs`
-- Modify: `crates/oxipage-cli/src/commands/mod.rs`
+- Create: `crates/oxibuilder-cli/src/commands/deploy.rs`
+- Modify: `crates/oxibuilder-cli/src/commands/mod.rs`
 
 **Context:** Deploy `out/` to target platform. First target: GitHub Pages.
 
@@ -541,11 +541,11 @@ pub async fn run(args: DeployCommand, cli: &Cli) -> anyhow::Result<()> {
 async fn deploy_github_pages(cli: &Cli) -> anyhow::Result<()> {
     // 1. Check gh CLI is installed: cmd("gh --version")
     // 2. gh auth status
-    // 3. git worktree add /tmp/oxipage-deploy gh-pages (or create orphan branch)
-    // 4. cp -rf out/* /tmp/oxipage-deploy/
-    // 5. cd /tmp/oxipage-deploy && git add -A && git commit -m "deploy: ..."
+    // 3. git worktree add /tmp/oxibuilder-deploy gh-pages (or create orphan branch)
+    // 4. cp -rf out/* /tmp/oxibuilder-deploy/
+    // 5. cd /tmp/oxibuilder-deploy && git add -A && git commit -m "deploy: ..."
     // 6. git push origin gh-pages
-    // 7. git worktree remove /tmp/oxipage-deploy
+    // 7. git worktree remove /tmp/oxibuilder-deploy
 }
 ```
 
@@ -557,12 +557,12 @@ Use `std::process::Command` for git operations (not git2 library — simpler).
 
 ---
 
-### Task 10: `oxipage query` and `oxipage schema` CLI commands
+### Task 10: `oxibuilder query` and `oxibuilder schema` CLI commands
 
 **Files:**
-- Create: `crates/oxipage-cli/src/commands/query.rs`
-- Create: `crates/oxipage-cli/src/commands/schema.rs`
-- Modify: `crates/oxipage-cli/src/commands/mod.rs`
+- Create: `crates/oxibuilder-cli/src/commands/query.rs`
+- Create: `crates/oxibuilder-cli/src/commands/schema.rs`
+- Modify: `crates/oxibuilder-cli/src/commands/mod.rs`
 
 **Context:** AI agent friendly — direct SQLite access from CLI. Read-only queries.
 
@@ -578,7 +578,7 @@ pub struct QueryCommand {
 }
 
 pub async fn run(args: QueryCommand, cli: &Cli) -> anyhow::Result<()> {
-    // 1. Resolve DB path from config (oxipage.toml or default data_dir)
+    // 1. Resolve DB path from config (oxibuilder.toml or default data_dir)
     let db_path = resolve_db_path(&cli)?;
     // 2. Open SQLite connection (sqlx::SqliteConnection::connect)
     // 3. Execute read-only query
@@ -630,7 +630,7 @@ ORDER BY m.name, p.cid
 - [ ] **Step 4: Verify**
 
 ```bash
-cargo check -p oxipage-cli
+cargo check -p oxibuilder-cli
 ```
 
 - [ ] **Step 5: Git commit**
@@ -641,11 +641,11 @@ git commit -m "feat(cli): add query and schema commands for AI agent SQL access"
 
 ---
 
-### Task 11: `oxipage cache refresh` CLI command
+### Task 11: `oxibuilder cache refresh` CLI command
 
 **Files:**
-- Create: `crates/oxipage-cli/src/commands/cache.rs`
-- Modify: `crates/oxipage-cli/src/commands/mod.rs`
+- Create: `crates/oxibuilder-cli/src/commands/cache.rs`
+- Modify: `crates/oxibuilder-cli/src/commands/mod.rs`
 
 **Context:** Move external API calls (GitHub, TMDB, Aladin, HN) from background jobs to explicit command.
 
@@ -666,7 +666,7 @@ pub async fn run(args: CacheCommand, cli: &Cli) -> anyhow::Result<()> {
 
 - [ ] **Step 2: Add server endpoint**
 
-In oxipage-core HTTP routes: `POST /api/v1/cache/refresh` that triggers the existing scheduler logic once.
+In oxibuilder-core HTTP routes: `POST /api/v1/cache/refresh` that triggers the existing scheduler logic once.
 
 ```rust
 async fn handle_cache_refresh(
@@ -683,11 +683,11 @@ async fn handle_cache_refresh(
 
 ---
 
-### Task 12: `oxipage serve --preview` mode
+### Task 12: `oxibuilder serve --preview` mode
 
 **Files:**
-- Modify: `crates/oxipage-cli/src/commands/init_status_serve.rs`
-- Modify: `crates/oxipage-core/src/http.rs`
+- Modify: `crates/oxibuilder-cli/src/commands/init_status_serve.rs`
+- Modify: `crates/oxibuilder-core/src/http.rs`
 
 **Context:** Serve `out/` directory as static files for local preview.
 
@@ -775,7 +775,7 @@ cd web && bun run build
 ### Task 14: File writer for build output (out/ directory)
 
 **Files:**
-- Create: `crates/oxipage-core/src/build_writer.rs`
+- Create: `crates/oxibuilder-core/src/build_writer.rs`
 
 **Context:** Write the `BuildOutput` to the `out/` directory as static files.
 
@@ -810,7 +810,7 @@ pub fn write_build_output(output: &BuildOutput, out_dir: &Path) -> Result<()> {
 
 - [ ] **Step 2: Add out_dir to config**
 
-`oxipage.toml` already has `[server] data_dir`. Add `out_dir` (default: `data/out`).
+`oxibuilder.toml` already has `[server] data_dir`. Add `out_dir` (default: `data/out`).
 
 - [ ] **Step 3: Wire into build server endpoint**
 
@@ -822,23 +822,23 @@ The `/api/v1/build` endpoint calls both `build_site()` and `write_build_output()
 
 ### Task 15: Verify full pipeline end-to-end
 
-**Context:** Run the complete flow: content exists in DB → `oxipage build` → `out/` generated → `oxipage deploy` → GitHub Pages.
+**Context:** Run the complete flow: content exists in DB → `oxibuilder build` → `out/` generated → `oxibuilder deploy` → GitHub Pages.
 
 - [ ] **Step 1: Manual integration test**
 
 ```bash
 # 1. Start server
-./target/debug/oxipage-server &
+./target/debug/oxibuilder-server &
 # 2. Create a blog post
-oxipage blog new "Test SSG" --lang ko --file /tmp/test.md --json
-oxipage blog publish test-ssg
+oxibuilder blog new "Test SSG" --lang ko --file /tmp/test.md --json
+oxibuilder blog publish test-ssg
 # 3. Build
-oxipage build
+oxibuilder build
 # 4. Check output
 ls -la out/
 ls -la out/blog/test-ssg/
 # 5. Preview
-oxipage serve --preview &
+oxibuilder serve --preview &
 open http://127.0.0.1:8787
 ```
 
@@ -853,17 +853,17 @@ cd web && bun run build
 - [ ] **Step 3: Deploy test**
 
 ```bash
-oxipage deploy --target github-pages --dry-run
+oxibuilder deploy --target github-pages --dry-run
 ```
 
 - [ ] **Step 4: Git commit any fixes**
 
 ---
 
-### Task 16: Update oxipage-cli SKILL.md for new commands
+### Task 16: Update oxibuilder-cli SKILL.md for new commands
 
 **Files:**
-- Modify: `.agent/skills/oxipage-cli/SKILL.md`
+- Modify: `.agent/skills/oxibuilder-cli/SKILL.md`
 
 **Context:** The AI agent skill doc needs to document the new commands (build, deploy, query, schema, cache).
 
@@ -878,8 +878,8 @@ oxipage deploy --target github-pages --dry-run
 ### Task 17: Clean up — remove unused v1 deployment artifacts
 
 **Files:**
-- Consider: `deploy/oxipage.plist.example` (no longer needed for public site)
-- Consider: `deploy/oxipage.service.example`
+- Consider: `deploy/oxibuilder.plist.example` (no longer needed for public site)
+- Consider: `deploy/oxibuilder.service.example`
 - Consider: `deploy/Caddyfile.example`
 - Keep: `deploy/Dockerfile` (still useful for local management server)
 
