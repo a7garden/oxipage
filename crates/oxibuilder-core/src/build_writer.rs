@@ -65,7 +65,18 @@ pub fn write_build_output(
     //    blog page) is resolved HERE in the per-page local — `output` is
     //    borrowed immutably, so we must not mutate it; rewriting the local
     //    `content` before `fs::write` is equivalent and avoids the corner
-    //    case of a placeholder surviving on disk.
+    //    case of double-mutating a shared collection.
+    //
+    //    `render_image_open` emits `{prefix}/{url}` literally (a single `/`
+    //    separator); when called with `BASE_PLACEHOLDER` the emitted form is
+    //    `\0BASE\0/media/...`. `deployment_base` is always trailing-slash
+    //    terminated (`/blog/` or `/`). A bare `replace(BASE, base)` therefore
+    //    produces `/blog//media/...` (project) or `//media/...` (apex →
+    //    protocol-relative, broken in the no-JS / crawler view). We strip the
+    //    separator FIRST — `BASE_PLACEHOLDER` + the `/` render inserts →
+    //    `deployment_base` (which carries its own trailing slash) — and fall
+    //    back to a bare `BASE_PLACEHOLDER` replace for any occurrence not
+    //    followed by `/`. Result: apex → `/media/...`, project → `/blog/media/...`.
     for page in &output.pages {
         let mut content = if page.path.ends_with(".html") {
             let with_assets = inject_assets(&page.content, asset_tags.as_deref());
@@ -74,6 +85,8 @@ pub fn write_build_output(
             page.content.clone()
         };
         if content.contains(crate::markdown::BASE_PLACEHOLDER) {
+            let with_slash = format!("{}/", crate::markdown::BASE_PLACEHOLDER);
+            content = content.replace(&with_slash, &deployment_base);
             content = content.replace(crate::markdown::BASE_PLACEHOLDER, &deployment_base);
         }
         let file_path = out_dir.join(&page.path);
@@ -158,8 +171,7 @@ pub fn write_build_output(
     //     pre-resized WebP. Also emit the manifest as `out/data/image-manifest.json`
     //     so the static-mode SPA plugin (Task 6) can map `media/...` refs to
     //     srcset/dims without re-decoding source bytes.
-    if let (Some(staging_dir), Some(manifest)) =
-        (&inputs.image_staging_dir, &inputs.image_manifest)
+    if let (Some(staging_dir), Some(manifest)) = (&inputs.image_staging_dir, &inputs.image_manifest)
     {
         let src_derived = staging_dir.join("media").join("_derived");
         let dst_derived = out_dir.join("media").join("_derived");

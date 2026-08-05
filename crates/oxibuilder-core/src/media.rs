@@ -22,8 +22,12 @@ pub struct ImageManifest {
 }
 
 impl ImageManifest {
-    pub fn empty() -> Self { Self::default() }
-    pub fn get(&self, path: &str) -> Option<&ImageEntry> { self.entries.get(path) }
+    pub fn empty() -> Self {
+        Self::default()
+    }
+    pub fn get(&self, path: &str) -> Option<&ImageEntry> {
+        self.entries.get(path)
+    }
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -88,8 +92,16 @@ pub fn optimize(
                     // Should not happen: cache hit means decode previously succeeded.
                     // But be defensive — fall back to a no-op entry with only width/height.
                     match decode_dims(&bytes) {
-                        Some((w, h)) => ImageEntry { width: w, height: h, srcset: Vec::new() },
-                        None => ImageEntry { width: 0, height: 0, srcset: Vec::new() },
+                        Some((w, h)) => ImageEntry {
+                            width: w,
+                            height: h,
+                            srcset: Vec::new(),
+                        },
+                        None => ImageEntry {
+                            width: 0,
+                            height: 0,
+                            srcset: Vec::new(),
+                        },
                     }
                 })
             }
@@ -128,9 +140,7 @@ fn hex8(digest: &[u8]) -> String {
 /// derived root. The URL is always of the form we wrote, so a simple strip is
 /// sufficient and we never trust caller-provided path traversal.
 fn url_file(url: &str) -> PathBuf {
-    let stripped = url
-        .strip_prefix("media/_derived/")
-        .unwrap_or(url);
+    let stripped = url.strip_prefix("media/_derived/").unwrap_or(url);
     PathBuf::from(stripped)
 }
 
@@ -145,8 +155,8 @@ fn write_cache(path: &Path, cache: &HashMap<String, Vec<ImageSrc>>) -> io::Resul
     // Atomic-ish write: write to a sibling tmp, then rename. Avoids leaving a
     // half-written .cache.json if the build crashes mid-write.
     let tmp = path.with_extension("json.tmp");
-    let json = serde_json::to_vec(cache)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    let json =
+        serde_json::to_vec(cache).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
     std::fs::write(&tmp, json)?;
     std::fs::rename(tmp, path)
 }
@@ -156,7 +166,11 @@ fn write_cache(path: &Path, cache: &HashMap<String, Vec<ImageSrc>>) -> io::Resul
 /// corrupt — caller falls back to a defensive empty entry).
 fn decode_dims_and_entry(bytes: &[u8], srcset: Vec<ImageSrc>) -> Option<ImageEntry> {
     let (w, h) = decode_dims(bytes)?;
-    Some(ImageEntry { width: w, height: h, srcset })
+    Some(ImageEntry {
+        width: w,
+        height: h,
+        srcset,
+    })
 }
 
 fn decode_dims(bytes: &[u8]) -> Option<(u32, u32)> {
@@ -219,7 +233,11 @@ fn generate(bytes: &[u8], sha8: &str, derived: &Path) -> io::Result<ImageEntry> 
         });
     }
 
-    Ok(ImageEntry { width: w0, height: h0, srcset })
+    Ok(ImageEntry {
+        width: w0,
+        height: h0,
+        srcset,
+    })
 }
 
 // --- tests ---
@@ -232,7 +250,8 @@ mod tests {
 
     fn write_test_png(dir: &Path, name: &str, w: u32, h: u32) -> PathBuf {
         let p = dir.join(name);
-        let img: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::from_pixel(w, h, Rgba([255, 0, 0, 255]));
+        let img: ImageBuffer<Rgba<u8>, Vec<u8>> =
+            ImageBuffer::from_pixel(w, h, Rgba([255, 0, 0, 255]));
         img.save(&p).unwrap();
         p
     }
@@ -240,8 +259,9 @@ mod tests {
     #[test]
     fn optimizes_local_image_to_webp_variants_and_caches() {
         let tmp = tempfile::tempdir().unwrap();
-        let media = tmp.path().join("media"); std::fs::create_dir_all(&media).unwrap();
-        let staging = tmp.path().join("staging");   // OUTSIDE any out/ — survives wipes
+        let media = tmp.path().join("media");
+        std::fs::create_dir_all(&media).unwrap();
+        let staging = tmp.path().join("staging"); // OUTSIDE any out/ — survives wipes
         write_test_png(&media, "shot.png", 2000, 1125);
 
         let m1 = optimize(&["media/shot.png".into()], &media, &staging).unwrap();
@@ -254,24 +274,37 @@ mod tests {
 
         // Bonus: each on-disk variant is a real WebP (RIFF…WEBP magic).
         for s in &e.srcset {
-            let p = staging.join("media/_derived").join(s.url.trim_start_matches("media/_derived/"));
+            let p = staging
+                .join("media/_derived")
+                .join(s.url.trim_start_matches("media/_derived/"));
             let bytes = std::fs::read(&p).unwrap();
             assert_eq!(&bytes[..4], b"RIFF", "variant {} missing RIFF magic", s.url);
-            assert_eq!(&bytes[8..12], b"WEBP", "variant {} missing WEBP at offset 8", s.url);
+            assert_eq!(
+                &bytes[8..12],
+                b"WEBP",
+                "variant {} missing WEBP at offset 8",
+                s.url
+            );
         }
 
         // Cache-hit: capture mtime + cache.json content; re-run; both must be unchanged.
-        let first_variant_path = staging.join("media/_derived").join(
-            e.srcset[0].url.trim_start_matches("media/_derived/"),
-        );
-        let mt1 = std::fs::metadata(&first_variant_path).unwrap().modified().unwrap();
-        let cache_json_1 = std::fs::read_to_string(staging.join("media/_derived/.cache.json")).unwrap();
+        let first_variant_path = staging
+            .join("media/_derived")
+            .join(e.srcset[0].url.trim_start_matches("media/_derived/"));
+        let mt1 = std::fs::metadata(&first_variant_path)
+            .unwrap()
+            .modified()
+            .unwrap();
+        let cache_json_1 =
+            std::fs::read_to_string(staging.join("media/_derived/.cache.json")).unwrap();
         // sha8 is recomputed the same way the impl does it: SHA-256(source bytes).
         let source_bytes = std::fs::read(media.join("shot.png")).unwrap();
         let sha8 = {
             let digest = sha2::Sha256::digest(&source_bytes);
             let mut s = String::with_capacity(8);
-            for b in &digest[..4] { s.push_str(&format!("{b:02x}")); }
+            for b in &digest[..4] {
+                s.push_str(&format!("{b:02x}"));
+            }
             s
         };
         assert!(
@@ -281,15 +314,22 @@ mod tests {
 
         std::thread::sleep(std::time::Duration::from_millis(50));
         let m2 = optimize(&["media/shot.png".into()], &media, &staging).unwrap();
-        let mt2 = std::fs::metadata(&first_variant_path).unwrap().modified().unwrap();
+        let mt2 = std::fs::metadata(&first_variant_path)
+            .unwrap()
+            .modified()
+            .unwrap();
         assert_eq!(
             mt1, mt2,
             "second run regenerated the variant — cache hit failed (mtime changed)"
         );
         assert_eq!(m2.get("media/shot.png").unwrap().srcset.len(), 4);
         // Cache file still present and the key is preserved.
-        let cache_json_2 = std::fs::read_to_string(staging.join("media/_derived/.cache.json")).unwrap();
-        assert_eq!(cache_json_1, cache_json_2, "cache.json content drifted across runs");
+        let cache_json_2 =
+            std::fs::read_to_string(staging.join("media/_derived/.cache.json")).unwrap();
+        assert_eq!(
+            cache_json_1, cache_json_2,
+            "cache.json content drifted across runs"
+        );
         assert!(cache_json_2.contains(&format!("\"media/shot.png:{sha8}\"")));
     }
 
@@ -297,7 +337,12 @@ mod tests {
     fn missing_ref_is_skipped_not_error() {
         let tmp = tempfile::tempdir().unwrap();
         let staging = tmp.path().join("staging");
-        let m = optimize(&["media/ghost.png".into()], &tmp.path().join("media"), &staging).unwrap();
+        let m = optimize(
+            &["media/ghost.png".into()],
+            &tmp.path().join("media"),
+            &staging,
+        )
+        .unwrap();
         assert!(m.get("media/ghost.png").is_none());
     }
 }

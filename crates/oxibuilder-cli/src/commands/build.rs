@@ -40,13 +40,10 @@ pub(crate) async fn build(c: BuildCommand) -> anyhow::Result<()> {
     //    `all_builders_with_image_manifest` so the SAME BlogExtension
     //    instance the build_site vec holds sees it (its `set_manifest` is
     //    idempotent — `OnceLock::set` first-call-wins).
-    let (image_staging_dir, image_manifest) = oxibuilder_core::build::run_image_pre_pass(
-        &pool,
-        &media_dir,
-        &data_dir,
-    )
-    .await
-    .map_err(|e| anyhow::anyhow!("image pre-pass: {e}"))?;
+    let (image_staging_dir, image_manifest) =
+        oxibuilder_core::build::run_image_pre_pass(&pool, &media_dir, &data_dir)
+            .await
+            .map_err(|e| anyhow::anyhow!("image pre-pass: {e}"))?;
 
     // 4. Run build pipeline (manifest is now live in `BlogExtension`).
     let builder_refs: Vec<Box<dyn oxibuilder_core::builder::BuildExt>> =

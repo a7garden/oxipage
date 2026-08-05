@@ -9,7 +9,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::builder::{BuildExt, BuildOutput, ExtBuildOutput};
-use crate::media::{optimize, ImageManifest};
+use crate::media::{ImageManifest, optimize};
 use sqlx::SqlitePool;
 
 /// Run all extension builders in parallel via rayon.
@@ -246,9 +246,17 @@ fn collect_media_refs(bodies: &[String]) -> Vec<String> {
             let mut j = i + 6 + prefix; // start of the path after `/media/` or `media/`
             while j < bytes.len() {
                 let b = bytes[j];
-                if b == b' ' || b == b'\t' || b == b'\n' || b == b'\r'
-                    || b == b')' || b == b'"' || b == b'\''
-                    || b == b'>' || b == b']' || b == b'<' || b == b'`'
+                if b == b' '
+                    || b == b'\t'
+                    || b == b'\n'
+                    || b == b'\r'
+                    || b == b')'
+                    || b == b'"'
+                    || b == b'\''
+                    || b == b'>'
+                    || b == b']'
+                    || b == b'<'
+                    || b == b'`'
                 {
                     break;
                 }

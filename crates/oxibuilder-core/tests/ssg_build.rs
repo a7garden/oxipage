@@ -288,10 +288,16 @@ fn base_placeholder_resolved_to_deployment_base_in_pages() {
     let out_dir = tmp.path().join("out");
     let media_dir = tmp.path().join("media");
     std::fs::create_dir_all(&media_dir).unwrap();
-
     const BASE: &str = oxibuilder_core::markdown::BASE_PLACEHOLDER;
+
+    // Render emits `{prefix}/{url}` literally — when prefix is the placeholder,
+    // that's `{BASE}/media/...`. Hand-write that form so the test pins the
+    // real contract; using `{BASE}media/...` (no separator) would let a buggy
+    // `replace(BASE, base)` silently produce `/blogmedia/...` and not catch
+    // the double-slash regression where the placeholder + the separator
+    // `render_image_open` inserts are kept literally.
     let raw = format!(
-        r#"<!DOCTYPE html><html><head><title>t</title></head><body><img src="{BASE}media/x.png"></body></html>"#
+        r#"<!DOCTYPE html><html><head><title>t</title></head><body><img src="{BASE}/media/x.png"></body></html>"#
     );
     let page = StaticPage {
         path: "blog/hello/index.html".to_string(),
@@ -337,7 +343,7 @@ fn base_placeholder_resolved_to_deployment_base_in_pages() {
     let out2 = tmp2.path().join("out");
     let media2 = tmp2.path().join("media");
     std::fs::create_dir_all(&media2).unwrap();
-    let raw2 = format!(r#"<img src="{BASE}media/y.png">"#);
+    let raw2 = format!(r#"<img src="{BASE}/media/y.png">"#);
     let output2 = BuildOutput {
         pages: vec![StaticPage {
             path: "x.html".to_string(),
@@ -557,20 +563,21 @@ fn end_to_end_pipeline_renders_image_into_blog_page() {
             .expect("srcset url has {sha8}-w.webp form")
             .to_string();
         // The `markdown::render` output uses `BASE_PLACEHOLDER`, which
-        // `write_build_output` substitutes with `/blog/` and preserves the
-        // `/` separator that `render_image_open` adds — producing the
-        // double-slash form below. Browsers normalize `//` in path segments
-        // (RFC 3986 §6.2.2.3), so the URL resolves to `/blog/media/...`.
-        // We assert the literal emitted form to pin the contract.
-        let chosen_src = format!("/blog//media/_derived/{sha8}-960.webp");
+        // `write_build_output` substitutes with `/blog/` while STRIPPING the
+        // `/` separator that `render_image_open` inserts — yielding the clean
+        // single-slash form below. (Earlier this asserted the literal
+        // double-slash form, which masked the bug where the placeholder was
+        // replaced without its trailing `/`, producing `/blog//media/...` in
+        // the project case and `//media/...` in the apex case.)
+        let chosen_src = format!("/blog/media/_derived/{sha8}-960.webp");
         assert!(
             html.contains(&format!("src=\"{chosen_src}\"")),
             "src must point at the 960-px variant under /blog/, got: {html}"
         );
 
-        // srcset covers all four widths, each prefixed with /blog//.
+        // srcset covers all four widths, each prefixed with /blog/.
         for w in [640u32, 960, 1280, 1920] {
-            let variant_url = format!("/blog//media/_derived/{sha8}-{w}.webp");
+            let variant_url = format!("/blog/media/_derived/{sha8}-{w}.webp");
             assert!(
                 html.contains(&format!("{variant_url} {w}w")),
                 "srcset must contain {variant_url} {w}w, got: {html}"

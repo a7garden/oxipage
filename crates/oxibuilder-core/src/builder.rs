@@ -88,7 +88,7 @@ pub trait BuildExt: Send + Sync {
         db: &SqlitePool,
         rt: &tokio::runtime::Handle,
     ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>>;
- }
+}
 
 impl BuildOutput {
     /// Merge multiple `ExtBuildOutput` values into a single `BuildOutput`.

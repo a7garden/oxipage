@@ -39,7 +39,7 @@ pub async fn ensure_build_started(
 
     let slug = ctx.slug.clone();
     let db = ctx.db.clone();
-    let _builders = ctx.builders.clone();
+
     let out_dir = ctx.out_dir.clone();
     let media_dir = ctx.media_dir.clone();
     let data_dir = ctx.data_dir.clone();
@@ -81,15 +81,14 @@ pub async fn ensure_build_started(
         // build only; the `Arc<Vec<…>>` in `SiteContext.builders` is read-only
         // here and would block the cast.
         let pre_pass_outcome: Result<
-            (Option<std::path::PathBuf>, Option<oxibuilder_core::media::ImageManifest>),
+            (
+                Option<std::path::PathBuf>,
+                Option<oxibuilder_core::media::ImageManifest>,
+            ),
             String,
-        > = oxibuilder_core::build::run_image_pre_pass(
-            &db,
-            &media_dir,
-            &data_dir,
-        )
-        .await
-        .map_err(|e| format!("image pre-pass: {e}"));
+        > = oxibuilder_core::build::run_image_pre_pass(&db, &media_dir, &data_dir)
+            .await
+            .map_err(|e| format!("image pre-pass: {e}"));
         let outcome: Result<usize, String> = match pre_pass_outcome {
             Err(e) => Err(e),
             Ok((staging, manifest)) => {
