@@ -191,7 +191,17 @@ fn generate(bytes: &[u8], sha8: &str, derived: &Path) -> io::Result<ImageEntry> 
 
         let file = std::fs::File::create(&out_path)?;
         let mut writer = std::io::BufWriter::new(file);
-        // image-webp (pulled in by the `webp` feature) exposes WebPEncoder.
+        // TODO(lossy): switch to lossy q80 once a VP8 encoder is in deps.
+        // `image-webp` 0.2.x is VP8L lossless-only — `WebPEncoder::new`'s doc
+        // says "Only supports VP8L lossless encoding" and `EncoderParams`
+        // has no quality knob. So this emits lossless WebP: ~2-5x larger than
+        // lossy q80 for photographs (the blog common case), but byte-stable
+        // for fixed input (cache hits stay free). To gain lossy:
+        //   (a) add the `webp` crate (libwebp C, statically linked via
+        //       image's `webp-sys` path) — proven, pulls a C build dep; or
+        //   (b) add a pure-Rust VP8 still-image crate (e.g. `gamut-webp`)
+        //       — unproven at our scale, would need benchmarking.
+        // Deferred to an explicit decision once real photo sizes bite.
         let encoder = image::codecs::webp::WebPEncoder::new_lossless(&mut writer);
         encoder
             .write_image(
@@ -242,9 +252,45 @@ mod tests {
         assert!(staging.join("media/_derived").is_dir());
         assert!(e.srcset.iter().all(|s| s.url.ends_with(".webp")));
 
-        // Second run: cache hit — no regen, same result.
+        // Bonus: each on-disk variant is a real WebP (RIFF…WEBP magic).
+        for s in &e.srcset {
+            let p = staging.join("media/_derived").join(s.url.trim_start_matches("media/_derived/"));
+            let bytes = std::fs::read(&p).unwrap();
+            assert_eq!(&bytes[..4], b"RIFF", "variant {} missing RIFF magic", s.url);
+            assert_eq!(&bytes[8..12], b"WEBP", "variant {} missing WEBP at offset 8", s.url);
+        }
+
+        // Cache-hit: capture mtime + cache.json content; re-run; both must be unchanged.
+        let first_variant_path = staging.join("media/_derived").join(
+            e.srcset[0].url.trim_start_matches("media/_derived/"),
+        );
+        let mt1 = std::fs::metadata(&first_variant_path).unwrap().modified().unwrap();
+        let cache_json_1 = std::fs::read_to_string(staging.join("media/_derived/.cache.json")).unwrap();
+        // sha8 is recomputed the same way the impl does it: SHA-256(source bytes).
+        let source_bytes = std::fs::read(media.join("shot.png")).unwrap();
+        let sha8 = {
+            let digest = sha2::Sha256::digest(&source_bytes);
+            let mut s = String::with_capacity(8);
+            for b in &digest[..4] { s.push_str(&format!("{b:02x}")); }
+            s
+        };
+        assert!(
+            cache_json_1.contains(&format!("\"media/shot.png:{sha8}\"")),
+            "cache.json missing expected key; got: {cache_json_1}"
+        );
+
+        std::thread::sleep(std::time::Duration::from_millis(50));
         let m2 = optimize(&["media/shot.png".into()], &media, &staging).unwrap();
+        let mt2 = std::fs::metadata(&first_variant_path).unwrap().modified().unwrap();
+        assert_eq!(
+            mt1, mt2,
+            "second run regenerated the variant — cache hit failed (mtime changed)"
+        );
         assert_eq!(m2.get("media/shot.png").unwrap().srcset.len(), 4);
+        // Cache file still present and the key is preserved.
+        let cache_json_2 = std::fs::read_to_string(staging.join("media/_derived/.cache.json")).unwrap();
+        assert_eq!(cache_json_1, cache_json_2, "cache.json content drifted across runs");
+        assert!(cache_json_2.contains(&format!("\"media/shot.png:{sha8}\"")));
     }
 
     #[test]

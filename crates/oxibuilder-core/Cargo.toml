@@ -3,7 +3,7 @@ name = "oxibuilder-core"
 version = "0.8.0"
 edition = "2024"
 license.workspace = true
-description = "Oxibuilder 코어 라이브러리 — Axum 서버 부트스트랩, SQLite 마이그레이션, Extension trait, SSR 스�샷, 레이트리밋"
+description = "Oxibuilder 코어 라이브러리 — Axum 서버 부트스트랩, SQLite 마이그레이션, Extension trait, SSR 스냅샷, 레이트리밋"
 
 # Files packaged with `cargo publish`. Without `include`, Cargo respects
 # `.gitignore`, which excludes `embedded-spa/` and the build-artifact WASM demo.
