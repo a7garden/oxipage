@@ -13,6 +13,12 @@ use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 
 use crate::media::{ImageEntry, ImageManifest, ImageSrc};
 
+/// Sentinel for the image-asset base used during prerender. The real
+/// `deployment_base` (e.g. `/blog/`) is substituted by the build output
+/// writer (Task 5). Using a non-URL sentinel here keeps `markdown::render`
+/// ignorant of the page's eventual URL while the body is being built.
+pub const BASE_PLACEHOLDER: &str = "\u{0}BASE\u{0}";
+
 /// Render owner-authored markdown to trusted HTML (no sanitization; doc §0.3).
 /// `asset_base` rewrites logical `media/...` refs; `images` (Task 3) adds srcset/dims.
 pub fn render(md: &str, asset_base: &str, images: &ImageManifest) -> String {

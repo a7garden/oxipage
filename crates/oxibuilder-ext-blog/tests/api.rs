@@ -11,7 +11,7 @@ use tower::ServiceExt;
 
 async fn test_app(_admin_token: Option<&str>) -> Router {
     let pool = oxibuilder_core::db::connect_memory().await.unwrap();
-    let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(BlogExtension)]));
+    let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(BlogExtension::new())]));
     registry.run_migrations(&pool, &[]).await.unwrap();
     // Blog extension's on_startup still needs AppState, create minimally
     let state = oxibuilder_core::state::AppState {
@@ -181,7 +181,7 @@ async fn draft_create_then_publish_flow() {
 #[tokio::test]
 async fn fts_index_on_publish() {
     let pool = oxibuilder_core::db::connect_memory().await.unwrap();
-    let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(BlogExtension)]));
+    let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(BlogExtension::new())]));
     registry.run_migrations(&pool, &[]).await.unwrap();
 
     let _draft = oxibuilder_ext_blog::repo::create(

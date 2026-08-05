@@ -26,7 +26,7 @@ use tracing_subscriber::EnvFilter;
 pub fn all_extensions() -> Vec<Arc<dyn Extension>> {
     vec![
         Arc::new(oxibuilder_ext_profile::ProfileExtension),
-        Arc::new(oxibuilder_ext_blog::BlogExtension),
+        Arc::new(oxibuilder_ext_blog::BlogExtension::new()),
         Arc::new(oxibuilder_ext_projects::ProjectsExtension),
         Arc::new(oxibuilder_ext_links::LinksExtension),
         Arc::new(oxibuilder_ext_novels::NovelsExtension),
@@ -41,7 +41,7 @@ pub fn all_extensions() -> Vec<Arc<dyn Extension>> {
 pub fn all_builders() -> Vec<Box<dyn BuildExt>> {
     vec![
         Box::new(oxibuilder_ext_profile::ProfileExtension),
-        Box::new(oxibuilder_ext_blog::BlogExtension),
+        Box::new(oxibuilder_ext_blog::BlogExtension::new()),
         Box::new(oxibuilder_ext_projects::ProjectsExtension),
         Box::new(oxibuilder_ext_links::LinksExtension),
         Box::new(oxibuilder_ext_novels::NovelsExtension),

@@ -31,7 +31,25 @@ Oxibuilder 설치가 완료되었습니다.
 즐거운 블로그 생활 되세요!
 "#;
 
-pub struct BlogExtension;
+pub struct BlogExtension {
+    /// Build-time image manifest; populated by the build command before
+    /// `build_pages` runs (Task 5) so post bodies can emit responsive
+    /// `<img srcset>` for `media/...` refs. `None` during tests / dev.
+    pub manifest: std::sync::OnceLock<oxibuilder_core::media::ImageManifest>,
+}
+
+impl BlogExtension {
+    pub fn new() -> Self {
+        Self {
+            manifest: std::sync::OnceLock::new(),
+        }
+    }
+
+    /// Idempotent — first call wins, later calls are silently ignored.
+    pub fn set_manifest(&self, m: oxibuilder_core::media::ImageManifest) {
+        let _ = self.manifest.set(m);
+    }
+}
 
 #[async_trait]
 impl Extension for BlogExtension {
@@ -121,34 +139,48 @@ impl BuildExt for BlogExtension {
 
         let mut pages = Vec::with_capacity(posts.len() * 3);
 
+        // Snapshot the manifest once — set by the build command before
+        // `build_pages` runs (Task 5). Missing in tests / dev is fine;
+        // `markdown::render` just falls back to plain `<img>` tags.
+        let images = self.manifest.get().cloned().unwrap_or_default();
+
         for post in &posts {
             // HTML page with OG metas
             let excerpt = body_excerpt(&post.body, 160);
+            // Render markdown → HTML with BASE_PLACEHOLDER as asset base;
+            // Task 5 substitutes the real `deployment_base` (e.g. `/blog/`)
+            // into the emitted HTML after the build writes the page.
+            let body_html = oxibuilder_core::markdown::render(
+                &post.body,
+                oxibuilder_core::markdown::BASE_PLACEHOLDER,
+                &images,
+            );
 
             let html = format!(
                 r#"<!DOCTYPE html>
-    <html lang="{lang}">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>{title}</title>
-      <meta property="og:title" content="{title}">
-      <meta property="og:description" content="{excerpt}">
-      <meta property="og:type" content="article">
-      <meta property="og:url" content="/blog/{slug}/">
-      <meta name="twitter:card" content="summary">
-      <link rel="canonical" href="/blog/{slug}/">
-    </head>
-    <body>
-      <div id="root"></div>
-      <script src="/assets/index.js"></script>
-    </body>
-    </html>
-    "#,
+<html lang="{lang}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{title}</title>
+  <meta property="og:title" content="{title}">
+  <meta property="og:description" content="{excerpt}">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="/blog/{slug}/">
+  <meta name="twitter:card" content="summary">
+  <link rel="canonical" href="/blog/{slug}/">
+</head>
+<body>
+  <div id="root"><article class="markdown">{body}</article></div>
+  <script src="/assets/index.js"></script>
+</body>
+</html>
+"#,
                 lang = post.lang,
                 title = post.title,
                 slug = post.slug,
-                excerpt = excerpt
+                excerpt = excerpt,
+                body = body_html,
             );
 
             pages.push(StaticPage {
