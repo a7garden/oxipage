@@ -45,3 +45,6 @@ _wasm-demo.wasm
 
 # OMP harness session state
 .omp/
+
+# Isolated implementation worktrees
+.worktrees/
