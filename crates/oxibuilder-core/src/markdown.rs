@@ -1,13 +1,59 @@
 //! Build-time markdown → HTML (pulldown-cmark), parity with the SPA's markdown-it.
 //!
-//! Image handling (Task 3): for each markdown image whose URL is a `media/...` ref
-//! present in the supplied `ImageManifest`, emits an optimized `<img>` with
-//! `src`/`srcset`/`width`/`height`/`loading="lazy"`/`decoding="async"`.
-//! All other images (external URLs, media refs not in the manifest) fall back
-//! to a plain `<img src="...">` under `asset_base`.
+//! ## markdown-it ↔ pulldown-cmark parity (Task 7 note)
 //!
-//! `alt=""` is emitted unconditionally for v1 — alt text isn't forwarded from
-//! the pulldown-cmark event stream here. This matches the SPA's current behavior.
+//! The SPA (`web/src/shared/Markdown.tsx`) renders markdown-it at runtime in
+//! the lobby/post/etc. pages; we render pulldown-cmark at build time so
+//! JS-disabled / SEO crawlers see the same HTML.
+//!
+//! **Current SPA config:** `new MarkdownIt({ linkify: true })` — bare markdown-it
+//! 14, NO plugins loaded. So tables / strikethrough / task lists / footnotes
+//! are NOT active on the SPA side at all.
+//!
+//! **Current build config:** pulldown-cmark with `ENABLE_TABLES`,
+//! `ENABLE_STRIKETHROUGH`, `ENABLE_TASKLISTS`, `ENABLE_FOOTNOTES`. These
+//! enable constructs that the SPA-side markdown-it ignores today. The
+//! prerender may therefore emit `<table>`, `<del>`, `<input type="checkbox">`,
+//! and footnote markup that the SPA's client-side markdown-it would NOT
+//! produce on re-render — so JS-disabled readers see richer output than
+//! hydrated readers.
+//!
+//! **That's intentional for v1.** The build-time options are enabled
+//! defensively so blog bodies written with any of those constructs prerender
+//! sensibly; the SPA doesn't enable the matching plugins because nobody
+//! currently authors tables/strikethrough/etc. in the lobby. If the SPA
+//! starts loading `markdown-it-gfm-table` / `markdown-it-task-lists` /
+//! `markdown-it-footnote` plugins in the future, this comment is the place
+//! to re-balance the pulldown-cmark options to match exactly.
+//!
+//! **Known intentional delta — linkify.** The SPA's `linkify: true` rewrites
+//! bare `https://example.com` into `<a href="...">`. pulldown-cmark doesn't
+//! autolink, so the prerendered HTML preserves the literal text. The SPA's
+//! client-side hydration then re-renders the same body through markdown-it
+//! and the link wraps itself post-hydration; JS-disabled readers see the
+//! bare URL but it's still readable.
+//!
+//! ## Image handling (Task 3)
+//!
+//! For each markdown image whose URL is a `media/...` ref present in the
+//! supplied `ImageManifest`, emits an optimized `<img>` with
+//! `src`/`srcset`/`width`/`height`/`loading="lazy"`/`decoding="async"`.
+//! All other images (external URLs, media refs not in the manifest) fall
+//! back to a plain `<img src="...">` under `asset_base`. The attribute set
+//! mirrors `web/src/shared/image-manifest.ts`'s `resolveMedia` so the SPA
+//! plugin's hydration pass produces the same DOM.
+//!
+//! ## `alt=""` v1 simplification
+//!
+//! `alt=""` is emitted unconditionally for every prerendered image — alt
+//! text isn't forwarded from the pulldown-cmark event stream here. The SPA
+//! side does the same (the markdown-it image rule never sets an `alt`
+//! attribute either), so the hydration diff is null and SEO crawlers see
+//! a consistent (empty) alt across both render paths. Re-enable alt
+//! forwarding in a follow-up: thread the `Tag::Image { title, .. }`
+//! payload through the rewrite pass and emit `alt="{...}"` (HTML-escaped)
+//! in `render_image_open`. The SPA rule in
+//! `web/src/shared/Markdown.tsx` will need the same change for parity.
 
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 
@@ -158,15 +204,30 @@ mod tests {
                 width: 2000,
                 height: 1125,
                 srcset: vec![
-                    ImageSrc { w: 640, url: "media/_derived/ab-640.webp".into() },
-                    ImageSrc { w: 960, url: "media/_derived/ab-960.webp".into() },
-                    ImageSrc { w: 1280, url: "media/_derived/ab-1280.webp".into() },
-                    ImageSrc { w: 1920, url: "media/_derived/ab-1920.webp".into() },
+                    ImageSrc {
+                        w: 640,
+                        url: "media/_derived/ab-640.webp".into(),
+                    },
+                    ImageSrc {
+                        w: 960,
+                        url: "media/_derived/ab-960.webp".into(),
+                    },
+                    ImageSrc {
+                        w: 1280,
+                        url: "media/_derived/ab-1280.webp".into(),
+                    },
+                    ImageSrc {
+                        w: 1920,
+                        url: "media/_derived/ab-1920.webp".into(),
+                    },
                 ],
             },
         );
         let html = render("![alt](media/shot.png)", "/blog/", &m);
-        assert!(html.contains(r#"src="blog/media/_derived/ab-960.webp""#), "{html}");
+        assert!(
+            html.contains(r#"src="blog/media/_derived/ab-960.webp""#),
+            "{html}"
+        );
         assert!(html.contains("srcset="));
         assert!(html.contains(r#"width="2000""#));
         assert!(html.contains(r#"height="1125""#));
@@ -192,7 +253,10 @@ mod tests {
         );
         let html = render("![x](media/icon.png)", "/blog/", &m);
         assert!(html.contains(r#"src="blog/media/icon.png""#), "{html}");
-        assert!(!html.contains("srcset="), "should not emit srcset when srcset is empty: {html}");
+        assert!(
+            !html.contains("srcset="),
+            "should not emit srcset when srcset is empty: {html}"
+        );
     }
 
     #[test]

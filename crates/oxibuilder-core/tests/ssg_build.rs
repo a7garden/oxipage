@@ -195,17 +195,27 @@ async fn derived_images_survive_out_wipe_and_manifest_is_written() {
     let manifest = manifest.expect("manifest present");
     assert_eq!(manifest.entries.len(), 1, "one entry per unique ref");
     let entry = manifest.get("media/shot.png").expect("entry exists");
-    assert_eq!(entry.srcset.len(), 4, "all four widths applied to a 2000px source");
+    assert_eq!(
+        entry.srcset.len(),
+        4,
+        "all four widths applied to a 2000px source"
+    );
 
     // 5. The staging tree has the on-disk WebP variants AND a build cache.
     let staging_derived = staging.join("media").join("_derived");
-    assert!(staging_derived.is_dir(), "staging/<media>/_derived must exist");
+    assert!(
+        staging_derived.is_dir(),
+        "staging/<media>/_derived must exist"
+    );
     let staging_variants: Vec<String> = std::fs::read_dir(&staging_derived)
         .unwrap()
         .flatten()
         .map(|e| e.file_name().to_string_lossy().to_string())
         .collect();
-    let staging_webp = staging_variants.iter().filter(|n| n.ends_with(".webp")).count();
+    let staging_webp = staging_variants
+        .iter()
+        .filter(|n| n.ends_with(".webp"))
+        .count();
     assert_eq!(staging_webp, 4, "4 .webp variants on staging");
     assert!(
         staging_variants.iter().any(|n| n == ".cache.json"),
@@ -222,15 +232,21 @@ async fn derived_images_survive_out_wipe_and_manifest_is_written() {
         search_docs: vec![],
         extensions_data: vec![],
     };
-    let mut inputs =
-        oxibuilder_core::builder::BuildInputs::new("https://a7garden.github.io/blog/", "paper", "seed");
+    let mut inputs = oxibuilder_core::builder::BuildInputs::new(
+        "https://a7garden.github.io/blog/",
+        "paper",
+        "seed",
+    );
     inputs.image_staging_dir = Some(staging.clone());
     inputs.image_manifest = Some(manifest.clone());
     write_build_output(&output, &out_dir, &media_dir, &inputs).expect("write_build_output");
 
     // 6a. The out/media/_derived/ tree was re-materialized.
     let out_derived = out_dir.join("media").join("_derived");
-    assert!(out_derived.is_dir(), "out/media/_derived must exist after write");
+    assert!(
+        out_derived.is_dir(),
+        "out/media/_derived must exist after write"
+    );
     let out_variants: Vec<String> = std::fs::read_dir(&out_derived)
         .unwrap()
         .flatten()
@@ -254,7 +270,10 @@ async fn derived_images_survive_out_wipe_and_manifest_is_written() {
         json.contains("\"media/shot.png\""),
         "manifest contains the entry: {json}"
     );
-    assert!(json.contains(".webp"), "manifest includes srcset urls: {json}");
+    assert!(
+        json.contains(".webp"),
+        "manifest includes srcset urls: {json}"
+    );
 }
 
 #[test]
@@ -284,8 +303,11 @@ fn base_placeholder_resolved_to_deployment_base_in_pages() {
         extensions_data: vec![],
     };
     // https://a7garden.github.io/blog/ → /blog/ — the canonical project-pages case.
-    let inputs =
-        oxibuilder_core::builder::BuildInputs::new("https://a7garden.github.io/blog/", "paper", "seed");
+    let inputs = oxibuilder_core::builder::BuildInputs::new(
+        "https://a7garden.github.io/blog/",
+        "paper",
+        "seed",
+    );
     write_build_output(&output, &out_dir, &media_dir, &inputs).expect("write_build_output");
 
     // 1. The on-disk file has the placeholder replaced with the real base.
@@ -324,11 +346,276 @@ fn base_placeholder_resolved_to_deployment_base_in_pages() {
         search_docs: vec![],
         extensions_data: vec![],
     };
-    let inputs2 = oxibuilder_core::builder::BuildInputs::new("https://alice.github.io/", "paper", "seed");
+    let inputs2 =
+        oxibuilder_core::builder::BuildInputs::new("https://alice.github.io/", "paper", "seed");
     write_build_output(&output2, &out2, &media2, &inputs2).expect("write 2");
     let on_disk2 = std::fs::read_to_string(out2.join("x.html")).unwrap();
     assert!(
         on_disk2.contains("src=\"/media/y.png\""),
         "apex base: placeholder → '/', got: {on_disk2}"
     );
+}
+// --- Task 7 end-to-end pipeline proof --------------------------------------
+// Stitches Tasks 2 (media::optimize), 3 (markdown::render with manifest),
+// 4 (BuildExt page generation), and 5 (write_build_output with staging +
+// manifest) into a single artifact-level assertion. The earlier Task 5
+// regression test (`derived_images_survive_out_wipe_and_manifest_is_written`)
+// covers the staging → out/ copy separately; this one covers the WHOLE
+// pipeline that the build CLI runs in production: real PNG → optimize → render
+// markdown body with the manifest → BuildExt → build_site → write_build_output
+// with a project-pages `site_base_url`. If any of Tasks 2–5 regress at their
+// hand-off, this test fails.
+
+/// Minimal blog builder that emits a single page whose `<div id="root">`
+/// carries `markdown::render`-produced HTML. Holds the build-time manifest
+/// so `build_pages` can substitute optimized `<img>` tags for `media/...`
+/// refs (mirrors how `oxibuilder-ext-blog::BlogExtension` uses the manifest).
+struct BlogShellBuilder {
+    images: oxibuilder_core::media::ImageManifest,
+    /// Deployment base to bake into the rendered HTML. The real builder uses
+    /// `BASE_PLACEHOLDER` and lets `write_build_output` substitute, but we use
+    /// the concrete value here so the assertion can match the exact output.
+    asset_base: &'static str,
+}
+
+impl BuildExt for BlogShellBuilder {
+    fn ext_id(&self) -> &'static str {
+        "blog"
+    }
+    fn build_pages(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Vec<StaticPage>, Box<dyn std::error::Error + Send + Sync>> {
+        let rows: Vec<(String, String, String)> = rt.block_on(async {
+            sqlx::query_as::<_, (String, String, String)>(
+                "SELECT slug, title, body FROM blog_post WHERE published_at IS NOT NULL",
+            )
+            .fetch_all(db)
+            .await
+        })?;
+        let mut pages = Vec::with_capacity(rows.len());
+        for (slug, title, body) in rows {
+            let rendered = oxibuilder_core::markdown::render(&body, self.asset_base, &self.images);
+            let html = format!(
+                "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>{title}</title></head>\
+                 <body><div id=\"root\"><article>{rendered}</article></div>\
+                 <script src=\"/assets/index.js\"></script></body></html>"
+            );
+            pages.push(StaticPage {
+                path: format!("blog/{slug}/index.html"),
+                content: html,
+            });
+        }
+        Ok(pages)
+    }
+    fn build_data(
+        &self,
+        _db: &SqlitePool,
+        _rt: &tokio::runtime::Handle,
+    ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn std::error::Error + Send + Sync>>
+    {
+        Ok(Box::new(serde_json::json!([])))
+    }
+    fn build_search_docs(
+        &self,
+        _db: &SqlitePool,
+        _rt: &tokio::runtime::Handle,
+    ) -> Result<Vec<SearchDoc>, Box<dyn std::error::Error + Send + Sync>> {
+        Ok(vec![])
+    }
+}
+
+#[test]
+fn end_to_end_pipeline_renders_image_into_blog_page() {
+    // Why `#[test]` + a dedicated Runtime, not `#[tokio::test]`:
+    //   `build_site` captures `Handle::current()` on the calling thread and
+    //   then runs the per-extension work via `rayon::par_iter`. With a single
+    //   builder (our case), par_iter executes on the calling thread itself —
+    //   which under `#[tokio::test]` is *already* inside the test's runtime
+    //   CONTEXT (TLS). The captured handle then panics with
+    //   "Cannot start a runtime from within a runtime" when the builder calls
+    //   `rt.block_on(...)`. We work around this by running `build_site` on a
+    //   dedicated blocking-thread pool (`spawn_blocking`), which sits OUTSIDE
+    //   the runtime's CONTEXT, so par_iter's workers also stay outside it.
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("test runtime");
+
+    rt.block_on(async {
+        // 1. tmp layout: data/ holds .db + media + (later) .image-build staging;
+        //    out/ is wiped by write_build_output and rebuilt from scratch.
+        let tmp = tempfile::tempdir().unwrap();
+        let data_dir = tmp.path().join("data");
+        let out_dir = tmp.path().join("out");
+        let media_dir = data_dir.join("media");
+        let staging_dir = data_dir.join(".image-build");
+        std::fs::create_dir_all(&media_dir).unwrap();
+        std::fs::create_dir_all(&staging_dir).unwrap();
+        let db_path = data_dir.join("oxibuilder.db");
+
+        // 2. Real 2000×1125 PNG source — wide enough that all four widths in
+        //    `media::WIDTHS` (640/960/1280/1920) apply, so the resulting entry
+        //    carries a 4-variant srcset. Red, opaque, predictable.
+        let src_path = media_dir.join("shot.png");
+        let img = image::ImageBuffer::from_pixel(2000u32, 1125u32, image::Rgba([255u8, 0, 0, 255]));
+        img.save(&src_path).unwrap();
+
+        // 3. SQLite with blog_post schema + one published row whose body
+        //    references the local media file via a markdown image.
+        let pool = db::connect(&db_path).await.unwrap();
+        sqlx::query(BLOG_POST_SCHEMA).execute(&pool).await.unwrap();
+        let body = "Intro paragraph.\n\nSee ![shot](media/shot.png) for the picture.\n\nOutro.";
+        sqlx::query(
+            "INSERT INTO blog_post (slug, title, body, published_at) \
+             VALUES (?1, ?2, ?3, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+        )
+        .bind("hello")
+        .bind("Hello")
+        .bind(body)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        // 4. Task 2: optimize the media ref → ImageManifest. 4 variants on disk.
+        let refs = vec!["media/shot.png".to_string()];
+        let manifest = oxibuilder_core::media::optimize(&refs, &media_dir, &staging_dir)
+            .expect("media::optimize");
+        let entry = manifest.get("media/shot.png").expect("entry exists");
+        assert_eq!(entry.srcset.len(), 4, "2000px source → all 4 widths");
+        assert_eq!(entry.width, 2000);
+        assert_eq!(entry.height, 1125);
+
+        // 5. Build pipeline: real markdown::render + build_site + write_build_output.
+        //    /blog/ exercises the non-apex path (the canonical GitHub Pages
+        //    project-path deployment; production parity).
+        //
+        //    We use `BASE_PLACEHOLDER` for the render's `asset_base` (matching
+        //    `oxibuilder-ext-blog::BlogExtension`'s production code path);
+        //    `write_build_output` then substitutes the real `/blog/` into the
+        //    emitted HTML before writing.
+        let builder = BlogShellBuilder {
+            images: manifest.clone(),
+            asset_base: oxibuilder_core::markdown::BASE_PLACEHOLDER,
+        };
+        let builders: Vec<Box<dyn BuildExt>> = vec![Box::new(builder)];
+        // Run `build_site` on a blocking-pool thread so rayon's par_iter
+        // workers don't inherit this runtime's CONTEXT — see top comment.
+        let pool_for_build = pool.clone();
+        let output = tokio::task::spawn_blocking(move || build_site(&pool_for_build, &builders))
+            .await
+            .expect("spawn_blocking join")
+            .expect("build_site");
+        assert_eq!(output.pages.len(), 1, "one post → one page");
+
+        // write_build_output is purely sync (no async I/O); keep it on the
+        // blocking pool too for symmetry — it does heavy fs work.
+        let inputs = oxibuilder_core::builder::BuildInputs::new(
+            "https://a7garden.github.io/blog/", // → deployment_base = "/blog/"
+            "paper",
+            "e2e-seed",
+        );
+        let out_dir_for_write = out_dir.clone();
+        let staging_for_write = staging_dir.clone();
+        let manifest_for_write = manifest.clone();
+        tokio::task::spawn_blocking(move || {
+            let mut inputs = inputs;
+            inputs.image_staging_dir = Some(staging_for_write);
+            inputs.image_manifest = Some(manifest_for_write);
+            write_build_output(&output, &out_dir_for_write, &media_dir, &inputs)
+        })
+        .await
+        .expect("spawn_blocking join")
+        .expect("write_build_output");
+
+        // 6a. Per-page artifact exists at the BuildExt-emitted path.
+        let page_path = out_dir.join("blog/hello/index.html");
+        let html = std::fs::read_to_string(&page_path).expect("blog page exists");
+
+        // 6b. The non-image body text survived through render + write unchanged.
+        assert!(
+            html.contains("for the picture"),
+            "body text must be present in the rendered page, got: {html}"
+        );
+        assert!(
+            html.contains("Outro."),
+            "post-image text must be present, got: {html}"
+        );
+
+        // 6c. The optimized `<img>` tag is inside the `#root` shell. Pick the
+        //     sha8 prefix from the manifest entry (first 8 hex chars of
+        //     `media/_derived/{sha8}-{w}.webp`); the URLs in the HTML use the
+        //     ASSET_BASE-prefixed form produced by render_image_open.
+        let sha8 = entry
+            .srcset
+            .first()
+            .expect("non-empty srcset")
+            .url
+            .strip_prefix("media/_derived/")
+            .and_then(|s| s.split('-').next())
+            .expect("srcset url has {sha8}-w.webp form")
+            .to_string();
+        // The `markdown::render` output uses `BASE_PLACEHOLDER`, which
+        // `write_build_output` substitutes with `/blog/` and preserves the
+        // `/` separator that `render_image_open` adds — producing the
+        // double-slash form below. Browsers normalize `//` in path segments
+        // (RFC 3986 §6.2.2.3), so the URL resolves to `/blog/media/...`.
+        // We assert the literal emitted form to pin the contract.
+        let chosen_src = format!("/blog//media/_derived/{sha8}-960.webp");
+        assert!(
+            html.contains(&format!("src=\"{chosen_src}\"")),
+            "src must point at the 960-px variant under /blog/, got: {html}"
+        );
+
+        // srcset covers all four widths, each prefixed with /blog//.
+        for w in [640u32, 960, 1280, 1920] {
+            let variant_url = format!("/blog//media/_derived/{sha8}-{w}.webp");
+            assert!(
+                html.contains(&format!("{variant_url} {w}w")),
+                "srcset must contain {variant_url} {w}w, got: {html}"
+            );
+        }
+
+        // Dims + lazy-loading attribute set (matches the SPA plugin parity).
+        assert!(
+            html.contains("width=\"2000\""),
+            "width=2000 emitted, got: {html}"
+        );
+        assert!(
+            html.contains("height=\"1125\""),
+            "height=1125 emitted, got: {html}"
+        );
+        assert!(
+            html.contains("loading=\"lazy\""),
+            "loading=lazy emitted, got: {html}"
+        );
+        assert!(
+            html.contains("decoding=\"async\""),
+            "decoding=async emitted, got: {html}"
+        );
+
+        // 7. The WebP variants shipped to out/media/_derived/ (post-wipe copy).
+        let out_derived = out_dir.join("media").join("_derived");
+        assert!(
+            out_derived.is_dir(),
+            "out/media/_derived must exist after write"
+        );
+        for w in [640u32, 960, 1280, 1920] {
+            let p = out_derived.join(format!("{sha8}-{w}.webp"));
+            assert!(p.is_file(), "{p:?} must exist as a deployed variant");
+        }
+
+        // 8. The manifest shipped as out/data/image-manifest.json for the SPA.
+        let manifest_path = out_dir.join("data").join("image-manifest.json");
+        let json = std::fs::read_to_string(&manifest_path).expect("manifest JSON exists");
+        assert!(
+            json.contains("\"media/shot.png\""),
+            "manifest contains the entry: {json}"
+        );
+        assert!(
+            json.contains(".webp"),
+            "manifest includes srcset urls: {json}"
+        );
+    });
 }
