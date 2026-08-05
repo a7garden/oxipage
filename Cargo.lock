@@ -1809,7 +1809,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "oxibuilder"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1833,7 +1833,7 @@ dependencies = [
 
 [[package]]
 name = "oxibuilder-console"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1869,7 +1869,7 @@ dependencies = [
 
 [[package]]
 name = "oxibuilder-core"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1902,7 +1902,7 @@ dependencies = [
 
 [[package]]
 name = "oxibuilder-deploy"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "oxibuilder-core",
  "serde",
@@ -1914,7 +1914,7 @@ dependencies = [
 
 [[package]]
 name = "oxibuilder-ext-activity"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1934,7 +1934,7 @@ dependencies = [
 
 [[package]]
 name = "oxibuilder-ext-blog"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1951,7 +1951,7 @@ dependencies = [
 
 [[package]]
 name = "oxibuilder-ext-books"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1970,7 +1970,7 @@ dependencies = [
 
 [[package]]
 name = "oxibuilder-ext-links"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1987,7 +1987,7 @@ dependencies = [
 
 [[package]]
 name = "oxibuilder-ext-movies"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2006,7 +2006,7 @@ dependencies = [
 
 [[package]]
 name = "oxibuilder-ext-novels"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2023,7 +2023,7 @@ dependencies = [
 
 [[package]]
 name = "oxibuilder-ext-profile"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2041,7 +2041,7 @@ dependencies = [
 
 [[package]]
 name = "oxibuilder-ext-projects"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2058,7 +2058,7 @@ dependencies = [
 
 [[package]]
 name = "oxibuilder-ext-scraps"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2077,11 +2077,11 @@ dependencies = [
 
 [[package]]
 name = "oxibuilder-ext-wasm-demo"
-version = "0.8.0"
+version = "0.9.0"
 
 [[package]]
 name = "oxibuilder-wasm"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "async-trait",

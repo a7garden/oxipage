@@ -7,13 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-05
+
 ### Added
 - **Inline media authoring.** Images and GIFs can be embedded inside markdown content bodies (blog posts, project descriptions, profile bios, book/movie/scraps reviews, novel chapters). The `MarkdownEditor` gained an image toolbar with a `MediaPicker` (browse/upload/delete/pick), plus drag-and-drop and paste-to-upload that splice `![alt](media/<ext>/<uuid>)` at the cursor. Markdown rendering (`markdown-it` for the public SPA, `marked` for the admin preview) now resolves `media/...` references through a shared `AssetResolverContext`, so inline images render correctly in the live admin, draft preview, built preview, and on nested deployed routes.
 - **Media library API.** `GET /api/console/s/{slug}/media` enumerates uploaded media (filterable by extension, newest-first); `DELETE /api/console/s/{slug}/media/{ext}/{file}` removes one. Both reuse the existing path-containment checks.
+- **Rust-native markdown rendering + image optimization.** `oxibuilder-core` gained a `pulldown-cmark`-based `markdown::render` that rewrites `media/...` references into optimized `<img>` tags from an `ImageManifest`; `media::optimize` generates responsive WebP variants (srcset + intrinsic dimensions) with an on-disk cache. Derived images are staged outside `out/` and copied in after the wipe, so the cache and derived WebP survive rebuilds.
+- **Prerendered blog pages.** The SSG build renders each post's markdown body into the SPA's `#root` shell at build time, emitting single-slash (apex-correct) image URLs and a reactive SPA manifest; the public SPA consumes the image manifest via a markdown-it plugin so prerendered and client-rendered pages agree.
+- **Branding.** The oxibuilder icon is applied across the public site and console; the project was renamed `oxipage` → `oxibuilder`.
 
 ### Fixed
 - **Admin SPA rendered blank on every page** (React error #310). `SiteSelector` called `useQuery` after an early `return null`, so the hook count rose once the sites list loaded. All hooks now run unconditionally; the stats fetch is gated via `enabled`.
 - **`adminAssetResolver` produced a doubled `media/media/` path**, which 404'd cover previews (and inline-image previews) against the single-`media` serve route.
+- **Single-slash image URLs (apex-correct)** in prerendered pages; the SPA manifest is resolved reactively under `<base>`.
+- **Console media library `unnecessary_sort_by` clippy lint** — newest-first sort rewritten with `sort_by_key(Reverse)`.
+
+### Security
+- 18 outstanding advisories (soft gate): 17× `wasmtime 33.0.2` (up from 17 — RUSTSEC-2026-0091 added) and 1× `rsa 0.9.10` Marvin Attack (timing sidechannel). wasmtime 33.x is EOL; the two critical advisories are unchanged from v0.8.0 (RUSTSEC-2026-0095 Winch not compiled in, RUSTSEC-2026-0096 aarch64 Cranelift conditional). Bump to a supported major is tracked separately.
 
 ## [0.8.0] - 2026-07-31
 
@@ -123,7 +133,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Continuation of the v0.3.0 line; the v0.3.0 Git tag was applied to a partial-publish state (4 crates were never released: `oxibuilder-ext-scraps`, `oxibuilder-ext-projects`, `oxibuilder-console`, `oxibuilder`). Those crates are not in 0.4.0 — they remain unpublished at 0.2.0 / absent from the registry; future cleanup is a separate concern.
 
 
-[Unreleased]: https://github.com/a7garden/oxibuilder/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/a7garden/oxibuilder/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/a7garden/oxibuilder/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/a7garden/oxibuilder/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/a7garden/oxibuilder/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/a7garden/oxibuilder/compare/v0.5.0...v0.6.0
