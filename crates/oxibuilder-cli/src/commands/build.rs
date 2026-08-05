@@ -32,15 +32,31 @@ pub(crate) async fn build(c: BuildCommand) -> anyhow::Result<()> {
 
     let pool = oxibuilder_core::db::connect(&db_path).await?;
 
-    // 3. Get all builders
-    let builders = oxibuilder_console::all_builders();
-    let builder_refs: Vec<Box<dyn oxibuilder_core::builder::BuildExt>> = builders;
+    // 3. Run the image pre-pass BEFORE `build_site`. It scans published
+    //    blog bodies for `media/...` refs, decodes + WebP-encodes them into
+    //    `<data_dir>/.image-build/` (OUTSIDE `out/` so the writer's wipe
+    //    doesn't kill the derived files), and returns the staging dir +
+    //    manifest. We then pass the manifest into
+    //    `all_builders_with_image_manifest` so the SAME BlogExtension
+    //    instance the build_site vec holds sees it (its `set_manifest` is
+    //    idempotent — `OnceLock::set` first-call-wins).
+    let (image_staging_dir, image_manifest) = oxibuilder_core::build::run_image_pre_pass(
+        &pool,
+        &media_dir,
+        &data_dir,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("image pre-pass: {e}"))?;
 
-    // 4. Run build pipeline
+    // 4. Run build pipeline (manifest is now live in `BlogExtension`).
+    let builder_refs: Vec<Box<dyn oxibuilder_core::builder::BuildExt>> =
+        oxibuilder_console::all_builders_with_image_manifest(image_manifest.as_ref());
     let output = oxibuilder_core::build::build_site(&pool, &builder_refs)
         .map_err(|e| anyhow::anyhow!("{}", e))?;
     // 5. Write output (sources SPA bundle from the embedded binary, not CWD).
-    //    BuildInputs carries site.base_url (drives deployment_base) + theme_id.
+    //    BuildInputs carries site.base_url (drives deployment_base) + theme_id
+    //    + the image staging dir + manifest copied after the out/ wipe.
+
     let out_path = custom_out
         .map(PathBuf::from)
         .unwrap_or_else(|| data_dir.join("out"));
@@ -53,8 +69,13 @@ pub(crate) async fn build(c: BuildCommand) -> anyhow::Result<()> {
         oxibuilder_core::config::Config::default()
     };
     let theme_id = oxibuilder_core::theme::active_theme_id(&pool).await;
-    let inputs =
+    let mut inputs =
         oxibuilder_core::builder::BuildInputs::new(&config.site.base_url, theme_id, "oxibuilder");
+    // Hand the pre-pass's staging dir + manifest to the writer so it copies
+    // the derived WebP variants and emits `out/data/image-manifest.json`
+    // after the out/ wipe at step 1 of `write_build_output`.
+    inputs.image_staging_dir = image_staging_dir;
+    inputs.image_manifest = image_manifest;
     oxibuilder_core::build_writer::write_build_output(&output, &out_path, &media_dir, &inputs)
         .map_err(|e| anyhow::anyhow!("{}", e))?;
 

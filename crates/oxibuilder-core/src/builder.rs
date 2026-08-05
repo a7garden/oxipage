@@ -9,9 +9,12 @@
 //! processed in parallel via rayon.
 
 use std::error::Error;
+use std::path::PathBuf;
 
 use erased_serde::Serialize;
 use sqlx::SqlitePool;
+
+use crate::media::ImageManifest;
 
 /// A single static HTML page produced during build.
 pub struct StaticPage {
@@ -85,7 +88,7 @@ pub trait BuildExt: Send + Sync {
         db: &SqlitePool,
         rt: &tokio::runtime::Handle,
     ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>>;
-}
+ }
 
 impl BuildOutput {
     /// Merge multiple `ExtBuildOutput` values into a single `BuildOutput`.
@@ -123,6 +126,16 @@ pub struct BuildInputs {
     /// Caller-supplied seed for the asset revision. The build writer hashes
     /// it with the materialized file list to produce a stable revision.
     pub asset_revision_seed: String,
+    /// Directory under which the image pre-pass writes derived WebP variants
+    /// (`<staging>/media/_derived/...`). OUTSIDE `out/` so the
+    /// `write_build_output` wipe doesn't destroy the optimized files; the
+    /// writer copies them into `out/media/_derived/` after the wipe.
+    /// `None` skips the copy entirely (no images to stage).
+    pub image_staging_dir: Option<PathBuf>,
+    /// Manifest produced by `media::optimize` from the staged images. Copied
+    /// to `out/data/image-manifest.json` for the static-mode SPA plugin
+    /// (Task 6) to read. `None` skips manifest emission.
+    pub image_manifest: Option<ImageManifest>,
 }
 
 impl BuildInputs {
@@ -135,6 +148,8 @@ impl BuildInputs {
             site_base_url: site_base_url.into(),
             theme_id: theme_id.into(),
             asset_revision_seed: asset_revision_seed.into(),
+            image_staging_dir: None,
+            image_manifest: None,
         }
     }
 }

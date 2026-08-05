@@ -61,13 +61,21 @@ pub fn write_build_output(
 
     // 4. Write all static pages, injecting the transformed asset tags into HTML
     //    shells and guaranteeing every HTML carries the deployment `<base href>`.
+    //    BASE_PLACEHOLDER (injected by `markdown::render` while building each
+    //    blog page) is resolved HERE in the per-page local — `output` is
+    //    borrowed immutably, so we must not mutate it; rewriting the local
+    //    `content` before `fs::write` is equivalent and avoids the corner
+    //    case of a placeholder surviving on disk.
     for page in &output.pages {
-        let content = if page.path.ends_with(".html") {
+        let mut content = if page.path.ends_with(".html") {
             let with_assets = inject_assets(&page.content, asset_tags.as_deref());
             ensure_base_href(&with_assets, &deployment_base)
         } else {
             page.content.clone()
         };
+        if content.contains(crate::markdown::BASE_PLACEHOLDER) {
+            content = content.replace(crate::markdown::BASE_PLACEHOLDER, &deployment_base);
+        }
         let file_path = out_dir.join(&page.path);
         if let Some(parent) = file_path.parent() {
             fs::create_dir_all(parent)?;
@@ -141,6 +149,29 @@ pub fn write_build_output(
     // 10. Copy media files.
     if media_dir.exists() {
         copy_dir_recursive(media_dir, &out_dir.join("media"))?;
+    }
+
+    // 10b. (Task 5) Copy optimized images from the staging dir into the
+    //     freshly-cleaned out/. The image pre-pass wrote variants to
+    //     `<staging>/media/_derived/` OUTSIDE out/, because out/ is wiped at
+    //     step 1 — we re-materialize them here so the deployed site ships
+    //     pre-resized WebP. Also emit the manifest as `out/data/image-manifest.json`
+    //     so the static-mode SPA plugin (Task 6) can map `media/...` refs to
+    //     srcset/dims without re-decoding source bytes.
+    if let (Some(staging_dir), Some(manifest)) =
+        (&inputs.image_staging_dir, &inputs.image_manifest)
+    {
+        let src_derived = staging_dir.join("media").join("_derived");
+        let dst_derived = out_dir.join("media").join("_derived");
+        if src_derived.is_dir() {
+            copy_derived_into(&src_derived, &dst_derived)?;
+        }
+        let manifest_path = out_dir.join("data").join("image-manifest.json");
+        if let Some(parent) = manifest_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let json = serde_json::to_string_pretty(manifest)?;
+        fs::write(&manifest_path, json)?;
     }
 
     // 11. Compute the final asset revision over the materialized output and
@@ -352,6 +383,36 @@ fn copy_dir_recursive(
 
         if file_type.is_dir() {
             copy_dir_recursive(&src_path, &dst_path)?;
+        } else {
+            fs::copy(&src_path, &dst_path)?;
+        }
+    }
+    Ok(())
+}
+
+/// Like `copy_dir_recursive`, but skips the build-time `.cache.json` so the
+/// canonical cache stays in staging (where subsequent builds can read it) and
+/// the deployed site ships only the actual WebP variants + their dims.
+fn copy_derived_into(
+    src: &Path,
+    dst: &Path,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    if !src.is_dir() {
+        return Ok(()); // no derived images yet — nothing to copy, not an error
+    }
+    fs::create_dir_all(dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        if name_str == ".cache.json" {
+            continue;
+        }
+        let file_type = entry.file_type()?;
+        let src_path = entry.path();
+        let dst_path = dst.join(&name);
+        if file_type.is_dir() {
+            copy_derived_into(&src_path, &dst_path)?;
         } else {
             fs::copy(&src_path, &dst_path)?;
         }

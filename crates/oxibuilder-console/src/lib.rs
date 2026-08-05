@@ -39,9 +39,27 @@ pub fn all_extensions() -> Vec<Arc<dyn Extension>> {
 
 /// 컴파일된 모든 확장의 BuildExt 인스턴스.
 pub fn all_builders() -> Vec<Box<dyn BuildExt>> {
+    all_builders_with_image_manifest(None)
+}
+
+/// Compiled-in builders with the optional image manifest pushed into the
+/// blog builder BEFORE it's boxed into the vec (Task 5). The boxed instance
+/// IS the one that receives `set_manifest` — they share the same allocation
+/// because `BlogExtension::set_manifest(&self, ...)` writes through `&self`
+/// to its public `OnceLock` field. No trait bloat, no ext-blog edits.
+///
+/// `manifest = None` matches the legacy `all_builders()` behavior (no manifest,
+/// blog pages render plain `<img>` tags).
+pub fn all_builders_with_image_manifest(
+    manifest: Option<&oxibuilder_core::media::ImageManifest>,
+) -> Vec<Box<dyn BuildExt>> {
+    let blog = oxibuilder_ext_blog::BlogExtension::new();
+    if let Some(m) = manifest {
+        blog.set_manifest(m.clone());
+    }
     vec![
         Box::new(oxibuilder_ext_profile::ProfileExtension),
-        Box::new(oxibuilder_ext_blog::BlogExtension::new()),
+        Box::new(blog),
         Box::new(oxibuilder_ext_projects::ProjectsExtension),
         Box::new(oxibuilder_ext_links::LinksExtension),
         Box::new(oxibuilder_ext_novels::NovelsExtension),

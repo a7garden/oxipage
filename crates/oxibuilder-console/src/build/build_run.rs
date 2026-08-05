@@ -39,14 +39,14 @@ pub async fn ensure_build_started(
 
     let slug = ctx.slug.clone();
     let db = ctx.db.clone();
-    let builders = ctx.builders.clone();
+    let _builders = ctx.builders.clone();
     let out_dir = ctx.out_dir.clone();
     let media_dir = ctx.media_dir.clone();
+    let data_dir = ctx.data_dir.clone();
     let started_at = snapshot.started_at;
     let site_base_url = ctx.settings.read().await.site.base_url.clone();
     let theme_id = oxibuilder_core::theme::active_theme_id(&ctx.db).await;
     let guard = guard.clone();
-
     tokio::spawn(async move {
         let rt = tokio::runtime::Handle::current();
         let (mpsc_tx, mut mpsc_rx) = tokio::sync::mpsc::channel::<BuildEvent>(64);
@@ -72,39 +72,63 @@ pub async fn ensure_build_started(
             }
         });
 
-        let outcome: Result<usize, String> = {
-            let db_task = db.clone();
-            let out_task = out_dir.clone();
-            let media_task = media_dir.clone();
-            let builders_task = builders.clone();
-            let base_url_task = site_base_url.clone();
-            let theme_task = theme_id.clone();
-            match tokio::task::spawn_blocking(move || {
-                match oxibuilder_core::build::build_site_with_progress(
-                    &db_task,
-                    &builders_task,
-                    &rt,
-                    &mpsc_tx,
-                ) {
-                    Ok(output) => {
-                        let inputs = BuildInputs::new(&base_url_task, &theme_task, "oxibuilder");
-                        if let Err(e) = oxibuilder_core::build_writer::write_build_output(
-                            &output,
-                            &out_task,
-                            &media_task,
-                            &inputs,
-                        ) {
-                            return Err(format!("write_build_output: {e}"));
+        // Image pre-pass runs BEFORE build_site_with_progress so BlogExtension's
+        // manifest is populated when build_pages fires. We pass the manifest
+        // into `all_builders_with_image_manifest` so the SAME BlogExtension
+        // instance the build_site vec holds sees it (its `set_manifest` is
+        // idempotent — `OnceLock::set` first-call-wins). The fresh vec is
+        // created per build (cheap) so the manifest stays scoped to this
+        // build only; the `Arc<Vec<…>>` in `SiteContext.builders` is read-only
+        // here and would block the cast.
+        let pre_pass_outcome: Result<
+            (Option<std::path::PathBuf>, Option<oxibuilder_core::media::ImageManifest>),
+            String,
+        > = oxibuilder_core::build::run_image_pre_pass(
+            &db,
+            &media_dir,
+            &data_dir,
+        )
+        .await
+        .map_err(|e| format!("image pre-pass: {e}"));
+        let outcome: Result<usize, String> = match pre_pass_outcome {
+            Err(e) => Err(e),
+            Ok((staging, manifest)) => {
+                // Build the per-build builder vec with the manifest already
+                // pushed into the SAME BlogExtension instance we'll dispatch.
+                let builders_vec: Vec<Box<dyn oxibuilder_core::builder::BuildExt>> =
+                    crate::all_builders_with_image_manifest(manifest.as_ref());
+                let db_task = db.clone();
+                let out_task = out_dir.clone();
+                let media_task = media_dir.clone();
+                let base_url_task = site_base_url.clone();
+                let theme_task = theme_id.clone();
+                tokio::task::spawn_blocking(move || {
+                    match oxibuilder_core::build::build_site_with_progress(
+                        &db_task,
+                        &builders_vec,
+                        &rt,
+                        &mpsc_tx,
+                    ) {
+                        Ok(output) => {
+                            let mut inputs =
+                                BuildInputs::new(&base_url_task, &theme_task, "oxibuilder");
+                            inputs.image_staging_dir = staging;
+                            inputs.image_manifest = manifest;
+                            if let Err(e) = oxibuilder_core::build_writer::write_build_output(
+                                &output,
+                                &out_task,
+                                &media_task,
+                                &inputs,
+                            ) {
+                                return Err(format!("write_build_output: {e}"));
+                            }
+                            Ok(output.pages.len())
                         }
-                        Ok(output.pages.len())
+                        Err(e) => Err(e.to_string()),
                     }
-                    Err(e) => Err(e.to_string()),
-                }
-            })
-            .await
-            {
-                Ok(inner) => inner,
-                Err(e) => Err(format!("build task panicked: {e}")),
+                })
+                .await
+                .unwrap_or_else(|e| Err(format!("build task panicked: {e}")))
             }
         };
 

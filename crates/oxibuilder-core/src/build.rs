@@ -3,9 +3,13 @@
 //! Uses rayon to process all extension builders concurrently.
 //! Each extension independently produces pages, data, and search docs.
 
+use std::collections::BTreeSet;
 use std::error::Error;
+use std::io;
+use std::path::{Path, PathBuf};
 
 use crate::builder::{BuildExt, BuildOutput, ExtBuildOutput};
+use crate::media::{optimize, ImageManifest};
 use sqlx::SqlitePool;
 
 /// Run all extension builders in parallel via rayon.
@@ -149,4 +153,113 @@ pub fn build_site_with_progress(
         total_pages: merged.pages.len(),
     });
     Ok(merged)
+}
+
+// --- image pre-pass (Task 5) -----------------------------------------------
+//
+// Build-time image pre-pass: scan published blog bodies for `media/...` refs,
+// decode + resize + WebP-encode to a STAGING directory OUTSIDE `out/`. The
+// staging dir survives the `write_build_output` wipe and is copied into
+// `out/media/_derived/` after the wipe, alongside `out/data/image-manifest.json`
+// which the static-mode SPA plugin (Task 6) reads.
+//
+// This function does NOT touch the blog builder. Callers (CLI `build` +
+// console `ensure_build_started`) own the blog builder separately so they can
+// call `BlogExtension::set_manifest` BEFORE boxing it into the builders vec
+// — both crates re-create a fresh `Vec<Box<dyn BuildExt>>` per build (cheap,
+// and lets the manifest stay scoped to this build only).
+
+/// Scan the published `blog_post` bodies for `media/...` refs, dedupe, and
+/// run `media::optimize` against `<data_dir>/.image-build/`. Returns
+/// `(staging_dir, manifest)`; both are `None` only when the blog table is
+/// missing or holds no media refs.
+///
+/// `staging_dir` MUST live outside `out/` — `write_build_output` will wipe
+/// `out/` and then re-materialize the derived tree from staging. The canonical
+/// staging path is `<data_dir>/.image-build/`.
+///
+/// Errors are non-fatal at the build level: a missing `blog_post` table
+/// (extensions that don't ship migrations to a particular test schema) is
+/// treated as "no refs" and returns `(None, None)`. Any other DB error
+/// propagates as `Err`.
+pub async fn run_image_pre_pass(
+    db: &SqlitePool,
+    media_dir: &Path,
+    data_dir: &Path,
+) -> io::Result<(Option<PathBuf>, Option<ImageManifest>)> {
+    // Read every published blog post's body once. We do NOT decode the markdown
+    // — a plain substring scan is enough to enumerate `media/...` refs.
+    // `published_at IS NOT NULL` matches the same filter
+    // `oxibuilder_ext_blog::repo::list(draft=false, ...)` uses for the build.
+    let bodies: Vec<String> = match sqlx::query_as::<_, (String,)>(
+        "SELECT body FROM blog_post WHERE published_at IS NOT NULL",
+    )
+    .fetch_all(db)
+    .await
+    {
+        Ok(rows) => rows.into_iter().map(|(b,)| b).collect(),
+        Err(sqlx::Error::Database(dbe)) if dbe.message().contains("no such table") => {
+            // Fresh install / test schema without blog_post: nothing to optimize.
+            return Ok((None, None));
+        }
+        Err(e) => return Err(io::Error::other(format!("scan blog bodies: {e}"))),
+    };
+
+    let refs = collect_media_refs(&bodies);
+    if refs.is_empty() {
+        return Ok((None, None));
+    }
+
+    // Staging lives at `<data_dir>/.image-build/` — well outside `out/`, so
+    // `write_build_output`'s `remove_dir_all(out_dir)` doesn't kill our work.
+    // The `.image-build` prefix marks it as build-only (analogous to a
+    // build cache) so a future deploy step can choose to .gitignore it.
+    let staging_dir = data_dir.join(".image-build");
+    std::fs::create_dir_all(&staging_dir)?;
+    let manifest = optimize(&refs, media_dir, &staging_dir)?;
+    Ok((Some(staging_dir), Some(manifest)))
+}
+
+/// Walk every body, picking up `/?media/...` references (markdown image
+/// destinations, raw HTML `src=`/`href=` values, plain text URLs) until the
+/// first whitespace, `)`, `"`, `>`, `]`, or `>`. Manual scanner — the
+/// `regex` crate isn't in the dep tree, and a 5-line state machine is
+/// easier to audit than a regex added just for this.
+///
+/// Returns sorted, deduplicated refs with any leading `/` already stripped
+/// (matches the form `media::optimize` expects).
+fn collect_media_refs(bodies: &[String]) -> Vec<String> {
+    let mut out: BTreeSet<String> = BTreeSet::new();
+    for body in bodies {
+        let bytes = body.as_bytes();
+        let mut i = 0;
+        while i + 7 <= bytes.len() {
+            // Try to match `/media/` or `media/` starting at `i`.
+            let (consumed, prefix) = if bytes[i..].starts_with(b"/media/") {
+                (1usize, 1usize)
+            } else if bytes[i..].starts_with(b"media/") {
+                (0usize, 0usize)
+            } else {
+                i += 1;
+                continue;
+            };
+            let mut j = i + 6 + prefix; // start of the path after `/media/` or `media/`
+            while j < bytes.len() {
+                let b = bytes[j];
+                if b == b' ' || b == b'\t' || b == b'\n' || b == b'\r'
+                    || b == b')' || b == b'"' || b == b'\''
+                    || b == b'>' || b == b']' || b == b'<' || b == b'`'
+                {
+                    break;
+                }
+                j += 1;
+            }
+            if j > i + 6 + prefix {
+                let raw = &body[i + consumed..j];
+                out.insert(raw.to_string());
+            }
+            i = j;
+        }
+    }
+    out.into_iter().collect()
 }
