@@ -61,12 +61,17 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-      - name: Publish — oxibuilder-console (Tier 2)
+      - name: Publish — oxibuilder-deploy (Tier 2)
+        run: cargo publish -p oxibuilder-deploy --no-verify --allow-dirty
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Publish — oxibuilder-console (Tier 3)
         run: cargo publish -p oxibuilder-console --no-verify --allow-dirty
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-      - name: Publish — oxibuilder-cli (Tier 3)
+      - name: Publish — oxibuilder-cli (Tier 4)
         run: cargo publish -p oxibuilder --no-verify --allow-dirty
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
