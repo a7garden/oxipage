@@ -131,7 +131,7 @@ pub async fn list_handler(
         }
     }
     // Newest first.
-    items.sort_by(|a, b| b.0.cmp(&a.0));
+    items.sort_by_key(|b| std::cmp::Reverse(b.0));
     let data = items.into_iter().map(|(_, item)| item).collect();
     Ok(Json(ListResponse { data }))
 }
