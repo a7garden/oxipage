@@ -10,6 +10,8 @@ pub mod error;
 pub mod extension;
 pub mod http;
 pub mod manifest;
+pub mod markdown;
+pub mod media;
 pub mod migrate;
 pub mod openapi;
 pub mod rate_limit;
