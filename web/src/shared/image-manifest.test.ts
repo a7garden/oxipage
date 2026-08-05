@@ -6,6 +6,13 @@
 import { describe, it, expect } from "bun:test";
 import { resolveMedia, type ImageManifest } from "./image-manifest";
 
+// `base` is the deployment `<base href>` WITH its slashes (see
+// `deploymentBasePrefix`). `resolveMedia` concatenates `${base}${url}` so the
+// emitted `<img>` URLs are absolute (e.g. `/blog/media/_derived/...` under a
+// project deploy, `/media/_derived/...` under apex) — the browser merges them
+// against `<base href>` unchanged, avoiding the doubling that would happen
+// if we emitted a relative URL.
+
 describe("resolveMedia", () => {
   it("returns optimized img for a manifest media ref", () => {
     const m: ImageManifest = {
@@ -15,9 +22,9 @@ describe("resolveMedia", () => {
         srcset: [{ w: 960, url: "media/_derived/ab-960.webp" }],
       },
     };
-    const out = resolveMedia("media/shot.png", "blog/", m);
+    const out = resolveMedia("media/shot.png", "/blog/", m);
     expect(out).not.toBeNull();
-    expect(out).toContain('src="blog/media/_derived/ab-960.webp"');
+    expect(out).toContain('src="/blog/media/_derived/ab-960.webp"');
     expect(out).toContain('width="2000"');
     expect(out).toContain("srcset=");
   });
@@ -46,12 +53,12 @@ describe("resolveMedia", () => {
     expect(out).toContain('loading="lazy"');
     expect(out).toContain('decoding="async"');
     expect(out).toContain('alt=""');
-    expect(out).toContain("blog/media/_derived/x-640.webp 640w");
-    expect(out).toContain("blog/media/_derived/x-960.webp 960w");
-    expect(out).toContain("blog/media/_derived/x-1280.webp 1280w");
-    expect(out).toContain("blog/media/_derived/x-1920.webp 1920w");
+    expect(out).toContain("/blog/media/_derived/x-640.webp 640w");
+    expect(out).toContain("/blog/media/_derived/x-960.webp 960w");
+    expect(out).toContain("/blog/media/_derived/x-1280.webp 1280w");
+    expect(out).toContain("/blog/media/_derived/x-1920.webp 1920w");
     // pickSrc: largest width ≤ 960 → 960
-    expect(out).toContain('src="blog/media/_derived/x-960.webp"');
+    expect(out).toContain('src="/blog/media/_derived/x-960.webp"');
   });
 
   it("returns null for unknown media refs", () => {
@@ -70,7 +77,7 @@ describe("resolveMedia", () => {
       },
     };
     const out = resolveMedia("media/x.jpg", "/blog/", m);
-    expect(out).toContain('src="blog/media/_derived/x-1920.webp"');
+    expect(out).toContain('src="/blog/media/_derived/x-1920.webp"');
   });
 
   it("accepts a leading-slash media ref and matches by stripped key", () => {
@@ -83,10 +90,10 @@ describe("resolveMedia", () => {
     };
     const out = resolveMedia("/media/x.jpg", "/blog/", m);
     expect(out).not.toBeNull();
-    expect(out).toContain('src="blog/media/_derived/x-960.webp"');
+    expect(out).toContain('src="/blog/media/_derived/x-960.webp"');
   });
 
-  it("emits /-prefixed src when base is '/' (apex deployment)", () => {
+  it("emits absolute /-prefixed src when base is '/' (apex deployment)", () => {
     const m: ImageManifest = {
       "media/x.jpg": {
         width: 100,

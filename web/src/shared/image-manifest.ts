@@ -25,9 +25,12 @@ export interface ManifestEntry {
 /** The full manifest: `media/...` logical ref → entry. */
 export type ImageManifest = Record<string, ManifestEntry>;
 
-/** Path the SPA fetches. The build writer drops the manifest at `out/data/`
- *  and the `<base href>` makes `/data/...` resolve to the deployed location. */
-const MANIFEST_URL = "/data/image-manifest.json";
+/** Path the SPA fetches. The build writer drops the manifest at
+ * `<base>/data/image-manifest.json` (e.g. `/blog/data/...` under a project
+ * deploy). MUST be relative so the browser resolves it against `<base href>`;
+ * an absolute-path URL (leading `/`) would resolve against the document
+ * ORIGIN and 404 in every project deployment. */
+const MANIFEST_URL = "data/image-manifest.json";
 
 let cache: Promise<ImageManifest> | null = null;
 
@@ -64,21 +67,32 @@ export function isMediaRef(src: string): boolean {
   return /^\/?media\//.test(src.trim());
 }
 
-/** Resolve the manifest's deployment-base prefix from `<base href>` so the
- *  emitted URLs match the Rust prerender. Returns `""` when no `<base>` is
- *  present (vite dev) or when the href is just `/`. */
+/** Resolve the deployment `<base href>` so the emitted `<img>` URLs match
+ *  the Rust prerender after the browser merges them against `<base href>`.
+ *
+ *  Returns the base WITH its slashes as read from `<base href>`:
+ *    `<base href="/blog/">` → `"/blog/"`
+ *    `<base href="/">`      → `"/"`
+ *    no `<base>` (vite dev) → `"/"`
+ *
+ *  `resolveMedia` then concatenates `${base}${url}` (no separator) — the base
+ *  already ends in `/` and the manifest url is `media/_derived/...` (no
+ *  leading slash), so the result is absolute and matches the Rust output
+ *  exactly: `/blog/media/_derived/...` (project) and `/media/_derived/...`
+ *  (apex). Emitting a RELATIVE URL here would double the path under
+ *  `<base href="/blog/">` (e.g. `blog/media/x.webp` → `/blog/blog/media/...`).
+ */
 export function deploymentBasePrefix(): string {
-  if (typeof document === "undefined") return "";
-  const href = document.querySelector("base")?.getAttribute("href") ?? "/";
-  // Mirror Rust's `asset_base.trim_matches('/')` — the `<base href>` is
-  // always `/` or `/<path>/`, so this yields `""` or `"<path>"`.
-  return href.replace(/^\/+|\/+$/g, "");
+  if (typeof document === "undefined") return "/";
+  return document.querySelector("base")?.getAttribute("href") ?? "/";
 }
 
 /** Build the optimized `<img>` string for a `media/...` ref that lives in
  *  the loaded manifest, or `null` if it does not (caller falls back to the
- *  plain image token render). `base` is the already-trimmed deployment
- *  prefix (see [`deploymentBasePrefix`]). */
+ *  plain image token render). `base` is the deployment base WITH its
+ *  surrounding slashes (see [`deploymentBasePrefix`]) — the function
+ *  concatenates `${base}${url}` so the emitted URL is absolute and matches
+ *  the Rust prerender after the browser merges it against `<base href>`. */
 export function resolveMedia(
   src: string,
   base: string,
@@ -95,15 +109,9 @@ export function resolveMedia(
   // an empty srcset would crash `pickSrc` (no element at `length - 1`).
   if (entry.srcset.length === 0) return null;
   const chosen = pickSrc(entry);
-  // Strip leading/trailing slashes so callers can pass either `"/blog/"`,
-  // `"/blog"`, or `"blog/"` — matches Rust's `asset_base.trim_matches('/')`.
-  // The literal `/` separator added below then yields the same string Rust
-  // emits: prefix="" + "/" + "media/..." = "/media/..." (apex);
-  // prefix="blog" + "/" + "media/..." = "blog/media/..." (project).
-  const prefix = base.replace(/^\/+|\/+$/g, "");
-  const srcUrl = `${prefix}/${chosen.url}`;
+  const srcUrl = `${base}${chosen.url}`;
   const srcset = entry.srcset
-    .map((e) => `${prefix}/${e.url} ${e.w}w`)
+    .map((e) => `${base}${e.url} ${e.w}w`)
     .join(", ");
   return `<img src="${srcUrl}" srcset="${srcset}" width="${entry.width}" height="${entry.height}" loading="lazy" decoding="async" alt="">`;
 }
@@ -115,10 +123,10 @@ let manifest: ImageManifest = {};
 
 // Fire the fetch at module load — markdown-it renders synchronously, so the
 // rule can only read whatever's already in `manifest` when it's invoked. On
-// the built site the manifest lives at `/data/image-manifest.json` and is
-// typically resolved by the time Markdown first renders; in the rare cold-
-// start race the rule falls back to plain `<img>` (current behavior), so
-// there's no visual regression.
+// the built site the manifest lives at `<base>/data/image-manifest.json` (a
+// relative URL so the browser resolves it against `<base href>`); on the
+// rare cold-start race the rule falls back to plain `<img>` (current
+// behavior), so there's no visual regression.
 loadImageManifest().then((m) => {
   manifest = m;
 });
