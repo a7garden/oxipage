@@ -54,6 +54,10 @@ pub fn write_build_output(
     )
     .deployment_base;
 
+    // Absolute base (origin + deployment base) for OG image URLs, which
+    // crawlers require to be absolute. Derived from the same `site.base_url`.
+    let absolute_base = absolute_site_base(&inputs.site_base_url, &deployment_base);
+
     // 3. Pull the hashed <script>/<link> asset tags from the embedded static SPA
     //    index.html, transform `/assets/...` → relative, and prepend a
     //    `<base href="{deployment_base}">`.
@@ -88,6 +92,9 @@ pub fn write_build_output(
             let with_slash = format!("{}/", crate::markdown::BASE_PLACEHOLDER);
             content = content.replace(&with_slash, &deployment_base);
             content = content.replace(crate::markdown::BASE_PLACEHOLDER, &deployment_base);
+        }
+        if content.contains(crate::markdown::OG_IMAGE_PLACEHOLDER) {
+            content = content.replace(crate::markdown::OG_IMAGE_PLACEHOLDER, &absolute_base);
         }
         let file_path = out_dir.join(&page.path);
         if let Some(parent) = file_path.parent() {
@@ -127,7 +134,7 @@ pub fn write_build_output(
         }
         let shell = inject_assets(
             &format!(
-                r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>{ext_id}</title><link rel="canonical" href="/{ext_id}/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#
+                r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>{ext_id}</title><link rel="icon" type="image/png" href="favicon-32.png"><link rel="canonical" href="/{ext_id}/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#
             ),
             asset_tags.as_deref(),
         );
@@ -140,7 +147,7 @@ pub fn write_build_output(
     let search_path = out_dir.join("search/index.html");
     if !search_path.exists() {
         let shell = inject_assets(
-            r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Search</title><link rel="canonical" href="/search/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#,
+            r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Search</title><link rel="icon" type="image/png" href="favicon-32.png"><link rel="canonical" href="/search/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#,
             asset_tags.as_deref(),
         );
         fs::create_dir_all(search_path.parent().unwrap())?;
@@ -264,6 +271,27 @@ fn escape_attr(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('"', "&quot;")
         .replace('<', "&lt;")
+}
+
+/// Absolute site base (`origin` + `deployment_base`) for OG image URLs —
+/// crawlers require absolute URLs. `site.base_url` carries the origin; the
+/// deployment base carries the pathname. Falls back to the path-only base
+/// when no origin can be split off (invalid URL — `derive_deployment_base`
+/// would have normalized it to `/` anyway).
+fn absolute_site_base(base_url: &str, deployment_base: &str) -> String {
+    let origin = base_url
+        .split_once("://")
+        .and_then(|(scheme, rest)| {
+            rest.split('/')
+                .next()
+                .map(|host| format!("{scheme}://{host}"))
+        })
+        .unwrap_or_default();
+    if origin.is_empty() {
+        deployment_base.to_string()
+    } else {
+        format!("{origin}{deployment_base}")
+    }
 }
 
 /// Replace the non-hashed placeholder script in a shell with the real asset tags.
@@ -430,4 +458,38 @@ fn copy_derived_into(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::absolute_site_base;
+
+    #[test]
+    fn absolute_base_apex() {
+        assert_eq!(
+            absolute_site_base("https://example.com", "/"),
+            "https://example.com/"
+        );
+    }
+
+    #[test]
+    fn absolute_base_project_path() {
+        assert_eq!(
+            absolute_site_base("https://a7garden.github.io/blog/", "/blog/"),
+            "https://a7garden.github.io/blog/"
+        );
+    }
+
+    #[test]
+    fn absolute_base_keeps_port() {
+        assert_eq!(
+            absolute_site_base("http://127.0.0.1:8787", "/"),
+            "http://127.0.0.1:8787/"
+        );
+    }
+
+    #[test]
+    fn absolute_base_invalid_url_falls_back_to_path() {
+        assert_eq!(absolute_site_base("not a url", "/"), "/");
+    }
 }

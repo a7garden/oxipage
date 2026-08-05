@@ -224,7 +224,7 @@ fn generate(bytes: &[u8], sha8: &str, derived: &Path) -> io::Result<ImageEntry> 
                 resized.height(),
                 resized.color().into(),
             )
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("webp encode: {e}")))?;
+            .map_err(|e| io::Error::other(format!("webp encode: {e}")))?;
         drop(writer); // flush BufWriter before any later reader touches the file
 
         srcset.push(ImageSrc {

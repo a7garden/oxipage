@@ -65,6 +65,13 @@ use crate::media::{ImageEntry, ImageManifest, ImageSrc};
 /// ignorant of the page's eventual URL while the body is being built.
 pub const BASE_PLACEHOLDER: &str = "\u{0}BASE\u{0}";
 
+/// Sentinel for the absolute site base (origin + deployment base) in OG image
+/// URLs. `site.base_url` carries the origin, but the blog shell is built
+/// without it; `build_writer` substitutes this with the real absolute base.
+/// Crawlers reject relative OG image URLs, so the placeholder is only valid
+/// inside `out/` artifacts after substitution.
+pub const OG_IMAGE_PLACEHOLDER: &str = "\u{0}OGIMAGE\u{0}";
+
 /// Render owner-authored markdown to trusted HTML (no sanitization; doc §0.3).
 /// `asset_base` rewrites logical `media/...` refs; `images` (Task 3) adds srcset/dims.
 pub fn render(md: &str, asset_base: &str, images: &ImageManifest) -> String {

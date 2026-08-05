@@ -1,5 +1,7 @@
 # Oxibuilder
 
+<img src="web/public/oxibuilder.png" alt="Oxibuilder logo" width="128" height="128" />
+
 > A personal site generator for humans and AI agents — blog, portfolio, reviews, novels,
 > and more, all from one CLI.
 

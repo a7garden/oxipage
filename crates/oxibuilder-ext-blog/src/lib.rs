@@ -51,6 +51,12 @@ impl BlogExtension {
     }
 }
 
+impl Default for BlogExtension {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl Extension for BlogExtension {
     fn id(&self) -> &'static str {
@@ -156,6 +162,14 @@ impl BuildExt for BlogExtension {
                 &images,
             );
 
+            // Absolute OG image URL — resolved to `{origin}{deployment_base}oxibuilder.png`
+            // by build_writer's OG_IMAGE_PLACEHOLDER substitution (crawlers reject
+            // relative og:image values).
+            let og_image = format!(
+                "{}oxibuilder.png",
+                oxibuilder_core::markdown::OG_IMAGE_PLACEHOLDER
+            );
+
             let html = format!(
                 r#"<!DOCTYPE html>
 <html lang="{lang}">
@@ -167,6 +181,8 @@ impl BuildExt for BlogExtension {
   <meta property="og:description" content="{excerpt}">
   <meta property="og:type" content="article">
   <meta property="og:url" content="/blog/{slug}/">
+  <meta property="og:image" content="{og_image}">
+  <link rel="icon" type="image/png" href="favicon-32.png">
   <meta name="twitter:card" content="summary">
   <link rel="canonical" href="/blog/{slug}/">
 </head>
@@ -180,6 +196,7 @@ impl BuildExt for BlogExtension {
                 title = post.title,
                 slug = post.slug,
                 excerpt = excerpt,
+                og_image = og_image,
                 body = body_html,
             );
 
