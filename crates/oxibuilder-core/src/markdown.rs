@@ -64,8 +64,10 @@ pub fn render(md: &str, asset_base: &str, images: &ImageManifest) -> String {
 fn render_image_open(dest_url: &str, asset_base: &str, images: &ImageManifest) -> String {
     let logical = dest_url.trim_start_matches('/');
     let prefix = asset_base.trim_matches('/');
-    if let Some(entry) = images.get(logical) {
-        // Manifest hit — emit the full responsive tag.
+    if let Some(entry) = images.get(logical)
+        && !entry.srcset.is_empty()
+    {
+        // Manifest hit with non-empty srcset — emit the full responsive tag.
         let chosen = pick_src(entry);
         let src = format!("{}/{}", prefix, chosen.url);
         let srcset = render_srcset(&entry.srcset, prefix);
@@ -161,7 +163,30 @@ mod tests {
         assert!(html.contains(r#"src="blog/media/_derived/ab-960.webp""#), "{html}");
         assert!(html.contains("srcset="));
         assert!(html.contains(r#"width="2000""#));
+        assert!(html.contains(r#"height="1125""#));
         assert!(html.contains(r#"loading="lazy""#));
+        assert!(html.contains(r#"decoding="async""#));
+        assert!(html.contains("ab-640.webp 640w"), "{html}");
+    }
+
+    #[test]
+    fn empty_srcset_manifest_hit_falls_back_to_plain_img() {
+        // Manifest hit with an empty `srcset` (e.g. source image narrower than
+        // every configured width — Task 2's `media::generate` produces this for
+        // icons/logos/thumbnails). Must NOT panic; must fall through to the
+        // plain media-ref branch and emit a bare `<img src>` under `asset_base`.
+        let mut m = ImageManifest::default();
+        m.entries.insert(
+            "media/icon.png".into(),
+            ImageEntry {
+                width: 32,
+                height: 32,
+                srcset: vec![],
+            },
+        );
+        let html = render("![x](media/icon.png)", "/blog/", &m);
+        assert!(html.contains(r#"src="blog/media/icon.png""#), "{html}");
+        assert!(!html.contains("srcset="), "should not emit srcset when srcset is empty: {html}");
     }
 
     #[test]
