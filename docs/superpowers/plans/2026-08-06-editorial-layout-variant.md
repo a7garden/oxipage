@@ -137,7 +137,7 @@ fn layout_catalog_is_complete() {
 - [ ] **Step 3: Verify it compiles**
 
 Run: `cargo build -p oxibuilder-core`
-Expected: PASS (the new column does not exist yet; `active_layout_id` is only called after migration 0006 lands in Task 2 — do not wire callers yet).
+Expected: PASS (the new column does not exist yet; `active_layout_id` is only called after migration 0008 lands in Task 2 — do not wire callers yet).
 
 - [ ] **Step 4: Commit**
 
@@ -148,11 +148,13 @@ git commit -m "feat(core): add layout variant catalog (shell/editorial)"
 
 ---
 
-## Task 2: Migration `0006_layout.sql`
+## Task 2: Migration `0008_layout.sql`
 
 **Files:**
-- Create: `crates/oxibuilder-core/migrations/core/0006_layout.sql`
-- Modify: the migration runner registration (find where `0005_theme_config.sql` is registered as version 5; add version 6).
+- Create: `crates/oxibuilder-core/migrations/core/0008_layout.sql`
+- Modify: `crates/oxibuilder-core/src/migrate.rs` (`CORE_MIGRATIONS` array) — add version 8.
+
+> Version note: `CORE_MIGRATIONS` registers versions 1,2,4,5,6. Version 7 (`0007_deploy_log.sql`) exists on disk but is applied ad-hoc via inline `CREATE TABLE IF NOT EXISTS` at deploy time (`deploy_run.rs`), NOT through this array. Use version 8 + filename `0008_layout.sql` to avoid filename collision with the orphaned 0007 file. Non-contiguous versions are already established (the array skips 3).
 
 **Interfaces:**
 - Produces: `theme_config.layout TEXT NOT NULL DEFAULT 'shell'` column.
@@ -165,9 +167,19 @@ git commit -m "feat(core): add layout variant catalog (shell/editorial)"
 ALTER TABLE theme_config ADD COLUMN layout TEXT NOT NULL DEFAULT 'shell';
 ```
 
-- [ ] **Step 2: Register version 6**
+- [ ] **Step 2: Register version 8**
 
-Find the migrations registration (grep for `0005_theme_config` or the version-5 constant). Add `0006_layout.sql` as version 6 with the same include-str + `raw_sql` pattern used for 0005.
+In `CORE_MIGRATIONS` (`crates/oxibuilder-core/src/migrate.rs`), append after the version-6 `setup_state` entry:
+
+```rust
+    Migration {
+        version: 8,
+        name: "layout",
+        sql: include_str!("../migrations/core/0008_layout.sql"),
+    },
+```
+
+(Same `include_str!` + `raw_sql` pattern as version 5. Do NOT add an entry for the orphaned 0007 deploy_log.)
 
 - [ ] **Step 3: Verify the migration applies**
 
@@ -177,8 +189,8 @@ Expected: catalog test PASS. Then start the console against the dev DB once and 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add crates/oxibuilder-core/migrations/core/0006_layout.sql <runner file>
-git commit -m "feat(core): migration 0006 adds theme_config.layout"
+git add crates/oxibuilder-core/migrations/core/0008_layout.sql crates/oxibuilder-core/src/migrate.rs
+git commit -m "feat(core): migration 0008 adds theme_config.layout"
 ```
 
 ---
@@ -213,11 +225,24 @@ impl Default for LobbySection {
 }
 ```
 
-- [ ] **Step 2: Validate layout in `Config` validation**
+- [ ] **Step 2: Add `validate_layout()` to `impl Config`**
 
-In the config validation (`impl Config`), if present, check `lobby.layout` is a known layout — but `is_known_layout` is in core and config.rs is in core, so call `crate::theme::is_known_layout(&self.lobby.layout)`. If false, return a `ConfigError`.
+This repo validates config via focused `Result<(), String>` methods (see `validate_mounts`), not a generic `validate()`. Follow that pattern:
 
-- [ ] **Step 3: Add a config test**
+```rust
+/// Validate [lobby].layout against the known layout catalog.
+pub fn validate_layout(&self) -> Result<(), String> {
+    if !crate::theme::is_known_layout(&self.lobby.layout) {
+        return Err(format!(
+            "'{}' is not a valid [lobby].layout (expected 'shell' or 'editorial')",
+            self.lobby.layout
+        ));
+    }
+    Ok(())
+}
+```
+
+- [ ] **Step 3: Add config tests**
 
 ```rust
 #[test]
@@ -229,7 +254,8 @@ fn lobby_layout_defaults_to_shell() {
 #[test]
 fn lobby_layout_rejects_unknown() {
     let toml = "[lobby]\nlayout = \"bogus\"\n";
-    assert!(toml::from_str::<Config>(toml).map(|c| c.validate()).is_err());
+    let cfg = toml::from_str::<Config>(toml).expect("parses");
+    assert!(cfg.validate_layout().is_err());
 }
 ```
 
@@ -616,21 +642,23 @@ git commit -m "feat(web): editorial chromeless shell, hub lobby, per-page header
 - Modify: `web/src/App.tsx`
 
 **Interfaces:**
-- Consumes: `EditorialShell`, `Shell`, `HubLobby`, `MovieDetailPage`, `BooksStatsPage`, `MoviesStatsPage`.
+- Consumes: `EditorialShell`, `Shell`, `HubLobby`, `Lobby`, existing route components.
 
-- [ ] **Step 1: Factor the route table**
+> **Route sequencing:** Task 10 does the layout branch + factored route table (EXISTING routes only). The new routes — `/movies/:slug` (Task 16), `/books/stats` (Task 14), `/movies/stats` (Task 13) — are added BY those tasks when their components are created, NOT here (the components don't exist yet; adding the routes here would break the build).
 
-Extract the `<Routes>…</Routes>` block (lines ~127-219) into a `<SiteRoutes/>` component both shells render. Add the new routes:
+- [ ] **Step 1: Extract `LangToggle` to shared (addresses a Task-9 minor)**
+
+The existing `LangToggle` is a non-exported local fn in `App.tsx` (~line 56), and `HubLobby` duplicated it. Move it to `web/src/shared/LangToggle.tsx` (exported), keep the `<Languages/>` icon, and consume it from BOTH `Shell` (App.tsx) and `HubLobby` (remove HubLobby's local copy). One source of truth.
+
+- [ ] **Step 2: Factor the route table into `<SiteRoutes/>`**
+
+Extract the EXISTING `<Routes>…</Routes>` block (App.tsx ~127-219) into a `<SiteRoutes/>` component. Both shells render it. Do NOT add the movie-detail/stats routes here. The `/` route element swaps on layout:
 
 ```tsx
-<Route path="/movies/:slug" element={<Suspense fallback={<PageFallback/>}><MovieDetailPage/></Suspense>} />
-<Route path="/books/stats" element={<Suspense fallback={<PageFallback/>}><BooksStatsPage/></Suspense>} />
-<Route path="/movies/stats" element={<Suspense fallback={<PageFallback/>}><MoviesStatsPage/></Suspense>} />
+<Route path="/" element={layout === "editorial" ? <HubLobby/> : <Lobby/>} />
 ```
 
-Add lazy imports for `MovieDetailPage`, `BooksStatsPage`, `MoviesStatsPage`.
-
-- [ ] **Step 2: Branch on layout**
+- [ ] **Step 3: Branch `App` on layout**
 
 ```tsx
 function App() {
@@ -648,18 +676,17 @@ function App() {
 }
 ```
 
-Adjust `Shell` to accept children (the route table) instead of inlining it. The `Shell`'s `"/"` route renders `<Lobby/>`; `EditorialShell`'s implicit root renders `<HubLobby/>` (route path `/` → HubLobby inside SiteRoutes when editorial). Simplest: keep `/` route as `<Lobby/>` in shell and swap at the route element: `path="/" element={layout==="editorial" ? <HubLobby/> : <Lobby/>}`.
+Adjust `Shell` to accept children (the `<SiteRoutes/>` table) instead of inlining routes. Keep `Shell`'s sticky header (now using the shared LangToggle)/nav/footer. `EditorialShell` stays chromeless.
 
-- [ ] **Step 3: Verify type-check + runtime**
+- [ ] **Step 4: Verify type-check + runtime**
 
-Run: `bun run build`
-Expected: PASS. Then `bun run dev`, set `html[data-layout="editorial"]` in DevTools + reload → hub lobby renders, no sticky header.
+Run: `cd web && bun run build` → PASS. Then `bun run dev`, set `html[data-layout="editorial"]` in DevTools + reload → hub lobby renders, no sticky header; switch back to shell → sticky header returns.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add web/src/App.tsx
-git commit -m "feat(web): branch App on layout; add movie detail + stats routes"
+git add web/src/App.tsx web/src/shared/LangToggle.tsx web/src/lobby/HubLobby.tsx
+git commit -m "feat(web): branch App on layout; factor route table + shared LangToggle"
 ```
 
 ---

@@ -330,6 +330,7 @@ import type { ThemeDefinition } from "../../shared/theme";
 export interface SiteTheme {
   theme_id: string;
   definition: ThemeDefinition;
+  layout: string;
 }
 
 export async function listThemes(): Promise<ThemeDefinition[]> {
@@ -344,11 +345,15 @@ export async function getTheme(slug: string): Promise<SiteTheme> {
   return json.data;
 }
 
-export async function setTheme(slug: string, themeId: string): Promise<SiteTheme> {
+export async function setTheme(
+  slug: string,
+  themeId: string,
+  layout?: string,
+): Promise<SiteTheme> {
   const res = await siteScopedFetch(slug, "/theme", {
     method: "PUT",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ theme_id: themeId }),
+    body: JSON.stringify({ theme_id: themeId, ...(layout ? { layout } : {}) }),
   });
   const json = await jsonOrThrow<{ data: SiteTheme }>(res);
   return json.data;

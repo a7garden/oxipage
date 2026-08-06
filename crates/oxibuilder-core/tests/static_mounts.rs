@@ -30,7 +30,8 @@ fn write_build_output_copies_mount_into_out() {
         "index.html",
         "<!DOCTYPE html><html><body>lobby</body></html>",
     )]);
-    let mut inputs = BuildInputs::new("https://example.com/", "paper", "seed");
+    // Test-only default: this writer test has no DB or on-disk config.
+    let mut inputs = BuildInputs::new("https://example.com/", "paper", "shell", "seed");
     inputs.mounts = vec![MountCopy { source: src.clone(), path: "portfolio".into() }];
     write_build_output(&out_struct, &out, &media, &inputs).unwrap();
 

@@ -118,3 +118,61 @@ pub async fn active_theme_id(db: &sqlx::SqlitePool) -> String {
         .flatten()
         .unwrap_or_else(|| "paper".into())
 }
+
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct LayoutDefinition {
+    pub id: &'static str,
+    pub name_ko: &'static str,
+    pub name_en: &'static str,
+    pub description_ko: &'static str,
+    pub description_en: &'static str,
+}
+
+pub const ALL_LAYOUTS: &[LayoutDefinition] = &[
+    LayoutDefinition {
+        id: "shell",
+        name_ko: "셸",
+        name_en: "Shell",
+        description_ko: "스티키 헤더·네비·푸터, 그리드/캔버스 로비",
+        description_en: "Sticky header/nav/footer, grid/canvas lobby",
+    },
+    LayoutDefinition {
+        id: "editorial",
+        name_ko: "에디토리얼",
+        name_en: "Editorial",
+        description_ko: "크롬 없음, 중앙 허브 로비, 페이지별 헤더",
+        description_en: "No chrome, centered hub lobby, per-page headers",
+    },
+];
+
+pub fn find_layout(id: &str) -> Option<&'static LayoutDefinition> {
+    ALL_LAYOUTS.iter().find(|l| l.id == id)
+}
+
+pub fn is_known_layout(id: &str) -> bool {
+    find_layout(id).is_some()
+}
+
+/// Read the active layout for a site. Falls back to `default` (from config)
+/// when the table/row/column is absent — never blocks a build.
+pub async fn active_layout_id(db: &sqlx::SqlitePool, default: &str) -> String {
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT layout FROM theme_config WHERE id = 1")
+            .fetch_optional(db)
+            .await
+            .ok()
+            .flatten();
+    match row {
+        Some((l,)) if is_known_layout(&l) => l,
+        _ => default.to_string(),
+    }
+}
+
+#[test]
+fn layout_catalog_is_complete() {
+    assert_eq!(ALL_LAYOUTS.len(), 2);
+    assert!(is_known_layout("shell"));
+    assert!(is_known_layout("editorial"));
+    assert!(!is_known_layout("bogus"));
+    assert_eq!(find_layout("editorial").unwrap().id, "editorial");
+}

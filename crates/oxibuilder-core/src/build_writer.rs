@@ -50,10 +50,10 @@ pub fn write_build_output(
     let deployment_base = BuildManifest::from_site_base(
         &inputs.site_base_url,
         &inputs.theme_id,
+        &inputs.layout_id,
         &inputs.asset_revision_seed,
     )
     .deployment_base;
-
     // Absolute base (origin + deployment base) for OG image URLs, which
     // crawlers require to be absolute. Derived from the same `site.base_url`.
     let absolute_base = absolute_site_base(&inputs.site_base_url, &deployment_base);
@@ -115,10 +115,12 @@ pub fn write_build_output(
     // 5b. Theme catalog snapshot — the static-mode SPA resolves its public
     //     palette from `data/theme.json` (mirrors GET /theme's data envelope).
     let theme_def = crate::theme::find_theme(&inputs.theme_id);
+    let layout_def = crate::theme::find_layout(&inputs.layout_id);
     if let Some(def) = theme_def {
         let theme_json = serde_json::to_string_pretty(&serde_json::json!({
             "theme_id": def.id,
             "definition": def,
+            "layout": layout_def.map(|l| l.id).unwrap_or("shell"),
         }))?;
         fs::write(data_dir.join("theme.json"), &theme_json)?;
     }
@@ -169,9 +171,7 @@ pub fn write_build_output(
     let search_json = serde_json::to_string_pretty(&output.search_docs)?;
     fs::write(data_dir.join("search-index.json"), &search_json)?;
 
-    // 9. Emit the embedded SPA bundle (the entry index.html is relativized +
-    //    <base>-tagged) and a 404.html copy for static-host deep links.
-    write_embedded_assets(out_dir, &deployment_base)?;
+    write_embedded_assets(out_dir, &deployment_base, &inputs.theme_id, &inputs.layout_id)?;
     let index_html = out_dir.join("index.html");
     if index_html.exists() {
         let _ = fs::copy(&index_html, out_dir.join("404.html"));
@@ -226,11 +226,11 @@ pub fn write_build_output(
         build_id: uuid::Uuid::new_v4().to_string(),
         deployment_base,
         theme_id: inputs.theme_id.clone(),
+        layout_id: inputs.layout_id.clone(),
         asset_revision,
         built_at: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
     };
     manifest.write_to(out_dir)?;
-
     tracing::info!(
         pages = output.pages.len(),
         extensions = output.extensions_data.len(),
@@ -354,6 +354,8 @@ fn ensure_base_href(html: &str, deployment_base: &str) -> String {
 fn write_embedded_assets(
     out_dir: &Path,
     deployment_base: &str,
+    theme_id: &str,
+    layout_id: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     for (path, bytes) in crate::http::static_spa_files() {
         let dest = out_dir.join(&path);
@@ -362,7 +364,7 @@ fn write_embedded_assets(
         }
         let bytes = if path == "index.html" {
             let html = String::from_utf8_lossy(&bytes);
-            transform_spa_index(&html, deployment_base).into_bytes()
+            transform_spa_index(&html, deployment_base, theme_id, layout_id).into_bytes()
         } else {
             bytes
         };
@@ -375,15 +377,51 @@ fn write_embedded_assets(
 /// `<base href="{deployment_base}">` before `</head>`. The base tag lets the
 /// browser resolve the now-relative asset URLs against the deployment base
 /// (apex `/` or project `/<repo>/`).
-fn transform_spa_index(html: &str, deployment_base: &str) -> String {
+///
+/// Also rewrites the placeholder `<meta name="oxibuilder-theme">` and
+/// `<meta name="oxibuilder-layout">` contents to the build-time active
+/// values so first paint matches the chosen theme/layout (the embedded
+/// template ships neutral defaults). If a given meta tag is not present,
+/// the document is left unchanged for that tag — `replace_meta` is a
+/// no-op when there is no match.
+fn transform_spa_index(html: &str, deployment_base: &str, theme_id: &str, layout_id: &str) -> String {
     let relativized = html.replace("=\"/assets/", "=\"assets/");
     let base = format!(r#"<base href="{}">"#, escape_attr(deployment_base));
-    if let Some(idx) = relativized.find("</head>") {
+    let with_base = if let Some(idx) = relativized.find("</head>") {
         let (before, after) = relativized.split_at(idx);
         format!("{before}{base}{after}")
     } else {
         format!("{base}{relativized}")
-    }
+    };
+    let with_theme = replace_meta(&with_base, "oxibuilder-theme", theme_id);
+    replace_meta(&with_theme, "oxibuilder-layout", layout_id)
+}
+
+/// Replace the `content` of the first `<meta name="{name}">` tag in `html`
+/// with `value`. If no such meta tag exists, the document is returned
+/// unchanged. Intentionally simple: the embedded SPA's index.html ships
+/// exactly one of each placeholder meta we care about.
+fn replace_meta(html: &str, name: &str, value: &str) -> String {
+    // The needle includes the opening quote of `content="` so the split
+    // leaves `part` beginning with the value (and its closing quote).
+    let needle_start = format!("name=\"{name}\" content=\"");
+    html.split(&needle_start).enumerate().fold(
+        String::new(),
+        |mut acc, (i, part)| {
+            if i == 0 { acc.push_str(part); return acc; }
+            // part begins with the existing value; replace up to the closing quote.
+            if let Some(end) = part.find('"') {
+                acc.push_str(&needle_start);
+                acc.push_str(value);
+                acc.push('"');
+                acc.push_str(&part[end + 1..]);
+            } else {
+                acc.push_str(&needle_start);
+                acc.push_str(part);
+            }
+            acc
+        },
+    )
 }
 
 /// Deterministic SHA-256 of the materialized output set (after writing).
@@ -402,8 +440,9 @@ fn compute_asset_revision(out_dir: &Path) -> String {
     }
     let digest = hasher.finalize();
     let mut out = String::with_capacity(32);
-    for b in &digest[..16] {
-        out.push_str(&format!("{b:02x}"));
+    for byte in &digest[..16] {
+        use std::fmt::Write;
+        let _ = write!(&mut out, "{byte:02x}");
     }
     out
 }
@@ -470,8 +509,8 @@ fn copy_derived_into(
     for entry in fs::read_dir(src)? {
         let entry = entry?;
         let name = entry.file_name();
-        let name_str = name.to_string_lossy();
-        if name_str == ".cache.json" {
+        // Skip the build-time cache; only derived WebP variants ship.
+        if name == ".cache.json" {
             continue;
         }
         let file_type = entry.file_type()?;
@@ -488,7 +527,20 @@ fn copy_derived_into(
 
 #[cfg(test)]
 mod tests {
-    use super::absolute_site_base;
+    use super::{absolute_site_base, replace_meta};
+
+    #[test]
+    fn replace_meta_swaps_content() {
+        let html = r#"<meta name="oxibuilder-theme" content="paper">"#;
+        assert_eq!(
+            replace_meta(html, "oxibuilder-theme", "midnight"),
+            r#"<meta name="oxibuilder-theme" content="midnight">"#
+        );
+        // leaves unrelated tags intact
+        let html2 = r#"<meta name="viewport" content="width=device-width">"#;
+        assert_eq!(replace_meta(html2, "oxibuilder-theme", "x"), html2);
+    }
+
 
     #[test]
     fn absolute_base_apex() {

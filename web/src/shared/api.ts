@@ -8,6 +8,8 @@ export interface ManifestSite {
   base_url: string;
   default_lang: string;
   languages: string[];
+  /** Optional for backward compat with manifests predating the editorial layout. */
+  layout?: "shell" | "editorial";
 }
 
 export interface LobbyConfigInfo {

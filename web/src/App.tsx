@@ -1,13 +1,15 @@
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { BrowserRouter, Link, Route, Routes } from "react-router";
 import { lazy, Suspense, useEffect } from "react";
-import { Languages, Search } from "lucide-react";
+import { Search } from "lucide-react";
 
 import { fetchManifest } from "./shared/api";
 import { Lobby } from "./lobby/Lobby";
+import { HubLobby } from "./lobby/HubLobby";
 import { ProfilePage } from "./extensions/profile/ProfilePage";
-import { LanguageProvider, useLanguage } from "./shared/language";
+import { LanguageProvider } from "./shared/language";
 import type { Lang } from "./shared/language";
+import { LangToggle } from "./shared/LangToggle";
 import { ThemeToggle } from "./shared/ThemeToggle";
 import { applyServerTheme, applyThemeMode, getConsoleAppearance } from "./shared/theme";
 import { Button } from "./shared/ui/button";
@@ -15,6 +17,7 @@ import { Container } from "./shared/ui/container";
 import { Skeleton } from "./shared/ui/skeleton";
 import { AssetResolverProvider } from "./shared/asset-context";
 import { SiteFooter } from "./shared/SiteFooter";
+import { EditorialShell } from "./shell/EditorialShell";
 
 const queryClient = new QueryClient();
 
@@ -43,8 +46,17 @@ const NovelsPage = lazy(() =>
 const MoviesPage = lazy(() =>
   import("./extensions/movies/MoviesPage").then((m) => ({ default: m.MoviesPage })),
 );
+const MoviesStatsPage = lazy(() =>
+  import("./extensions/movies/MoviesStatsPage").then((m) => ({ default: m.MoviesStatsPage })),
+);
+const MovieDetailPage = lazy(() =>
+  import("./extensions/movies/MovieDetailPage").then((m) => ({ default: m.MovieDetailPage })),
+);
 const BooksPage = lazy(() =>
   import("./extensions/books/BooksPage").then((m) => ({ default: m.BooksPage })),
+);
+const BooksStatsPage = lazy(() =>
+  import("./extensions/books/BooksStatsPage").then((m) => ({ default: m.BooksStatsPage })),
 );
 const ScrapsPage = lazy(() =>
   import("./extensions/scraps/ScrapsPage").then((m) => ({ default: m.ScrapsPage })),
@@ -52,22 +64,6 @@ const ScrapsPage = lazy(() =>
 const ActivityPage = lazy(() =>
   import("./extensions/activity/ActivityPage").then((m) => ({ default: m.ActivityPage })),
 );
-
-function LangToggle() {
-  const { lang, setLang } = useLanguage();
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      aria-label="언어 전환 / Switch language"
-      onClick={() => setLang(lang === "ko" ? "en" : "ko")}
-    >
-      <Languages />
-      {lang === "ko" ? "EN" : "KO"}
-    </Button>
-  );
-}
 
 function PageFallback() {
   return (
@@ -79,7 +75,134 @@ function PageFallback() {
   );
 }
 
-function Shell() {
+type Layout = "shell" | "editorial";
+
+function SiteRoutes({ layout }: { layout: Layout }) {
+  return (
+    <Routes>
+      <Route
+        path="/"
+        element={layout === "editorial" ? <HubLobby /> : <Lobby />}
+      />
+      <Route path="/profile" element={<ProfilePage />} />
+      <Route
+        path="/blog"
+        element={
+          <Suspense fallback={<PageFallback />}>
+            <BlogListPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/blog/:slug"
+        element={
+          <Suspense fallback={<PageFallback />}>
+            <BlogPostPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/projects"
+        element={
+          <Suspense fallback={<PageFallback />}>
+            <ProjectsListPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/projects/:slug"
+        element={
+          <Suspense fallback={<PageFallback />}>
+            <ProjectDetailPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/links"
+        element={
+          <Suspense fallback={<PageFallback />}>
+            <LinksPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/novels"
+        element={
+          <Suspense fallback={<PageFallback />}>
+            <NovelsPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/movies"
+        element={
+          <Suspense fallback={<PageFallback />}>
+            <MoviesPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/movies/stats"
+        element={
+          <Suspense fallback={<PageFallback />}>
+            <MoviesStatsPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/movies/:slug"
+        element={
+          <Suspense fallback={<PageFallback />}>
+            <MovieDetailPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/books"
+        element={
+          <Suspense fallback={<PageFallback />}>
+            <BooksPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/books/stats"
+        element={
+          <Suspense fallback={<PageFallback />}>
+            <BooksStatsPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/scraps"
+        element={
+          <Suspense fallback={<PageFallback />}>
+            <ScrapsPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/activity"
+        element={
+          <Suspense fallback={<PageFallback />}>
+            <ActivityPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/search"
+        element={
+          <Suspense fallback={<PageFallback />}>
+            <SearchPage />
+          </Suspense>
+        }
+      />
+      <Route path="*" element={<p className="text-subtle">404</p>} />
+    </Routes>
+  );
+}
+
+function Shell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void applyServerTheme().then((def) => {
       // Public site reflects the selected theme's light/dark mode — unless the
@@ -123,101 +246,7 @@ function Shell() {
         </header>
 
         <main className="flex-1 py-8">
-          <Container>
-            <Routes>
-              <Route path="/" element={<Lobby />} />
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route
-                path="/blog"
-                element={
-                  <Suspense fallback={<PageFallback />}>
-                    <BlogListPage />
-                  </Suspense>
-                }
-              />
-              <Route
-                path="/blog/:slug"
-                element={
-                  <Suspense fallback={<PageFallback />}>
-                    <BlogPostPage />
-                  </Suspense>
-                }
-              />
-              <Route
-                path="/projects"
-                element={
-                  <Suspense fallback={<PageFallback />}>
-                    <ProjectsListPage />
-                  </Suspense>
-                }
-              />
-              <Route
-                path="/projects/:slug"
-                element={
-                  <Suspense fallback={<PageFallback />}>
-                    <ProjectDetailPage />
-                  </Suspense>
-                }
-              />
-              <Route
-                path="/links"
-                element={
-                  <Suspense fallback={<PageFallback />}>
-                    <LinksPage />
-                  </Suspense>
-                }
-              />
-              <Route
-                path="/novels"
-                element={
-                  <Suspense fallback={<PageFallback />}>
-                    <NovelsPage />
-                  </Suspense>
-                }
-              />
-              <Route
-                path="/movies"
-                element={
-                  <Suspense fallback={<PageFallback />}>
-                    <MoviesPage />
-                  </Suspense>
-                }
-              />
-              <Route
-                path="/books"
-                element={
-                  <Suspense fallback={<PageFallback />}>
-                    <BooksPage />
-                  </Suspense>
-                }
-              />
-              <Route
-                path="/scraps"
-                element={
-                  <Suspense fallback={<PageFallback />}>
-                    <ScrapsPage />
-                  </Suspense>
-                }
-              />
-              <Route
-                path="/activity"
-                element={
-                  <Suspense fallback={<PageFallback />}>
-                    <ActivityPage />
-                  </Suspense>
-                }
-              />
-              <Route
-                path="/search"
-                element={
-                  <Suspense fallback={<PageFallback />}>
-                    <SearchPage />
-                  </Suspense>
-                }
-              />
-              <Route path="*" element={<p className="text-subtle">404</p>} />
-            </Routes>
-          </Container>
+          <Container>{children}</Container>
         </main>
 
         <SiteFooter siteName={siteName} />
@@ -227,13 +256,20 @@ function Shell() {
 }
 
 export function App() {
+  const layout = (document.documentElement.dataset.layout ?? "shell") as Layout;
   return (
     <QueryClientProvider client={queryClient}>
       <AssetResolverProvider mode="public">
         <BrowserRouter>
-          <Routes>
-            <Route path="/*" element={<Shell />} />
-          </Routes>
+          {layout === "editorial" ? (
+            <EditorialShell>
+              <SiteRoutes layout="editorial" />
+            </EditorialShell>
+          ) : (
+            <Shell>
+              <SiteRoutes layout="shell" />
+            </Shell>
+          )}
         </BrowserRouter>
       </AssetResolverProvider>
     </QueryClientProvider>

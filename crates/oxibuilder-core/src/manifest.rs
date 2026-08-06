@@ -20,6 +20,7 @@ pub struct ManifestSite {
     pub base_url: String,
     pub default_lang: String,
     pub languages: Vec<String>,
+    pub layout: String,
 }
 
 #[derive(Serialize, Clone)]
@@ -106,6 +107,7 @@ pub async fn assemble(
     base_url: &str,
     extensions: &[Arc<dyn Extension>],
 ) -> Manifest {
+    let layout = crate::theme::active_layout_id(db, &config.lobby.layout).await;
     let mut ext_list = Vec::with_capacity(extensions.len());
     for (idx, e) in extensions.iter().enumerate() {
         if !is_active(db, e.id()).await {
@@ -127,6 +129,7 @@ pub async fn assemble(
             base_url: base_url.to_string(),
             default_lang: config.site.default_lang.clone(),
             languages: config.site.languages.clone(),
+            layout,
         },
         extensions: ext_list,
         mounts: manifest_mounts(&config.mounts),
@@ -211,4 +214,19 @@ mod tests {
     fn manifest_mounts_empty_for_no_config() {
         assert!(manifest_mounts(&[]).is_empty());
     }
+
+    #[test]
+    fn manifest_site_serializes_layout() {
+        let site = ManifestSite {
+            name: "Example".into(),
+            base_url: "https://example.com/".into(),
+            default_lang: "en".into(),
+            languages: vec!["en".into()],
+            layout: "editorial".into(),
+        };
+
+        let value = serde_json::to_value(site).unwrap();
+        assert_eq!(value["layout"], "editorial");
+    }
 }
+

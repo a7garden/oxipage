@@ -22,7 +22,7 @@ import { cn } from "../shared/ui/cn";
 type DisplayMode = "canvas" | "grid" | "list";
 
 /** Known extension → icon map. Unknown extensions fall back to Sparkles. */
-const EXT_ICONS: Record<string, ComponentType<LucideProps>> = {
+export const EXT_ICONS: Record<string, ComponentType<LucideProps>> = {
   blog: PenLine,
   projects: FolderGit2,
   links: Hash,
@@ -39,7 +39,7 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-function displayName(ext: ManifestExtension, lang: Lang): string {
+export function displayName(ext: ManifestExtension, lang: Lang): string {
   return (lang === "ko" ? ext.display_name.ko : ext.display_name.en) ?? ext.id;
 }
 
@@ -190,7 +190,7 @@ function LobbyRow({
   );
 }
 
-function mountName(m: ManifestMount, lang: Lang): string {
+export function mountName(m: ManifestMount, lang: Lang): string {
   return (lang === "ko" ? m.display_name.ko : m.display_name.en) ?? m.id;
 }
 

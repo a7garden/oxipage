@@ -76,8 +76,8 @@ export function watchSystemAppearance(cb: (mode: ResolvedMode) => void): () => v
 }
 
 /**
- * Fetch the default site's theme metadata and publish palette variables to
- * <html>. Never overwrites console's data-theme or console mode.
+ * Fetch the default site's theme metadata and publish palette variables + layout
+ * to <html>. Never overwrites console's data-theme or console mode.
  *
  * @param slug  Optional slug. When undefined, hits the default-site endpoint
  *              that resolves via SiteRegistry (no slug in URL).
@@ -96,19 +96,21 @@ export async function applyServerTheme(slug?: string): Promise<ThemeDefinition |
       }
       const res = await fetch(url);
       if (!res.ok) return null;
-      const json = (await res.json()) as { theme_id: string; definition: ThemeDefinition };
+      const json = (await res.json()) as { theme_id: string; definition: ThemeDefinition; layout?: "shell" | "editorial" };
       const def = json?.definition;
       if (!def) return null;
       publishPalette(def);
+      document.documentElement.dataset.layout = json.layout ?? "shell";
       return def;
     }
     const url = slug ? `/api/console/s/${encodeURIComponent(slug)}/theme` : "/api/console/theme";
     const res = await fetch(url);
     if (!res.ok) return null;
-    const json = (await res.json()) as { data: { theme_id: string; definition: ThemeDefinition } };
+    const json = (await res.json()) as { data: { theme_id: string; definition: ThemeDefinition; layout?: "shell" | "editorial" } };
     const def = json?.data?.definition;
     if (!def) return null;
     publishPalette(def);
+    document.documentElement.dataset.layout = json.data.layout ?? "shell";
     return def;
   } catch {
     return null;

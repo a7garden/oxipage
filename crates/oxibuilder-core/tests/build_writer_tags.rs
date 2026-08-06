@@ -31,7 +31,8 @@ fn relative_assets_drop_leading_slash() {
         "index.html",
         r#"<!DOCTYPE html><html><head></head><body><script src="/assets/index.js"></script></body></html>"#,
     )]);
-    let inputs = BuildInputs::new("https://a7garden.github.io/blog/", "paper", "seed");
+    // Test-only default: these writer tests have no DB or on-disk config.
+    let inputs = BuildInputs::new("https://a7garden.github.io/blog/", "paper", "shell", "seed");
     write_build_output(&out_struct, &out, &media, &inputs).unwrap();
 
     let html = std::fs::read_to_string(out.join("index.html")).unwrap();
@@ -55,7 +56,8 @@ fn apex_base_url_emits_root_base() {
         "<!DOCTYPE html><html><head></head><body></body></html>",
     )]);
     // Apex / user-pages deploy → base must be "/".
-    let inputs = BuildInputs::new("https://a7garden.github.io/", "paper", "seed");
+    // Test-only default: this writer test has no DB or on-disk config.
+    let inputs = BuildInputs::new("https://a7garden.github.io/", "paper", "shell", "seed");
     write_build_output(&out_struct, &out, &media, &inputs).unwrap();
 
     let html = std::fs::read_to_string(out.join("index.html")).unwrap();
@@ -73,7 +75,8 @@ fn manifest_reflects_derived_deployment_base() {
     std::fs::create_dir_all(&media).unwrap();
 
     let out_struct = empty_output_with(vec![page("index.html", "<!DOCTYPE html><html></html>")]);
-    let inputs = BuildInputs::new("https://example.com/repo/", "paper", "seed");
+    // Test-only default: this writer test has no DB or on-disk config.
+    let inputs = BuildInputs::new("https://example.com/repo/", "paper", "shell", "seed");
     write_build_output(&out_struct, &out, &media, &inputs).unwrap();
 
     let m = BuildManifest::read_from(&out)

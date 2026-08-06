@@ -10,6 +10,7 @@ fn round_trip_preserves_fields() {
         build_id: "11111111-2222-3333-4444-555555555555".to_string(),
         deployment_base: "/repo/".to_string(),
         theme_id: "paper".to_string(),
+        layout_id: "shell".to_string(),
         asset_revision: "abcdef".to_string(),
         built_at: "2026-07-31T10:00:00Z".to_string(),
     };
@@ -36,7 +37,7 @@ fn read_returns_none_when_missing() {
 fn write_to_missing_dir_creates_path() {
     let dir = TempDir::with_prefix("oxibuilder-mag-created-").unwrap();
     let out = dir.path().join("out");
-    let m = BuildManifest::new("/myrepo/", "paper", "deadbeef");
+    let m = BuildManifest::new("/myrepo/", "paper", "shell", "deadbeef");
     m.write_to(&out).unwrap();
     assert!(out.join(MAG_FILENAME).exists());
 }
@@ -70,7 +71,7 @@ fn new_helper_uses_supplied_base_without_normalization() {
     // BuildManifest::new is the low-level constructor; the caller is
     // expected to pass a normalized base. The high-level path goes through
     // derive_deployment_base (Task 2).
-    let m = BuildManifest::new("/repo/", "paper", "deadbeef");
+    let m = BuildManifest::new("/repo/", "paper", "shell", "deadbeef");
     assert_eq!(m.deployment_base, "/repo/");
     assert!(!m.build_id.is_empty());
     assert!(!m.built_at.is_empty());

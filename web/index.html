@@ -3,16 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script src="/theme-boot.js" data-context="public"></script>
     <meta name="oxibuilder-theme" content="paper" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <meta name="oxibuilder-layout" content="shell" />
+    <script src="/theme-boot.js" data-context="public"></script>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <!-- Relative on purpose: the static artifact resolves them against <base href>. -->
     <link rel="icon" type="image/png" href="favicon-32.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
+    <!-- Fonts: SUIT (body) + SUITE (display) via jsDelivr (DESIGN.md §4.2) -->
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Noto+Serif+KR:wght@400;500;600;700&display=swap"
+      href="https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2/fonts/variable/woff2/SUIT-Variable.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/sun-typeface/SUITE@2/fonts/variable/woff2/SUITE-Variable.css"
     />
     <title>Oxibuilder</title>
   </head>

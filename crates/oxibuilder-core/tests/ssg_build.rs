@@ -63,8 +63,9 @@ async fn build_site_runs_without_panic_and_writes_correct_layout() {
 
     // 4. Write to a fresh out dir and assert the layout.
     let out_dir = tmp_root.join("out");
+    // Test-only default: no active layout is under test here.
     let inputs =
-        oxibuilder_core::builder::BuildInputs::new("https://127.0.0.1:8787/", "paper", "test");
+        oxibuilder_core::builder::BuildInputs::new("https://127.0.0.1:8787/", "paper", "shell", "test");
     write_build_output(&output, &out_dir, &media_dir, &inputs).expect("write_build_output");
 
     // Root SPA entry (lobby).
@@ -232,11 +233,8 @@ async fn derived_images_survive_out_wipe_and_manifest_is_written() {
         search_docs: vec![],
         extensions_data: vec![],
     };
-    let mut inputs = oxibuilder_core::builder::BuildInputs::new(
-        "https://a7garden.github.io/blog/",
-        "paper",
-        "seed",
-    );
+    // Test-only default: no active layout is under test here.
+    let mut inputs = oxibuilder_core::builder::BuildInputs::new("https://a7garden.github.io/blog/", "paper", "shell", "seed");
     inputs.image_staging_dir = Some(staging.clone());
     inputs.image_manifest = Some(manifest.clone());
     write_build_output(&output, &out_dir, &media_dir, &inputs).expect("write_build_output");
@@ -309,11 +307,8 @@ fn base_placeholder_resolved_to_deployment_base_in_pages() {
         extensions_data: vec![],
     };
     // https://a7garden.github.io/blog/ → /blog/ — the canonical project-pages case.
-    let inputs = oxibuilder_core::builder::BuildInputs::new(
-        "https://a7garden.github.io/blog/",
-        "paper",
-        "seed",
-    );
+    // Test-only default: no active layout is under test here.
+    let inputs = oxibuilder_core::builder::BuildInputs::new("https://a7garden.github.io/blog/", "paper", "shell", "seed");
     write_build_output(&output, &out_dir, &media_dir, &inputs).expect("write_build_output");
 
     // 1. The on-disk file has the placeholder replaced with the real base.
@@ -352,8 +347,9 @@ fn base_placeholder_resolved_to_deployment_base_in_pages() {
         search_docs: vec![],
         extensions_data: vec![],
     };
+    // Test-only default: no active layout is under test here.
     let inputs2 =
-        oxibuilder_core::builder::BuildInputs::new("https://alice.github.io/", "paper", "seed");
+        oxibuilder_core::builder::BuildInputs::new("https://alice.github.io/", "paper", "shell", "seed");
     write_build_output(&output2, &out2, &media2, &inputs2).expect("write 2");
     let on_disk2 = std::fs::read_to_string(out2.join("x.html")).unwrap();
     assert!(
@@ -520,6 +516,7 @@ fn end_to_end_pipeline_renders_image_into_blog_page() {
         let inputs = oxibuilder_core::builder::BuildInputs::new(
             "https://a7garden.github.io/blog/", // → deployment_base = "/blog/"
             "paper",
+            "shell", // test-only default; no on-disk config or DB layout is under test
             "e2e-seed",
         );
         let out_dir_for_write = out_dir.clone();

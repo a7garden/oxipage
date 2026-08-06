@@ -27,6 +27,11 @@ pub const CORE_MIGRATIONS: &[Migration] = &[
         name: "setup_state",
         sql: include_str!("../migrations/core/0006_setup_state.sql"),
     },
+    Migration {
+        version: 8,
+        name: "layout",
+        sql: include_str!("../migrations/core/0008_layout.sql"),
+    },
 ];
 
 pub async fn run_migrations(

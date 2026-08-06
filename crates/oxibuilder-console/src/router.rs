@@ -238,6 +238,7 @@ async fn get_default_theme(
                 "data": {
                     "theme_id": def.id,
                     "definition": def,
+                    "layout": "shell",
                 }
             })));
         }
@@ -250,12 +251,16 @@ async fn get_default_theme(
         )
     })?;
 
-    let row: Option<(String,)> = sqlx::query_as("SELECT theme_id FROM theme_config WHERE id = 1")
-        .fetch_optional(&ctx.db)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("db: {e}")))?;
+    let row: Option<(String, String)> =
+        sqlx::query_as("SELECT theme_id, layout FROM theme_config WHERE id = 1")
+            .fetch_optional(&ctx.db)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("db: {e}")))?;
 
-    let theme_id = row.map(|r| r.0).unwrap_or_else(|| "paper".to_string());
+    let (theme_id, layout) = match row {
+        Some((id, layout)) => (id, layout),
+        None => ("paper".to_string(), "shell".to_string()),
+    };
     let def =
         find_theme(&theme_id).unwrap_or_else(|| ALL_THEMES.first().expect("paper always present"));
 
@@ -263,9 +268,11 @@ async fn get_default_theme(
         "data": {
             "theme_id": def.id,
             "definition": def,
+            "layout": layout,
         }
     })))
 }
+
 
 // ─── static mounts (CLI-managed; toml is the source of truth) ───────────────
 

@@ -13,7 +13,7 @@ body {
   background: var(--color-bg-canvas);
   color: var(--color-text-primary);
   font-family: var(--font-body);
-  line-height: 1.6;
+  line-height: 1.5;
   transition: background-color var(--duration-base) var(--ease-out),
               color var(--duration-base) var(--ease-out);
 }

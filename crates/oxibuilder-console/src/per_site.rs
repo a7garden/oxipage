@@ -602,13 +602,17 @@ pub async fn theme_get(
 ) -> Result<Json<ThemeResponse>, (StatusCode, String)> {
     use oxibuilder_core::theme::{ALL_THEMES, find_theme};
 
-    let row: Option<(String,)> = sqlx::query_as("SELECT theme_id FROM theme_config WHERE id = 1")
-        .fetch_optional(&ctx.db)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("db: {e}")))?;
+    let row: Option<(String, String)> =
+        sqlx::query_as("SELECT theme_id, layout FROM theme_config WHERE id = 1")
+            .fetch_optional(&ctx.db)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("db: {e}")))?;
 
-    let stored = row.map(|r| r.0);
-    let def = match stored.as_deref().and_then(find_theme) {
+    let (stored_id, stored_layout) = match row {
+        Some((id, layout)) => (Some(id), Some(layout)),
+        None => (None, None),
+    };
+    let def = match stored_id.as_deref().and_then(find_theme) {
         Some(d) => d,
         None => ALL_THEMES.first().expect("paper always present"),
     };
@@ -617,20 +621,24 @@ pub async fn theme_get(
         data: serde_json::json!({
             "theme_id": def.id,
             "definition": def,
+            "layout": stored_layout.unwrap_or_else(|| "shell".to_string()),
         }),
     }))
 }
 
+
 #[derive(Deserialize)]
 pub struct ThemePutInput {
     pub theme_id: String,
+    #[serde(default)]
+    pub layout: Option<String>,
 }
 
 pub async fn theme_put(
     Extension(ctx): Extension<Arc<SiteContext>>,
     Json(input): Json<ThemePutInput>,
 ) -> Result<Json<ThemeResponse>, (StatusCode, String)> {
-    use oxibuilder_core::theme::{find_theme, is_known_theme};
+    use oxibuilder_core::theme::{find_theme, is_known_layout, is_known_theme};
 
     if !is_known_theme(&input.theme_id) {
         return Err((
@@ -638,23 +646,58 @@ pub async fn theme_put(
             format!("'{}' is not a valid theme", input.theme_id),
         ));
     }
-    sqlx::query(
-        "INSERT INTO theme_config (id, theme_id, updated_at) VALUES (1, ?1, datetime('now'))
-         ON CONFLICT(id) DO UPDATE SET theme_id = ?1, updated_at = datetime('now')",
-    )
-    .bind(&input.theme_id)
-    .execute(&ctx.db)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("db: {e}")))?;
+    let layout: String = match input.layout.as_deref() {
+        Some(value) => {
+            if !is_known_layout(value) {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    format!("'{value}' is not a valid layout"),
+                ));
+            }
+            value.to_string()
+        }
+        None => {
+            sqlx::query(
+                "INSERT INTO theme_config (id, theme_id, updated_at) VALUES (1, ?1, datetime('now'))
+                 ON CONFLICT(id) DO UPDATE SET theme_id = ?1, updated_at = datetime('now')",
+            )
+            .bind(&input.theme_id)
+            .execute(&ctx.db)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("db: {e}")))?;
+
+            let stored: Option<(String,)> =
+                sqlx::query_as("SELECT layout FROM theme_config WHERE id = 1")
+                    .fetch_optional(&ctx.db)
+                    .await
+                    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("db: {e}")))?;
+            stored
+                .map(|(layout,)| layout)
+                .unwrap_or_else(|| "shell".to_string())
+        }
+    };
+    if input.layout.is_some() {
+        sqlx::query(
+            "INSERT INTO theme_config (id, theme_id, layout, updated_at) VALUES (1, ?1, ?2, datetime('now'))
+             ON CONFLICT(id) DO UPDATE SET theme_id = ?1, layout = ?2, updated_at = datetime('now')",
+        )
+        .bind(&input.theme_id)
+        .bind(&layout)
+        .execute(&ctx.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("db: {e}")))?;
+    }
 
     let def = find_theme(&input.theme_id).expect("validation above guarantees presence");
     Ok(Json(ThemeResponse {
         data: serde_json::json!({
             "theme_id": def.id,
             "definition": def,
+            "layout": layout,
         }),
     }))
 }
+
 
 // ─── extensions (GET list) ──────────────────────────────────────────────────
 

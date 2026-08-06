@@ -143,15 +143,18 @@ impl IntegrationsConfig {
 #[serde(default)]
 pub struct LobbySection {
     pub default_mode: String,
+    pub layout: String,
 }
 
 impl Default for LobbySection {
     fn default() -> Self {
-        LobbySection {
-            default_mode: "grid".into(),
+        Self {
+            default_mode: "grid".to_string(),
+            layout: "shell".to_string(),
         }
     }
 }
+
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
@@ -223,6 +226,16 @@ impl Config {
         }
         Ok(())
     }
+    /// Validate [lobby].layout against the known layout catalog.
+    pub fn validate_layout(&self) -> Result<(), String> {
+        if !crate::theme::is_known_layout(&self.lobby.layout) {
+            return Err(format!(
+                "'{}' is not a valid [lobby].layout (expected 'shell' or 'editorial')",
+                self.lobby.layout
+            ));
+        }
+        Ok(())
+    }
 
     /// Resolve each mount's `source` to an absolute path relative to `base`.
     /// Warns (non-fatal) when a source dir does not exist.
@@ -263,6 +276,19 @@ base_url = "https://example.dev"
         assert_eq!(cfg.server.host, "127.0.0.1");
         assert!(cfg.extensions.enabled.is_empty());
         assert_eq!(cfg.lobby.default_mode, "grid");
+    }
+
+    #[test]
+    fn lobby_layout_defaults_to_shell() {
+        let cfg = Config::default();
+        assert_eq!(cfg.lobby.layout, "shell");
+    }
+
+    #[test]
+    fn lobby_layout_rejects_unknown() {
+        let toml = "[site]\nname = \"Test\"\nbase_url = \"https://example.test\"\n\n[lobby]\nlayout = \"bogus\"\n";
+        let cfg = toml::from_str::<Config>(toml).expect("parses");
+        assert!(cfg.validate_layout().is_err());
     }
 
     #[test]

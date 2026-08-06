@@ -38,6 +38,7 @@ pub struct MutableSiteConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MutableLobbyConfig {
     pub default_mode: String,
+    pub layout: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -160,6 +161,7 @@ impl MutableSiteSettings {
             },
             lobby: MutableLobbyConfig {
                 default_mode: cfg.lobby.default_mode.clone(),
+                layout: cfg.lobby.layout.clone(),
             },
             integrations: MutableIntegrationsConfig {
                 github_username: cfg.integrations.github_username.clone(),
@@ -197,6 +199,7 @@ impl MutableSiteSettings {
             },
             lobby: LobbySection {
                 default_mode: self.lobby.default_mode.clone(),
+                layout: self.lobby.layout.clone(),
             },
             deploy: self.deploy.clone(),
             mounts: self.mounts.clone(),
@@ -217,6 +220,7 @@ mod tests {
         cfg.site.default_lang = "en".into();
         cfg.site.languages = vec!["en".into(), "ko".into()];
         cfg.lobby.default_mode = "list".into();
+        cfg.lobby.layout = "editorial".into();
         cfg.extensions.enabled = vec!["blog".into()];
         cfg.integrations.github_username = Some("octocat".into());
         cfg.integrations.tmdb_api_key_env = Some("OXIBUILDER_TMDB_KEY".into());
@@ -242,6 +246,7 @@ mod tests {
         assert_eq!(rebuilt.site.default_lang, "en");
         assert_eq!(rebuilt.site.languages, vec!["en", "ko"]);
         assert_eq!(rebuilt.lobby.default_mode, "list");
+        assert_eq!(rebuilt.lobby.layout, "editorial");
         assert_eq!(rebuilt.extensions.enabled, vec!["blog"]);
         assert_eq!(
             rebuilt.integrations.github_username.as_deref(),

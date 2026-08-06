@@ -3,8 +3,8 @@
    - Reads <script data-context="..."> on this tag (set by admin.html / index.html).
    - For "console": reads oxibuilder-console-appearance; resolves system | light | dark,
      writes <html data-theme> and document.documentElement.style.setProperty('--accent-hue','160').
-   - For "public": reads <meta name="oxibuilder-theme" content="paper"> if present,
-     writes <html data-public-theme="...">, sets --accent-hue on root.
+   - For "public": reads theme and layout metadata if present, writes
+     <html data-public-theme="..." data-layout="...">, and sets --accent-hue on root.
 */
 (function () {
   try {
@@ -34,6 +34,9 @@
     var meta = document.querySelector('meta[name="oxibuilder-theme"]');
     var themeId = (meta && meta.content) || "paper";
     document.documentElement.dataset.publicTheme = themeId;
+    var layoutMeta = document.querySelector('meta[name="oxibuilder-layout"]');
+    var layoutId = (layoutMeta && layoutMeta.content) || "shell";
+    document.documentElement.dataset.layout = layoutId;
     var hueByTheme = { paper: "160", midnight: "230", sepia: "70", forest: "155", neon: "290", canvas: "240" };
     document.documentElement.style.setProperty("--accent-hue", hueByTheme[themeId] || "160");
   } catch (e) {

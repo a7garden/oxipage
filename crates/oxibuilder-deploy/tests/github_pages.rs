@@ -19,6 +19,7 @@ fn manifest_mismatch_precedes_git_changes() {
         build_id: "b1".into(),
         deployment_base: "/wrong/".into(),
         theme_id: "paper".into(),
+        layout_id: "shell".into(),
         asset_revision: "a".into(),
         built_at: "2026-07-31T00:00:00Z".into(),
     };

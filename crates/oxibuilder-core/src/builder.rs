@@ -142,6 +142,8 @@ pub struct BuildInputs {
     pub site_base_url: String,
     /// Theme id active at build time.
     pub theme_id: String,
+    /// Layout id active at build time.
+    pub layout_id: String,
     /// Caller-supplied seed for the asset revision. The build writer hashes
     /// it with the materialized file list to produce a stable revision.
     pub asset_revision_seed: String,
@@ -164,11 +166,13 @@ impl BuildInputs {
     pub fn new(
         site_base_url: impl Into<String>,
         theme_id: impl Into<String>,
+        layout_id: impl Into<String>,
         asset_revision_seed: impl Into<String>,
     ) -> Self {
         Self {
             site_base_url: site_base_url.into(),
             theme_id: theme_id.into(),
+            layout_id: layout_id.into(),
             asset_revision_seed: asset_revision_seed.into(),
             image_staging_dir: None,
             image_manifest: None,

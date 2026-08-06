@@ -38,6 +38,7 @@ enabled = [
 
 [lobby]
 default_mode = "grid"                       # "canvas" | "grid" | "list". Per-extension overrides via API/CLI.
+layout = "shell"                            # "shell" (default) | "editorial". Layout variant, orthogonal to the color theme; first-seed value (DB wins after first run).
 
 # [lobby.overrides]                         # doc/04 §4.4 — per-extension display_mode.
 # projects = "canvas"

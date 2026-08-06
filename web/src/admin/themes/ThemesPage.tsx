@@ -20,6 +20,7 @@ export function ThemesPage() {
   const { slug } = useParams<{ slug: string }>()!;
   const qc = useQueryClient();
   const [current, setCurrent] = useState("paper");
+  const [layout, setLayout] = useState("shell");
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["site", slug, "theme"],
@@ -33,10 +34,11 @@ export function ThemesPage() {
 
   useEffect(() => {
     if (data?.theme_id) setCurrent(data.theme_id);
+    if (data?.layout) setLayout(data.layout);
   }, [data]);
 
   const apply = useMutation({
-    mutationFn: () => setTheme(slug!, current),
+    mutationFn: () => setTheme(slug!, current, layout),
     onSuccess: (next) => {
       qc.setQueryData(["site", slug, "theme"], next);
       void applyServerTheme(slug!);
@@ -86,6 +88,28 @@ export function ThemesPage() {
         ))}
       </div>
 
+      <h2 className="text-sm font-semibold text-muted uppercase tracking-wider mb-2">Layout</h2>
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        {[
+          { id: "shell", name: "Shell", desc: "Sticky header · nav · footer" },
+          { id: "editorial", name: "Editorial", desc: "Hub lobby · no chrome" },
+        ].map((l) => (
+          <button
+            key={l.id}
+            onClick={() => setLayout(l.id)}
+            className={`border rounded-lg p-3 text-left cursor-pointer transition-all ${
+              layout === l.id ? "border-primary border-2" : "border-line hover:border-primary"
+            }`}
+          >
+            <div className="text-sm font-medium">{l.name}</div>
+            <div className="text-xs text-muted">{l.desc}</div>
+            {layout === l.id && (
+              <span className="text-xs font-bold text-primary">✓ Current</span>
+            )}
+          </button>
+        ))}
+      </div>
+
       <div className="border border-line rounded-lg p-5 bg-surface/30">
         <div className="text-xs font-semibold text-muted uppercase tracking-wider mb-3">
           Preview — {slug} landing page
@@ -119,7 +143,7 @@ export function ThemesPage() {
         )}
         <Button
           onClick={() => apply.mutate()}
-          disabled={apply.isPending || current === data?.theme_id}
+          disabled={apply.isPending || (current === data?.theme_id && layout === data?.layout)}
         >
           {apply.isPending ? "Applying..." : "Apply Theme"}
         </Button>

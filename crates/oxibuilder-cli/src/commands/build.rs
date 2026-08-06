@@ -66,8 +66,14 @@ pub(crate) async fn build(c: BuildCommand) -> anyhow::Result<()> {
         oxibuilder_core::config::Config::default()
     };
     let theme_id = oxibuilder_core::theme::active_theme_id(&pool).await;
-    let mut inputs =
-        oxibuilder_core::builder::BuildInputs::new(&config.site.base_url, theme_id, "oxibuilder");
+    let layout_id =
+        oxibuilder_core::theme::active_layout_id(&pool, &config.lobby.layout).await;
+    let mut inputs = oxibuilder_core::builder::BuildInputs::new(
+        &config.site.base_url,
+        theme_id,
+        layout_id,
+        "oxibuilder",
+    );
     inputs.mounts = config
         .mounts
         .iter()

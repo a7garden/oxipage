@@ -79,7 +79,7 @@ scatters typographic tweaks.
 Mirror the theme singleton exactly:
 
 ```sql
--- core migration 0006 (or next free core version)
+-- core migration 0008 (0007 deploy_log is applied ad-hoc; 0008 avoids filename collision)
 ALTER TABLE theme_config ADD COLUMN layout TEXT NOT NULL DEFAULT 'shell';
 ```
 

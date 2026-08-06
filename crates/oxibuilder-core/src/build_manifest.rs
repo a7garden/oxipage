@@ -36,10 +36,20 @@ pub struct BuildManifest {
     pub deployment_base: String,
     /// Theme id active at build time (e.g. `"paper"`).
     pub theme_id: String,
+    /// Layout id active at build time (e.g. `"shell"` or `"editorial"`).
+    /// Defaulted so manifests written before the layout axis (no `layout_id`
+    /// field) still deserialize — the preview/status/deploy readers rely on
+    /// the other fields, and the only pre-layout value was "shell".
+    #[serde(default = "default_layout_id")]
+    pub layout_id: String,
     /// SHA-256 hash of the materialized asset set (hex prefix).
     pub asset_revision: String,
     /// RFC3339 timestamp the build finished.
     pub built_at: String,
+}
+
+fn default_layout_id() -> String {
+    "shell".to_string()
 }
 
 impl BuildManifest {
@@ -49,6 +59,7 @@ impl BuildManifest {
     pub fn new(
         deployment_base: impl Into<String>,
         theme_id: impl Into<String>,
+        layout_id: impl Into<String>,
         asset_revision: impl Into<String>,
     ) -> Self {
         let base = deployment_base.into();
@@ -56,6 +67,7 @@ impl BuildManifest {
             build_id: Uuid::new_v4().to_string(),
             deployment_base: normalize_base(base),
             theme_id: theme_id.into(),
+            layout_id: layout_id.into(),
             asset_revision: asset_revision.into(),
             built_at: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
         }
@@ -67,11 +79,13 @@ impl BuildManifest {
     pub fn from_site_base(
         site_base_url: &str,
         theme_id: impl Into<String>,
+        layout_id: impl Into<String>,
         asset_revision: impl Into<String>,
     ) -> Self {
         Self::new(
             derive_deployment_base(site_base_url),
             theme_id,
+            layout_id,
             asset_revision,
         )
     }

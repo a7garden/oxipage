@@ -121,7 +121,13 @@ async fn build_handler(State(state): State<AppState>) -> Result<Json<serde_json:
         .map_err(|e| ApiError::internal(anyhow::anyhow!("{}", e)))?;
 
     let theme_id = crate::theme::active_theme_id(&state.db).await;
-    let mut inputs = crate::builder::BuildInputs::new(&config.site.base_url, theme_id, "oxibuilder");
+    let layout_id = crate::theme::active_layout_id(&state.db, &config.lobby.layout).await;
+    let mut inputs = crate::builder::BuildInputs::new(
+        &config.site.base_url,
+        theme_id,
+        layout_id,
+        "oxibuilder",
+    );
     inputs.mounts = config
         .mounts
         .iter()
