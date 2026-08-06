@@ -1,5 +1,7 @@
+// @ts-expect-error — `bun:test` types ship with bun itself, not via a package;
+// tsc complains because bun-types isn't a declared dep (not needed for `bun test`).
 import { describe, expect, test } from "bun:test";
-import type { Book } from "../../api";
+import type { Book } from "../../shared/api";
 import { computeBookStats, parseAuthorList, statusLabel } from "./computeBookStats";
 
 const fixtures: Book[] = [

@@ -1,5 +1,7 @@
+// @ts-expect-error — `bun:test` types ship with bun itself, not via a package;
+// tsc complains because bun-types isn't a declared dep (not needed for `bun test`).
 import { describe, expect, test } from "bun:test";
-import type { MovieEntry } from "../../api";
+import type { MovieEntry } from "../../shared/api";
 import { computeMovieStats } from "./computeMovieStats";
 
 const fixtures: MovieEntry[] = [
