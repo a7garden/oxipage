@@ -112,11 +112,18 @@ impl Extension for MoviesExtension {
     }
 
     fn migrations(&self) -> Vec<Migration> {
-        vec![Migration {
-            version: 1,
-            name: "init",
-            sql: include_str!("../migrations/0001_init.sql"),
-        }]
+        vec![
+            Migration {
+                version: 1,
+                name: "init",
+                sql: include_str!("../migrations/0001_init.sql"),
+            },
+            Migration {
+                version: 2,
+                name: "meta",
+                sql: include_str!("../migrations/0002_meta.sql"),
+            },
+        ]
     }
 
     fn routes(&self) -> Router {
@@ -147,7 +154,7 @@ impl Extension for MoviesExtension {
         let items = entries
             .into_iter()
             .map(|e| LobbyCardItem {
-                title: e.title,
+                title: e.display_title().to_string(),
                 url: format!("/movies/{}", e.slug),
             })
             .collect();
@@ -283,27 +290,27 @@ impl BuildExt for MoviesExtension {
         db: &SqlitePool,
         rt: &tokio::runtime::Handle,
     ) -> Result<Vec<StaticPage>, Box<dyn Error + Send + Sync>> {
-        let entries: Vec<model::MovieEntry> =
-            rt.block_on(repo::list_entries_published(db, None, 200))?;
-        let mut pages = Vec::with_capacity(entries.len());
-        for e in &entries {
-            let title = &e.title;
-            let excerpt: String = e
+        let details = rt.block_on(repo::list_entries_detail(db, 200, false))?;
+        let mut pages = Vec::with_capacity(details.len());
+        for d in &details {
+            let title = d.entry.display_title();
+            let excerpt: String = d
+                .entry
                 .review_ko
                 .as_deref()
-                .or(e.review_en.as_deref())
+                .or(d.entry.review_en.as_deref())
                 .unwrap_or("")
                 .chars()
                 .take(160)
                 .collect();
             pages.push(StaticPage {
-                path: format!("movies/{}/index.html", e.slug),
+                path: format!("movies/{}/index.html", d.entry.slug),
                 content: format!(
                     r#"<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
     <title>{title}</title><meta property="og:title" content="{title}"><meta property="og:description" content="{excerpt}">
     <meta property="og:type" content="website"><meta property="og:url" content="/movies/{slug}/">
     <link rel="canonical" href="/movies/{slug}/"></head><body><div id="root"></div><script src="/assets/index.js"></script></body></html>"#,
-                    title=title, excerpt=excerpt, slug=e.slug),
+                    title=title, excerpt=excerpt, slug=d.entry.slug),
             });
         }
         Ok(pages)
@@ -314,9 +321,9 @@ impl BuildExt for MoviesExtension {
         db: &SqlitePool,
         rt: &tokio::runtime::Handle,
     ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn Error + Send + Sync>> {
-        let entries: Vec<model::MovieEntry> =
-            rt.block_on(repo::list_entries_published(db, None, 200))?;
-        Ok(Box::new(entries))
+        // 장르·출연진·현지화 제목까지 포함된 상세를 내보낸다 (공개 SPA data/movies.json).
+        let details = rt.block_on(repo::list_entries_detail(db, 200, false))?;
+        Ok(Box::new(details))
     }
 
     fn build_search_docs(
@@ -324,21 +331,20 @@ impl BuildExt for MoviesExtension {
         db: &SqlitePool,
         rt: &tokio::runtime::Handle,
     ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>> {
-        let entries: Vec<model::MovieEntry> =
-            rt.block_on(repo::list_entries_published(db, None, 200))?;
-        Ok(entries
+        let details = rt.block_on(repo::list_entries_detail(db, 200, false))?;
+        Ok(details
             .into_iter()
-            .map(|e| {
-                let title = e.title;
-                let body = e.review_ko.or(e.review_en).unwrap_or_default();
+            .map(|d| {
+                let title = d.entry.display_title().to_string();
+                let body = d.entry.review_ko.or(d.entry.review_en).unwrap_or_default();
                 let excerpt: String = body.chars().take(200).collect();
                 SearchDoc {
-                    id: format!("movies/{}", e.slug),
+                    id: format!("movies/{}", d.entry.slug),
                     title,
                     body_preview: excerpt,
                     doc_type: "movies".into(),
-                    url: format!("/movies/{}", e.slug),
-                    published_at: e.published_at,
+                    url: format!("/movies/{}", d.entry.slug),
+                    published_at: d.entry.published_at,
                 }
             })
             .collect())

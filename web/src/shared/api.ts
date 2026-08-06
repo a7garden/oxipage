@@ -276,22 +276,44 @@ export interface Novel {
 export const fetchNovels = () => apiFetch<Novel[]>('/novels');
 
 // ─── movies (doc/02 §2.9) ───
+export interface MovieGenre {
+  name_en: string;
+  name_ko?: string | null;
+}
+export interface MoviePerson {
+  id: number;
+  slug: string;
+  name_en: string;
+  name_ko?: string | null;
+  profile_path?: string | null;
+  role: string;
+  character_name?: string | null;
+  billing?: number | null;
+}
 export interface MovieEntry {
   id: number;
   slug: string;
   tmdb_id: number | null;
   media_type: string;
   title: string;
+  title_ko: string | null;
+  title_en: string | null;
   poster_path: string | null;
   release_year: number | null;
+  runtime_min: number | null;
   watched_at: string | null;
   rating: number;
   review_ko: string | null;
   review_en: string | null;
   rewatch: number;
+  series_group_id: number | null;
+  series_order: number | null;
   published_at: string | null;
   created_at: string;
   updated_at: string;
+  genres: MovieGenre[];
+  cast: MoviePerson[];
+  directors: MoviePerson[];
 }
 export const fetchMovies = () => apiFetch<MovieEntry[]>('/movies');
 

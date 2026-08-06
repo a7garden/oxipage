@@ -1,7 +1,7 @@
-use crate::integration::TmdbClient;
+use crate::integration::{MovieMeta, TmdbClient};
 use crate::model::{
-    ListQuery, MovieEntry, MovieEntryInput, MovieEntryPatch, SeriesGroup, SeriesGroupDetail,
-    SeriesGroupInput, SeriesGroupPatch, TmdbSearchResult,
+    GenreInput, ListQuery, MovieEntry, MovieEntryDetail, MovieEntryInput, MovieEntryPatch,
+    SeriesGroup, SeriesGroupDetail, SeriesGroupInput, SeriesGroupPatch, TmdbSearchResult,
 };
 use crate::repo;
 use axum::Json;
@@ -13,16 +13,15 @@ use oxibuilder_core::extension::DataEnvelope;
 use oxibuilder_core::rating::Rating;
 use oxibuilder_core::search;
 use oxibuilder_core::state::SiteScopedDb;
-use sqlx::SqlitePool;
 
 // ─── MovieEntry ───
 
 pub async fn list(
     Extension(pool): Extension<SiteScopedDb>,
     Query(q): Query<ListQuery>,
-) -> Result<Json<DataEnvelope<Vec<MovieEntry>>>, ApiError> {
-    let limit = q.limit.unwrap_or(20);
-    let entries = repo::list_entries(&pool.db, q.series_group.as_deref(), limit, q.draft)
+) -> Result<Json<DataEnvelope<Vec<MovieEntryDetail>>>, ApiError> {
+    let limit = q.limit.unwrap_or(200);
+    let entries = repo::list_entries_detail(&pool.db, limit, q.draft)
         .await
         .map_err(ApiError::internal)?;
     Ok(Json(DataEnvelope { data: entries }))
@@ -30,8 +29,8 @@ pub async fn list(
 
 pub async fn create(
     Extension(pool): Extension<SiteScopedDb>,
-    Json(input): Json<MovieEntryInput>,
-) -> Result<Json<DataEnvelope<MovieEntry>>, ApiError> {
+    mut input: Json<MovieEntryInput>,
+) -> Result<Json<DataEnvelope<MovieEntryDetail>>, ApiError> {
     validate_input(&input)?;
 
     // rating 0~10 검증.
@@ -60,16 +59,15 @@ pub async fn create(
         ));
     }
 
-    // tmdb_id가 있고 키가 있으면 메타 1회 fetch. 클라이언트 명시 값이 있으면 그게 우선.
+    // tmdb_id가 있고 키가 있으면 풀 메타 fetch (ko/en 제목, 장르, 출연진, 런타임).
     let tmdb = TmdbClient::from_env();
-    let fetched: Option<TmdbSearchResult> = if let Some(id) = input.tmdb_id
+    let meta: Option<MovieMeta> = if let Some(id) = input.tmdb_id
         && tmdb.enabled()
     {
-        match tmdb.fetch_movie(id).await {
+        match tmdb.fetch_movie_full(id).await {
             Ok(m) => Some(m),
             Err(e) => {
-                // 메타 fetch 실패는 치명적이진 않다. 키만 있으면 manual 폴백.
-                tracing::warn!(error = ?e, tmdb_id = id, "TMDB movie fetch failed; falling back to client input");
+                tracing::warn!(error = ?e, tmdb_id = id, "TMDB full meta fetch failed; falling back to client input");
                 None
             }
         }
@@ -77,32 +75,69 @@ pub async fn create(
         None
     };
 
-    // 우선순위: 클라이언트 명시 > TMDB fetch > None.
+    // 우선순위: 클라이언트 명시 > TMDB > None.
     let title = input
         .title
         .clone()
-        .or_else(|| fetched.as_ref().map(|f| f.title.clone()))
+        .or_else(|| meta.as_ref().and_then(|m| m.title_ko.clone()))
+        .or_else(|| meta.as_ref().and_then(|m| m.title_en.clone()))
         .ok_or_else(|| {
             ApiError::validation(
                 "title",
                 "title is required when tmdb_id is not provided or TMDB is disabled",
             )
         })?;
-    let title = title.trim();
+    let title = title.trim().to_string();
     if title.is_empty() {
         return Err(ApiError::validation("title", "title must not be empty"));
     }
 
+    let title_ko = input
+        .title_ko
+        .clone()
+        .or_else(|| meta.as_ref().and_then(|m| m.title_ko.clone()))
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    let title_en = input
+        .title_en
+        .clone()
+        .or_else(|| meta.as_ref().and_then(|m| m.title_en.clone()))
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
     let poster_path = input
         .poster_path
         .clone()
-        .or_else(|| fetched.as_ref().and_then(|f| f.poster_path.clone()));
+        .or_else(|| meta.as_ref().and_then(|m| m.poster_path.clone()));
     let release_year = input
         .release_year
-        .or_else(|| fetched.as_ref().and_then(|f| f.release_year));
+        .or_else(|| meta.as_ref().and_then(|m| m.release_year));
+    let runtime_min = input
+        .runtime_min
+        .or_else(|| meta.as_ref().and_then(|m| m.runtime_min));
+
+    // 장르/출연진/감독: 입력이 없으면 TMDB 메타로 채운다.
+    if input.genres.is_none()
+        && let Some(m) = &meta
+    {
+        input.genres = Some(
+            m.genres
+                .iter()
+                .map(|g| GenreInput {
+                    name_en: Some(g.name_en.clone()),
+                    name_ko: g.name_ko.clone(),
+                })
+                .collect(),
+        );
+    }
+    if input.cast.is_none() {
+        input.cast = meta.as_ref().map(|m| m.cast.clone());
+    }
+    if input.directors.is_none() {
+        input.directors = meta.as_ref().map(|m| m.directors.clone());
+    }
 
     // slug: 명시 > title.
-    let base_slug = input.slug.clone().unwrap_or_else(|| repo::slugify(title));
+    let base_slug = input.slug.clone().unwrap_or_else(|| repo::slugify(&title));
     let slug = repo::ensure_unique_entry_slug(&pool.db, &base_slug)
         .await
         .map_err(ApiError::internal)?;
@@ -112,36 +147,43 @@ pub async fn create(
         &input,
         &slug,
         input.tmdb_id,
-        title.to_string(),
+        title,
+        title_ko,
+        title_en,
         poster_path,
         release_year,
+        runtime_min,
     )
     .await
     .map_err(ApiError::internal)?;
 
-    Ok(Json(DataEnvelope { data: entry }))
+    let detail = repo::find_entry_detail_by_slug(&pool.db, &entry.slug)
+        .await
+        .map_err(ApiError::internal)?
+        .ok_or_else(|| not_found(&entry.slug))?;
+    Ok(Json(DataEnvelope { data: detail }))
 }
 
 pub async fn show(
     Extension(pool): Extension<SiteScopedDb>,
     Path(slug): Path<String>,
-) -> Result<Json<DataEnvelope<MovieEntry>>, ApiError> {
-    let entry = repo::find_entry_by_slug(&pool.db, &slug)
+) -> Result<Json<DataEnvelope<MovieEntryDetail>>, ApiError> {
+    let detail = repo::find_entry_detail_by_slug(&pool.db, &slug)
         .await
         .map_err(ApiError::internal)?
         .ok_or_else(|| not_found(&slug))?;
     // 초안은 404로 숨김.
-    if entry.published_at.is_none() {
+    if detail.entry.published_at.is_none() {
         return Err(not_found(&slug));
     }
-    Ok(Json(DataEnvelope { data: entry }))
+    Ok(Json(DataEnvelope { data: detail }))
 }
 
 pub async fn update(
     Extension(pool): Extension<SiteScopedDb>,
     Path(slug): Path<String>,
     Json(patch): Json<MovieEntryPatch>,
-) -> Result<Json<DataEnvelope<MovieEntry>>, ApiError> {
+) -> Result<Json<DataEnvelope<MovieEntryDetail>>, ApiError> {
     // 부분 입력 검증.
     if let Some(media) = &patch.media_type
         && media != "movie"
@@ -170,7 +212,11 @@ pub async fn update(
     if entry.published_at.is_some() {
         reindex(&pool.db, &entry).await?;
     }
-    Ok(Json(DataEnvelope { data: entry }))
+    let detail = repo::find_entry_detail_by_slug(&pool.db, &entry.slug)
+        .await
+        .map_err(ApiError::internal)?
+        .ok_or_else(|| not_found(&entry.slug))?;
+    Ok(Json(DataEnvelope { data: detail }))
 }
 
 pub async fn delete(
@@ -194,7 +240,7 @@ pub async fn delete(
 pub async fn publish(
     Extension(pool): Extension<SiteScopedDb>,
     Path(slug): Path<String>,
-) -> Result<Json<DataEnvelope<MovieEntry>>, ApiError> {
+) -> Result<Json<DataEnvelope<MovieEntryDetail>>, ApiError> {
     if repo::find_entry_by_slug(&pool.db, &slug)
         .await
         .map_err(ApiError::internal)?
@@ -206,20 +252,11 @@ pub async fn publish(
         .await
         .map_err(ApiError::internal)?;
     reindex(&pool.db, &entry).await?;
-    let review = entry
-        .review_ko
-        .clone()
-        .or_else(|| entry.review_en.clone())
-        .unwrap_or_default();
-    let _desc: String = review.chars().take(200).collect();
-    let _og_image = entry.poster_path.clone().map(|p| {
-        if p.starts_with("http") {
-            p
-        } else {
-            format!("https://image.tmdb.org/t/p/w500{p}")
-        }
-    });
-    Ok(Json(DataEnvelope { data: entry }))
+    let detail = repo::find_entry_detail_by_slug(&pool.db, &entry.slug)
+        .await
+        .map_err(ApiError::internal)?
+        .ok_or_else(|| not_found(&entry.slug))?;
+    Ok(Json(DataEnvelope { data: detail }))
 }
 
 // ─── TMDB search ───
@@ -383,9 +420,9 @@ fn not_found(slug: &str) -> ApiError {
     )
 }
 
-async fn reindex(db: &SqlitePool, entry: &MovieEntry) -> Result<(), ApiError> {
-    // title 우선: 영어 리뷰가 있으면 en. 없으면 ko. 둘 다 없으면 빈 문자열.
-    let title = entry.title.clone();
+async fn reindex(db: &sqlx::SqlitePool, entry: &MovieEntry) -> Result<(), ApiError> {
+    // 검색 제목은 현지화 표시 제목(ko 우선).
+    let title = entry.display_title();
     let body_en = entry.review_en.as_deref().unwrap_or("");
     let body_ko = entry.review_ko.as_deref().unwrap_or("");
     let body = if !body_en.is_empty() {
@@ -404,7 +441,7 @@ async fn reindex(db: &SqlitePool, entry: &MovieEntry) -> Result<(), ApiError> {
         db,
         "movies",
         &entry.slug,
-        &title,
+        title,
         body,
         lang,
         entry.published_at.as_deref(),

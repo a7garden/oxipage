@@ -24,13 +24,18 @@ interface MovieEntry {
   tmdb_id: number | null;
   media_type: string;
   title: string;
+  title_ko: string | null;
+  title_en: string | null;
   poster_path: string | null;
   release_year: number | null;
+  runtime_min: number | null;
   watched_at: string | null;
   rating: number;
   review_ko: string | null;
   review_en: string | null;
   rewatch: boolean;
+  genres: { name_en: string; name_ko?: string | null }[];
+  cast: { id: number; name_en: string; name_ko?: string | null; character_name?: string | null }[];
   series_group_slug: string | null;
   series_order: number | null;
   published_at: string | null;
@@ -38,10 +43,15 @@ interface MovieEntry {
   updated_at: string;
 }
 
+interface GenreRow { name_en: string; name_ko: string }
+interface CastRow { name_en: string; name_ko: string; character_name: string }
+
 interface FormState {
-  title: string;
+  title_ko: string;
+  title_en: string;
   media_type: string;
   release_year: string;
+  runtime: string;
   poster_path: string;
   watched_at: string;
   rating: string;
@@ -50,12 +60,16 @@ interface FormState {
   rewatch: boolean;
   series_group_slug: string;
   series_order: string;
+  genres: GenreRow[];
+  cast: CastRow[];
 }
 
 const EMPTY: FormState = {
-  title: "",
+  title_ko: "",
+  title_en: "",
   media_type: "movie",
   release_year: "",
+  runtime: "",
   poster_path: "",
   watched_at: "",
   rating: "7",
@@ -64,6 +78,8 @@ const EMPTY: FormState = {
   rewatch: false,
   series_group_slug: "",
   series_order: "",
+  genres: [],
+  cast: [],
 };
 
 function StarRating({ rating }: { rating: unknown }) {
@@ -85,14 +101,17 @@ export function MoviesTab({ slug }: { slug: string }) {
   });
 
   const [search, setSearch] = useState("");
-  const filtered = useRowFilter(data ?? [], search, (row) => [row.title, row.slug]);
+  const filtered = useRowFilter(data ?? [], search, (row) => [row.title_ko ?? row.title_en ?? row.title, row.slug]);
 
   const save = useMutation({
     mutationFn: async () => {
       const payload = {
-        title: form.title.trim(),
+        title: form.title_ko.trim() || form.title_en.trim(),
+        title_ko: form.title_ko.trim() || null,
+        title_en: form.title_en.trim() || null,
         media_type: form.media_type,
         release_year: form.release_year ? parseInt(form.release_year, 10) : null,
+        runtime_min: form.runtime ? parseInt(form.runtime, 10) : null,
         watched_at: form.watched_at || null,
         rating: parseInt(form.rating || "0", 10),
         review_ko: form.review_ko || null,
@@ -100,6 +119,12 @@ export function MoviesTab({ slug }: { slug: string }) {
         rewatch: form.rewatch,
         series_group_slug: form.series_group_slug || null,
         series_order: form.series_order ? parseInt(form.series_order, 10) : null,
+        genres: form.genres.filter((g) => g.name_en.trim() || g.name_ko.trim()),
+        cast: form.cast.filter((c) => c.name_en.trim() || c.name_ko.trim()).map((c) => ({
+          name_en: c.name_en.trim() || undefined,
+          name_ko: c.name_ko.trim() || undefined,
+          character_name: c.character_name.trim() || undefined,
+        })),
       };
       if (editing === "new") return contentClient.create<MovieEntry>(slug, "movies", payload);
       if (editing) return contentClient.update<MovieEntry>(slug, "movies", editing.slug, payload);
@@ -127,17 +152,21 @@ export function MoviesTab({ slug }: { slug: string }) {
   const openEdit = (m: MovieEntry) => {
     setEditing(m);
     setForm({
-      title: m.title,
+      title_ko: m.title_ko ?? "",
+      title_en: m.title_en ?? "",
       media_type: m.media_type,
       release_year: m.release_year ? String(m.release_year) : "",
+      runtime: m.runtime_min ? String(m.runtime_min) : "",
       poster_path: m.poster_path ?? "",
       watched_at: m.watched_at ?? "",
       rating: String(m.rating),
       review_ko: m.review_ko ?? "",
       review_en: m.review_en ?? "",
       rewatch: m.rewatch,
-      series_group_slug: (m as any).series_group_slug ?? "",
-      series_order: (m as any).series_order != null ? String((m as any).series_order) : "",
+      series_group_slug: m.series_group_slug ?? "",
+      series_order: m.series_order != null ? String(m.series_order) : "",
+      genres: (m.genres ?? []).map((g) => ({ name_en: g.name_en ?? "", name_ko: g.name_ko ?? "" })),
+      cast: (m.cast ?? []).map((c) => ({ name_en: c.name_en ?? "", name_ko: c.name_ko ?? "", character_name: c.character_name ?? "" })),
     });
     setError(null);
   };
@@ -146,7 +175,10 @@ export function MoviesTab({ slug }: { slug: string }) {
     {
       key: "title", label: "Title",
       render: (row: unknown) => {
-        const title = str(field(row, "title"));
+        const ko = str(field(row, "title_ko") || "");
+        const en = str(field(row, "title_en") || "");
+        const fallback = str(field(row, "title"));
+        const title = ko || en || fallback;
         const year = field(row, "release_year");
         return (
           <span>
@@ -221,7 +253,7 @@ export function MoviesTab({ slug }: { slug: string }) {
           <TmdbSearchRow slug={slug} onPick={(r) => {
             setForm((f) => ({
               ...f,
-              title: r.title,
+              title_ko: r.title,
               media_type: r.media_type,
               release_year: r.release_year != null ? String(r.release_year) : "",
               poster_path: r.poster_path ? `https://image.tmdb.org/t/p/w500${r.poster_path}` : "",
@@ -251,14 +283,17 @@ export function MoviesTab({ slug }: { slug: string }) {
         footer={
           <>
             <Button variant="outline" onClick={() => setEditing(null)} disabled={save.isPending}>Cancel</Button>
-            <Button onClick={() => save.mutate()} disabled={save.isPending || !form.title.trim()}>
+            <Button onClick={() => save.mutate()} disabled={save.isPending || (!form.title_ko.trim() && !form.title_en.trim())}>
               {save.isPending ? "Saving..." : "Save"}
             </Button>
           </>
         }
       >
-        <DrawerField label="Title" required>
-          <Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} autoFocus />
+        <DrawerField label="Title (Korean)" required>
+          <Input value={form.title_ko} onChange={(e) => setForm((f) => ({ ...f, title_ko: e.target.value }))} autoFocus />
+        </DrawerField>
+        <DrawerField label="Title (English)">
+          <Input value={form.title_en} onChange={(e) => setForm((f) => ({ ...f, title_en: e.target.value }))} />
         </DrawerField>
         <DrawerField label="Poster">
           <ImageField
@@ -289,6 +324,14 @@ export function MoviesTab({ slug }: { slug: string }) {
           </DrawerField>
         </div>
         <div className="grid grid-cols-2 gap-3">
+          <DrawerField label="Runtime (min)">
+            <Input
+              type="number"
+              value={form.runtime}
+              onChange={(e) => setForm((f) => ({ ...f, runtime: e.target.value }))}
+              placeholder="120"
+            />
+          </DrawerField>
           <DrawerField label="Watched on" hint="YYYY-MM-DD">
             <Input
               type="date"
@@ -296,6 +339,8 @@ export function MoviesTab({ slug }: { slug: string }) {
               onChange={(e) => setForm((f) => ({ ...f, watched_at: e.target.value }))}
             />
           </DrawerField>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
           <DrawerField label="Rating" hint="0–10">
             <Input
               type="number"
@@ -312,6 +357,8 @@ export function MoviesTab({ slug }: { slug: string }) {
         <DrawerField label="Review (English)">
           <MarkdownEditor slug={slug} extension="movies" value={form.review_en} onChange={(v) => setForm((f) => ({ ...f, review_en: v }))} rows={5} />
         </DrawerField>
+        <GenreEditor form={form} setForm={setForm} />
+        <CastEditor form={form} setForm={setForm} />
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={form.rewatch} onChange={(e) => setForm((f) => ({ ...f, rewatch: e.target.checked }))} />
           Rewatch
@@ -531,5 +578,78 @@ function TmdbSearchRow({ slug, onPick }: { slug: string; onPick: (r: TmdbSearchR
         </div>
       )}
     </div>
+  );
+}
+
+function GenreEditor({ form, setForm }: { form: FormState; setForm: (cb: (prev: FormState) => FormState) => void }) {
+  const [draft, setDraft] = useState("");
+  const add = () => {
+    const v = draft.trim();
+    if (!v) return;
+    setForm((f) => ({ ...f, genres: [...f.genres, { name_en: v, name_ko: v }] }));
+    setDraft("");
+  };
+  return (
+    <DrawerField label="Genres">
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {form.genres.length === 0 && <span className="text-xs text-muted">—</span>}
+        {form.genres.map((g, i) => (
+          <span key={i} className="inline-flex items-center gap-1 rounded-full border border-line bg-surface px-2 py-0.5 text-xs">
+            {g.name_ko || g.name_en}
+            <button type="button" onClick={() => setForm((f) => ({ ...f, genres: f.genres.filter((_, j) => j !== i) }))} className="text-muted hover:text-foreground">
+              <X size={12} />
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <Input
+          className="h-8 text-sm"
+          placeholder="Add genre…"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+        />
+        <Button type="button" variant="outline" size="sm" onClick={add}><Plus size={14} /></Button>
+      </div>
+    </DrawerField>
+  );
+}
+
+function CastEditor({ form, setForm }: { form: FormState; setForm: (cb: (prev: FormState) => FormState) => void }) {
+  const add = () => setForm((f) => ({ ...f, cast: [...f.cast, { name_en: "", name_ko: "", character_name: "" }] }));
+  const update = (i: number, patch: Partial<CastRow>) =>
+    setForm((f) => ({ ...f, cast: f.cast.map((c, j) => (j === i ? { ...c, ...patch } : c)) }));
+  return (
+    <DrawerField label="Cast" hint="주연 배우 (TMDB 연동 시 자동 채워짐)">
+      <div className="space-y-1.5">
+        {form.cast.map((c, i) => (
+          <div key={i} className="grid grid-cols-[1fr_1fr_0.8fr_auto] items-center gap-1.5">
+            <Input
+              className="h-8 text-sm"
+              placeholder="Name (EN)"
+              value={c.name_en}
+              onChange={(e) => update(i, { name_en: e.target.value, name_ko: c.name_ko || e.target.value })}
+            />
+            <Input
+              className="h-8 text-sm"
+              placeholder="이름 (KO, 선택)"
+              value={c.name_ko}
+              onChange={(e) => update(i, { name_ko: e.target.value })}
+            />
+            <Input
+              className="h-8 text-sm"
+              placeholder="배역"
+              value={c.character_name}
+              onChange={(e) => update(i, { character_name: e.target.value })}
+            />
+            <button type="button" onClick={() => setForm((f) => ({ ...f, cast: f.cast.filter((_, j) => j !== i) }))} className="text-muted hover:text-red-500">
+              <X size={14} />
+            </button>
+          </div>
+        ))}
+        <Button type="button" variant="outline" size="sm" onClick={add}><Plus size={12} className="mr-1" /> Add cast</Button>
+      </div>
+    </DrawerField>
   );
 }
