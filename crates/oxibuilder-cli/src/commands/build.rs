@@ -68,6 +68,11 @@ pub(crate) async fn build(c: BuildCommand) -> anyhow::Result<()> {
     let theme_id = oxibuilder_core::theme::active_theme_id(&pool).await;
     let mut inputs =
         oxibuilder_core::builder::BuildInputs::new(&config.site.base_url, theme_id, "oxibuilder");
+    inputs.mounts = config
+        .mounts
+        .iter()
+        .map(oxibuilder_core::builder::MountCopy::from_config)
+        .collect();
     // Hand the pre-pass's staging dir + manifest to the writer so it copies
     // the derived WebP variants and emits `out/data/image-manifest.json`
     // after the out/ wipe at step 1 of `write_build_output`.

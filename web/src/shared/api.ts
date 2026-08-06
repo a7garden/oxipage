@@ -23,9 +23,19 @@ export interface ManifestExtension {
   lobby: LobbyConfigInfo;
 }
 
+export interface ManifestMount {
+  id: string;
+  display_name: LocalizedName;
+  path: string;
+  description: string | null;
+  icon: string | null;
+  open_in_new_tab: boolean;
+}
+
 export interface Manifest {
   site: ManifestSite;
   extensions: ManifestExtension[];
+  mounts: ManifestMount[];
 }
 
 export interface Education {

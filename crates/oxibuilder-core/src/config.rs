@@ -1,6 +1,25 @@
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 
+const RESERVED_MOUNT_PATHS: &[&str] = &[
+    "assets", "data", "media", "api", "search", "s", "admin", "lobby", "theme",
+];
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MountConfig {
+    pub id: String,
+    pub source: PathBuf,
+    pub path: String,
+    pub title_ko: String,
+    pub title_en: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub icon: Option<String>,
+    #[serde(default)]
+    pub open_in_new_tab: bool,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
     pub site: SiteConfig,
@@ -14,6 +33,8 @@ pub struct Config {
     pub lobby: LobbySection,
     #[serde(default)]
     pub deploy: crate::site_paths::DeployConfig,
+    #[serde(default)]
+    pub mounts: Vec<MountConfig>,
 }
 
 impl Default for Config {
@@ -30,6 +51,7 @@ impl Default for Config {
             integrations: IntegrationsConfig::default(),
             lobby: LobbySection::default(),
             deploy: crate::site_paths::DeployConfig::default(),
+            mounts: Vec::new(),
         }
     }
 }
@@ -137,6 +159,8 @@ pub enum ConfigError {
     Read(PathBuf, std::io::Error),
     #[error("failed to parse config file {0}: {1}")]
     Parse(PathBuf, toml::de::Error),
+    #[error("invalid [[mounts]] config: {0}")]
+    InvalidMounts(String),
 }
 
 impl Config {
@@ -150,6 +174,9 @@ impl Config {
         let mut cfg: Config =
             toml::from_str(&raw).map_err(|e| ConfigError::Parse(path.to_path_buf(), e))?;
         cfg.apply_env_overrides();
+        cfg.validate_mounts()
+            .map_err(ConfigError::InvalidMounts)?;
+        cfg.resolve_mount_sources(path.parent().unwrap_or_else(|| Path::new(".")));
         Ok(cfg)
     }
 
@@ -161,6 +188,56 @@ impl Config {
         }
         if let Ok(dir) = std::env::var("OXIBUILDER_DATA_DIR") {
             self.server.data_dir = PathBuf::from(dir);
+        }
+    }
+
+    /// Structural validation of `[[mounts]]`: unique ids/paths, no reserved
+    /// prefixes, no `..`/`.`/absolute paths. Pure (no filesystem access).
+    pub fn validate_mounts(&self) -> Result<(), String> {
+        let mut ids = std::collections::HashSet::new();
+        let mut paths = std::collections::HashSet::new();
+        for m in &self.mounts {
+            if !ids.insert(&m.id) {
+                return Err(format!("duplicate mount id: {}", m.id));
+            }
+            let norm = m.path.trim_matches('/');
+            if norm.is_empty() {
+                return Err(format!("mount {} has empty path", m.id));
+            }
+            if norm
+                .split('/')
+                .any(|seg| seg == ".." || seg == ".")
+            {
+                return Err(format!("mount {} has invalid path: {}", m.id, m.path));
+            }
+            let top = norm.split('/').next().unwrap();
+            if RESERVED_MOUNT_PATHS.contains(&top) {
+                return Err(format!(
+                    "mount {} uses reserved path prefix: {}",
+                    m.id, top
+                ));
+            }
+            if !paths.insert(norm) {
+                return Err(format!("duplicate mount path: {}", m.path));
+            }
+        }
+        Ok(())
+    }
+
+    /// Resolve each mount's `source` to an absolute path relative to `base`.
+    /// Warns (non-fatal) when a source dir does not exist.
+    pub fn resolve_mount_sources(&mut self, base: &Path) {
+        for m in &mut self.mounts {
+            if !m.source.is_absolute() {
+                m.source = base.join(&m.source);
+            }
+            if !m.source.is_dir() {
+                tracing::warn!(
+                    "mount {} source not found: {}",
+                    m.id,
+                    m.source.display()
+                );
+            }
         }
     }
 }
@@ -243,4 +320,70 @@ default_mode = "canvas"
             std::env::remove_var("OXIBUILDER_DATA_DIR");
         }
     }
+
+    #[test]
+    fn parses_mounts_section() {
+        let cfg = Config::from_toml_str(
+            r#"
+[site]
+name = "S"
+base_url = "https://b.dev"
+
+[[mounts]]
+id = "portfolio"
+source = "../portfolio"
+path = "portfolio"
+title_ko = "포트폴리오"
+title_en = "Portfolio"
+description = "Hand-crafted work"
+"#,
+        )
+        .unwrap();
+        assert_eq!(cfg.mounts.len(), 1);
+        let m = &cfg.mounts[0];
+        assert_eq!(m.id, "portfolio");
+        assert_eq!(m.path, "portfolio");
+        assert_eq!(m.title_en, "Portfolio");
+        assert_eq!(m.description.as_deref(), Some("Hand-crafted work"));
+        assert!(!m.open_in_new_tab); // default false
+    }
+
+    #[test]
+    fn validate_rejects_reserved_path_prefix() {
+        let mut cfg = Config::default();
+        cfg.mounts.push(MountConfig {
+            id: "x".into(), source: "/a".into(), path: "assets".into(),
+            title_ko: "k".into(), title_en: "e".into(),
+            description: None, icon: None, open_in_new_tab: false,
+        });
+        assert!(cfg.validate_mounts().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_duplicate_id() {
+        let mut cfg = Config::default();
+        for _ in 0..2 {
+            cfg.mounts.push(MountConfig {
+                id: "dup".into(), source: "/a".into(), path: "a".into(),
+                title_ko: "k".into(), title_en: "e".into(),
+                description: None, icon: None, open_in_new_tab: false,
+            });
+        }
+        let err = cfg.validate_mounts().unwrap_err();
+        assert!(err.contains("duplicate mount id"), "{err}");
+    }
+
+    #[test]
+    fn resolve_mount_sources_makes_relative_absolute() {
+        let mut cfg = Config::default();
+        cfg.mounts.push(MountConfig {
+            id: "p".into(), source: "../portfolio".into(), path: "portfolio".into(),
+            title_ko: "k".into(), title_en: "e".into(),
+            description: None, icon: None, open_in_new_tab: false,
+        });
+        let base = std::path::Path::new("/srv/oxibuilder");
+        cfg.resolve_mount_sources(base);
+        assert_eq!(cfg.mounts[0].source, std::path::PathBuf::from("/srv/oxibuilder/../portfolio"));
+    }
 }
+

@@ -168,6 +168,11 @@ enabled = []                          # empty = all compiled-in extensions activ
 default_mode = "grid"                 # "canvas" | "grid" | "list"; per-extension via API/CLI
 ```
 
+**Static mounts** (`[[mounts]]`) graft an external static directory — hand-written
+HTML or the build output of any tool (Astro, another SSG) — at a URL prefix
+(e.g. `/portfolio/`). Files are copied verbatim into `out/{path}/` at build time
+and surface as a link card in the lobby. `source` is relative to the config file.
+
 External integrations **silently disable themselves** when their key is absent, so you only
 wire up the ones you want.
 

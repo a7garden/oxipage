@@ -24,6 +24,25 @@ pub struct StaticPage {
     pub content: String,
 }
 
+/// A resolved static mount to copy into `out/{path}/` at build time.
+#[derive(Debug, Clone)]
+pub struct MountCopy {
+    /// Absolute source directory.
+    pub source: std::path::PathBuf,
+    /// Normalized URL prefix / `out/` subdirectory (no leading/trailing slash).
+    pub path: String,
+}
+
+impl MountCopy {
+    /// Map a validated, path-resolved `MountConfig` to a build copy spec.
+    pub fn from_config(m: &crate::config::MountConfig) -> Self {
+        Self {
+            source: m.source.clone(),
+            path: m.path.trim_matches('/').to_string(),
+        }
+    }
+}
+
 /// A document for the client-side search index.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchDoc {
@@ -136,6 +155,9 @@ pub struct BuildInputs {
     /// to `out/data/image-manifest.json` for the static-mode SPA plugin
     /// (Task 6) to read. `None` skips manifest emission.
     pub image_manifest: Option<ImageManifest>,
+    /// Configured static mounts (`[[mounts]]`), sources already resolved absolute.
+    /// Copied verbatim into `out/{path}/` after core assets.
+    pub mounts: Vec<MountCopy>,
 }
 
 impl BuildInputs {
@@ -150,6 +172,8 @@ impl BuildInputs {
             asset_revision_seed: asset_revision_seed.into(),
             image_staging_dir: None,
             image_manifest: None,
+            mounts: Vec::new(),
         }
     }
 }
+

@@ -42,3 +42,18 @@ default_mode = "grid"                       # "canvas" | "grid" | "list". Per-ex
 # [lobby.overrides]                         # doc/04 §4.4 — per-extension display_mode.
 # projects = "canvas"
 # links = "list"
+
+# Static mounts — graft an external static directory (hand-written HTML or the
+# build output of any tool) at a URL prefix. Files are copied verbatim into
+# out/{path}/ at build time and appear as a link card in the lobby.
+# `source` is relative to this config file's directory.
+#
+# [[mounts]]
+# id        = "portfolio"
+# source    = "../portfolio"
+# path      = "portfolio"          # served at /portfolio/ (under the deploy base)
+# title_ko  = "포트폴리오"
+# title_en  = "Portfolio"
+# description = "Hand-crafted work"
+# icon      = "🖼️"
+# open_in_new_tab = false

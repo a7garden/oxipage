@@ -14,7 +14,7 @@ import {
   UserRound,
 } from "lucide-react";
 
-import { fetchManifest, type ManifestExtension } from "../shared/api";
+import { fetchManifest, type ManifestExtension, type ManifestMount } from "../shared/api";
 import { useLanguage } from "../shared/language";
 import type { Lang } from "../shared/language";
 import { cn } from "../shared/ui/cn";
@@ -84,6 +84,9 @@ export function Lobby() {
           {exts.map((ext) => (
             <LobbyRow key={ext.id} ext={ext} lang={lang} />
           ))}
+          {manifest.mounts.map((m) => (
+            <MountRow key={m.id} mount={m} lang={lang} />
+          ))}
         </div>
       </>
     );
@@ -102,6 +105,9 @@ export function Lobby() {
             floating={floating}
             delay={i % 3}
           />
+        ))}
+        {manifest.mounts.map((m) => (
+          <MountCard key={m.id} mount={m} lang={lang} />
         ))}
       </div>
     </>
@@ -175,5 +181,55 @@ function LobbyRow({
         →
       </span>
     </Link>
+  );
+}
+
+function mountName(m: ManifestMount, lang: Lang): string {
+  return (lang === "ko" ? m.display_name.ko : m.display_name.en) ?? m.id;
+}
+
+function MountCard({ mount, lang }: { mount: ManifestMount; lang: Lang }) {
+  return (
+    <a
+      href={`${mount.path}/`}
+      data-mount={mount.id}
+      {...(mount.open_in_new_tab ? { target: "_blank", rel: "noopener" } : {})}
+      className={cn(
+        "group relative flex flex-col gap-4 rounded-lg border border-line bg-surface p-5 shadow-sm",
+        "transition-[transform,box-shadow,border-color] duration-200 ease-out",
+        "hover:-translate-y-0.5 hover:shadow-md hover:border-primary/40",
+      )}
+    >
+      <div className="flex size-11 items-center justify-center rounded-md bg-primary/10 text-primary text-xl">
+        <span aria-hidden>{mount.icon ?? "🔗"}</span>
+      </div>
+      <div className="space-y-0.5">
+        <h2 className="font-serif text-lg font-semibold leading-tight tracking-tight text-foreground">
+          {mountName(mount, lang)}
+        </h2>
+        {mount.description && <p className="text-sm text-subtle">{mount.description}</p>}
+        <p className="text-sm text-subtle">/{mount.path}</p>
+      </div>
+    </a>
+  );
+}
+
+function MountRow({ mount, lang }: { mount: ManifestMount; lang: Lang }) {
+  return (
+    <a
+      href={`${mount.path}/`}
+      data-mount={mount.id}
+      {...(mount.open_in_new_tab ? { target: "_blank", rel: "noopener" } : {})}
+      className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-canvas"
+    >
+      <span className="flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary" aria-hidden>
+        {mount.icon ?? "🔗"}
+      </span>
+      <span className="font-serif text-base font-medium text-foreground">
+        {mountName(mount, lang)}
+      </span>
+      <span className="text-sm text-subtle">/{mount.path}</span>
+      <span className="ml-auto text-subtle opacity-0 transition-opacity group-hover:opacity-100">→</span>
+    </a>
   );
 }

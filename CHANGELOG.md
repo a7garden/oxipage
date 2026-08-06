@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- **Static mounts:** `[[mounts]]` config grafts an external static directory at a
+  URL prefix, copied into `out/{path}/` at build time and shown as a lobby link card.
+
 
 ## [0.9.0] - 2026-08-05
 

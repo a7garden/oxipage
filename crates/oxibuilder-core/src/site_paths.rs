@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::config::{
-    Config, ExtensionsConfig, IntegrationsConfig, LobbySection, ServerConfig, SiteConfig,
+    Config, ExtensionsConfig, IntegrationsConfig, LobbySection, MountConfig, ServerConfig, SiteConfig,
 };
 
 /// Live-reloadable subset of site configuration. Excludes `[server]` fields
@@ -18,6 +18,13 @@ pub struct MutableSiteSettings {
     pub extensions: MutableExtensionsConfig,
     #[serde(default)]
     pub deploy: DeployConfig,
+    /// Configured static mounts. Runtime data, not exposed through the
+    /// settings API (#[serde(skip)]) — mounts are config-driven, not
+    /// edited through the settings UI. Preserved across `from_config` /
+    /// `to_config` round trips so `per_site.rs`'s reconstructed
+    /// `AppState` keeps its mounts.
+    #[serde(skip)]
+    pub mounts: Vec<MountConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -163,6 +170,7 @@ impl MutableSiteSettings {
                 enabled: cfg.extensions.enabled.clone(),
             },
             deploy: cfg.deploy.clone(),
+            mounts: cfg.mounts.clone(),
         }
     }
 
@@ -191,6 +199,7 @@ impl MutableSiteSettings {
                 default_mode: self.lobby.default_mode.clone(),
             },
             deploy: self.deploy.clone(),
+            mounts: self.mounts.clone(),
         }
     }
 }
@@ -212,6 +221,16 @@ mod tests {
         cfg.integrations.github_username = Some("octocat".into());
         cfg.integrations.tmdb_api_key_env = Some("OXIBUILDER_TMDB_KEY".into());
         cfg.integrations.aladin_ttbkey_env = Some("OXIBUILDER_ALADIN_TTBKEY".into());
+        cfg.mounts.push(MountConfig {
+            id: "docs".into(),
+            source: std::path::PathBuf::from("/tmp/docs"),
+            path: "/docs".into(),
+            title_ko: "문서".into(),
+            title_en: "Docs".into(),
+            description: Some("Documentation".into()),
+            icon: Some("book".into()),
+            open_in_new_tab: false,
+        });
 
         let server = cfg.server.clone();
         let settings = MutableSiteSettings::from_config(&cfg);
@@ -236,6 +255,19 @@ mod tests {
             rebuilt.integrations.aladin_ttbkey_env.as_deref(),
             Some("OXIBUILDER_ALADIN_TTBKEY")
         );
+        // Configured mounts survive the settings round trip. Compare field
+        // by field because `MountConfig` does not (yet) derive PartialEq.
+        assert_eq!(rebuilt.mounts.len(), cfg.mounts.len());
+        for (got, want) in rebuilt.mounts.iter().zip(cfg.mounts.iter()) {
+            assert_eq!(got.id, want.id);
+            assert_eq!(got.source, want.source);
+            assert_eq!(got.path, want.path);
+            assert_eq!(got.title_ko, want.title_ko);
+            assert_eq!(got.title_en, want.title_en);
+            assert_eq!(got.description, want.description);
+            assert_eq!(got.icon, want.icon);
+            assert_eq!(got.open_in_new_tab, want.open_in_new_tab);
+        }
         // Server section is passed through unchanged.
         assert_eq!(rebuilt.server.host, cfg.server.host);
         assert_eq!(rebuilt.server.port, cfg.server.port);

@@ -44,9 +44,20 @@ pub struct ManifestExtension {
 }
 
 #[derive(Serialize)]
+pub struct ManifestMount {
+    pub id: String,
+    pub display_name: ManifestLocalized,
+    pub path: String,
+    pub description: Option<String>,
+    pub icon: Option<String>,
+    pub open_in_new_tab: bool,
+}
+
+#[derive(Serialize)]
 pub struct Manifest {
     pub site: ManifestSite,
     pub extensions: Vec<ManifestExtension>,
+    pub mounts: Vec<ManifestMount>,
 }
 
 /// Per-extension lobby display config from the `lobby_config` table, falling back to the
@@ -118,6 +129,7 @@ pub async fn assemble(
             languages: config.site.languages.clone(),
         },
         extensions: ext_list,
+        mounts: manifest_mounts(&config.mounts),
     }
 }
 
@@ -137,5 +149,66 @@ async fn is_active(db: &SqlitePool, ext_id: &str) -> bool {
     match row {
         Some((enabled, purged)) => enabled != 0 && purged == 0,
         None => true,
+    }
+}
+
+/// Map configured static mounts to their manifest representation. Pure
+/// (no DB) so it can be unit-tested in isolation; `assemble` calls it.
+pub fn manifest_mounts(mounts: &[crate::config::MountConfig]) -> Vec<ManifestMount> {
+    mounts
+        .iter()
+        .map(|m| ManifestMount {
+            id: m.id.clone(),
+            display_name: ManifestLocalized {
+                ko: m.title_ko.clone(),
+                en: m.title_en.clone(),
+            },
+            path: m.path.trim_matches('/').to_string(),
+            description: m.description.clone(),
+            icon: m.icon.clone(),
+            open_in_new_tab: m.open_in_new_tab,
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::MountConfig;
+
+    fn mc(id: &str, path: &str, ko: &str, en: &str) -> MountConfig {
+        MountConfig {
+            id: id.into(),
+            source: format!("/srv/{id}").into(),
+            path: path.into(),
+            title_ko: ko.into(),
+            title_en: en.into(),
+            description: Some("desc".into()),
+            icon: None,
+            open_in_new_tab: true,
+        }
+    }
+
+    #[test]
+    fn manifest_mounts_maps_config_fields() {
+        let ms = manifest_mounts(&[mc("portfolio", "portfolio", "포트폴리오", "Portfolio")]);
+        assert_eq!(ms.len(), 1);
+        assert_eq!(ms[0].id, "portfolio");
+        assert_eq!(ms[0].display_name.ko, "포트폴리오");
+        assert_eq!(ms[0].display_name.en, "Portfolio");
+        assert_eq!(ms[0].path, "portfolio");
+        assert_eq!(ms[0].description.as_deref(), Some("desc"));
+        assert!(ms[0].open_in_new_tab);
+    }
+
+    #[test]
+    fn manifest_mounts_normalizes_path() {
+        let ms = manifest_mounts(&[mc("p", "/stuff/", "k", "e")]);
+        assert_eq!(ms[0].path, "stuff");
+    }
+
+    #[test]
+    fn manifest_mounts_empty_for_no_config() {
+        assert!(manifest_mounts(&[]).is_empty());
     }
 }

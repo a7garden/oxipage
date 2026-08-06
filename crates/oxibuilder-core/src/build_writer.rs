@@ -193,6 +193,21 @@ pub fn write_build_output(
         fs::write(&manifest_path, json)?;
     }
 
+    // 10c. Copy static mounts
+    //      resolved absolute at config load; missing sources are a hard error
+    //      here (a mount was configured but its directory is gone).
+    for mount in &inputs.mounts {
+        let dst = out_dir.join(&mount.path);
+        copy_dir_recursive(&mount.source, &dst).map_err(|e| {
+            let msg = format!(
+                "static mount '{}' (from {}): {e}",
+                mount.path,
+                mount.source.display()
+            );
+            Box::<dyn std::error::Error + Send + Sync>::from(msg)
+        })?;
+    }
+
     // 11. Compute the final asset revision over the materialized output and
     //     write the manifest with the SAME deployment_base emitted into the HTML.
     let asset_revision = compute_asset_revision(out_dir);

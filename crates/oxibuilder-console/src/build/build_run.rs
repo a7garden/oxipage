@@ -46,6 +46,7 @@ pub async fn ensure_build_started(
     let started_at = snapshot.started_at;
     let site_base_url = ctx.settings.read().await.site.base_url.clone();
     let theme_id = oxibuilder_core::theme::active_theme_id(&ctx.db).await;
+    let mounts = ctx.settings.read().await.mounts.clone();
     let guard = guard.clone();
     tokio::spawn(async move {
         let rt = tokio::runtime::Handle::current();
@@ -101,6 +102,7 @@ pub async fn ensure_build_started(
                 let media_task = media_dir.clone();
                 let base_url_task = site_base_url.clone();
                 let theme_task = theme_id.clone();
+                let mounts_task = mounts.clone();
                 tokio::task::spawn_blocking(move || {
                     match oxibuilder_core::build::build_site_with_progress(
                         &db_task,
@@ -113,6 +115,10 @@ pub async fn ensure_build_started(
                                 BuildInputs::new(&base_url_task, &theme_task, "oxibuilder");
                             inputs.image_staging_dir = staging;
                             inputs.image_manifest = manifest;
+                            inputs.mounts = mounts_task
+                                .iter()
+                                .map(oxibuilder_core::builder::MountCopy::from_config)
+                                .collect();
                             if let Err(e) = oxibuilder_core::build_writer::write_build_output(
                                 &output,
                                 &out_task,
