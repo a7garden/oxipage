@@ -112,6 +112,17 @@ pub fn write_build_output(
         fs::write(&path, &json)?;
     }
 
+    // 5b. Theme catalog snapshot — the static-mode SPA resolves its public
+    //     palette from `data/theme.json` (mirrors GET /theme's data envelope).
+    let theme_def = crate::theme::find_theme(&inputs.theme_id);
+    if let Some(def) = theme_def {
+        let theme_json = serde_json::to_string_pretty(&serde_json::json!({
+            "theme_id": def.id,
+            "definition": def,
+        }))?;
+        fs::write(data_dir.join("theme.json"), &theme_json)?;
+    }
+
     // 6. Collection shell fallback: ensure every extension with build data also
     //    has a `{ext}/index.html` landing page so direct loads return 200
     //    instead of a (SEO-harmful) 404.html fallback.

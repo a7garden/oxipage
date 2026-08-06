@@ -85,6 +85,23 @@ export function watchSystemAppearance(cb: (mode: ResolvedMode) => void): () => v
  */
 export async function applyServerTheme(slug?: string): Promise<ThemeDefinition | null> {
   try {
+    // Static deployments serve a build-time theme snapshot at data/theme.json
+    // (mirrors the live /theme data envelope); no live console endpoint exists.
+    if (import.meta.env.VITE_DATA_MODE === "static") {
+      let url: string;
+      try {
+        url = new URL("data/theme.json", document.baseURI).toString();
+      } catch {
+        url = "data/theme.json";
+      }
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const json = (await res.json()) as { theme_id: string; definition: ThemeDefinition };
+      const def = json?.definition;
+      if (!def) return null;
+      publishPalette(def);
+      return def;
+    }
     const url = slug ? `/api/console/s/${encodeURIComponent(slug)}/theme` : "/api/console/theme";
     const res = await fetch(url);
     if (!res.ok) return null;

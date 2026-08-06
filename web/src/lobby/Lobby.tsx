@@ -150,6 +150,12 @@ function LobbyCard({
         </h2>
         <p className="text-sm text-subtle">/{ext.id}</p>
       </div>
+      <span
+        className="absolute right-4 top-4 text-subtle opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+        aria-hidden
+      >
+        →
+      </span>
     </Link>
   );
 }

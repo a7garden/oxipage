@@ -9,11 +9,12 @@ import { ProfilePage } from "./extensions/profile/ProfilePage";
 import { LanguageProvider, useLanguage } from "./shared/language";
 import type { Lang } from "./shared/language";
 import { ThemeToggle } from "./shared/ThemeToggle";
-import { applyServerTheme } from "./shared/theme";
+import { applyServerTheme, applyThemeMode, getConsoleAppearance } from "./shared/theme";
 import { Button } from "./shared/ui/button";
 import { Container } from "./shared/ui/container";
 import { Skeleton } from "./shared/ui/skeleton";
 import { AssetResolverProvider } from "./shared/asset-context";
+import { SiteFooter } from "./shared/SiteFooter";
 
 const queryClient = new QueryClient();
 
@@ -80,7 +81,15 @@ function PageFallback() {
 
 function Shell() {
   useEffect(() => {
-    applyServerTheme();
+    void applyServerTheme().then((def) => {
+      // Public site reflects the selected theme's light/dark mode — unless the
+      // visitor already picked an explicit console appearance, which wins.
+      // This is the public shell only; the admin console never mutates
+      // data-theme through this path.
+      if (!def) return;
+      const saved = getConsoleAppearance();
+      applyThemeMode(saved === "system" ? def.mode : saved);
+    });
   }, []);
   const { data: manifest } = useQuery({ queryKey: ["manifest"], queryFn: fetchManifest });
   const defaultLang: Lang = manifest?.site.default_lang === "en" ? "en" : "ko";
@@ -93,9 +102,10 @@ function Shell() {
           <Container className="flex h-14 items-center justify-between gap-4">
             <Link
               to="/"
-              className="font-serif text-lg font-semibold tracking-tight text-foreground transition-colors hover:text-primary"
+              className="group inline-flex items-baseline gap-1.5 font-serif text-lg font-semibold tracking-tight text-foreground transition-colors hover:text-primary"
             >
               {siteName}
+              <span className="size-1.5 self-center rounded-full bg-primary transition-transform group-hover:scale-125" aria-hidden />
             </Link>
             <nav className="flex items-center gap-1">
               <Button variant="ghost" size="sm" asChild>
@@ -210,13 +220,7 @@ function Shell() {
           </Container>
         </main>
 
-        <footer className="border-t border-line py-6">
-          <Container>
-            <p className="text-center text-sm text-subtle">
-              {siteName} · Oxibuilder
-            </p>
-          </Container>
-        </footer>
+        <SiteFooter siteName={siteName} />
       </div>
     </LanguageProvider>
   );

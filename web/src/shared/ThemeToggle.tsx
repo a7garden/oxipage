@@ -4,6 +4,7 @@ import { Monitor, Moon, Sun } from "lucide-react";
 import {
   type ConsoleAppearance,
   type ResolvedMode,
+  applyThemeMode,
   getConsoleAppearance,
   getResolvedConsoleMode,
   setConsoleAppearance,
@@ -11,11 +12,20 @@ import {
 } from "./theme";
 import { Button } from "./ui/button";
 
-const options: { value: ConsoleAppearance; label: string; icon: typeof Monitor }[] = [
-  { value: "system", label: "System", icon: Monitor },
-  { value: "light", label: "Light", icon: Sun },
-  { value: "dark", label: "Dark", icon: Moon },
-];
+/** Cycle order: system → light → dark → system. */
+const ORDER: ConsoleAppearance[] = ["system", "light", "dark"];
+
+const ICONS: Record<ConsoleAppearance, typeof Monitor> = {
+  system: Monitor,
+  light: Sun,
+  dark: Moon,
+};
+
+const LABELS: Record<ConsoleAppearance, string> = {
+  system: "System",
+  light: "Light",
+  dark: "Dark",
+};
 
 export function ThemeToggle() {
   const [appearance, setAppearanceState] = useState<ConsoleAppearance>(getConsoleAppearance);
@@ -30,38 +40,29 @@ export function ThemeToggle() {
     setResolved(getResolvedConsoleMode());
   }, [appearance]);
 
-  function pick(next: ConsoleAppearance) {
-    setConsoleAppearance(next);
-    setAppearanceState(next);
-  }
+  // Next mode in the system → light → dark → system cycle.
+  const after = ORDER[(ORDER.indexOf(appearance) + 1) % ORDER.length];
+  const Icon = ICONS[appearance];
 
   return (
-    <div
-      role="radiogroup"
-      aria-label="Console appearance"
-      className="inline-flex items-center rounded-md border border-line p-0.5 gap-0.5"
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      onClick={() => {
+        setConsoleAppearance(after);
+        setAppearanceState(after);
+        applyThemeMode(after === "system" ? getResolvedConsoleMode() : after);
+      }}
+      className="size-8 rounded-md text-muted hover:text-foreground hover:bg-surface"
+      title={
+        appearance === "system"
+          ? `Theme: System (now ${resolved}) — click for ${LABELS[after]}`
+          : `Theme: ${LABELS[appearance]} — click for ${LABELS[after]}`
+      }
+      aria-label={`Theme: ${LABELS[appearance]}. Click to switch to ${LABELS[after]}.`}
     >
-      {options.map(({ value, label, icon: Icon }) => {
-        const active = appearance === value;
-        return (
-          <Button
-            key={value}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            onClick={() => pick(value)}
-            className={`h-7 px-2 text-xs ${active ? "bg-primary text-primary-foreground" : "hover:bg-surface"}`}
-            title={
-              value === "system"
-                ? `System (currently ${resolved})`
-                : label
-            }
-          >
-            <Icon className="size-3.5" />
-            <span className="ml-1.5 hidden sm:inline">{label}</span>
-          </Button>
-        );
-      })}
-    </div>
+      <Icon className="size-4" />
+    </Button>
   );
 }

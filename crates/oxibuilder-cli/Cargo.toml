@@ -20,6 +20,7 @@ oxibuilder-deploy = { version = "0.9.0", path = "../oxibuilder-deploy" }
 oxibuilder-ext-blog = { version = "0.9.0", path = "../oxibuilder-ext-blog" }
 oxibuilder-ext-projects = { version = "0.9.0", path = "../oxibuilder-ext-projects" }
 oxibuilder-ext-links = { version = "0.9.0", path = "../oxibuilder-ext-links" }
+oxibuilder-ext-profile = { version = "0.9.0", path = "../oxibuilder-ext-profile" }
 rusqlite = { version = "0.32", features = ["serde_json"] }
 reqwest.workspace = true
 serde.workspace = true

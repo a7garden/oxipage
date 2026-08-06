@@ -12,6 +12,7 @@ mod lobby;
 mod mount;
 mod open;
 mod project;
+mod profile;
 mod query;
 mod schema;
 mod site;
@@ -27,6 +28,7 @@ pub use lobby::LobbyCommand;
 pub use mount::MountCommand;
 pub use open::OpenArgs;
 pub use project::ProjectCommand;
+pub use profile::ProfileCommand;
 pub use query::QueryCommand;
 pub use schema::SchemaCommand;
 pub use site::SiteCommand;
@@ -80,6 +82,7 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
         Command::Blog(c) => blog::blog(c, &out).await,
         Command::Open { port } => open::open(OpenArgs { port }, &out),
         Command::Project(c) => project::project(c, &out).await,
+        Command::Profile(c) => profile::profile(c, &out).await,
         Command::Link(c) => link::link(c, &out).await,
         Command::Lobby(c) => lobby::lobby(c, &out, &client).await,
         Command::Mount(c) => mount::mount(c, &out, &client).await,

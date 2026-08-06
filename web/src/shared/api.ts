@@ -124,6 +124,7 @@ function pathToStaticFile(path: string): string {
   const parts = rawPath.split('/').filter(Boolean);
   if (parts.length === 0) return 'data/lobby.json';
   if (parts[0] === 'search') return 'data/search-index.json';
+  if (parts[0] === 'theme') return 'data/theme.json';
   return `data/${parts[0]}.json`;
 }
 

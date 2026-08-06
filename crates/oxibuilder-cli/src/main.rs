@@ -67,6 +67,9 @@ pub enum Command {
     /// 프로젝트 포트폴리오 (doc/02 §2.4)
     #[command(subcommand)]
     Project(commands::ProjectCommand),
+    /// 프로필 (소셜 링크 · footer에 표시)
+    #[command(subcommand)]
+    Profile(commands::ProfileCommand),
     /// 생태계 링크 (doc/02 §2.11)
     #[command(subcommand)]
     Link(commands::LinkCommand),
