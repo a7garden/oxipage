@@ -274,9 +274,46 @@ pub async fn config_put(
             .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     }
 
-    // Atomic write: temp file in the same directory, then rename.
+    atomic_write_and_reload(&ctx, &serialized).await?;
+
+    let s = ctx.settings.read().await;
+    Ok(Json(ConfigResponse {
+        data: config_json(&s, &ctx.startup_server),
+    }))
+}
+
+// ─── shared toml persistence helpers ────────────────────────────────────────
+
+/// Read the site's `oxibuilder.toml` as a raw `toml::Value` document tree.
+/// Used by handlers that must patch or inspect the file while preserving
+/// comments, unknown sections, and formatting (the `config_put` discipline).
+pub(crate) async fn read_toml_doc(
+    ctx: &SiteContext,
+) -> Result<toml::Value, (StatusCode, String)> {
+    let toml_path = ctx.project_dir.join("oxibuilder.toml");
+    let raw = tokio::fs::read_to_string(&toml_path)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("read toml: {e}")))?;
+    toml::from_str(&raw).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("parse toml: {e}"),
+        )
+    })
+}
+
+/// Atomically persist a serialized toml string (temp file + rename) and reload
+/// the in-memory settings snapshot. Callers MUST hold `ctx.config_write_lock`
+/// across their read-modify-write so concurrent config writes cannot clobber
+/// each other, and MUST have validated the content (e.g. `validate_mounts`)
+/// before calling — nothing reaches disk that hasn't passed the caller's checks.
+pub(crate) async fn atomic_write_and_reload(
+    ctx: &SiteContext,
+    serialized: &str,
+) -> Result<(), (StatusCode, String)> {
+    let toml_path = ctx.project_dir.join("oxibuilder.toml");
     let tmp = toml_path.with_extension("toml.tmp");
-    tokio::fs::write(&tmp, &serialized)
+    tokio::fs::write(&tmp, serialized)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("write tmp: {e}")))?;
     tokio::fs::rename(&tmp, &toml_path)
@@ -289,11 +326,7 @@ pub async fn config_put(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("reload: {e}")))?;
     *ctx.settings.write().await =
         oxibuilder_core::site_paths::MutableSiteSettings::from_config(&new_cfg);
-
-    let s = ctx.settings.read().await;
-    Ok(Json(ConfigResponse {
-        data: config_json(&s, &ctx.startup_server),
-    }))
+    Ok(())
 }
 
 // ─── builds (GET history) ───────────────────────────────────────────────────

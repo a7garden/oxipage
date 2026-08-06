@@ -73,6 +73,9 @@ pub enum Command {
     /// 로비 표시 설정 (doc/03 §3.6)
     #[command(subcommand)]
     Lobby(commands::LobbyCommand),
+    /// 정적 마운트 — 외부 디렉토리를 URL 접두에 이식 (config-driven).
+    #[command(subcommand)]
+    Mount(commands::MountCommand),
     /// 확장 탑재/제거 (doc/02 §2.13, doc/04 §4.3)
     #[command(subcommand)]
     Extension(commands::ExtensionCommand),

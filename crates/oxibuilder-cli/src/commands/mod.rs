@@ -9,6 +9,7 @@ mod extension;
 mod init_console;
 mod link;
 mod lobby;
+mod mount;
 mod open;
 mod project;
 mod query;
@@ -23,6 +24,7 @@ pub use deploy::DeployArgs;
 pub use extension::ExtensionCommand;
 pub use link::LinkCommand;
 pub use lobby::LobbyCommand;
+pub use mount::MountCommand;
 pub use open::OpenArgs;
 pub use project::ProjectCommand;
 pub use query::QueryCommand;
@@ -80,6 +82,7 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
         Command::Project(c) => project::project(c, &out).await,
         Command::Link(c) => link::link(c, &out).await,
         Command::Lobby(c) => lobby::lobby(c, &out, &client).await,
+        Command::Mount(c) => mount::mount(c, &out, &client).await,
         Command::Extension(c) => extension::extension(c, &out, &client).await,
         Command::Backup(c) => backup::backup(c).await,
         Command::Build(c) => build::build(c).await,
