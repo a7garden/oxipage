@@ -26,6 +26,19 @@ pub struct MoviesExtension;
 
 // ── CLI handlers ──
 
+/// 기본 사이트 슬러그 해석 — 콘텐츠 라우트는 `/api/console/s/{slug}/...` 로만 노출된다.
+async fn resolve_site(client: &Client) -> anyhow::Result<String> {
+    let v = client
+        .get("/api/console/sites/default")
+        .await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    v.get("data")
+        .and_then(|d| d.get("default_site"))
+        .and_then(|s| s.as_str())
+        .map(str::to_string)
+        .ok_or_else(|| anyhow::anyhow!("no default site configured"))
+}
+
 struct MovieAddHandler;
 impl CliHandler for MovieAddHandler {
     fn run(
@@ -33,24 +46,92 @@ impl CliHandler for MovieAddHandler {
         args: BTreeMap<String, String>,
         client: &Client,
     ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>> {
-        let title = args.get("title").cloned().unwrap_or_default();
-        let mut body = serde_json::json!({ "title": title });
+        // media_type / rating 은 NOT NULL 이므로 기본값을 채운다.
+        let media_type = args
+            .get("media-type")
+            .cloned()
+            .unwrap_or_else(|| "movie".to_string());
+        let rating = args.get("rating").cloned().unwrap_or_else(|| "0".to_string());
+        let mut body = serde_json::json!({ "media_type": media_type, "rating": rating });
+        if let Some(t) = args.get("title") {
+            body["title"] = serde_json::json!(t);
+        }
+        if let Some(id) = args.get("tmdb-id")
+            && let Ok(n) = id.parse::<i64>()
+        {
+            body["tmdb_id"] = serde_json::json!(n);
+        }
         if let Some(slug) = args.get("slug") {
             body["slug"] = serde_json::json!(slug);
         }
-        if let Some(rating) = args.get("rating") {
-            body["rating"] = serde_json::json!(rating);
-        }
         let client = client.clone();
         Box::pin(async move {
+            let site = resolve_site(&client).await?;
             let resp = client
-                .post("/api/console/movies/", &body)
+                .post(&format!("/api/console/s/{site}/movies/"), &body)
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("{}", serde_json::to_string_pretty(&resp)?);
             Ok(())
         })
     }
+}
+
+struct MovieSearchHandler;
+impl CliHandler for MovieSearchHandler {
+    fn run(
+        &self,
+        args: BTreeMap<String, String>,
+        client: &Client,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>> {
+        let q = args.get("query").cloned().unwrap_or_default();
+        let client = client.clone();
+        Box::pin(async move {
+            if q.trim().is_empty() {
+                anyhow::bail!("--query/-q is required");
+            }
+            let site = resolve_site(&client).await?;
+            // 웹 UI 의 TmdbSearchRow 와 동일한 백엔드 엔드포인트 (단일 검색 소스).
+            let resp = client
+                .get(&format!("/api/console/s/{site}/movies/search?q={}", pct(&q)))
+                .await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            let results = resp
+                .get("data")
+                .and_then(|d| d.as_array())
+                .cloned()
+                .unwrap_or_default();
+            if results.is_empty() {
+                println!("No results for \"{q}\".");
+                return Ok(());
+            }
+            for r in &results {
+                let id = r.get("tmdb_id").and_then(|v| v.as_i64()).unwrap_or(0);
+                let title = r.get("title").and_then(|v| v.as_str()).unwrap_or("(untitled)");
+                let year = r.get("release_year").and_then(|v| v.as_i64());
+                println!(
+                    "[{id}] {title}{}",
+                    year.map(|y| format!(" ({y})")).unwrap_or_default()
+                );
+            }
+            println!("\nAdd a result: oxibuilder movies add --tmdb-id <ID> [--rating N]");
+            Ok(())
+        })
+    }
+}
+
+/// 검색어 percent-encoding (한글 멀티바이트 포함). std 만으로 구현.
+fn pct(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char);
+            }
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
 }
 
 struct MovieSeriesCreateHandler;
@@ -62,11 +143,13 @@ impl CliHandler for MovieSeriesCreateHandler {
     ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>> {
         let name = args.get("name").cloned().unwrap_or_default();
         let slug = args.get("slug").cloned().unwrap_or_default();
-        let body = serde_json::json!({ "name": name, "slug": slug });
+        // SeriesGroupInput 은 title_ko/title_en 을 받는다 (--name → title_ko).
+        let body = serde_json::json!({ "title_ko": name, "slug": slug });
         let client = client.clone();
         Box::pin(async move {
+            let site = resolve_site(&client).await?;
             let resp = client
-                .post("/api/console/movies/series", &body)
+                .post(&format!("/api/console/s/{site}/movies/series"), &body)
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("{}", serde_json::to_string_pretty(&resp)?);
@@ -174,10 +257,22 @@ impl Extension for MoviesExtension {
                     about: "Add a movie review",
                     args: vec![
                         CliArg {
+                            long: "tmdb-id",
+                            short: None,
+                            help: "TMDB movie id (auto-fills bilingual title, genres, cast)",
+                            required: false,
+                        },
+                        CliArg {
                             long: "title",
                             short: Some('t'),
-                            help: "Movie title",
-                            required: true,
+                            help: "Movie title (manual; or use --tmdb-id)",
+                            required: false,
+                        },
+                        CliArg {
+                            long: "media-type",
+                            short: Some('m'),
+                            help: "movie | tv (default: movie)",
+                            required: false,
                         },
                         CliArg {
                             long: "slug",
@@ -188,11 +283,22 @@ impl Extension for MoviesExtension {
                         CliArg {
                             long: "rating",
                             short: Some('r'),
-                            help: "Rating (1-10)",
+                            help: "Rating (0-10)",
                             required: false,
                         },
                     ],
                     handler: Some(Arc::new(MovieAddHandler)),
+                },
+                CliSubcommand {
+                    name: "search",
+                    about: "Search TMDB (same source as the web UI)",
+                    args: vec![CliArg {
+                        long: "query",
+                        short: Some('q'),
+                        help: "Search query",
+                        required: true,
+                    }],
+                    handler: Some(Arc::new(MovieSearchHandler)),
                 },
                 CliSubcommand {
                     name: "series",
