@@ -210,8 +210,13 @@ fn resolve_mount_sources_auto_detects_dist_under_root() {
 fn resolve_mount_sources_drops_mount_when_no_static_output_detected() {
     let tmp = tempfile::TempDir::new().unwrap();
     // Real external project root, but with NO index.html and NO candidate output dir.
-    std::fs::create_dir_all(tmp.path().join("src")).unwrap();
-    std::fs::create_dir_all(tmp.path().join("node_modules")).unwrap();
+    // (src/node_modules must live under project/, otherwise base.join("project")
+    // resolves to a missing path and the missing-source branch keeps the mount
+    // instead of dropping it.)
+    let project = tmp.path().join("project");
+    std::fs::create_dir_all(&project).unwrap();
+    std::fs::create_dir_all(project.join("src")).unwrap();
+    std::fs::create_dir_all(project.join("node_modules")).unwrap();
 
     let mut cfg = Config::default();
     cfg.mounts.push(MountConfig {
