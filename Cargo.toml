@@ -48,7 +48,7 @@ toml = "0.8"
 tower-http = { version = "0.6", features = ["trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-wasmtime = { version = "33", default-features = false, features = ["cranelift", "runtime", "parallel-compilation", "cache"] }
+wasmtime = { version = "36", default-features = false, features = ["cranelift", "runtime", "parallel-compilation", "cache"] }
 hmac = "0.12"
 argon2 = "0.5"
 
