@@ -157,3 +157,43 @@ async fn mounts_list_when_no_site_is_404() {
     let (s, _) = send(app, "GET", "/mounts", None).await;
     assert_eq!(s, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn mount_list_surfaces_resolved_source_for_auto_detected_dir() {
+    let (dir, _path, app) = app_with_site().await;
+
+    // External project root living next to the config: <dir>/extproj/dist/index.html
+    let dist = dir.path().join("extproj").join("dist");
+    std::fs::create_dir_all(&dist).unwrap();
+    std::fs::write(dist.join("index.html"), "x").unwrap();
+
+    // Add a mount whose raw source is the project root (not the dist).
+    let (s, _v) = send(
+        app.clone(),
+        "POST",
+        "/mounts",
+        Some(json!({
+            "id": "ext",
+            "source": "extproj",
+            "path": "ext",
+            "title_ko": "k",
+            "title_en": "e",
+        })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+
+    let (s, v) = send(app.clone(), "GET", "/mounts", None).await;
+    assert_eq!(s, StatusCode::OK);
+    let mounts = v["data"]["mounts"].as_array().unwrap();
+    assert_eq!(mounts.len(), 1);
+    // Raw source is preserved verbatim.
+    assert_eq!(mounts[0]["source"], "extproj");
+    // Resolved source points at the auto-detected dist dir (absolute).
+    let resolved = mounts[0]["resolved_source"].as_str().unwrap();
+    assert!(
+        resolved.ends_with("extproj/dist"),
+        "expected resolved source under extproj/dist, got {resolved}"
+    );
+    assert!(std::path::Path::new(resolved).is_absolute(), "should be absolute");
+}

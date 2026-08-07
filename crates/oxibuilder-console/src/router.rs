@@ -339,13 +339,34 @@ async fn default_ctx(
     ))
 }
 
-/// `GET /api/console/mounts` — list configured mounts (raw sources).
+/// `GET /api/console/mounts` — list configured mounts (raw sources) plus the
+/// load-resolved (auto-detected) source path for each, keyed by id.
 async fn mounts_list(
     State(registry): State<Arc<SiteRegistry>>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let ctx = default_ctx(&registry).await?;
     let doc = read_toml_doc(&ctx).await?;
-    Ok(Json(serde_json::json!({ "data": { "mounts": mounts_from_doc(&doc) } })))
+    let mut mounts = mounts_from_doc(&doc);
+
+    // ctx.settings.mounts carry the load-resolved (absolute, auto-detected)
+    // sources. Map them by id and surface as `resolved_source`.
+    let resolved: std::collections::HashMap<String, String> = {
+        let settings = ctx.settings.read().await;
+        settings
+            .mounts
+            .iter()
+            .map(|m| (m.id.clone(), m.source.to_string_lossy().into_owned()))
+            .collect()
+    };
+    for m in mounts.iter_mut() {
+        if let Some(id) = m.get("id").and_then(|v| v.as_str())
+            && let Some(r) = resolved.get(id)
+        {
+            m["resolved_source"] = serde_json::Value::String(r.clone());
+        }
+    }
+
+    Ok(Json(serde_json::json!({ "data": { "mounts": mounts } })))
 }
 
 /// `POST /api/console/mounts` — add a mount. Patches the raw toml doc, validates
