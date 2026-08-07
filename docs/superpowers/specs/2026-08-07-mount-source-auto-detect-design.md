@@ -75,15 +75,18 @@ Resolution order, in one pass over a single mount's already-absolute `source`:
 ### 3.2 Integration into `resolve_mount_sources`
 
 `Config::resolve_mount_sources(base)` (config.rs) currently just makes each `source`
-absolute and warns if it is not a dir. It gains a detection step after the absolutization:
+absolute and warns if it is not a dir. It gains a detection step after the absolutization
+**and drops the mount from `self.mounts` when no output is detected** — otherwise the
+downstream `copy_dir_recursive` (build_writer.rs) would recursively copy the entire project
+root (including `node_modules`, `.git`, `src`, …) into `out/{path}/`.
 
 ```rust
 pub fn resolve_mount_sources(&mut self, base: &Path) {
-    for m in &mut self.mounts {
+    self.mounts.retain_mut(|m| {
         if !m.source.is_absolute() {
             m.source = base.join(&m.source);
         }
-        // source is now absolute. Auto-detect the build output under it.
+        // m.source is now absolute. Auto-detect the build output under it.
         match detect_static_output(&m.source) {
             Some(resolved) if resolved != m.source => {
                 tracing::info!(
@@ -91,28 +94,42 @@ pub fn resolve_mount_sources(&mut self, base: &Path) {
                     m.id, m.source.display(), resolved.display()
                 );
                 m.source = resolved;
+                true // keep — build will copy this
             }
             Some(_) => {
-                // source itself is the result dir (override); nothing to log.
+                // source itself is the result dir (explicit override); keep.
+                true
             }
             None => {
                 if !m.source.is_dir() {
+                    // Missing source: existing behavior — warn, keep. The build
+                    // will hard-error on the copy if the source is still missing
+                    // then, which is the same as today's failure mode.
                     tracing::warn!("mount {} source not found: {}", m.id, m.source.display());
+                    true
                 } else {
+                    // Source dir exists but no static output detected — this is
+                    // the dangerous case: leaving the bare project root in
+                    // `config.mounts` would let `copy_dir_recursive` copy
+                    // `node_modules`, `.git`, `src`, … into `out/{path}/`. Drop.
                     tracing::warn!(
                         "mount {}: no static output detected under {} \
-                         (looked for index.html and: {})",
+                         (looked for index.html and: {}) — dropping mount",
                         m.id, m.source.display(), MOUNT_OUTPUT_CANDIDATES.join(", ")
                     );
+                    false
                 }
             }
         }
-    }
+    });
 }
 ```
 
-Because every build path (CLI `build`, console `build_run`, on-demand `http.rs`) reads
-`config.mounts` through `resolve_mount_sources`, detection applies uniformly to all of them.
+Drop semantics: the failing mount is removed from `self.mounts` in memory only. The
+underlying `oxibuilder.toml` is **untouched** (raw-doc patching already preserves the
+verbatim entry; the next load re-detects from the raw `source`). All three downstream build
+call sites (CLI `build.rs`, console `build_run.rs`, core `http.rs`) read `config.mounts`
+after `resolve_mount_sources`, so they inherit the drop automatically — no call-site changes.
 
 **Toml is not rewritten.** Raw-doc patching (`mounts_add`) stores the verbatim `source`; the
 resolved path lives only in memory for the build. A subsequent load re-detects from the raw
@@ -157,16 +174,34 @@ includes it under `--json`.
 
 ## 4. Error handling
 
-- **source missing entirely** → existing behavior: warn (non-fatal at load), hard error at
-  build (cannot copy).
-- **source is a file** → warn (`is_dir` false).
+- **source missing entirely** → warn (non-fatal at load). The mount is kept in
+  `self.mounts`. The build will hard-error on the copy, exactly as today — this preserves
+  the existing `resolve_mount_sources_makes_relative_absolute` test and the existing
+  build-side failure mode for misconfigured mounts.
+- **source is a file** → warn (`is_dir` false). Kept in `self.mounts`; build will hard-error.
 - **source is a dir but no candidate + no root index.html** → warn naming what was looked
-  for (§3.2); build then fails on the copy if the dir has no usable content, same as today.
+  for (§3.2) **and the mount is dropped from `self.mounts`**. This is the critical case:
+  leaving the bare project root in `config.mounts` would let `copy_dir_recursive` copy
+  `node_modules`, `.git`, `src`, … into `out/{path}/`. The drop is the guard.
 - Detection never panics and never changes `path` / `id` / validation behavior.
+
+**Why drop only on real-dir-no-match, not on missing source.** The missing-source path is
+already caught with a hard error at build time (build_writer.rs reports the missing source
+with mount id + path). Silently dropping it from the in-memory snapshot adds no value and
+would silently break the existing `resolve_mount_sources_makes_relative_absolute` test
+without changing observable failure behavior. The drop case is precisely the one that
+would *not* error downstream — the source dir exists, but its contents are not what the
+user meant for `out/{path}/`, so the in-memory snapshot must protect the build.
+
+**Visibility for dropped mounts.** When a mount is dropped at load, the build does not
+copy anything under `out/{path}/`. The `mount list` endpoint cannot distinguish "kept" from
+"dropped" without re-running detection in the handler (which already happens for
+`resolved_source`); see §3.4 — the `resolved_source` is `null`/absent for dropped mounts,
+which is the existing list semantics. A future "skipped" badge is out of scope.
 
 ## 5. Testing
 
-Pure function `detect_static_output` is the unit-testable core. `config.rs` `#[cfg(test)]`:
+`config.rs` `#[cfg(test)]` for the unit core:
 
 - Root override: `source` directly containing `index.html` → returns `source`.
 - Priority: a temp source with both `dist/index.html` and `build/index.html` → returns
@@ -175,11 +210,23 @@ Pure function `detect_static_output` is the unit-testable core. `config.rs` `#[c
 - index.html gating: `source/dist/` exists but lacks `index.html` → skipped; next candidate
   or None.
 - No match: source with only `node_modules`, `src`, etc. → None.
-- `resolve_mount_sources`: relative source + a temp dir tree → `m.source` becomes the
-  detected absolute dir; a non-existent source keeps the old warn path.
+- `resolve_mount_sources` happy path: relative source + a temp dir tree → `m.source` becomes
+  the detected absolute dir.
+- `resolve_mount_sources` **drop semantics**: a source that is a real directory but lacks
+  `index.html` and any candidate output subdir → mount is removed from `self.mounts`. The
+  existing `resolve_mount_sources_makes_relative_absolute` non-canonical-path test still
+  passes (its source is non-existent; the `is_dir` warn path *keeps* the mount, matching the
+  prior behavior).
 
-No new build/manifest tests — the copy and manifest steps are unchanged downstream of a
-resolved `source`.
+`build_writer.rs` (test file `crates/oxibuilder-core/tests/static_mounts.rs`) for the
+build-side guard against the green-while-wrong risk:
+
+- **No-match mount produces no copy under `out/{path}/`.** A mount whose source is a real
+  directory but lacks `index.html` and any candidate output subdir must not create
+  `out/{path}/` — in particular, must not copy the source root itself into `out/`.
+- The existing `write_build_output_copies_mount_into_out` (which asserts a happy-path
+  mount copy) still passes — `detect_static_output` returns the source itself when it
+  contains `index.html`, so the copy behaves exactly as before.
 
 ## 6. Non-goals
 

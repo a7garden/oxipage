@@ -157,16 +157,29 @@ git commit -m "feat(config): add detect_static_output mount source helper"
 
 **Files:**
 - Modify: `crates/oxibuilder-core/src/config.rs:242` (the `resolve_mount_sources` body)
+- Modify: `crates/oxibuilder-core/tests/static_mounts.rs` (new build-side guard test)
 
 **Interfaces:**
 - Consumes: `detect_static_output` (Task 1).
-- Produces: `resolve_mount_sources` now mutates each `mount.source` to the detected dir; all three build call sites (CLI `build.rs`, console `build_run.rs`, core `http.rs`) inherit this automatically because they read resolved `config.mounts`.
+- Produces: `resolve_mount_sources` detects each mount's static output dir, and **drops
+  the mount from `self.mounts` when the source is a real directory but no output was
+  detected**. The three build call sites (CLI `build.rs`, console `build_run.rs`, core
+  `http.rs`) inherit this automatically because they read resolved `config.mounts`.
 
-**Critical regression guard:** the existing test `resolve_mount_sources_makes_relative_absolute` uses a non-existent `source = "../portfolio"` resolving to `/srv/oxibuilder/../portfolio`. Detection returns `None` for it (no `index.html`, no candidate dirs), so `source` must be left untouched — the test still asserts the non-canonical joined path. Do not change that behavior.
+**Critical regression guard (existing test):** `resolve_mount_sources_makes_relative_absolute`
+uses a non-existent `source = "../portfolio"` resolving to `/srv/oxibuilder/../portfolio`.
+Detection returns `None` for it AND `is_dir()` is false (file/dir absent) → the
+**missing-source** branch (`is_dir` false) keeps the mount. The test still asserts the
+non-canonical joined path. Do not change that behavior.
 
-- [ ] **Step 1: Write the failing test**
+**New mandatory behavior:** a real-dir-no-match mount must be dropped. This is the
+green-while-wrong guard. Without it, `copy_dir_recursive` would copy `node_modules`,
+`.git`, `src`, … into `out/{path}/`. The new unit test plus the new build-side test
+(Task 2b) pin this.
 
-Append to `mod tests`:
+- [ ] **Step 1: Write the failing tests** (two of them)
+
+Append to `mod tests` in `crates/oxibuilder-core/src/config.rs`:
 
 ```rust
 #[test]
@@ -189,29 +202,54 @@ fn resolve_mount_sources_auto_detects_dist_under_root() {
         open_in_new_tab: false,
     });
     cfg.resolve_mount_sources(tmp.path());
+    assert_eq!(cfg.mounts.len(), 1);
     assert_eq!(cfg.mounts[0].source, dist);
+}
+
+#[test]
+fn resolve_mount_sources_drops_mount_when_no_static_output_detected() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    // Real external project root, but with NO index.html and NO candidate output dir.
+    std::fs::create_dir_all(tmp.path().join("src")).unwrap();
+    std::fs::create_dir_all(tmp.path().join("node_modules")).unwrap();
+
+    let mut cfg = Config::default();
+    cfg.mounts.push(MountConfig {
+        id: "p".into(),
+        source: "project".into(),
+        path: "portfolio".into(),
+        title_ko: "k".into(),
+        title_en: "e".into(),
+        description: None,
+        icon: None,
+        open_in_new_tab: false,
+    });
+    cfg.resolve_mount_sources(tmp.path());
+    assert!(cfg.mounts.is_empty(), "mount must be dropped on no-match; got: {:#?}", cfg.mounts);
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cargo test -p oxibuilder-core config::tests::resolve_mount_sources_auto_detects_dist_under_root`
-Expected: FAIL — `cfg.mounts[0].source` is `tmp/project` (joined only), not `tmp/project/dist`.
+Run: `cargo test -p oxibuilder-core config::tests::resolve_mount_sources`
+Expected: both fail. The first lacks the detection step; the second doesn't drop.
 
-- [ ] **Step 3: Implement the detection step**
+- [ ] **Step 3: Implement detection + drop semantics**
 
 Replace the body of `resolve_mount_sources` in `crates/oxibuilder-core/src/config.rs` with:
 
 ```rust
 /// Resolve each mount's `source` to an absolute path relative to `base`, then
-/// auto-detect the static build output under it. Warns (non-fatal) when a
-/// source dir does not exist or yields no detected output.
+/// auto-detect the static build output under it. Drops the mount from
+/// `self.mounts` when the source is a real directory but no static output is
+/// detected — otherwise the downstream `copy_dir_recursive` would copy the
+/// whole project root (node_modules, .git, src, …) into `out/{path}/`. Missing
+/// sources are kept (existing behavior; the build will hard-error on copy).
 pub fn resolve_mount_sources(&mut self, base: &Path) {
-    for m in &mut self.mounts {
+    self.mounts.retain_mut(|m| {
         if !m.source.is_absolute() {
             m.source = base.join(&m.source);
         }
-        // m.source is now absolute. Auto-locate the build output dir under it.
         match detect_static_output(&m.source) {
             Some(resolved) if resolved != m.source => {
                 tracing::info!(
@@ -221,25 +259,34 @@ pub fn resolve_mount_sources(&mut self, base: &Path) {
                     resolved.display()
                 );
                 m.source = resolved;
+                true // keep — build will copy this
             }
             Some(_) => {
-                // source itself is the result dir (explicit override); use as-is.
+                // source itself is the result dir (explicit override); keep.
+                true
             }
             None => {
                 if !m.source.is_dir() {
+                    // Missing source: existing behavior — warn, keep. The build
+                    // will hard-error on the copy (same as today).
                     tracing::warn!("mount {} source not found: {}", m.id, m.source.display());
+                    true
                 } else {
+                    // Real dir, no static output detected — drop. Otherwise
+                    // copy_dir_recursive would copy the project root into
+                    // out/{path}/.
                     tracing::warn!(
                         "mount {}: no static output detected under {} \
-                         (looked for index.html and: {})",
+                         (looked for index.html and: {}) — dropping mount",
                         m.id,
                         m.source.display(),
                         MOUNT_OUTPUT_CANDIDATES.join(", ")
                     );
+                    false
                 }
             }
         }
-    }
+    });
 }
 ```
 
@@ -248,7 +295,9 @@ pub fn resolve_mount_sources(&mut self, base: &Path) {
 Run: `cargo test -p oxibuilder-core config::tests`
 Expected: all pass, including:
 - `resolve_mount_sources_auto_detects_dist_under_root` (new) — PASS
-- `resolve_mount_sources_makes_relative_absolute` (existing) — still PASS (None path leaves source as the joined non-canonical path)
+- `resolve_mount_sources_drops_mount_when_no_static_output_detected` (new) — PASS
+- `resolve_mount_sources_makes_relative_absolute` (existing) — still PASS (missing source
+  keeps the mount; the `is_dir` warn matches today's behavior).
 - `parses_mounts_section`, `validate_rejects_*` — unchanged.
 
 - [ ] **Step 5: Clippy**
@@ -263,6 +312,100 @@ git add crates/oxibuilder-core/src/config.rs
 git commit -m "feat(config): auto-detect mount build output in resolve_mount_sources"
 ```
 
+---
+
+## Task 2b: Build-side no-match guard (core)
+
+Why this exists: the plan-level regression guard. `resolve_mount_sources` runs at config
+load; the build-level test confirms that *whatever* the in-memory `config.mounts` shape is
+after resolve, the build never copies a bare project root into `out/{path}/`. Without this
+test, a future change to either `resolve_mount_sources` or `MountCopy::from_config` could
+regress the drop without any unit test catching it.
+
+**Files:**
+- Modify: `crates/oxibuilder-core/tests/static_mounts.rs` (add one test)
+
+- [ ] **Step 1: Write the failing test**
+
+Append to `crates/oxibuilder-core/tests/static_mounts.rs`:
+
+```rust
+#[test]
+fn write_build_output_does_not_copy_root_when_no_static_output_detected() {
+    // Simulates the post-resolution state: a mount whose source is the bare
+    // project root (no index.html, no candidate output dir). The build
+    // MUST NOT copy it into out/{path}/ — that would ship node_modules,
+    // .git, src, … into the served site.
+    let tmp = TempDir::with_prefix("oxibuilder-mount-nomatch-").unwrap();
+    let out = tmp.path().join("out");
+    let media = tmp.path().join("media");
+    std::fs::create_dir_all(&media).unwrap();
+
+    let src = tmp.path().join("project");
+    std::fs::create_dir_all(src.join("src")).unwrap();
+    std::fs::create_dir_all(src.join("node_modules")).unwrap();
+    std::fs::write(src.join("src").join("main.rs"), "fn main() {}").unwrap();
+
+    let out_struct = empty_output_with(vec![page(
+        "index.html",
+        "<!DOCTYPE html><html><body>lobby</body></html>",
+    )]);
+    let mut inputs = BuildInputs::new("https://example.com/", "paper", "shell", "seed");
+    inputs.mounts = vec![MountCopy {
+        source: src.clone(),
+        path: "portfolio".into(),
+    }];
+    write_build_output(&out_struct, &out, &media, &inputs).unwrap();
+
+    // The mount path must not exist under out/ at all.
+    assert!(
+        !out.join("portfolio").exists(),
+        "no-match mount must not create out/portfolio/, but found: {:#?}",
+        std::fs::read_dir(out.join("portfolio")).ok().map(|it| it.filter_map(|e| e.ok()).collect::<Vec<_>>())
+    );
+    // Verify the build_writer itself skipped the copy here. (If the drop
+    // semantics were moved into resolve_mount_sources alone, this test would
+    // happen to pass as long as the mount never reached BuildInputs. That
+    // matches the spec, but a future regression that re-introduces the mount
+    // into BuildInputs without a guard in build_writer would slip through.
+    // For this iteration, the guard lives in resolve_mount_sources and the
+    // build simply iterates a (now empty) mount list.)
+}
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run: `cargo test -p oxibuilder-core --test static_mounts write_build_output_does_not_copy_root_when_no_static_output_detected`
+Expected: FAIL — `out/portfolio/` exists and contains `src/`, `node_modules/`, etc.
+
+- [ ] **Step 3: Make it pass (the drop semantics from Task 2 do this)**
+
+The mount is dropped from `config.mounts` in `resolve_mount_sources` (Task 2). The build
+then iterates a now-empty mount list and never copies. This test is the build-side guard
+that pins the drop behavior through the full pipeline.
+
+If the test fails at this point, it means the drop semantics in Task 2 did not actually
+drop the mount all the way to `BuildInputs.mounts` — investigate.
+
+- [ ] **Step 4: Run the full mount test file**
+
+Run: `cargo test -p oxibuilder-core --test static_mounts`
+Expected: all pass, including `write_build_output_copies_mount_into_out` (happy path) and
+`write_build_output_does_not_copy_root_when_no_static_output_detected` (new).
+
+- [ ] **Step 5: Clippy**
+
+Run: `cargo clippy -p oxibuilder-core -- -D warnings`
+Expected: no warnings.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add crates/oxibuilder-core/tests/static_mounts.rs
+git commit -m "test(core): assert no-match mount does not copy project root to out/"
+```
+
+---
 ---
 
 ## Task 3: Surface `resolved_source` in `GET /mounts` (console)
@@ -424,17 +567,49 @@ If the manual edit to `../portfolio` is to be kept, leave it; otherwise revert t
 
 ## Self-Review
 
+
+
 **Spec coverage:**
-- §3.1 `detect_static_output` + candidate const → Task 1.
-- §3.2 integration into `resolve_mount_sources` → Task 2.
-- §3.3 ambiguity → covered by priority order (highest match wins; spec's optional "also matched" log note is deferred — single-match common case stays quiet; not a spec requirement, just a transparency nicety).
+- §3.1 `detect_static_output` + candidate const + 5 unit tests → Task 1.
+- §3.2 integration into `resolve_mount_sources` with drop semantics → Task 2 (Step 3
+  `retain_mut` + tightened None branch).
+- §3.3 ambiguity → covered by priority order (highest match wins; spec's optional "also
+  matched" log note is deferred — single-match common case stays quiet; not a spec
+  requirement, just a transparency nicety).
 - §3.4 `resolved_source` in `mount list` → Task 3.
-- §4 error handling → Task 2's None branch (warn paths).
-- §5 testing → all five `detect_static_output` cases + the resolve integration case + the console round-trip are Tasks 1–3.
-- §6 non-goals respected (no configurable list, no recursive scan, no build orchestration, no path rewriting).
+- §4 error handling → Task 2's `None` branch trees: missing-source keep, missing-source
+  file keep, real-dir-no-match drop.
+- §5 testing: 5 `detect_static_output` cases (Task 1), 2 `resolve_mount_sources` cases
+  (Task 2: happy path + drop), 1 build-side no-match guard (Task 2b), 1 console
+  round-trip (Task 3). The existing `resolve_mount_sources_makes_relative_absolute` and
+  `write_build_output_copies_mount_into_out` regression tests are called out in Tasks 2
+  and 2b expected outputs.
+- §6 non-goals respected (no configurable list, no recursive scan, no build orchestration,
+  no path rewriting).
 
-**Placeholder scan:** none — every code step contains real code; test steps contain real assertions.
+**Green-while-wrong guard (the blocker).** The plan now has THREE tests pinning the drop:
+1. `resolve_mount_sources_drops_mount_when_no_static_output_detected` (Task 2) — unit:
+   no-match mount is removed from `config.mounts`.
+2. `write_build_output_does_not_copy_root_when_no_static_output_detected` (Task 2b) —
+   integration: build does not produce `out/{path}/` even when the mount *does* reach
+   `BuildInputs` (post-resolution). The test pins the build-side invariant.
+3. `mount_list_surfaces_resolved_source_for_auto_detected_dir` (Task 3) — integration:
+   `GET /mounts` returns the `resolved_source` field for an auto-detected mount, which
+   is the user-visible signal that detection succeeded.
 
-**Type consistency:** `detect_static_output(&Path) -> Option<PathBuf>` defined in Task 1, used in Task 2 with identical signature. `mounts_from_doc` returns `Vec<Value>`; Task 3 mutates entries by `id` key — matches the existing object shape (`id`, `source`, …).
+A future regression that re-introduces the bare source into `out/{path}/` would fail at
+least one of these. The build-side test (Task 2b) is the direct guard for the failure
+mode the advisory identified.
 
-**Regression guard:** the non-canonical join contract (`resolve_mount_sources_makes_relative_absolute`) is preserved because detection returns `None` for the test's non-existent source and leaves `source` untouched.
+**Placeholder scan:** none — every code step contains real code; test steps contain real
+assertions.
+
+**Type consistency:** `detect_static_output(&Path) -> Option<PathBuf>` defined in Task 1,
+used in Task 2 with identical signature. `mounts_from_doc` returns `Vec<Value>`; Task 3
+mutates entries by `id` key — matches the existing object shape (`id`, `source`, …).
+
+**Regression guard:** the non-canonical join contract
+(`resolve_mount_sources_makes_relative_absolute`) is preserved because detection returns
+`None` for the test's non-existent source and the `is_dir` warn path keeps the mount
+unchanged. The drop semantics apply only to the real-dir-no-match case, which the
+existing test does not cover.
