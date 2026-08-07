@@ -317,75 +317,102 @@ git commit -m "feat(config): auto-detect mount build output in resolve_mount_sou
 ## Task 2b: Build-side no-match guard (core)
 
 Why this exists: the plan-level regression guard. `resolve_mount_sources` runs at config
-load; the build-level test confirms that *whatever* the in-memory `config.mounts` shape is
-after resolve, the build never copies a bare project root into `out/{path}/`. Without this
-test, a future change to either `resolve_mount_sources` or `MountCopy::from_config` could
-regress the drop without any unit test catching it.
+load; this build-level test confirms the drop actually propagates through the full
+pipeline to `BuildInputs.mounts` and the build never copies a bare project root into
+`out/{path}/`. Without this test, the unit test in Task 2 alone could pass while a future
+regression re-introduces the bare source into `BuildInputs`.
+
+**Important wiring note:** the drop guard lives in `resolve_mount_sources`, not in
+build_writer. Build_writer unconditionally copies whatever it finds in `BuildInputs.mounts`.
+This test therefore **routes through Config + resolve_mount_sources + MountCopy::from_config**
+— the real pipeline — not a hand-built `MountCopy` injected directly into `BuildInputs`.
 
 **Files:**
 - Modify: `crates/oxibuilder-core/tests/static_mounts.rs` (add one test)
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `crates/oxibuilder-core/tests/static_mounts.rs`:
+Append to `crates/oxibuilder-core/tests/static_mounts.rs` (add `use oxibuilder_core::config::Config;`
+near the existing imports at the top of the file):
 
 ```rust
 #[test]
 fn write_build_output_does_not_copy_root_when_no_static_output_detected() {
-    // Simulates the post-resolution state: a mount whose source is the bare
-    // project root (no index.html, no candidate output dir). The build
-    // MUST NOT copy it into out/{path}/ — that would ship node_modules,
-    // .git, src, … into the served site.
+    // External project root with src/ and node_modules/ but NO index.html and
+    // NO candidate output dir. After resolve_mount_sources drops the mount, the
+    // build must not produce out/portfolio/ at all.
     let tmp = TempDir::with_prefix("oxibuilder-mount-nomatch-").unwrap();
-    let out = tmp.path().join("out");
-    let media = tmp.path().join("media");
+    let base = tmp.path();
+    let out = base.join("out");
+    let media = base.join("media");
     std::fs::create_dir_all(&media).unwrap();
 
-    let src = tmp.path().join("project");
-    std::fs::create_dir_all(src.join("src")).unwrap();
-    std::fs::create_dir_all(src.join("node_modules")).unwrap();
-    std::fs::write(src.join("src").join("main.rs"), "fn main() {}").unwrap();
+    let project = base.join("project");
+    std::fs::create_dir_all(project.join("src")).unwrap();
+    std::fs::create_dir_all(project.join("node_modules")).unwrap();
+    std::fs::write(project.join("src").join("main.rs"), "fn main() {}").unwrap();
 
+    // Build a Config with one mount whose source is the project root.
+    let mut cfg = Config::default();
+    cfg.mounts.push(MountConfig {
+        id: "p".into(),
+        source: "project".into(), // relative to base
+        path: "portfolio".into(),
+        title_ko: "k".into(),
+        title_en: "e".into(),
+        description: None,
+        icon: None,
+        open_in_new_tab: false,
+    });
+    cfg.resolve_mount_sources(base);
+
+    // The drop must happen at resolve — that is the actual guard.
+    assert!(
+        cfg.mounts.is_empty(),
+        "no-match mount must be dropped at resolve; got: {:#?}",
+        cfg.mounts
+    );
+
+    // Build BuildInputs from the (now-empty) resolved mounts — the real pipeline.
     let out_struct = empty_output_with(vec![page(
         "index.html",
         "<!DOCTYPE html><html><body>lobby</body></html>",
     )]);
     let mut inputs = BuildInputs::new("https://example.com/", "paper", "shell", "seed");
-    inputs.mounts = vec![MountCopy {
-        source: src.clone(),
-        path: "portfolio".into(),
-    }];
+    inputs.mounts = cfg.mounts.iter().map(MountCopy::from_config).collect();
+    assert!(
+        inputs.mounts.is_empty(),
+        "BuildInputs.mounts must be empty after resolve drop"
+    );
     write_build_output(&out_struct, &out, &media, &inputs).unwrap();
 
     // The mount path must not exist under out/ at all.
     assert!(
         !out.join("portfolio").exists(),
-        "no-match mount must not create out/portfolio/, but found: {:#?}",
-        std::fs::read_dir(out.join("portfolio")).ok().map(|it| it.filter_map(|e| e.ok()).collect::<Vec<_>>())
+        "no-match mount must not create out/portfolio/"
     );
-    // Verify the build_writer itself skipped the copy here. (If the drop
-    // semantics were moved into resolve_mount_sources alone, this test would
-    // happen to pass as long as the mount never reached BuildInputs. That
-    // matches the spec, but a future regression that re-introduces the mount
-    // into BuildInputs without a guard in build_writer would slip through.
-    // For this iteration, the guard lives in resolve_mount_sources and the
-    // build simply iterates a (now empty) mount list.)
 }
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run: `cargo test -p oxibuilder-core --test static_mounts write_build_output_does_not_copy_root_when_no_static_output_detected`
-Expected: FAIL — `out/portfolio/` exists and contains `src/`, `node_modules/`, etc.
+Expected: FAIL — the `cfg.mounts.is_empty()` assertion fails (the drop isn't implemented
+yet at this step; or if Task 2 has already run, the assertion passes and the build
+produces no output, which is still the desired state — note Step 2's failure mode in
+relation to Task 2's order: this test is run after Task 2, so the resolve-drop happens
+and the rest of the assertions pass. The test MUST fail transiently if Task 2's drop is
+reverted, which is its real purpose.)
 
-- [ ] **Step 3: Make it pass (the drop semantics from Task 2 do this)**
+- [ ] **Step 3: Confirm drop semantics carry through to BuildInputs**
 
-The mount is dropped from `config.mounts` in `resolve_mount_sources` (Task 2). The build
-then iterates a now-empty mount list and never copies. This test is the build-side guard
-that pins the drop behavior through the full pipeline.
+The test passes when `resolve_mount_sources` (Task 2) drops the mount and BuildInputs is
+built from the resulting empty `config.mounts`. No code in `build_writer` is changed.
 
-If the test fails at this point, it means the drop semantics in Task 2 did not actually
-drop the mount all the way to `BuildInputs.mounts` — investigate.
+If this test fails after Task 2 passes, the drop semantics did not actually reach
+`BuildInputs.mounts` — investigate. Most likely cause: a future caller forgets to use
+`MountCopy::from_config` (or equivalent) and injects raw mounts; the test pins the
+correct pipeline.
 
 - [ ] **Step 4: Run the full mount test file**
 
@@ -406,8 +433,6 @@ git commit -m "test(core): assert no-match mount does not copy project root to o
 ```
 
 ---
----
-
 ## Task 3: Surface `resolved_source` in `GET /mounts` (console)
 
 **Files:**
