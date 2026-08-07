@@ -170,7 +170,6 @@ pub enum ConfigError {
 /// mount `source` (project root) to auto-locate the static build artifacts.
 /// `public`/`site` are deliberately omitted: they are commonly build inputs
 /// or multi-purpose, so matching them risks grafting the wrong directory.
-#[allow(dead_code)] // consumed by Task 2 (resolve_mount_sources) in the same plan
 pub(crate) const MOUNT_OUTPUT_CANDIDATES: &[&str] = &[
     "dist",           // Vite / Astro / most bundlers
     "build",          // CRA / others
@@ -181,7 +180,6 @@ pub(crate) const MOUNT_OUTPUT_CANDIDATES: &[&str] = &[
 ];
 
 /// `index.html` presence is the marker of a static-site root.
-#[allow(dead_code)] // consumed by Task 2 (resolve_mount_sources) in the same plan
 pub(crate) fn has_index_html(dir: &Path) -> bool {
     dir.is_dir() && dir.join("index.html").is_file()
 }
@@ -193,7 +191,6 @@ pub(crate) fn has_index_html(dir: &Path) -> bool {
 /// honored verbatim). Otherwise the first `source/<candidate>` that is a
 /// directory containing `index.html` wins, in `MOUNT_OUTPUT_CANDIDATES`
 /// priority order. `None` when nothing matches.
-#[allow(dead_code)] // consumed by Task 2 (resolve_mount_sources) in the same plan
 pub(crate) fn detect_static_output(source: &Path) -> Option<PathBuf> {
     if has_index_html(source) {
         return Some(source.to_path_buf());
@@ -278,21 +275,54 @@ impl Config {
         Ok(())
     }
 
-    /// Resolve each mount's `source` to an absolute path relative to `base`.
-    /// Warns (non-fatal) when a source dir does not exist.
+    /// Resolve each mount's `source` to an absolute path relative to `base`, then
+    /// auto-detect the static build output under it. Drops the mount from
+    /// `self.mounts` when the source is a real directory but no static output is
+    /// detected — otherwise the downstream `copy_dir_recursive` would copy the
+    /// whole project root (node_modules, .git, src, …) into `out/{path}/`. Missing
+    /// sources are kept (existing behavior; the build will hard-error on copy).
     pub fn resolve_mount_sources(&mut self, base: &Path) {
-        for m in &mut self.mounts {
+        self.mounts.retain_mut(|m| {
             if !m.source.is_absolute() {
                 m.source = base.join(&m.source);
             }
-            if !m.source.is_dir() {
-                tracing::warn!(
-                    "mount {} source not found: {}",
-                    m.id,
-                    m.source.display()
-                );
+            match detect_static_output(&m.source) {
+                Some(resolved) if resolved != m.source => {
+                    tracing::info!(
+                        "mount {}: auto-detected {} -> {}",
+                        m.id,
+                        m.source.display(),
+                        resolved.display()
+                    );
+                    m.source = resolved;
+                    true // keep — build will copy this
+                }
+                Some(_) => {
+                    // source itself is the result dir (explicit override); keep.
+                    true
+                }
+                None => {
+                    if !m.source.is_dir() {
+                        // Missing source: existing behavior — warn, keep. The build
+                        // will hard-error on the copy (same as today).
+                        tracing::warn!("mount {} source not found: {}", m.id, m.source.display());
+                        true
+                    } else {
+                        // Real dir, no static output detected — drop. Otherwise
+                        // copy_dir_recursive would copy the project root into
+                        // out/{path}/.
+                        tracing::warn!(
+                            "mount {}: no static output detected under {} \
+                             (looked for index.html and: {}) — dropping mount",
+                            m.id,
+                            m.source.display(),
+                            MOUNT_OUTPUT_CANDIDATES.join(", ")
+                        );
+                        false
+                    }
+                }
             }
-        }
+        });
     }
 }
 
@@ -499,6 +529,57 @@ description = "Hand-crafted work"
         std::fs::create_dir_all(tmp.path().join("src")).unwrap();
         std::fs::create_dir_all(tmp.path().join("node_modules")).unwrap();
         assert!(detect_static_output(tmp.path()).is_none());
+    }
+
+    #[test]
+    fn resolve_mount_sources_auto_detects_dist_under_root() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        // External project root with a dist/ output under it.
+        let dist = tmp.path().join("project").join("dist");
+        std::fs::create_dir_all(&dist).unwrap();
+        std::fs::write(dist.join("index.html"), "x").unwrap();
+
+        let mut cfg = Config::default();
+        cfg.mounts.push(MountConfig {
+            id: "p".into(),
+            source: "project".into(),
+            path: "portfolio".into(),
+            title_ko: "k".into(),
+            title_en: "e".into(),
+            description: None,
+            icon: None,
+            open_in_new_tab: false,
+        });
+        cfg.resolve_mount_sources(tmp.path());
+        assert_eq!(cfg.mounts.len(), 1);
+        assert_eq!(cfg.mounts[0].source, dist);
+    }
+
+    #[test]
+    fn resolve_mount_sources_drops_mount_when_no_static_output_detected() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        // Real external project root, but with NO index.html and NO candidate output dir.
+        // (Brief setup typo fixed: src/node_modules must live under project/, otherwise
+        // base.join("project") resolves to a missing path and the missing-source branch
+        // would keep the mount instead of dropping it.)
+        let project = tmp.path().join("project");
+        std::fs::create_dir_all(&project).unwrap();
+        std::fs::create_dir_all(project.join("src")).unwrap();
+        std::fs::create_dir_all(project.join("node_modules")).unwrap();
+
+        let mut cfg = Config::default();
+        cfg.mounts.push(MountConfig {
+            id: "p".into(),
+            source: "project".into(),
+            path: "portfolio".into(),
+            title_ko: "k".into(),
+            title_en: "e".into(),
+            description: None,
+            icon: None,
+            open_in_new_tab: false,
+        });
+        cfg.resolve_mount_sources(tmp.path());
+        assert!(cfg.mounts.is_empty(), "mount must be dropped on no-match; got: {:#?}", cfg.mounts);
     }
 }
 
