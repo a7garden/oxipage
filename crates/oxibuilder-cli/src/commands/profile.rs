@@ -41,18 +41,18 @@ pub(crate) async fn profile(c: ProfileCommand, out: &Output) -> anyhow::Result<(
             Some(p) => out.data(serde_json::to_value(&p)?, "profile"),
             None => out.ok("no profile set"),
         },
-    ProfileCommand::Set(args) => {
-        let ProfileSetArgs {
-            display_name,
-            email,
-            github_username,
-            linkedin,
-            tagline_ko,
-            tagline_en,
-            avatar_url,
-            bio_ko,
-            bio_en,
-        } = *args;
+        ProfileCommand::Set(args) => {
+            let ProfileSetArgs {
+                display_name,
+                email,
+                github_username,
+                linkedin,
+                tagline_ko,
+                tagline_en,
+                avatar_url,
+                bio_ko,
+                bio_en,
+            } = *args;
             // Ensure the singleton row exists (server boot creates it from
             // site.name; this is the CLI's safety net for a fresh DB).
             repo::ensure_singleton(&pool, "Owner").await?;
