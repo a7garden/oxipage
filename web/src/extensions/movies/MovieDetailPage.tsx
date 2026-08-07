@@ -6,6 +6,7 @@ import { fetchMovies } from "../../shared/api";
 import { useLanguage } from "../../shared/language";
 import { PageTitle } from "../../shared/ui/page-header";
 import { RatingStars } from "../../shared/RatingStars";
+import { pickVariant, useOptimizedImage } from "../../shared/useOptimizedImage";
 import {
   EmptyState,
   EmptyStateDescription,
@@ -54,6 +55,8 @@ export function MovieDetailPage() {
 
   const title = pick(movie.title_ko, movie.title_en) || movie.title;
   const poster = posterUrl(movie.poster_path, 500);
+  const optimized = useOptimizedImage(poster);
+  const variant = optimized ? pickVariant(optimized) : null;
   const runtime = fmtRuntime(movie.runtime_min);
   const synopsis = pick(movie.review_ko, movie.review_en);
 
@@ -64,7 +67,19 @@ export function MovieDetailPage() {
       </Link>
 
       <div className="flex flex-col gap-6 sm:flex-row">
-        {poster ? (
+        {variant ? (
+          <img
+            src={variant.url}
+            srcSet={optimized!.srcset.map((s) => `${s.url} ${s.w}w`).join(", ")}
+            sizes="160px"
+            width={optimized!.width}
+            height={optimized!.height}
+            alt={title}
+            className="w-40 shrink-0 rounded-lg border border-line object-cover shadow-sm"
+            loading="lazy"
+            decoding="async"
+          />
+        ) : poster ? (
           <img
             src={poster}
             alt={title}
@@ -96,6 +111,7 @@ export function MovieDetailPage() {
           )}
         </div>
       </div>
+
 
       {synopsis && <p className="max-w-prose leading-relaxed text-foreground">{synopsis}</p>}
 

@@ -13,6 +13,8 @@ pub struct MovieEntry {
     pub title_ko: Option<String>,
     pub title_en: Option<String>,
     pub poster_path: Option<String>,
+    /// 콤마 구분 ISO-3166 alpha-2 ("KR,US"). TMDB production_countries 기반.
+    pub origin: Option<String>,
     pub release_year: Option<i32>,
     pub runtime_min: Option<i32>,
     pub watched_at: Option<String>,
@@ -144,6 +146,7 @@ pub struct MovieEntryInput {
     #[serde(default)]
     pub title_en: Option<String>,
     pub poster_path: Option<String>,
+    pub origin: Option<String>,
     pub release_year: Option<i32>,
     #[serde(default)]
     pub runtime_min: Option<i32>,
@@ -174,6 +177,7 @@ pub struct MovieEntryPatch {
     pub title_ko: Option<String>,
     pub title_en: Option<String>,
     pub poster_path: Option<String>,
+    pub origin: Option<String>,
     pub release_year: Option<i32>,
     pub runtime_min: Option<i32>,
     pub watched_at: Option<String>,

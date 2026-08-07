@@ -1,8 +1,10 @@
-// Movie stats, adapted to oxi's MovieEntry shape (NO nation field; genres/cast/
-// directors carry localized name_en/name_ko). Ported from ../blog-test's
-// movieStats.ts structure, canonicalized on name_en (TMDB-keyed). Localized in the page.
+// Movie stats, adapted to oxi's MovieEntry shape (origin = ISO country codes,
+// comma-separated; genres/cast/directors carry localized name_en/name_ko).
+// Ported from ../blog-test's movieStats.ts structure, canonicalized on
+// name_en (TMDB-keyed). Localized in the page.
 
 import type { MovieEntry } from "../../shared/api";
+import { nationLabel, parseNationCodes } from "../nations";
 
 export interface MovieCountRow {
   name: string;
@@ -23,6 +25,8 @@ export interface MovieStats {
   directors: MovieCountRow[];
   runtimeBuckets: MovieCountRow[];
   ratingBuckets: MovieCountRow[];
+  nations: MovieCountRow[];
+  nationCount: number;
 }
 
 function topRows(map: Map<string, number>, limit: number): MovieCountRow[] {
@@ -44,6 +48,7 @@ export function computeMovieStats(movies: MovieEntry[]): MovieStats {
   const genreCounts = new Map<string, number>();
   const actorCounts = new Map<string, number>();
   const directorCounts = new Map<string, number>();
+  const nationCounts = new Map<string, number>();
   const yearCounts = new Map<number, number>();
   let runtimeSum = 0;
   let runtimeN = 0;
@@ -71,6 +76,9 @@ export function computeMovieStats(movies: MovieEntry[]): MovieStats {
     if (Number.isFinite(m.rating) && m.rating > 0) {
       ratingSum += m.rating;
       ratingN += 1;
+    }
+    for (const code of parseNationCodes(m.origin)) {
+      nationCounts.set(code, (nationCounts.get(code) ?? 0) + 1);
     }
   }
 
@@ -103,6 +111,11 @@ export function computeMovieStats(movies: MovieEntry[]): MovieStats {
     }
   }
 
+  const nations = [...nationCounts.entries()]
+    .map(([code, count]) => ({ name: nationLabel(code), count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+    .slice(0, 15);
+
   return {
     total,
     directorCount: directorCounts.size,
@@ -117,6 +130,8 @@ export function computeMovieStats(movies: MovieEntry[]): MovieStats {
     directors: topRows(directorCounts, 10),
     runtimeBuckets: orderBuckets(runtimeBuckets, ["< 90", "90–120", "120–150", "150+"]),
     ratingBuckets: orderRatingBuckets(ratingBuckets),
+    nations,
+    nationCount: nationCounts.size,
   };
 }
 
@@ -127,9 +142,11 @@ function orderBuckets(map: Map<string, number>, order: string[]): MovieCountRow[
 }
 
 function orderRatingBuckets(map: Map<string, number>): MovieCountRow[] {
-  // Order by the numeric low edge.
   return [...map.entries()]
-    .map(([name, count]) => ({ name, count, lo: parseFloat(name) }))
-    .sort((a, b) => a.lo - b.lo)
-    .map(({ name, count }) => ({ name, count }));
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => {
+      const al = parseFloat(a.name);
+      const bl = parseFloat(b.name);
+      return al - bl;
+    });
 }

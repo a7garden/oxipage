@@ -11,6 +11,9 @@ pub struct Book {
     pub title: String,
     pub author: Option<String>,
     pub cover_image_url: Option<String>,
+    pub category: Option<String>,
+    pub publisher: Option<String>,
+    pub page_count: Option<i64>,
     pub rating: i8,
     pub review_ko: Option<String>,
     pub review_en: Option<String>,
@@ -31,6 +34,9 @@ pub struct BookSearchResult {
     pub title: String,
     pub author: Option<String>,
     pub cover_image_url: Option<String>,
+    pub category: Option<String>,
+    pub publisher: Option<String>,
+    pub page_count: Option<i64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -42,6 +48,12 @@ pub struct BookInput {
     pub title: String,
     pub author: Option<String>,
     pub cover_image_url: Option<String>,
+    #[serde(default)]
+    pub category: Option<String>,
+    #[serde(default)]
+    pub publisher: Option<String>,
+    #[serde(default)]
+    pub page_count: Option<i64>,
     /// 0~10 정수. 핸들러에서 `Rating::new`로 검증한다.
     pub rating: i8,
     pub review_ko: Option<String>,
@@ -86,6 +98,12 @@ pub struct BookPatch {
     pub title: Option<String>,
     pub author: Option<String>,
     pub cover_image_url: Option<String>,
+    #[serde(default)]
+    pub category: Option<String>,
+    #[serde(default)]
+    pub publisher: Option<String>,
+    #[serde(default)]
+    pub page_count: Option<i64>,
     /// None이면 변경 안 함. 0~10 검증은 핸들러에서.
     pub rating: Option<i8>,
     pub review_ko: Option<String>,

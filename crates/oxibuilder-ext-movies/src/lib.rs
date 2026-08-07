@@ -158,6 +158,72 @@ impl CliHandler for MovieSeriesCreateHandler {
     }
 }
 
+struct MovieRefreshHandler;
+impl CliHandler for MovieRefreshHandler {
+    fn run(
+        &self,
+        args: BTreeMap<String, String>,
+        client: &Client,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>> {
+        // --slug <slug> (단건) 또는 --all (전체). 하나만 지정해야 한다.
+        let slug = args.get("slug").cloned();
+        let all = args.get("all").map(|v| v == "true").unwrap_or(false);
+        let client = client.clone();
+        Box::pin(async move {
+            match (slug, all) {
+                (Some(s), false) => {
+                    let resp = client
+                        .post(&format!("/api/console/movies/{s}/refresh"), &serde_json::json!({}))
+                        .await
+                        .map_err(|e| anyhow::anyhow!("{e}"))?;
+                    println!("{}", serde_json::to_string_pretty(&resp)?);
+                }
+                (None, true) => {
+                    // 모든 엔트리를 순회. 단건 실패는 로깅 후 계속.
+                    let list_resp = client
+                        .get("/api/console/movies/?limit=200")
+                        .await
+                        .map_err(|e| anyhow::anyhow!("{e}"))?;
+                    let items = list_resp
+                        .get("data")
+                        .and_then(|d| d.as_array())
+                        .cloned()
+                        .unwrap_or_default();
+                    let mut refreshed = 0usize;
+                    let mut skipped = 0usize;
+                    for item in &items {
+                        let slug = match item.get("slug").and_then(|v| v.as_str()) {
+                            Some(s) => s.to_string(),
+                            None => continue,
+                        };
+                        match client
+                            .post(
+                                &format!("/api/console/movies/{slug}/refresh"),
+                                &serde_json::json!({}),
+                            )
+                            .await
+                        {
+                            Ok(_) => refreshed += 1,
+                            Err(e) => {
+                                tracing::warn!(slug = %slug, error = %e, "refresh failed; skipping");
+                                skipped += 1;
+                            }
+                        }
+                    }
+                    println!(
+                        "refreshed {refreshed} entries, skipped {skipped} (of {} total)",
+                        items.len()
+                    );
+                }
+                _ => {
+                    anyhow::bail!("specify exactly one of --slug <slug> or --all");
+                }
+            }
+            Ok(())
+        })
+    }
+}
+
 struct MoviesKeySave;
 #[async_trait]
 impl SetupSaveHandler for MoviesKeySave {
@@ -206,6 +272,11 @@ impl Extension for MoviesExtension {
                 name: "meta",
                 sql: include_str!("../migrations/0002_meta.sql"),
             },
+            Migration {
+                version: 3,
+                name: "origin",
+                sql: include_str!("../migrations/0003_origin.sql"),
+            },
         ]
     }
 
@@ -220,6 +291,7 @@ impl Extension for MoviesExtension {
                     .delete(routes::delete),
             )
             .route("/{slug}/publish", post(routes::publish))
+            .route("/{slug}/refresh", post(routes::refresh))
             .route(
                 "/series",
                 get(routes::list_groups).post(routes::create_group),
@@ -318,6 +390,25 @@ impl Extension for MoviesExtension {
                         },
                     ],
                     handler: Some(Arc::new(MovieSeriesCreateHandler)),
+                },
+                CliSubcommand {
+                    name: "refresh",
+                    about: "Re-fetch movie metadata (origin) for an entry or --all",
+                    args: vec![
+                        CliArg {
+                            long: "slug",
+                            short: Some('s'),
+                            help: "Movie slug to refresh (mutually exclusive with --all)",
+                            required: false,
+                        },
+                        CliArg {
+                            long: "all",
+                            short: None,
+                            help: "Refresh every entry (per-entry failures are logged and skipped)",
+                            required: false,
+                        },
+                    ],
+                    handler: Some(Arc::new(MovieRefreshHandler)),
                 },
             ],
         }]
@@ -455,4 +546,31 @@ impl BuildExt for MoviesExtension {
             })
             .collect())
     }
+
+    fn external_image_urls(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Vec<String>, Box<dyn Error + Send + Sync>> {
+        // TMDB `poster_path` is stored as a raw path (e.g. "/abc.jpg"), not a full URL.
+        // Build the full `w500` URL here so the manifest key matches what `optimize_external`
+        // will fetch and (later) what the SPA pre-pass substitutes for `MovieCard.posterUrl()`.
+        const POSTER_BASE: &str = "https://image.tmdb.org/t/p/w500";
+        let rows: Vec<(Option<String>,)> = rt.block_on(async {
+            sqlx::query_as(
+                "SELECT poster_path FROM movie_entry \
+                 WHERE published_at IS NOT NULL AND poster_path IS NOT NULL \
+                   AND poster_path <> ''",
+            )
+            .fetch_all(db)
+            .await
+        })?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|(p,)| p)
+            .filter(|p| !p.is_empty())
+            .map(|p| format!("{POSTER_BASE}{p}"))
+            .collect())
+    }
 }
+

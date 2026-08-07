@@ -302,6 +302,7 @@ export interface MovieEntry {
   title_ko: string | null;
   title_en: string | null;
   poster_path: string | null;
+  origin: string | null;
   release_year: number | null;
   runtime_min: number | null;
   watched_at: string | null;
@@ -338,6 +339,9 @@ export interface Book {
   published_at: string | null;
   created_at: string;
   updated_at: string;
+  category: string | null;
+  publisher: string | null;
+  page_count: number | null;
 }
 export const fetchBooks = () => apiFetch<Book[]>('/books');
 

@@ -40,10 +40,25 @@ pub(crate) async fn build(c: BuildCommand) -> anyhow::Result<()> {
     //    `all_builders_with_image_manifest` so the SAME BlogExtension
     //    instance the build_site vec holds sees it (its `set_manifest` is
     //    idempotent — `OnceLock::set` first-call-wins).
+    //
+    //    The pre-pass also collects `external_image_urls` from every extension
+    //    so CDN-hosted posters/covers get the same WebP + manifest treatment
+    //    (Task 3). We pass `pre_builders` here with NO manifest yet — the
+    //    pre-pass doesn't need it, and the SAME BlogExtension instance is
+    //    later re-boxed below with the populated manifest for the build vec.
+    let pre_builders: Vec<Box<dyn oxibuilder_core::builder::BuildExt>> =
+        oxibuilder_console::all_builders_with_image_manifest(None);
+    let pre_pass_rt = tokio::runtime::Handle::current();
     let (image_staging_dir, image_manifest) =
-        oxibuilder_core::build::run_image_pre_pass(&pool, &media_dir, &data_dir)
-            .await
-            .map_err(|e| anyhow::anyhow!("image pre-pass: {e}"))?;
+        oxibuilder_core::build::run_image_pre_pass(
+            &pool,
+            &media_dir,
+            &data_dir,
+            &pre_builders,
+            &pre_pass_rt,
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("image pre-pass: {e}"))?;
 
     // 4. Run build pipeline (manifest is now live in `BlogExtension`).
     let builder_refs: Vec<Box<dyn oxibuilder_core::builder::BuildExt>> =

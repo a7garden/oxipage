@@ -153,7 +153,7 @@ CREATE TABLE IF NOT EXISTS blog_post (
 );
 "#;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn derived_images_survive_out_wipe_and_manifest_is_written() {
     // 1. Spin up tmp dirs: data_dir holds the .db + media + (later) .image-build;
     //    out_dir is wiped by write_build_output and rebuilt from scratch.
@@ -188,7 +188,7 @@ async fn derived_images_survive_out_wipe_and_manifest_is_written() {
 
     // 4. Run the pre-pass against the real media_dir + data_dir.
     let (staging, manifest) =
-        oxibuilder_core::build::run_image_pre_pass(&pool, &media_dir, &data_dir)
+        oxibuilder_core::build::run_image_pre_pass(&pool, &media_dir, &data_dir, &[], &tokio::runtime::Handle::current())
             .await
             .expect("pre-pass");
 
@@ -622,4 +622,426 @@ fn end_to_end_pipeline_renders_image_into_blog_page() {
             "manifest includes srcset urls: {json}"
         );
     });
+}
+
+// --- Task 6 (Track A + Track B) integration verification ---------------------
+// Two final acceptance tests for the merged movies-books-stats-parity +
+// external-image-optimization plans. Both share this file per the brief; both
+// use the real `MoviesExtension` + `BooksExtension` builders (added as
+// `[dev-dependencies]` for `oxibuilder-core` in Cargo.toml) so they exercise
+// production code paths rather than the earlier StubBuilder-style scaffolding.
+// They run under `#[tokio::test(flavor = "multi_thread")]` to match the
+// pre-pass / `block_in_place` discipline documented at build.rs:172-179.
+
+/// Track A acceptance: a DB whose pre-stats-parity schema (movies 0001 +
+/// books 0001 only) has been upgraded in-place to the current migration set
+/// must still build the static site. Specifically:
+///   1. The 0002 / 0003 ALTER TABLE migrations apply cleanly to a v0.8.x DB
+///      (column additions, no rewriting of legacy rows).
+///   2. Legacy rows — i.e. rows whose origin / category / publisher /
+///      page_count / title_ko / title_en / runtime_min columns are NULL
+///      because they pre-date those migrations — round-trip through the real
+///      `MoviesExtension` + `BooksExtension` builders without erroring on the
+///      nullable columns.
+///   3. `build_site` produces pages for the published entries.
+///   4. `external_image_urls` for both extensions returns the expected URL
+///      shape (movies: full TMDB w500 URL; books: stored cover_image_url)
+///      even when the row has no new-migration data.
+#[tokio::test(flavor = "multi_thread")]
+async fn migration_compat_build_handles_legacy_null_columns() {
+    use oxibuilder_ext_books::BooksExtension;
+    use oxibuilder_ext_movies::MoviesExtension;
+    use oxibuilder_core::registry::ExtensionRegistry;
+    use std::sync::Arc;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let db_path = tmp.path().join("oxibuilder.db");
+    let pool = db::connect(&db_path).await.unwrap();
+
+    // --- 1. Step-up the DB: register both extensions and run all migrations.
+    //         Registry runs `_core` + each extension's migrations in version
+    //         order, so this is the production upgrade path.
+    let registry = Arc::new(ExtensionRegistry::new(vec![
+        Arc::new(MoviesExtension),
+        Arc::new(BooksExtension),
+    ]));
+    registry.run_migrations(&pool, &[]).await.unwrap();
+
+    // --- 2. Insert legacy-shape rows: every column added by 0002 / 0003 is
+    //         omitted, so SQLite stores NULL. This is the exact shape a v0.8.x
+    //         DB would have on disk the moment a fresh deployment runs the
+    //         upgrade.
+    sqlx::query(
+        "INSERT INTO movie_entry (slug, media_type, title, rating, published_at) \
+         VALUES (?1, ?2, ?3, ?4, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+    )
+    .bind("legacy-movie")
+    .bind("movie")
+    .bind("Legacy Movie")
+    .bind(7i64)
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO book_entry (source, title, rating, status, published_at) \
+         VALUES (?1, ?2, ?3, ?4, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+    )
+    .bind("manual")
+    .bind("Legacy Book")
+    .bind(8i64)
+    .bind("completed")
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    // --- 3. Verify the new columns exist with NULL on the legacy row. If any
+    //         of these reads fails, the migration didn't apply and the build
+    //         below would not be exercising the right schema.
+    let movie_nullable: (Option<String>, Option<String>, Option<String>, Option<i32>) =
+        sqlx::query_as(
+            "SELECT origin, title_ko, title_en, runtime_min FROM movie_entry WHERE slug = 'legacy-movie'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(
+        movie_nullable.0.is_none()
+            && movie_nullable.1.is_none()
+            && movie_nullable.2.is_none()
+            && movie_nullable.3.is_none(),
+        "movie_entry 0002/0003 columns must be NULL on a legacy row, got: {:?}",
+        movie_nullable,
+    );
+    let book_nullable: (Option<String>, Option<String>, Option<i64>) = sqlx::query_as(
+        "SELECT category, publisher, page_count FROM book_entry WHERE title = 'Legacy Book'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(
+        book_nullable.0.is_none() && book_nullable.1.is_none() && book_nullable.2.is_none(),
+        "book_entry 0002 columns must be NULL on a legacy row, got: {:?}",
+        book_nullable,
+    );
+
+    // --- 4. Build with the real extensions. BuildExt::external_image_urls
+    //         exercises `block_on` over the same DB pool — same code path
+    //         movies/BooksExtension use in production for the build pipeline.
+    let builders: std::sync::Arc<Vec<Box<dyn BuildExt>>> =
+        std::sync::Arc::new(vec![Box::new(MoviesExtension), Box::new(BooksExtension)]);
+    let rt = tokio::runtime::Handle::current();
+    // `spawn_blocking` takes the closure by move; clone the pool (cheap, Arc-backed)
+    // and the builders Arc so the `block_in_place` collection loop below can also
+    // observe them.
+    let pool_for_build = pool.clone();
+    let builders_for_build = builders.clone();
+    let output = tokio::task::spawn_blocking(move || {
+        build_site(&pool_for_build, &builders_for_build)
+    })
+    .await
+    .expect("spawn_blocking join")
+    .expect("build_site must succeed on a legacy-shape DB");
+    // Both extensions emitted a page for their published entry.
+    assert!(
+        output.pages.iter().any(|p| p.path == "movies/legacy-movie/index.html"),
+        "movies page missing from build output: {:#?}",
+        output.pages.iter().map(|p| &p.path).collect::<Vec<_>>(),
+    );
+    // book entry id is auto-assigned; just check that exactly one books page
+    // was emitted and that its <title> carries our legacy book title.
+    let book_pages: Vec<&str> = output
+        .pages
+        .iter()
+        .filter(|p| p.path.starts_with("books/"))
+        .map(|p| p.path.as_str())
+        .collect();
+    assert_eq!(
+        book_pages.len(),
+        1,
+        "one books page expected, got: {book_pages:?}"
+    );
+    let book_page = output
+        .pages
+        .iter()
+        .find(|p| p.path.starts_with("books/"))
+        .expect("book page present");
+    assert!(
+        book_page.content.contains("Legacy Book"),
+        "book page must carry the legacy entry's title, got: {}",
+        book_page.content,
+    );
+
+    // --- 5. external_image_urls returns the expected shape even when the
+    //         legacy row has no poster_path / cover_image_url (both columns
+    //         pre-date the migrations and are simply NULL here). The
+    //         collections are wrapped in block_in_place the same way
+    //         run_image_pre_pass does (see build.rs:237-252) — if the
+    //         builder's internal `block_on` ever regressed, this would
+    //         panic with the "Cannot start a runtime from within a runtime"
+    //         error documented at ssg_build.rs:433-442.
+    let external_collected: Vec<(String, Vec<String>)> = tokio::task::block_in_place(|| {
+        let mut out = Vec::new();
+        for b in builders.iter() {
+            let urls = b.external_image_urls(&pool, &rt).expect("external_image_urls");
+            out.push((b.ext_id().to_string(), urls));
+        }
+        out
+    });
+    for (id, urls) in &external_collected {
+        assert!(
+            urls.is_empty(),
+            "{id}: external_image_urls must be empty when no poster/cover is set, got: {urls:?}",
+        );
+    }
+
+    // --- 6. Bonus: insert a row with a poster_path + cover_image_url and
+    //         re-run external_image_urls so we also prove the URL-shape
+    //         contract from Track B (movies: full TMDB w500 URL; books:
+    //         stored http URL) is honored through a DB whose other rows
+    //         pre-date the new migrations.
+    sqlx::query(
+        "INSERT INTO movie_entry (slug, media_type, title, poster_path, rating, published_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+    )
+    .bind("modern-movie")
+    .bind("movie")
+    .bind("Modern Movie")
+    .bind("/abc.jpg")
+    .bind(8i64)
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO book_entry (source, title, cover_image_url, rating, status, published_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+    )
+    .bind("aladin")
+    .bind("Modern Book")
+    .bind("https://example.com/cover.jpg")
+    .bind(9i64)
+    .bind("completed")
+    .bind("2026-08-07T00:00:00.000Z")
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let after: Vec<(String, Vec<String>)> = tokio::task::block_in_place(|| {
+        let mut out = Vec::new();
+        for b in builders.iter() {
+            let urls = b.external_image_urls(&pool, &rt).expect("external_image_urls");
+            out.push((b.ext_id().to_string(), urls));
+        }
+        out
+    });
+    let movies_urls = after
+        .iter()
+        .find(|(id, _)| id == "movies")
+        .unwrap()
+        .1
+        .clone();
+    assert!(
+        movies_urls
+            .iter()
+            .any(|u| u == "https://image.tmdb.org/t/p/w500/abc.jpg"),
+        "movies.external_image_urls must emit the full TMDB w500 URL for poster_path='/abc.jpg', got: {movies_urls:?}",
+    );
+    let books_urls = after
+        .iter()
+        .find(|(id, _)| id == "books")
+        .unwrap()
+        .1
+        .clone();
+    assert!(
+        books_urls
+            .iter()
+            .any(|u| u == "https://example.com/cover.jpg"),
+        "books.external_image_urls must surface the stored cover_image_url verbatim, got: {books_urls:?}",
+    );
+}
+
+/// Track B acceptance: a builder whose `external_image_urls` returns a real
+/// http:// URL causes `run_image_pre_pass` to (a) materialize a manifest
+/// entry keyed by that URL and (b) write WebP variants into the staging dir,
+/// without ever touching the public internet.
+///
+/// Hermeticity: the URL points at a local axum HTTP server we spin up on
+/// `127.0.0.1:0` in a dedicated tokio task; the server holds the PNG bytes
+/// in memory and replies to a single GET. This exercises the real
+/// `optimize_external` HTTP code path (reqwest → server) end-to-end but
+/// stays inside the test process — no DNS, no proxy, no CDN.
+#[tokio::test(flavor = "multi_thread")]
+async fn external_image_urls_smoke_writes_manifest_and_webp_variants() {
+    use axum::{Router, http::header, response::IntoResponse, routing::get};
+
+    // 1. Build the PNG payload (2400×1600 → all four widths in media::WIDTHS
+    //    apply, so the resulting srcset has 4 variants — same shape as the
+    //    existing entry_from_bytes test).
+    let png_bytes = {
+        let img: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> =
+            image::ImageBuffer::from_pixel(2400u32, 1600u32, image::Rgba([0u8, 128, 255, 255]));
+        let mut out = Vec::new();
+        image::DynamicImage::ImageRgba8(img)
+            .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+            .expect("encode test png");
+        out
+    };
+
+    // 2. Stand up a local axum server bound to 127.0.0.1:0 (random free
+    //    port). We capture the chosen port from `local_addr()` so the URL
+    //    we feed into `external_image_urls` matches what reqwest will hit.
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let png_for_server = png_bytes.clone();
+    let app = Router::new().route(
+        "/poster.png",
+        get(move || {
+            let png = png_for_server.clone();
+            async move { ([(header::CONTENT_TYPE, "image/png")], png).into_response() }
+        }),
+    );
+    let server_task = tokio::spawn(async move {
+        // Serve until the listener is dropped (test end) — keeps the URL
+        // valid for the single reqwest GET optimize_external issues.
+        let _ = axum::serve(listener, app).await;
+    });
+
+    // 3. Build a tiny builder whose external_image_urls returns the URL of
+    //    our local fixture. This is the production shape: movies/books
+    //    return TMDB/cover URLs and `run_image_pre_pass` collects them via
+    //    the `block_in_place` loop at build.rs:237-252.
+    let url = format!("http://{addr}/poster.png");
+    struct ExternalFixtureBuilder(&'static str, Vec<String>);
+    impl BuildExt for ExternalFixtureBuilder {
+        fn ext_id(&self) -> &'static str {
+            self.0
+        }
+        fn build_pages(
+            &self,
+            _db: &SqlitePool,
+            _rt: &tokio::runtime::Handle,
+        ) -> Result<Vec<StaticPage>, Box<dyn std::error::Error + Send + Sync>> {
+            Ok(vec![])
+        }
+        fn build_data(
+            &self,
+            _db: &SqlitePool,
+            _rt: &tokio::runtime::Handle,
+        ) -> Result<
+            Box<dyn erased_serde::Serialize + Send>,
+            Box<dyn std::error::Error + Send + Sync>,
+        > {
+            Ok(Box::new(serde_json::json!([])))
+        }
+        fn build_search_docs(
+            &self,
+            _db: &SqlitePool,
+            _rt: &tokio::runtime::Handle,
+        ) -> Result<Vec<SearchDoc>, Box<dyn std::error::Error + Send + Sync>> {
+            Ok(vec![])
+        }
+        fn external_image_urls(
+            &self,
+            _db: &SqlitePool,
+            _rt: &tokio::runtime::Handle,
+        ) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
+            Ok(self.1.clone())
+        }
+    }
+    let builder = ExternalFixtureBuilder("external-fixture", vec![url.clone()]);
+    let builders: Vec<Box<dyn BuildExt>> = vec![Box::new(builder)];
+
+    // 4. Run the production pre-pass against a fresh tmp layout.
+    let tmp = tempfile::tempdir().unwrap();
+    let data_dir = tmp.path().join("data");
+    let out_dir = tmp.path().join("out");
+    let media_dir = data_dir.join("media");
+    std::fs::create_dir_all(&media_dir).unwrap();
+    let db_path = data_dir.join("oxibuilder.db");
+    let pool = db::connect(&db_path).await.unwrap();
+
+    let (staging, manifest) = oxibuilder_core::build::run_image_pre_pass(
+        &pool,
+        &media_dir,
+        &data_dir,
+        &builders,
+        &tokio::runtime::Handle::current(),
+    )
+    .await
+    .expect("run_image_pre_pass");
+    let staging = staging.expect("staging dir must exist when an external URL is provided");
+    let manifest = manifest.expect("manifest must exist when an external URL is provided");
+
+    // 5. Manifest entry is keyed by the URL we returned, with all four
+    //    WebP variants materialized on disk under staging/media/_derived/.
+    let entry = manifest
+        .get(&url)
+        .unwrap_or_else(|| panic!("manifest missing entry for {url}: {manifest:?}"));
+    assert_eq!(
+        entry.width, 2400,
+        "external PNG was 2400 wide; entry.width must match"
+    );
+    assert_eq!(entry.height, 1600);
+    assert_eq!(
+        entry.srcset.len(),
+        4,
+        "2400px source → all four widths (640/960/1280/1920) apply"
+    );
+    let derived_dir = staging.join("media").join("_derived");
+    assert!(
+        derived_dir.is_dir(),
+        "staging/media/_derived must exist (created by optimize_external)"
+    );
+    for s in &entry.srcset {
+        let on_disk = derived_dir.join(
+            s.url
+                .strip_prefix("media/_derived/")
+                .unwrap_or(&s.url),
+        );
+        let bytes = std::fs::read(&on_disk)
+            .unwrap_or_else(|e| panic!("read variant {on_disk:?}: {e}"));
+        assert_eq!(&bytes[..4], b"RIFF", "variant missing RIFF magic: {s:?}");
+        assert_eq!(&bytes[8..12], b"WEBP", "variant missing WEBP tag: {s:?}");
+    }
+
+    // 6. Hand staging + manifest to write_build_output and verify the same
+    //    manifest entry + variants ship into out/, including
+    //    out/data/image-manifest.json for the static-mode SPA plugin.
+    let output = BuildOutput {
+        pages: vec![],
+        search_docs: vec![],
+        extensions_data: vec![],
+    };
+    let mut inputs = oxibuilder_core::builder::BuildInputs::new(
+        "https://example.com/",
+        "paper",
+        "shell",
+        "ext-smoke-seed",
+    );
+    inputs.image_staging_dir = Some(staging.clone());
+    inputs.image_manifest = Some(manifest.clone());
+    let out_dir_for_write = out_dir.clone();
+    let media_dir_for_write = media_dir.clone();
+    tokio::task::spawn_blocking(move || {
+        write_build_output(&output, &out_dir_for_write, &media_dir_for_write, &inputs)
+    })
+    .await
+    .expect("spawn_blocking join")
+    .expect("write_build_output");
+
+    let out_manifest_json =
+        std::fs::read_to_string(out_dir.join("data").join("image-manifest.json"))
+            .expect("out/data/image-manifest.json exists");
+    assert!(
+        out_manifest_json.contains(&url),
+        "shipped manifest must reference the external URL {url}: {out_manifest_json}",
+    );
+    assert!(
+        out_manifest_json.contains(".webp"),
+        "shipped manifest must carry srcset URLs: {out_manifest_json}",
+    );
+
+    // 7. Stop the local server (the spawned task is short-lived; this is
+    //    a courtesy — tokio will drop it on test end either way).
+    server_task.abort();
+    let _ = server_task.await;
 }

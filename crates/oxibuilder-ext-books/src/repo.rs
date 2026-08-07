@@ -2,6 +2,7 @@ use crate::model::{Book, BookInput, BookPatch};
 use sqlx::SqlitePool;
 
 const COLUMNS: &str = "id, source, external_id, isbn13, title, author, cover_image_url,
+                       category, publisher, page_count,
                        rating, review_ko, review_en, status, started_at, finished_at,
                        published_at, created_at, updated_at";
 
@@ -9,8 +10,9 @@ pub async fn create(pool: &SqlitePool, input: &BookInput) -> anyhow::Result<Book
     let row = sqlx::query_as::<_, Book>(&format!(
         "INSERT INTO book_entry
             (source, external_id, isbn13, title, author, cover_image_url,
+             category, publisher, page_count,
              rating, review_ko, review_en, status, started_at, finished_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
          RETURNING {COLUMNS}"
     ))
     .bind(&input.source)
@@ -19,6 +21,9 @@ pub async fn create(pool: &SqlitePool, input: &BookInput) -> anyhow::Result<Book
     .bind(&input.title)
     .bind(&input.author)
     .bind(&input.cover_image_url)
+    .bind(&input.category)
+    .bind(&input.publisher)
+    .bind(input.page_count)
     .bind(input.rating)
     .bind(&input.review_ko)
     .bind(&input.review_en)
@@ -105,6 +110,15 @@ pub async fn update(pool: &SqlitePool, id: i64, patch: &BookPatch) -> anyhow::Re
     if patch.cover_image_url.is_some() {
         sets.push("cover_image_url = ?");
     }
+    if patch.category.is_some() {
+        sets.push("category = ?");
+    }
+    if patch.publisher.is_some() {
+        sets.push("publisher = ?");
+    }
+    if patch.page_count.is_some() {
+        sets.push("page_count = ?");
+    }
     if patch.rating.is_some() {
         sets.push("rating = ?");
     }
@@ -146,6 +160,15 @@ pub async fn update(pool: &SqlitePool, id: i64, patch: &BookPatch) -> anyhow::Re
         q = q.bind(v);
     }
     if let Some(v) = &patch.cover_image_url {
+        q = q.bind(v);
+    }
+    if let Some(v) = &patch.category {
+        q = q.bind(v);
+    }
+    if let Some(v) = &patch.publisher {
+        q = q.bind(v);
+    }
+    if let Some(v) = patch.page_count {
         q = q.bind(v);
     }
     if let Some(v) = patch.rating {

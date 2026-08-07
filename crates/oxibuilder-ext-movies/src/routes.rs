@@ -114,6 +114,10 @@ pub async fn create(
     let runtime_min = input
         .runtime_min
         .or_else(|| meta.as_ref().and_then(|m| m.runtime_min));
+    let origin = input
+        .origin
+        .clone()
+        .or_else(|| meta.as_ref().and_then(|m| m.origin.clone()));
 
     // 장르/출연진/감독: 입력이 없으면 TMDB 메타로 채운다.
     if input.genres.is_none()
@@ -153,6 +157,7 @@ pub async fn create(
         poster_path,
         release_year,
         runtime_min,
+        origin,
     )
     .await
     .map_err(ApiError::internal)?;
@@ -256,6 +261,59 @@ pub async fn publish(
         .await
         .map_err(ApiError::internal)?
         .ok_or_else(|| not_found(&entry.slug))?;
+    Ok(Json(DataEnvelope { data: detail }))
+}
+
+
+/// TMDB 메타를 다시 가져와 새 컬럼(`origin`)만 안전하게 PATCH 한다.
+/// - 키가 없으면 503 `tmdb_disabled`.
+/// - `tmdb_id`가 없으면 422 `validation_error` (TMDB 연동 자체가 안된 항목).
+pub async fn refresh(
+    Extension(pool): Extension<SiteScopedDb>,
+    Path(slug): Path<String>,
+) -> Result<Json<DataEnvelope<MovieEntryDetail>>, ApiError> {
+    let entry = repo::find_entry_by_slug(&pool.db, &slug)
+        .await
+        .map_err(ApiError::internal)?
+        .ok_or_else(|| not_found(&slug))?;
+
+    // tmdb_id 가 없으면 키 체크보다 먼저 422 (키가 있어도 fetch 자체가 불가능).
+    let tmdb_id = entry.tmdb_id.ok_or_else(|| {
+        ApiError::validation("tmdb_id", "entry has no tmdb_id; cannot refresh from TMDB")
+    })?;
+    let tmdb = TmdbClient::from_env();
+    if !tmdb.enabled() {
+        return Err(ApiError::new(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "tmdb_disabled",
+            "TMDB integration is disabled (set OXIBUILDER_TMDB_KEY to enable)",
+        ));
+    }
+
+    let meta = tmdb
+        .fetch_movie_full(tmdb_id)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = ?e, slug, tmdb_id, "TMDB refresh fetch failed");
+            ApiError::internal(e)
+        })?;
+
+    // 안전 패치: TMDB-sourced 필드 중 신규(`origin`)만 갱신. 나머지는 보존.
+    repo::update_entry(
+        &pool.db,
+        &slug,
+        &MovieEntryPatch {
+            origin: meta.origin,
+            ..Default::default()
+        },
+    )
+    .await
+    .map_err(ApiError::internal)?;
+
+    let detail = repo::find_entry_detail_by_slug(&pool.db, &slug)
+        .await
+        .map_err(ApiError::internal)?
+        .ok_or_else(|| not_found(&slug))?;
     Ok(Json(DataEnvelope { data: detail }))
 }
 

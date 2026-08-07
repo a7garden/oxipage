@@ -1882,6 +1882,8 @@ dependencies = [
  "futures-core",
  "image",
  "mime_guess",
+ "oxibuilder-ext-books",
+ "oxibuilder-ext-movies",
  "pulldown-cmark",
  "rayon",
  "reqwest",

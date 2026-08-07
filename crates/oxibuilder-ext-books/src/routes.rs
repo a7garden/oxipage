@@ -116,6 +116,82 @@ pub async fn publish(
     Ok(Json(DataEnvelope { data: book }))
 }
 
+/// 알라딘/구글북스에서 메타를 다시 받아 신규 컬럼(`category`/`publisher`/`page_count`)
+/// 만 안전하게 PATCH 한다. 사용자 편집(title/review/rating)은 절대 건드리지 않는다.
+/// - entry 가 없으면 404.
+/// - source 가 `manual`/`open_library` 면 422 (재조회 불가).
+/// - aladin 소스인데 `OXIBUILDER_ALADIN_TTBKEY` 가 unset 이면 503 `book_search_disabled`.
+pub async fn refresh(
+    Extension(pool): Extension<SiteScopedDb>,
+    Path(id): Path<i64>,
+) -> Result<Json<DataEnvelope<Book>>, ApiError> {
+    let book = repo::find_by_id(&pool.db, id)
+        .await
+        .map_err(ApiError::internal)?
+        .ok_or_else(|| not_found(id))?;
+
+    // 재조회 대상인지 판단. manual/open_library 는 외부 소스가 아니다.
+    match book.source.as_str() {
+        "aladin" | "google_books" => {}
+        _ => {
+            return Err(ApiError::validation(
+                "source",
+                "refresh only supports entries with source=aladin|google_books",
+            ));
+        }
+    }
+
+    // 검색 쿼리: isbn13 우선, 없으면 title. 외부 검색 endpoint 와 동일.
+    let query = book
+        .isbn13
+        .clone()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| book.title.clone());
+    if query.trim().is_empty() {
+        return Err(ApiError::validation(
+            "isbn13",
+            "entry has neither isbn13 nor title; cannot search for refresh",
+        ));
+    }
+
+    let client = BooksClient::from_env();
+    if book.source == "aladin" && !client.aladin_enabled() {
+        return Err(ApiError::new(
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            "book_search_disabled",
+            "OXIBUILDER_ALADIN_TTBKEY is not set; book external search is disabled",
+        ));
+    }
+
+    let results = client
+        .search(&query, 5)
+        .await
+        .map_err(ApiError::internal)?;
+    let hit = match results.into_iter().next() {
+        Some(r) => r,
+        None => {
+            // 검색 결과 없음 = 변경 없음. 안전: 현재 값을 그대로 반환.
+            return Ok(Json(DataEnvelope { data: book }));
+        }
+    };
+
+    // 안전 패치: 신규 메타 필드만 PATCH. 나머지는 보존.
+    let patch = BookPatch {
+        category: hit.category,
+        publisher: hit.publisher,
+        page_count: hit.page_count,
+        ..Default::default()
+    };
+    let updated = repo::update(&pool.db, id, &patch)
+        .await
+        .map_err(ApiError::internal)?
+        .ok_or_else(|| not_found(id))?;
+    if updated.published_at.is_some() {
+        reindex(&pool.db, &updated).await?;
+    }
+    Ok(Json(DataEnvelope { data: updated }))
+}
+
 /// 외부 도서 검색 (aladin → google_books).
 /// 알라딘 키(`OXIBUILDER_ALADIN_TTBKEY`)가 없으면 503 `book_search_disabled` (acceptance test).
 /// Google Books는 키가 필요 없으므로 알라딘이 켜져 있으면 폴백까지 동작.

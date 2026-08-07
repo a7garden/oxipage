@@ -88,6 +88,30 @@ export function BooksStatsPage() {
           ))}
         </Section>
       )}
+
+      {stats.categories.length > 0 && (
+        <Section title={ko ? "카테고리" : "Categories"}>
+          {stats.categories.map((c) => (
+            <BarRow key={c.name} name={c.name} count={c.count} max={stats.categories[0].count} />
+          ))}
+        </Section>
+      )}
+
+      {stats.publishers.length > 0 && (
+        <Section title={ko ? "출판사" : "Publishers"}>
+          {stats.publishers.map((p) => (
+            <BarRow key={p.name} name={p.name} count={p.count} max={stats.publishers[0].count} />
+          ))}
+        </Section>
+      )}
+
+      {stats.pageBuckets.length > 0 && (
+        <Section title={ko ? "페이지" : "Pages"}>
+          {stats.pageBuckets.map((b) => (
+            <BarRow key={b.name} name={b.name} count={b.count} max={Math.max(...stats.pageBuckets.map((x) => x.count), 1)} />
+          ))}
+        </Section>
+      )}
     </article>
   );
 }

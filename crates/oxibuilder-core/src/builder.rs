@@ -107,7 +107,18 @@ pub trait BuildExt: Send + Sync {
         db: &SqlitePool,
         rt: &tokio::runtime::Handle,
     ) -> Result<Vec<SearchDoc>, Box<dyn Error + Send + Sync>>;
+
+    /// External http(s) image URLs this extension contributes (posters, covers).
+    /// Collected at build time for local WebP optimization. Default: none.
+    fn external_image_urls(
+        &self,
+        _db: &SqlitePool,
+        _rt: &tokio::runtime::Handle,
+    ) -> Result<Vec<String>, Box<dyn Error + Send + Sync>> {
+        Ok(Vec::new())
+    }
 }
+
 
 impl BuildOutput {
     /// Merge multiple `ExtBuildOutput` values into a single `BuildOutput`.

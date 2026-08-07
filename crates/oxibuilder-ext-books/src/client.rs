@@ -95,6 +95,9 @@ impl BooksClient {
                 title: i.title.unwrap_or_default(),
                 author: i.author,
                 cover_image_url: i.cover,
+                category: i.category_name,
+                publisher: i.publisher,
+                page_count: i.sub_info.and_then(|s| s.item_page),
             })
             .collect())
     }
@@ -129,6 +132,9 @@ impl BooksClient {
                     title: v.title.unwrap_or_default(),
                     author: v.authors.and_then(|a| a.into_iter().next()),
                     cover_image_url: v.image_links.and_then(|im| im.thumbnail),
+                    category: v.categories.and_then(|c| c.into_iter().next()),
+                    publisher: v.publisher,
+                    page_count: v.page_count,
                 }
             })
             .collect())
@@ -166,13 +172,22 @@ struct AladinResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct AladinItem {
-    #[serde(rename = "itemId")]
     item_id: Option<i64>,
     title: Option<String>,
     author: Option<String>,
     cover: Option<String>,
     isbn13: Option<String>,
+    category_name: Option<String>,
+    publisher: Option<String>,
+    sub_info: Option<AladinSubInfo>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct AladinSubInfo {
+    item_page: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -188,6 +203,7 @@ struct GoogleBookItem {
 }
 
 #[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 struct GoogleVolumeInfo {
     title: Option<String>,
     authors: Option<Vec<String>>,
@@ -195,8 +211,10 @@ struct GoogleVolumeInfo {
     image_links: Option<GoogleImageLinks>,
     #[serde(rename = "industryIdentifiers")]
     industry_identifiers: Option<Vec<IndustryIdentifier>>,
+    categories: Option<Vec<String>>,
+    publisher: Option<String>,
+    page_count: Option<i64>,
 }
-
 #[derive(Debug, Deserialize, Default)]
 struct GoogleImageLinks {
     thumbnail: Option<String>,

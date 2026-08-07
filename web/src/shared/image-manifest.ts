@@ -67,6 +67,15 @@ export function isMediaRef(src: string): boolean {
   return /^\/?media\//.test(src.trim());
 }
 
+/** True for `media/...` logical refs OR external http(s) URLs. The Rust build
+ *  pipeline emits both into the image manifest — `media/...` from inline-markdown
+ *  refs (Task 1) and full external URLs (TMDB posters / Aladin covers, Task 2)
+ *  — so the SPA must resolve both with the same lookup path. */
+export function isOptimizableRef(src: string): boolean {
+  const s = src.trim();
+  return /^\/?media\//.test(s) || /^https?:\/\//.test(s);
+}
+
 /** Resolve the deployment `<base href>` so the emitted `<img>` URLs match
  *  the Rust prerender after the browser merges them against `<base href>`.
  *

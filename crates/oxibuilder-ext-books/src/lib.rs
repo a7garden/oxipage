@@ -52,6 +52,72 @@ impl CliHandler for BookAddHandler {
     }
 }
 
+struct BookRefreshHandler;
+impl CliHandler for BookRefreshHandler {
+    fn run(
+        &self,
+        args: BTreeMap<String, String>,
+        client: &Client,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>> {
+        // --id <id> (단건) 또는 --all (전체). 하나만 지정해야 한다.
+        let id = args.get("id").cloned();
+        let all = args.get("all").map(|v| v == "true").unwrap_or(false);
+        let client = client.clone();
+        Box::pin(async move {
+            match (id, all) {
+                (Some(i), false) => {
+                    let resp = client
+                        .post(&format!("/api/console/books/{i}/refresh"), &serde_json::json!({}))
+                        .await
+                        .map_err(|e| anyhow::anyhow!("{e}"))?;
+                    println!("{}", serde_json::to_string_pretty(&resp)?);
+                }
+                (None, true) => {
+                    // 모든 엔트리를 순회. 단건 실패는 로깅 후 계속.
+                    let list_resp = client
+                        .get("/api/console/books/?limit=200")
+                        .await
+                        .map_err(|e| anyhow::anyhow!("{e}"))?;
+                    let items = list_resp
+                        .get("data")
+                        .and_then(|d| d.as_array())
+                        .cloned()
+                        .unwrap_or_default();
+                    let mut refreshed = 0usize;
+                    let mut skipped = 0usize;
+                    for item in &items {
+                        let id = match item.get("id").and_then(|v| v.as_i64()) {
+                            Some(id) => id,
+                            None => continue,
+                        };
+                        match client
+                            .post(
+                                &format!("/api/console/books/{id}/refresh"),
+                                &serde_json::json!({}),
+                            )
+                            .await
+                        {
+                            Ok(_) => refreshed += 1,
+                            Err(e) => {
+                                tracing::warn!(id, error = %e, "refresh failed; skipping");
+                                skipped += 1;
+                            }
+                        }
+                    }
+                    println!(
+                        "refreshed {refreshed} entries, skipped {skipped} (of {} total)",
+                        items.len()
+                    );
+                }
+                _ => {
+                    anyhow::bail!("specify exactly one of --id <id> or --all");
+                }
+            }
+            Ok(())
+        })
+    }
+}
+
 #[async_trait]
 impl Extension for BooksExtension {
     fn id(&self) -> &'static str {
@@ -69,11 +135,18 @@ impl Extension for BooksExtension {
     }
 
     fn migrations(&self) -> Vec<Migration> {
-        vec![Migration {
-            version: 1,
-            name: "init",
-            sql: include_str!("../migrations/0001_init.sql"),
-        }]
+        vec![
+            Migration {
+                version: 1,
+                name: "init",
+                sql: include_str!("../migrations/0001_init.sql"),
+            },
+            Migration {
+                version: 2,
+                name: "metadata",
+                sql: include_str!("../migrations/0002_metadata.sql"),
+            },
+        ]
     }
 
     fn routes(&self) -> Router {
@@ -87,6 +160,7 @@ impl Extension for BooksExtension {
                     .delete(routes::delete),
             )
             .route("/{id}/publish", post(routes::publish))
+            .route("/{id}/refresh", post(routes::refresh))
     }
 
     async fn lobby_summary(&self, ctx: &AppState) -> Option<LobbyCard> {
@@ -135,7 +209,27 @@ impl Extension for BooksExtension {
                     },
                 ],
                 handler: Some(Arc::new(BookAddHandler)),
-            }],
+            },
+            CliSubcommand {
+                name: "refresh",
+                about: "Re-fetch book metadata (category/publisher/page_count) for an entry or --all",
+                args: vec![
+                    CliArg {
+                        long: "id",
+                        short: Some('i'),
+                        help: "Book id to refresh (mutually exclusive with --all)",
+                        required: false,
+                    },
+                    CliArg {
+                        long: "all",
+                        short: None,
+                        help: "Refresh every entry (per-entry failures are logged and skipped)",
+                        required: false,
+                    },
+                ],
+                handler: Some(Arc::new(BookRefreshHandler)),
+            },
+            ],
         }]
     }
 
@@ -285,4 +379,23 @@ impl BuildExt for BooksExtension {
             })
             .collect())
     }
+
+    fn external_image_urls(
+        &self,
+        db: &SqlitePool,
+        rt: &tokio::runtime::Handle,
+    ) -> Result<Vec<String>, Box<dyn Error + Send + Sync>> {
+        // `cover_image_url` is already a full URL (Aladin or Google Books API),
+        // stored verbatim by `client.rs`. Filter to http(s) and dedupe-empty.
+        let rows: Vec<(Option<String>,)> = rt.block_on(async {
+            sqlx::query_as(
+                "SELECT cover_image_url FROM book_entry \
+                 WHERE cover_image_url LIKE 'http%'",
+            )
+            .fetch_all(db)
+            .await
+        })?;
+        Ok(rows.into_iter().filter_map(|(u,)| u).collect())
+    }
 }
+

@@ -193,6 +193,92 @@ async fn external_search_no_aladin_key_is_503() {
     assert_eq!(json["error"]["code"], "book_search_disabled");
 }
 
+#[tokio::test]
+async fn refresh_manual_source_is_422() {
+    // manual source 는 외부 검색으로 메타를 가져올 수 없으므로 422.
+    let app = test_app(Some("tok")).await;
+    let res = app
+        .clone()
+        .oneshot(
+            Request::post("/api/console/books")
+                .header("content-type", "application/json")
+                .header(AUTHORIZATION, bearer("tok"))
+                .body(Body::from(
+                    r#"{ "source": "manual", "title": "My Book", "rating": 7 }"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let created = body_json(res).await;
+    let id = created["data"]["id"].as_i64().unwrap();
+    assert_eq!(created["data"]["source"], "manual");
+
+    let res = app
+        .oneshot(
+            Request::post(format!("/api/console/books/{id}/refresh"))
+                .header(AUTHORIZATION, bearer("tok"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let json = body_json(res).await;
+    assert_eq!(json["error"]["code"], "validation_error");
+    assert_eq!(json["error"]["field"], "source");
+}
+#[tokio::test]
+#[allow(clippy::await_holding_lock)] // ENV_LOCK은 의도된 전역 env 격리 가드
+async fn refresh_aladin_no_key_is_503() {
+    // 알라딘 키 unset 가정.
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    #[allow(clippy::await_holding_lock)]
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let prior = std::env::var("OXIBUILDER_ALADIN_TTBKEY").ok();
+    unsafe {
+        std::env::remove_var("OXIBUILDER_ALADIN_TTBKEY");
+    }
+    let app = test_app(Some("tok")).await;
+    // source=aladin 으로 직접 생성 (실제 검색 안 함).
+    let res = app
+        .clone()
+        .oneshot(
+            Request::post("/api/console/books")
+                .header("content-type", "application/json")
+                .header(AUTHORIZATION, bearer("tok"))
+                .body(Body::from(
+                    r#"{ "source": "aladin", "isbn13": "9780131103627", "title": "The C Programming Language", "rating": 9 }"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let created = body_json(res).await;
+    let id = created["data"]["id"].as_i64().unwrap();
+    assert_eq!(created["data"]["source"], "aladin");
+
+    // refresh 호출 — aladin 키 unset → 503 `book_search_disabled`.
+    let res = app
+        .oneshot(
+            Request::post(format!("/api/console/books/{id}/refresh"))
+                .header(AUTHORIZATION, bearer("tok"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    if let Some(v) = prior {
+        unsafe {
+            std::env::set_var("OXIBUILDER_ALADIN_TTBKEY", v);
+        }
+    }
+    assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let json = body_json(res).await;
+    assert_eq!(json["error"]["code"], "book_search_disabled");
+}
+
 // ─── Additional coverage ─────────────────────────────────────────────────────
 
 #[tokio::test]

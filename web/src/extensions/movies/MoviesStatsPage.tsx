@@ -56,6 +56,7 @@ export function MoviesStatsPage() {
           { label: ko ? "편수" : "Titles", value: stats.total },
           { label: ko ? "감독" : "Directors", value: stats.directorCount },
           { label: ko ? "배우" : "Actors", value: stats.actorCount },
+          { label: ko ? "국가" : "Countries", value: stats.nationCount },
           { label: ko ? "연도" : "Years", value: yearRange },
           { label: ko ? "평균 러닝타임" : "Avg runtime", value: stats.avgRuntime ? `${Math.round(stats.avgRuntime)}${ko ? "분" : "m"}` : "—" },
           { label: ko ? "평균 평점" : "Avg rating", value: stats.ratingMean ? stats.ratingMean.toFixed(1) : "—" },
@@ -65,6 +66,14 @@ export function MoviesStatsPage() {
       {stats.years.length > 0 && (
         <Section title={ko ? "연도별" : "By year"}>
           <ColumnChart data={stats.years} max={Math.max(...stats.years.map((y) => y.count), 1)} />
+        </Section>
+      )}
+
+      {stats.nations.length > 0 && (
+        <Section title={ko ? "국가" : "Countries"}>
+          {stats.nations.map((n) => (
+            <BarRow key={n.name} name={n.name} count={n.count} max={stats.nations[0].count} />
+          ))}
         </Section>
       )}
 

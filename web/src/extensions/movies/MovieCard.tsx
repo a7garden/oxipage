@@ -4,6 +4,7 @@ import type { MovieGenre, MoviePerson } from "../../shared/api";
 import { Card } from "../../shared/ui/card";
 import { RatingStars } from "../../shared/RatingStars";
 import { cn } from "../../shared/ui/cn";
+import { pickVariant, useOptimizedImage } from "../../shared/useOptimizedImage";
 
 export interface MovieCardData {
   id: number;
@@ -25,8 +26,14 @@ export interface MovieCardData {
 
 type Pick = (ko?: string | null, en?: string | null) => string;
 
+const EAGER_COUNT = 10;
+
 function posterUrl(path: string | null) {
-  return path ? `https://image.tmdb.org/t/p/w200${path}` : null;
+  // `w500` matches the Rust build's canonical width for the manifest key
+  // (`crates/oxibuilder-ext-movies/src/lib.rs::external_image_urls`); the SPA
+  // must look up the same URL the build emitted. `srcset`/`sizes` below
+  // handle responsive sizing for the actual rendered display.
+  return path ? `https://image.tmdb.org/t/p/w500${path}` : null;
 }
 
 function fmtRuntime(min: number | null): string | null {
@@ -38,6 +45,7 @@ function fmtRuntime(min: number | null): string | null {
 
 interface MovieCardProps {
   movie: MovieCardData;
+  index?: number;
   pick: Pick;
   lang: "ko" | "en";
   activeGenre?: string | null;
@@ -48,6 +56,7 @@ interface MovieCardProps {
 
 export function MovieCard({
   movie,
+  index,
   pick,
   lang,
   activeGenre,
@@ -56,6 +65,9 @@ export function MovieCard({
   onPickPerson,
 }: MovieCardProps) {
   const img = posterUrl(movie.poster_path);
+  const optimized = useOptimizedImage(img);
+  const variant = optimized ? pickVariant(optimized) : null;
+  const eager = index != null && index < EAGER_COUNT;
   const title = pick(movie.title_ko, movie.title_en) || movie.title;
   const runtime = fmtRuntime(movie.runtime_min);
   const review = pick(movie.review_ko, movie.review_en);
@@ -63,12 +75,26 @@ export function MovieCard({
 
   return (
     <Card className="flex h-full gap-4 p-4">
-      {img ? (
+      {variant ? (
+        <img
+          src={variant.url}
+          srcSet={optimized!.srcset.map((s) => `${s.url} ${s.w}w`).join(", ")}
+          sizes="80px"
+          width={optimized!.width}
+          height={optimized!.height}
+          alt=""
+          loading={eager ? "eager" : "lazy"}
+          fetchPriority={eager ? "high" : "auto"}
+          decoding="async"
+          className="w-16 shrink-0 rounded-md object-cover sm:w-20"
+        />
+      ) : img ? (
         <img
           src={img}
           alt=""
+          loading={eager ? "eager" : "lazy"}
+          fetchPriority={eager ? "high" : "auto"}
           className="w-16 shrink-0 rounded-md object-cover sm:w-20"
-          loading="lazy"
         />
       ) : (
         <div className="flex w-16 shrink-0 items-center justify-center rounded-md bg-surface text-subtle sm:w-20">

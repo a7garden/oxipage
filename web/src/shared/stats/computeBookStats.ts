@@ -1,5 +1,5 @@
-// Book stats, adapted to oxi's Book shape (NO category/publisher/pages; uses
-// `author` string, `status`, `rating`, year from published_at/created_at).
+// Book stats, adapted to oxi's Book shape. Surfaces category, publisher, and
+// page_count (Task 4) on top of author/status/rating/year dimensions.
 // Ported from ../blog-test's bookStats.ts structure.
 
 import type { Book } from "../../shared/api";
@@ -19,6 +19,18 @@ export interface BookStats {
   authors: BookCountRow[];
   byStatus: BookCountRow[];
   ratingBuckets: BookCountRow[];
+  categories: BookCountRow[];
+  publishers: BookCountRow[];
+  pageBuckets: BookCountRow[];
+}
+
+// Page-count bucket label, mirroring computeMovieStats' bucketKey.
+// edges = upper bounds; produces `< first`, between-bound ranges, and `last+`.
+function bucketKey(value: number, edges: number[]): string {
+  for (let i = 0; i < edges.length; i++) {
+    if (value < edges[i]) return i === 0 ? `< ${edges[0]}` : `${edges[i - 1]}\u2013${edges[i]}`;
+  }
+  return `${edges[edges.length - 1]}+`;
 }
 
 // Aladin-style "유발 하라리 (지은이), 조현욱 (옮긴이)" → ["유발 하라리", "조현욱"].
@@ -51,6 +63,10 @@ export function computeBookStats(books: Book[]): BookStats {
   const statusCounts = new Map<string, number>();
   const yearCounts = new Map<number, number>();
   const ratingBuckets = new Map<string, number>();
+  const categoryCounts = new Map<string, number>();
+  const publisherCounts = new Map<string, number>();
+  const pageBucketCounts = new Map<string, number>();
+  const pageEdges = [300, 500];
   let ratingSum = 0;
   let ratingN = 0;
 
@@ -69,8 +85,18 @@ export function computeBookStats(books: Book[]): BookStats {
       ratingSum += b.rating;
       ratingN += 1;
       const lo = Math.floor(b.rating / 0.5) * 0.5;
-      const label = `${lo}–${lo + 0.5}`;
+      const label = `${lo}\u2013${lo + 0.5}`;
       ratingBuckets.set(label, (ratingBuckets.get(label) ?? 0) + 1);
+    }
+    if (b.category) {
+      categoryCounts.set(b.category, (categoryCounts.get(b.category) ?? 0) + 1);
+    }
+    if (b.publisher) {
+      publisherCounts.set(b.publisher, (publisherCounts.get(b.publisher) ?? 0) + 1);
+    }
+    if (b.page_count != null && Number.isFinite(b.page_count)) {
+      const k = bucketKey(b.page_count, pageEdges);
+      pageBucketCounts.set(k, (pageBucketCounts.get(k) ?? 0) + 1);
     }
   }
 
@@ -83,6 +109,8 @@ export function computeBookStats(books: Book[]): BookStats {
       yearRows.push({ year: y, count: yearCounts.get(y) ?? 0 });
     }
   }
+
+  const pageBucketOrder = ["< 300", "300\u2013500", "500+"];
 
   return {
     total,
@@ -97,6 +125,11 @@ export function computeBookStats(books: Book[]): BookStats {
       .map(([name, count]) => ({ name, count, lo: parseFloat(name) }))
       .sort((a, b) => a.lo - b.lo)
       .map(({ name, count }) => ({ name, count })),
+    categories: topRows(categoryCounts, 15),
+    publishers: topRows(publisherCounts, 15),
+    pageBuckets: pageBucketOrder
+      .filter((k) => pageBucketCounts.has(k))
+      .map((k) => ({ name: k, count: pageBucketCounts.get(k)! })),
   };
 }
 

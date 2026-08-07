@@ -3,6 +3,9 @@ import { BookOpen } from "lucide-react";
 import { Card } from "../../shared/ui/card";
 import { Badge } from "../../shared/ui/badge";
 import { RatingStars } from "../../shared/RatingStars";
+import { pickVariant, useOptimizedImage } from "../../shared/useOptimizedImage";
+
+const EAGER_COUNT = 10;
 
 export interface BookCardData {
   id: number;
@@ -17,6 +20,7 @@ export interface BookCardData {
 
 interface BookCardProps {
   book: BookCardData;
+  index?: number;
   pick: (ko?: string | null, en?: string | null) => string;
 }
 
@@ -27,12 +31,34 @@ const STATUS_LABEL: Record<string, { ko: string; en: string }> = {
   dropped: { ko: "중단", en: "Dropped" },
 };
 
-export function BookCard({ book, pick }: BookCardProps) {
+export function BookCard({ book, index, pick }: BookCardProps) {
   const status = STATUS_LABEL[book.status] ?? { ko: book.status, en: book.status };
+  const optimized = useOptimizedImage(book.cover_image_url);
+  const variant = optimized ? pickVariant(optimized) : null;
+  const eager = index != null && index < EAGER_COUNT;
   return (
     <Card className="flex h-full gap-4 p-4">
-      {book.cover_image_url ? (
-        <img src={book.cover_image_url} alt="" className="w-14 shrink-0 rounded-md object-cover" loading="lazy" />
+      {variant ? (
+        <img
+          src={variant.url}
+          srcSet={optimized!.srcset.map((s) => `${s.url} ${s.w}w`).join(", ")}
+          sizes="56px"
+          width={optimized!.width}
+          height={optimized!.height}
+          alt=""
+          loading={eager ? "eager" : "lazy"}
+          fetchPriority={eager ? "high" : "auto"}
+          decoding="async"
+          className="w-14 shrink-0 rounded-md object-cover"
+        />
+      ) : book.cover_image_url ? (
+        <img
+          src={book.cover_image_url}
+          alt=""
+          className="w-14 shrink-0 rounded-md object-cover"
+          loading={eager ? "eager" : "lazy"}
+          fetchPriority={eager ? "high" : "auto"}
+        />
       ) : (
         <div className="flex w-14 shrink-0 items-center justify-center rounded-md bg-surface text-subtle">
           <BookOpen className="size-5" />

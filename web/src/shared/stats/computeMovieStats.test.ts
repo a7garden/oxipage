@@ -8,7 +8,7 @@ const fixtures: MovieEntry[] = [
   {
     id: 1, slug: "inception", tmdb_id: 27205, media_type: "movie",
     title: "인셉션", title_ko: "인셉션", title_en: "Inception",
-    poster_path: "/a.jpg", release_year: 2010, runtime_min: 148, watched_at: null,
+    poster_path: "/a.jpg", origin: "US,GB", release_year: 2010, runtime_min: 148, watched_at: null,
     rating: 9, review_ko: null, review_en: null, rewatch: 0,
     series_group_id: null, series_order: null, published_at: null,
     created_at: "2026-01-01", updated_at: "2026-01-01",
@@ -19,7 +19,7 @@ const fixtures: MovieEntry[] = [
   {
     id: 2, slug: "parasite", tmdb_id: 496243, media_type: "movie",
     title: "기생충", title_ko: "기생충", title_en: "Parasite",
-    poster_path: "/b.jpg", release_year: 2019, runtime_min: 132, watched_at: null,
+    poster_path: "/b.jpg", origin: "KR", release_year: 2019, runtime_min: 132, watched_at: null,
     rating: 8, review_ko: null, review_en: null, rewatch: 1,
     series_group_id: null, series_order: null, published_at: null,
     created_at: "2026-02-01", updated_at: "2026-02-01",
@@ -33,7 +33,7 @@ const fixtures: MovieEntry[] = [
   {
     id: 3, slug: "inception-again", tmdb_id: 999, media_type: "tv",
     title: "인셉션 TV", title_ko: "인셉션 TV", title_en: "Inception TV",
-    poster_path: null, release_year: 2010, runtime_min: null, watched_at: null,
+    poster_path: null, origin: null, release_year: 2010, runtime_min: null, watched_at: null,
     rating: 0, review_ko: null, review_en: null, rewatch: 0,
     series_group_id: null, series_order: null, published_at: null,
     created_at: "2026-03-01", updated_at: "2026-03-01",
@@ -77,5 +77,19 @@ describe("computeMovieStats", () => {
   test("rating mean ignores 0/absent ratings", () => {
     const s = computeMovieStats(fixtures);
     expect(s.ratingMean).toBe(8.5); // (9+8)/2, the rating 0 entry excluded
+  });
+
+  test("buckets nations from comma-separated origin", () => {
+    const stats = computeMovieStats([
+      { origin: "KR,US", genres: [], cast: [], directors: [] } as never,
+      { origin: "KR", genres: [], cast: [], directors: [] } as never,
+      { origin: "us", genres: [], cast: [], directors: [] } as never,
+      { origin: null, genres: [], cast: [], directors: [] } as never,
+    ]);
+    expect(stats.nationCount).toBe(2); // KR + US
+    const kr = stats.nations.find((n) => n.name === "한국");
+    const us = stats.nations.find((n) => n.name === "미국");
+    expect(kr?.count).toBe(2);
+    expect(us?.count).toBe(2); // "US" + "us" normalized
   });
 });

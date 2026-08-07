@@ -461,6 +461,131 @@ async fn tmdb_search_disabled_when_no_key() {
     assert_eq!(json["error"]["code"], "tmdb_disabled");
 }
 
+#[tokio::test]
+async fn refresh_no_tmdb_id_is_422() {
+    // tmdb_id 없는 manual entry → fetch 단계로 가지 않고 422.
+    let app = test_app(Some("tok")).await;
+    let res = app
+        .clone()
+        .oneshot(
+            Request::post("/api/console/movies")
+                .header("content-type", "application/json")
+                .header(AUTHORIZATION, bearer("tok"))
+                .body(json_body(
+                    r#"{ "media_type": "movie", "title": "Manual Movie", "rating": 0 }"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let created = body_json(res).await;
+    let slug = created["data"]["slug"].as_str().unwrap().to_string();
+    assert!(created["data"]["tmdb_id"].is_null());
+
+    let res = app
+        .oneshot(
+            Request::post(format!("/api/console/movies/{slug}/refresh"))
+                .header(AUTHORIZATION, bearer("tok"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let json = body_json(res).await;
+    assert_eq!(json["error"]["code"], "validation_error");
+    assert_eq!(json["error"]["field"], "tmdb_id");
+}
+#[tokio::test]
+async fn refresh_no_tmdb_key_is_503() {
+    // 환경에 OXIBUILDER_TMDB_KEY 가 unset 라고 가정 (기존 tmdb_disabled 테스트와 동일).
+    if std::env::var("OXIBUILDER_TMDB_KEY").is_ok() {
+        eprintln!("OXIBUILDER_TMDB_KEY is set; skipping refresh_disabled assertion");
+        return;
+    }
+    // tmdb_id 가 있는 entry 를 repo 직접으로 주입 (실제 TMDB 호출 회피).
+    let pool = oxibuilder_core::db::connect_memory().await.unwrap();
+    let registry = Arc::new(ExtensionRegistry::new(vec![Arc::new(MoviesExtension)]));
+    registry.run_migrations(&pool, &[]).await.unwrap();
+    use oxibuilder_ext_movies::model::MovieEntryInput;
+    use oxibuilder_ext_movies::repo;
+
+    let input = MovieEntryInput {
+        tmdb_id: Some(27205),
+        media_type: "movie".into(),
+        title: Some("Inception".into()),
+        title_ko: None,
+        title_en: None,
+        poster_path: None,
+        release_year: Some(2010),
+        runtime_min: None,
+        watched_at: None,
+        rating: 0,
+        review_ko: None,
+        review_en: None,
+        rewatch: false,
+        series_group_id: None,
+        series_order: None,
+        slug: Some("inception".into()),
+        origin: None,
+        genres: None,
+        cast: None,
+        directors: None,
+    };
+    repo::create_entry(
+        &pool,
+        &input,
+        "inception",
+        input.tmdb_id,
+        input.title.clone().unwrap(),
+        None,
+        None,
+        input.poster_path.clone(),
+        input.release_year,
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+
+    // 라우터 조립 후 refresh 시도 → 키 없음 → 503.
+    let state = AppState {
+        db: pool.clone(),
+        config: Arc::new(Config::default()),
+        registry: registry.clone(),
+        wasm_loader: None,
+        site_override: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        builders: std::sync::Arc::new(vec![]),
+    };
+    for e in registry.iter() {
+        e.on_startup(&state).await.unwrap();
+    }
+    let ext_router = registry.find("movies").unwrap().routes();
+    let app = Router::new()
+        .nest("/api/console/movies", ext_router)
+        .layer(Extension(SiteScopedDb {
+            db: pool,
+            settings: std::sync::Arc::new(tokio::sync::RwLock::new(
+                oxibuilder_core::site_paths::MutableSiteSettings::from_config(
+                    &oxibuilder_core::config::Config::default(),
+                ),
+            )),
+        }));
+
+    let res = app
+        .oneshot(
+            Request::post("/api/console/movies/inception/refresh")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let json = body_json(res).await;
+    assert_eq!(json["error"]["code"], "tmdb_disabled");
+}
+
 // ─── FTS ───
 
 #[tokio::test]
@@ -476,8 +601,11 @@ async fn fts_index_on_publish() {
         tmdb_id: None,
         media_type: "movie".into(),
         title: Some("Inception".into()),
+        title_ko: None,
+        title_en: None,
         poster_path: None,
         release_year: Some(2010),
+        runtime_min: None,
         watched_at: Some("2024-01-01".into()),
         rating: 9,
         review_ko: None,
@@ -486,6 +614,10 @@ async fn fts_index_on_publish() {
         series_group_id: None,
         series_order: None,
         slug: Some("inception".into()),
+        origin: None,
+        genres: None,
+        cast: None,
+        directors: None,
     };
     let _ = repo::create_entry(
         &pool,
@@ -493,8 +625,12 @@ async fn fts_index_on_publish() {
         "inception",
         input.tmdb_id,
         input.title.clone().unwrap(),
+        None, // title_ko
+        None, // title_en
         input.poster_path.clone(),
         input.release_year,
+        None, // runtime_min
+        None, // origin
     )
     .await
     .unwrap();

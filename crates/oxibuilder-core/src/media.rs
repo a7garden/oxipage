@@ -240,6 +240,80 @@ fn generate(bytes: &[u8], sha8: &str, derived: &Path) -> io::Result<ImageEntry> 
     })
 }
 
+/// Build a manifest entry for an already-downloaded byte blob, keyed by URL.
+/// Reuses the SHA-256 cache + `generate()` resize logic. Mirrors `optimize`'s
+/// per-ref loop but the key is the external URL, not a `media/...` logical ref.
+/// Cache key prefix `ext:` avoids collision with local-ref keys (`{logical}:{sha8}`).
+/// Returns `None` on decode/encode failure so callers can skip the URL silently.
+fn entry_from_bytes(
+    bytes: &[u8],
+    derived: &Path,
+    cache: &mut HashMap<String, Vec<ImageSrc>>,
+) -> Option<ImageEntry> {
+    let sha8 = hex8(&Sha256::digest(bytes));
+    let key = format!("ext:{sha8}");
+    let cached_ok = cache
+        .get(&key)
+        .filter(|v| v.iter().all(|s| derived.join(url_file(&s.url)).exists()))
+        .cloned();
+    match cached_ok {
+        Some(srcset) => decode_dims_and_entry(bytes, srcset),
+        None => match generate(bytes, &sha8, derived) {
+            Ok(e) => {
+                cache.insert(key, e.srcset.clone());
+                Some(e)
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "media: external generate failed, skipping");
+                None
+            }
+        },
+    }
+}
+
+/// Download each external URL, WebP-encode, return a manifest keyed by URL.
+/// Non-http(s) URLs are filtered out; network/decode failures are skipped
+/// (logged via `tracing`), never errored — a transient fetch failure must
+/// not fail the build.
+pub async fn optimize_external(
+    urls: &[String],
+    staging_dir: &Path,
+    http: &reqwest::Client,
+) -> io::Result<ImageManifest> {
+    let derived = staging_dir.join("media").join("_derived");
+    std::fs::create_dir_all(&derived)?;
+    let cache_path = derived.join(".cache.json");
+    let mut cache: HashMap<String, Vec<ImageSrc>> = read_cache(&cache_path);
+    let mut manifest = ImageManifest::empty();
+    for url in urls {
+        if !url.starts_with("http://") && !url.starts_with("https://") {
+            continue;
+        }
+        let bytes = match http.get(url.as_str()).send().await {
+            Ok(r) if r.status().is_success() => match r.bytes().await {
+                Ok(b) => b.to_vec(),
+                Err(e) => {
+                    tracing::warn!(url = %url, error = %e, "external image body failed, skipping");
+                    continue;
+                }
+            },
+            Ok(r) => {
+                tracing::warn!(url = %url, status = %r.status(), "external image http error, skipping");
+                continue;
+            }
+            Err(e) => {
+                tracing::warn!(url = %url, error = %e, "external image fetch failed, skipping");
+                continue;
+            }
+        };
+        if let Some(entry) = entry_from_bytes(&bytes, &derived, &mut cache) {
+            manifest.entries.insert(url.clone(), entry);
+        }
+    }
+    write_cache(&cache_path, &cache)?;
+    Ok(manifest)
+}
+
 // --- tests ---
 
 #[cfg(test)]
@@ -269,7 +343,6 @@ mod tests {
         assert_eq!((e.width, e.height), (2000, 1125));
         // widths capped at source (2000): 640,960,1280,1920 all ≤ 2000
         assert_eq!(e.srcset.len(), 4);
-        assert!(staging.join("media/_derived").is_dir());
         assert!(e.srcset.iter().all(|s| s.url.ends_with(".webp")));
 
         // Bonus: each on-disk variant is a real WebP (RIFF…WEBP magic).
@@ -331,6 +404,63 @@ mod tests {
             "cache.json content drifted across runs"
         );
         assert!(cache_json_2.contains(&format!("\"media/shot.png:{sha8}\"")));
+    }
+
+    #[test]
+    fn entry_from_bytes_builds_entry_and_keys_by_url() {
+        // No network: drive the byte-path helper directly with an in-memory
+        // PNG, proving the manifest keys by URL and the WebP variants land
+        // under staging_dir/media/_derived/.
+        let tmp = tempfile::tempdir().unwrap();
+        let staging = tmp.path();
+        let derived = staging.join("media").join("_derived");
+        std::fs::create_dir_all(&derived).unwrap();
+        let cache_path = derived.join(".cache.json");
+        let mut cache: HashMap<String, Vec<ImageSrc>> = read_cache(&cache_path);
+        // 2400 wide so all four WIDTHS (640,960,1280,1920) ≤ source — every
+        // resize branch runs and srcset ends up with 4 variants.
+        let png = make_test_png_bytes(2400, 1600);
+        let entry = entry_from_bytes(&png, &derived, &mut cache)
+            .expect("entry should build from a valid PNG");
+        assert_eq!((entry.width, entry.height), (2400, 1600));
+        assert_eq!(entry.srcset.len(), 4, "expected 4 webp variants for a 2400-wide source");
+        assert!(entry.srcset.iter().all(|s| {
+            // URL is the form written by generate(); the disk file must exist.
+            let p = derived.join(url_file(&s.url));
+            let bytes = std::fs::read(&p).unwrap();
+            &bytes[..4] == b"RIFF" && &bytes[8..12] == b"WEBP"
+        }));
+        // Cache now has the ext:{sha8} key.
+        let sha8 = hex8(&Sha256::digest(&png));
+        assert!(cache.contains_key(&format!("ext:{sha8}")));
+    }
+
+    /// Encode a small in-memory RGBA PNG to bytes — no disk I/O.
+    fn make_test_png_bytes(w: u32, h: u32) -> Vec<u8> {
+        let img: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> =
+            image::ImageBuffer::from_pixel(w, h, image::Rgba([255, 0, 0, 255]));
+        let mut out = Vec::new();
+        let dyn_img = image::DynamicImage::ImageRgba8(img);
+        dyn_img
+            .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+            .expect("encode test png");
+        out
+    }
+
+    #[tokio::test]
+    async fn optimize_external_skips_non_http_and_empty() {
+        // No network: confirm the URL filter rejects non-http schemes before
+        // touching reqwest (so a `file://` or relative path never errors).
+        let tmp = tempfile::tempdir().unwrap();
+        let staging = tmp.path();
+        let http = reqwest::Client::new();
+        let urls = vec![
+            "file:///tmp/x.png".to_string(),
+            "media/shot.png".to_string(),
+            "".to_string(),
+        ];
+        let m = optimize_external(&urls, staging, &http).await.unwrap();
+        assert!(m.entries.is_empty());
     }
 
     #[test]

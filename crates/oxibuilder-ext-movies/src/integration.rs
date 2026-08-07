@@ -32,6 +32,7 @@ pub struct MovieMeta {
     pub genres: Vec<GenreName>,
     pub cast: Vec<PersonInput>,
     pub directors: Vec<PersonInput>,
+    pub origin: Option<String>,
 }
 
 impl TmdbClient {
@@ -222,6 +223,22 @@ impl TmdbClient {
                     .and_then(|e| non_empty(&e.poster_path).map(String::from))
             });
 
+        let origin = ko
+            .as_ref()
+            .and_then(|k| k.production_countries.as_ref())
+            .filter(|v| !v.is_empty())
+            .or_else(|| {
+                en.as_ref()
+                    .and_then(|e| e.production_countries.as_ref())
+            })
+            .map(|v| {
+                v.iter()
+                    .filter_map(|c| c.iso_3166_1.clone().filter(|s| !s.is_empty()))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            })
+            .filter(|s| !s.is_empty());
+
         Ok(MovieMeta {
             title_ko: ko
                 .as_ref()
@@ -244,6 +261,7 @@ impl TmdbClient {
             genres,
             cast,
             directors,
+            origin,
         })
     }
 
@@ -304,6 +322,11 @@ struct GenreDto {
 }
 
 #[derive(Debug, Deserialize)]
+struct CountryCode {
+    iso_3166_1: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 struct MovieDetailKo {
     #[serde(default)]
     title: String,
@@ -315,6 +338,8 @@ struct MovieDetailKo {
     runtime: Option<i32>,
     #[serde(default)]
     genres: Vec<GenreDto>,
+    #[serde(default)]
+    production_countries: Option<Vec<CountryCode>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -331,6 +356,8 @@ struct MovieDetailEn {
     genres: Vec<GenreDto>,
     #[serde(default)]
     credits: Option<CreditsDto>,
+    #[serde(default)]
+    production_countries: Option<Vec<CountryCode>>,
 }
 
 #[derive(Debug, Deserialize)]

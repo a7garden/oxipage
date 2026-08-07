@@ -320,9 +320,10 @@ export function MoviesPage() {
         </EmptyState>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((m) => (
+          {filtered.map((m, i) => (
             <li key={m.id}>
               <MovieCard
+                index={i}
                 movie={{
                   id: m.id,
                   slug: m.slug,

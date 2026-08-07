@@ -88,15 +88,30 @@ pub async fn ensure_build_started(
         // created per build (cheap) so the manifest stays scoped to this
         // build only; the `Arc<Vec<…>>` in `SiteContext.builders` is read-only
         // here and would block the cast.
+        //
+        // The pre-pass also collects `external_image_urls` from every extension
+        // (Task 3) so CDN-hosted posters/covers get the same WebP + manifest
+        // treatment. We pass a `pre_builders` slice built WITHOUT a manifest —
+        // the pre-pass doesn't need one and re-boxes a fresh vec below with
+        // the populated manifest for `build_site_with_progress`. `rt` is the
+        // captured runtime handle (already a Handle on this async task).
+        let pre_builders_vec: Vec<Box<dyn oxibuilder_core::builder::BuildExt>> =
+            crate::all_builders_with_image_manifest(None);
         let pre_pass_outcome: Result<
             (
                 Option<std::path::PathBuf>,
                 Option<oxibuilder_core::media::ImageManifest>,
             ),
             String,
-        > = oxibuilder_core::build::run_image_pre_pass(&db, &media_dir, &data_dir)
-            .await
-            .map_err(|e| format!("image pre-pass: {e}"));
+        > = oxibuilder_core::build::run_image_pre_pass(
+            &db,
+            &media_dir,
+            &data_dir,
+            &pre_builders_vec,
+            &rt,
+        )
+        .await
+        .map_err(|e| format!("image pre-pass: {e}"));
         let outcome: Result<usize, String> = match pre_pass_outcome {
             Err(e) => Err(e),
             Ok((staging, manifest)) => {

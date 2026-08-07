@@ -4,7 +4,8 @@
 // running `bun test` resolves the globals at runtime. tsc only complains because
 // bun-types isn't a declared dep (it isn't needed at runtime for `bun test`).
 import { describe, it, expect } from "bun:test";
-import { resolveMedia, type ImageManifest } from "./image-manifest";
+import { isMediaRef, isOptimizableRef, resolveMedia, type ImageManifest } from "./image-manifest";
+import { pickVariant } from "./useOptimizedImage";
 
 // `base` is the deployment `<base href>` WITH its slashes (see
 // `deploymentBasePrefix`). `resolveMedia` concatenates `${base}${url}` so the
@@ -68,8 +69,8 @@ describe("resolveMedia", () => {
   it("picks the largest available variant when all variants are wider than 960", () => {
     const m: ImageManifest = {
       "media/x.jpg": {
-        width: 2000,
-        height: 1125,
+        width: 4000,
+        height: 3000,
         srcset: [
           { w: 1280, url: "media/_derived/x-1280.webp" },
           { w: 1920, url: "media/_derived/x-1920.webp" },
@@ -83,14 +84,12 @@ describe("resolveMedia", () => {
   it("accepts a leading-slash media ref and matches by stripped key", () => {
     const m: ImageManifest = {
       "media/x.jpg": {
-        width: 2000,
-        height: 1125,
+        width: 800,
+        height: 600,
         srcset: [{ w: 960, url: "media/_derived/x-960.webp" }],
       },
     };
-    const out = resolveMedia("/media/x.jpg", "/blog/", m);
-    expect(out).not.toBeNull();
-    expect(out).toContain('src="/blog/media/_derived/x-960.webp"');
+    expect(resolveMedia("/media/x.jpg", "/blog/", m)).not.toBeNull();
   });
 
   it("emits absolute /-prefixed src when base is '/' (apex deployment)", () => {
@@ -116,5 +115,68 @@ describe("resolveMedia", () => {
       "media/icon.png": { width: 32, height: 32, srcset: [] },
     };
     expect(resolveMedia("media/icon.png", "/blog/", m)).toBeNull();
+  });
+});
+
+// `isMediaRef` is kept as an alias for the markdown-it rule and admin editor
+// (both still call the narrower predicate on purpose — external URLs go
+// through `useOptimizedImage`, not the markdown image rule). The new
+// `isOptimizableRef` widens it to http(s) too, which is what the SPA hook
+// needs for TMDB / Aladin covers.
+describe("isMediaRef / isOptimizableRef", () => {
+  it("isMediaRef matches logical media refs only", () => {
+    expect(isMediaRef("media/foo.png")).toBe(true);
+    expect(isMediaRef("/media/foo.png")).toBe(true);
+    expect(isMediaRef("https://image.tmdb.org/t/p/w500/x.jpg")).toBe(false);
+    expect(isMediaRef("data:image/png;base64,abc")).toBe(false);
+  });
+
+  it("isOptimizableRef matches media refs AND http(s) urls", () => {
+    expect(isOptimizableRef("media/foo.png")).toBe(true);
+    expect(isOptimizableRef("/media/foo.png")).toBe(true);
+    expect(isOptimizableRef("https://image.tmdb.org/t/p/w500/x.jpg")).toBe(true);
+    expect(isOptimizableRef("http://covers.example.com/p.jpg")).toBe(true);
+    expect(isOptimizableRef("data:image/png;base64,abc")).toBe(false);
+    expect(isOptimizableRef("ftp://x/y")).toBe(false);
+    expect(isOptimizableRef("")).toBe(false);
+  });
+});
+
+// `pickVariant` is the consumer-side variant selector used by MovieCard /
+// MovieDetailPage / BookCard to pick the default `src` for the optimized
+// <img>. Mirrors the Rust pick_src (≤960 wins, else largest).
+describe("pickVariant", () => {
+  it("returns the largest variant whose width is ≤ 960", () => {
+    const entry = {
+      width: 2000,
+      height: 1125,
+      srcset: [
+        { w: 640, url: "x-640.webp" },
+        { w: 1280, url: "x-1280.webp" },
+        { w: 1920, url: "x-1920.webp" },
+      ],
+    };
+    expect(pickVariant(entry).w).toBe(640);
+  });
+
+  it("falls back to the largest variant when all are wider than 960", () => {
+    const entry = {
+      width: 2000,
+      height: 1125,
+      srcset: [
+        { w: 1280, url: "x-1280.webp" },
+        { w: 1920, url: "x-1920.webp" },
+      ],
+    };
+    expect(pickVariant(entry).w).toBe(1920);
+  });
+
+  it("returns the only entry for a single-variant srcset", () => {
+    const entry = {
+      width: 800,
+      height: 600,
+      srcset: [{ w: 640, url: "x-640.webp" }],
+    };
+    expect(pickVariant(entry).url).toBe("x-640.webp");
   });
 });

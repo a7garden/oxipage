@@ -7,7 +7,7 @@ use sqlx::SqlitePool;
 use std::collections::HashMap;
 
 const ENTRY_COLUMNS: &str = "id, slug, tmdb_id, media_type, title, title_ko, title_en,
-                             poster_path, release_year, runtime_min, watched_at,
+                             poster_path, origin, release_year, runtime_min, watched_at,
                              rating, review_ko, review_en, rewatch,
                              series_group_id, series_order, published_at,
                              created_at, updated_at";
@@ -98,14 +98,15 @@ pub async fn create_entry(
     poster_path: Option<String>,
     release_year: Option<i32>,
     runtime_min: Option<i32>,
+    origin: Option<String>,
 ) -> anyhow::Result<MovieEntry> {
     let rewatch: i8 = if input.rewatch { 1 } else { 0 };
     let entry = sqlx::query_as::<_, MovieEntry>(&format!(
         "INSERT INTO movie_entry
             (slug, tmdb_id, media_type, title, title_ko, title_en, poster_path,
-             release_year, runtime_min, watched_at, rating, review_ko, review_en,
+             origin, release_year, runtime_min, watched_at, rating, review_ko, review_en,
              rewatch, series_group_id, series_order)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
          RETURNING {ENTRY_COLUMNS}"
     ))
     .bind(resolved_slug)
@@ -115,6 +116,7 @@ pub async fn create_entry(
     .bind(title_ko.as_deref())
     .bind(title_en.as_deref())
     .bind(poster_path.as_deref())
+    .bind(origin.as_deref())
     .bind(release_year)
     .bind(runtime_min)
     .bind(input.watched_at.as_deref())
@@ -406,6 +408,9 @@ pub async fn update_entry(
     if patch.poster_path.is_some() {
         sets.push("poster_path = ?");
     }
+    if patch.origin.is_some() {
+        sets.push("origin = ?");
+    }
     if patch.release_year.is_some() {
         sets.push("release_year = ?");
     }
@@ -462,6 +467,9 @@ pub async fn update_entry(
         q = q.bind(v);
     }
     if let Some(v) = &patch.poster_path {
+        q = q.bind(v);
+    }
+    if let Some(v) = &patch.origin {
         q = q.bind(v);
     }
     if let Some(v) = patch.release_year {

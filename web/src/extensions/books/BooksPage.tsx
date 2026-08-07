@@ -14,6 +14,7 @@ import { PageTitle } from "../../shared/ui/page-header";
 import { Input } from "../../shared/ui/input";
 import { Link } from "react-router";
 import { useCollectionFilter } from "../../shared/useCollectionFilter";
+import { cn } from "../../shared/ui/cn";
 import { BookCard } from "./BookCard";
 
 const selectCls =
@@ -41,6 +42,7 @@ export function BooksPage() {
   });
 
   const [status, setStatus] = useState<string | null>(null);
+  const [category, setCategory] = useState<string | null>(null);
 
   const statusCounts = useMemo(() => {
     const m = new Map<string, number>();
@@ -48,9 +50,26 @@ export function BooksPage() {
     return m;
   }, [books]);
 
+  // Top-8 categories by count (mirrors MoviesPage's genre-chip facet).
+  const categoryCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const b of books ?? []) {
+      if (b.category) m.set(b.category, (m.get(b.category) ?? 0) + 1);
+    }
+    return [...m.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+      .slice(0, 8);
+  }, [books]);
+
   const visible = useMemo(
-    () => (status ? (books ?? []).filter((b) => b.status === status) : books ?? []),
-    [books, status],
+    () =>
+      (books ?? []).filter((b) => {
+        if (status && b.status !== status) return false;
+        if (category && b.category !== category) return false;
+        return true;
+      }),
+    [books, status, category],
   );
 
   const { query, setQuery, sort, setSort, filtered } = useCollectionFilter(visible, {
@@ -81,10 +100,11 @@ export function BooksPage() {
     );
   }
 
-  const hasFilters = !!query || status != null;
+  const hasFilters = !!query || status != null || category != null;
   const clearAll = () => {
     setQuery("");
     setStatus(null);
+    setCategory(null);
     setSort("recent");
   };
 
@@ -143,10 +163,39 @@ export function BooksPage() {
         )}
       </div>
 
+      {/* 카테고리 칩 — mirrors MoviesPage genre chips (rounded-full border, active state) */}
+      {categoryCounts.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {categoryCounts.map((c) => {
+            const active = category === c.name;
+            return (
+              <button
+                key={c.name}
+                type="button"
+                onClick={() => setCategory(active ? null : c.name)}
+                className={cn(
+                  "rounded-full border px-2.5 py-1 text-xs transition-colors",
+                  active
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-line text-subtle hover:border-primary/40 hover:text-foreground",
+                )}
+              >
+                {c.name} <span className="text-muted">{c.count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Active filter chips */}
-      {status != null && (
+      {(status != null || category != null) && (
         <div className="flex flex-wrap items-center gap-2">
-          <FilterChip label={statusLabel(status, ko)} onClear={() => setStatus(null)} />
+          {status != null && (
+            <FilterChip label={statusLabel(status, ko)} onClear={() => setStatus(null)} />
+          )}
+          {category != null && (
+            <FilterChip label={category} onClear={() => setCategory(null)} />
+          )}
         </div>
       )}
 
@@ -154,9 +203,10 @@ export function BooksPage() {
         <p className="text-subtle">{ko ? "결과가 없습니다." : "No matches."}</p>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((b) => (
+          {filtered.map((b, i) => (
             <li key={b.id}>
               <BookCard
+                index={i}
                 book={{
                   id: b.id,
                   title: b.title,
