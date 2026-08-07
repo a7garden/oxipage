@@ -1,32 +1,35 @@
 use crate::output::Output;
-use clap::Subcommand;
+use clap::{Args, Subcommand};
 use oxibuilder_ext_profile::{model::ProfileInput, repo};
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum ProfileCommand {
     /// Update profile fields. Only provided flags change; others are kept.
-    Set {
-        #[arg(long)]
-        display_name: Option<String>,
-        #[arg(long)]
-        email: Option<String>,
-        #[arg(long = "github")]
-        github_username: Option<String>,
-        #[arg(long)]
-        linkedin: Option<String>,
-        #[arg(long)]
-        tagline_ko: Option<String>,
-        #[arg(long)]
-        tagline_en: Option<String>,
-        #[arg(long)]
-        avatar_url: Option<String>,
-        #[arg(long)]
-        bio_ko: Option<String>,
-        #[arg(long)]
-        bio_en: Option<String>,
-    },
+    Set(Box<ProfileSetArgs>),
     /// Print the current profile as JSON.
     Show,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct ProfileSetArgs {
+    #[arg(long)]
+    pub display_name: Option<String>,
+    #[arg(long)]
+    pub email: Option<String>,
+    #[arg(long = "github")]
+    pub github_username: Option<String>,
+    #[arg(long)]
+    pub linkedin: Option<String>,
+    #[arg(long)]
+    pub tagline_ko: Option<String>,
+    #[arg(long)]
+    pub tagline_en: Option<String>,
+    #[arg(long)]
+    pub avatar_url: Option<String>,
+    #[arg(long)]
+    pub bio_ko: Option<String>,
+    #[arg(long)]
+    pub bio_en: Option<String>,
 }
 
 pub(crate) async fn profile(c: ProfileCommand, out: &Output) -> anyhow::Result<()> {
@@ -38,7 +41,8 @@ pub(crate) async fn profile(c: ProfileCommand, out: &Output) -> anyhow::Result<(
             Some(p) => out.data(serde_json::to_value(&p)?, "profile"),
             None => out.ok("no profile set"),
         },
-        ProfileCommand::Set {
+    ProfileCommand::Set(args) => {
+        let ProfileSetArgs {
             display_name,
             email,
             github_username,
@@ -48,7 +52,7 @@ pub(crate) async fn profile(c: ProfileCommand, out: &Output) -> anyhow::Result<(
             avatar_url,
             bio_ko,
             bio_en,
-        } => {
+        } = *args;
             // Ensure the singleton row exists (server boot creates it from
             // site.name; this is the CLI's safety net for a fresh DB).
             repo::ensure_singleton(&pool, "Owner").await?;
