@@ -166,6 +166,47 @@ pub enum ConfigError {
     InvalidMounts(String),
 }
 
+/// Candidate build-output directory names in priority order. Probed under a
+/// mount `source` (project root) to auto-locate the static build artifacts.
+/// `public`/`site` are deliberately omitted: they are commonly build inputs
+/// or multi-purpose, so matching them risks grafting the wrong directory.
+#[allow(dead_code)] // consumed by Task 2 (resolve_mount_sources) in the same plan
+pub(crate) const MOUNT_OUTPUT_CANDIDATES: &[&str] = &[
+    "dist",           // Vite / Astro / most bundlers
+    "build",          // CRA / others
+    "out",            // Next.js static export
+    ".output/public", // Nuxt / Nitro (2-deep)
+    "_site",          // Jekyll / eleventy
+    "www",            // assorted
+];
+
+/// `index.html` presence is the marker of a static-site root.
+#[allow(dead_code)] // consumed by Task 2 (resolve_mount_sources) in the same plan
+pub(crate) fn has_index_html(dir: &Path) -> bool {
+    dir.is_dir() && dir.join("index.html").is_file()
+}
+
+/// Locate a mount's static build output under `source`.
+///
+/// If `source` itself contains `index.html` it is treated as the result dir
+/// (this is also the exact-path override: `source = "../portfolio/dist"` is
+/// honored verbatim). Otherwise the first `source/<candidate>` that is a
+/// directory containing `index.html` wins, in `MOUNT_OUTPUT_CANDIDATES`
+/// priority order. `None` when nothing matches.
+#[allow(dead_code)] // consumed by Task 2 (resolve_mount_sources) in the same plan
+pub(crate) fn detect_static_output(source: &Path) -> Option<PathBuf> {
+    if has_index_html(source) {
+        return Some(source.to_path_buf());
+    }
+    for cand in MOUNT_OUTPUT_CANDIDATES {
+        let dir = source.join(cand);
+        if has_index_html(&dir) {
+            return Some(dir);
+        }
+    }
+    None
+}
+
 impl Config {
     pub fn from_toml_str(s: &str) -> Result<Self, toml::de::Error> {
         toml::from_str(s)
@@ -410,6 +451,54 @@ description = "Hand-crafted work"
         let base = std::path::Path::new("/srv/oxibuilder");
         cfg.resolve_mount_sources(base);
         assert_eq!(cfg.mounts[0].source, std::path::PathBuf::from("/srv/oxibuilder/../portfolio"));
+    }
+
+    #[test]
+    fn detect_returns_source_when_it_has_index_html() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("index.html"), "<html></html>").unwrap();
+        assert_eq!(detect_static_output(tmp.path()).as_deref(), Some(tmp.path()));
+    }
+
+    #[test]
+    fn detect_prefers_dist_over_build() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        for d in ["dist", "build"] {
+            let dir = tmp.path().join(d);
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join("index.html"), "x").unwrap();
+        }
+        let got = detect_static_output(tmp.path()).unwrap();
+        assert_eq!(got.file_name().unwrap(), "dist");
+    }
+
+    #[test]
+    fn detect_matches_output_public_two_deep() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let dir = tmp.path().join(".output").join("public");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("index.html"), "x").unwrap();
+        let got = detect_static_output(tmp.path()).unwrap();
+        assert_eq!(got, tmp.path().join(".output").join("public"));
+    }
+
+    #[test]
+    fn detect_skips_candidate_without_index_html() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(tmp.path().join("dist")).unwrap(); // no index.html
+        let build = tmp.path().join("build");
+        std::fs::create_dir_all(&build).unwrap();
+        std::fs::write(build.join("index.html"), "x").unwrap();
+        let got = detect_static_output(tmp.path()).unwrap();
+        assert_eq!(got.file_name().unwrap(), "build");
+    }
+
+    #[test]
+    fn detect_returns_none_when_no_match() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(tmp.path().join("src")).unwrap();
+        std::fs::create_dir_all(tmp.path().join("node_modules")).unwrap();
+        assert!(detect_static_output(tmp.path()).is_none());
     }
 }
 
