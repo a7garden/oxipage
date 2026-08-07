@@ -85,7 +85,7 @@ const EMPTY: FormState = {
 function StarRating({ rating }: { rating: unknown }) {
   const r = typeof rating === "number" ? Math.floor(rating / 2) : null;
   if (r == null) return <span className="text-xs text-muted">—</span>;
-  return <span className="text-[#eab308] text-xs">{"★".repeat(r)}{"☆".repeat(5 - r)}</span>;
+  return <span className="text-star text-xs">{"★".repeat(r)}{"☆".repeat(5 - r)}</span>;
 }
 
 export function MoviesTab({ slug }: { slug: string }) {
@@ -206,7 +206,7 @@ export function MoviesTab({ slug }: { slug: string }) {
               onClick={() => publish.mutate(r.slug)}
               disabled={publish.isPending || !!r.published_at}
               title={r.published_at ? "Already published" : "Publish"}
-              className="inline-flex items-center justify-center size-7 rounded-md text-muted hover:text-[#22c55e] hover:bg-surface/50 disabled:opacity-30 disabled:hover:text-muted"
+              className="inline-flex items-center justify-center size-7 rounded-md text-muted hover:text-active hover:bg-surface/50 disabled:opacity-30 disabled:hover:text-muted"
             >
               <Send size={14} />
             </button>
@@ -219,7 +219,7 @@ export function MoviesTab({ slug }: { slug: string }) {
             </button>
             <button
               onClick={() => { if (confirm(`Delete "${r.title}"?`)) remove.mutate(r.slug); }}
-              className="inline-flex items-center justify-center size-7 rounded-md text-muted hover:text-red-600 hover:bg-red-50"
+              className="inline-flex items-center justify-center size-7 rounded-md text-muted hover:text-destructive-fg hover:bg-destructive-bg"
               aria-label="Delete"
             >
               <Trash2 size={14} />
@@ -235,11 +235,11 @@ export function MoviesTab({ slug }: { slug: string }) {
       <div className="flex gap-4 mb-4">
         <button
           onClick={() => setTab("movies")}
-          className={`text-sm font-medium pb-1 border-b-2 ${tab === "movies" ? "border-[#22c55e] text-foreground" : "border-transparent text-muted"}`}
+          className={`text-sm font-medium pb-1 border-b-2 ${tab === "movies" ? "border-active text-primary" : "border-transparent text-muted"}`}
         >Movies</button>
         <button
           onClick={() => setTab("series")}
-          className={`text-sm font-medium pb-1 border-b-2 ${tab === "series" ? "border-[#22c55e] text-foreground" : "border-transparent text-muted"}`}
+          className={`text-sm font-medium pb-1 border-b-2 ${tab === "series" ? "border-active text-primary" : "border-transparent text-muted"}`}
         >Series</button>
       </div>
 
@@ -364,7 +364,7 @@ export function MoviesTab({ slug }: { slug: string }) {
           Rewatch
         </label>
         <SeriesField slug={slug} form={form} setForm={setForm} />
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-destructive-fg">{error}</p>}
       </Drawer>
     </>
       )}
@@ -454,10 +454,10 @@ function SeriesView({ slug }: { slug: string }) {
         {groups.map((g) => (
           <div
             key={g.slug}
-            className={`border border-line rounded-lg p-3 flex items-center gap-3 cursor-pointer ${selected?.slug === g.slug ? "ring-1 ring-[#22c55e]" : ""}`}
+            className={`border border-line rounded-lg p-3 flex items-center gap-3 cursor-pointer ${selected?.slug === g.slug ? "ring-1 ring-active" : ""}`}
             onClick={() => setSelected(selected?.slug === g.slug ? null : g)}
           >
-            <div className="size-9 rounded-lg bg-[#fef3c7] text-[#92400e] flex items-center justify-center text-base font-bold shrink-0">
+            <div className="size-9 rounded-lg bg-warning-bg text-warning-fg flex items-center justify-center text-base font-bold shrink-0">
               {(g.title_ko ?? g.title_en ?? g.slug)[0].toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
@@ -473,7 +473,7 @@ function SeriesView({ slug }: { slug: string }) {
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); if (confirm(`Delete series "${g.title_ko ?? g.title_en ?? g.slug}"?`)) deleteMut.mutate(g.slug); }}
-              className="text-red-500 hover:text-red-600 shrink-0"
+              className="text-destructive-fg hover:bg-destructive-bg shrink-0"
             >
               <Trash2 size={14} />
             </button>
@@ -498,7 +498,7 @@ function SeriesView({ slug }: { slug: string }) {
                   <Badge variant="outline" className="text-[10px]">{e.rating}/10</Badge>
                   <button
                     onClick={() => { if (confirm(`Remove "${e.title}" from this series?`)) contentClient.update(slug, "movies", e.slug, { series_group_slug: null, series_order: null }).then(() => qc.invalidateQueries({ queryKey: ["site", slug, "movies", "series"] })); }}
-                    className="text-muted hover:text-red-500"
+                    className="text-muted hover:text-destructive-fg hover:bg-destructive-bg"
                     title="Remove from series"
                   >
                     <X size={12} />
@@ -643,7 +643,7 @@ function CastEditor({ form, setForm }: { form: FormState; setForm: (cb: (prev: F
               value={c.character_name}
               onChange={(e) => update(i, { character_name: e.target.value })}
             />
-            <button type="button" onClick={() => setForm((f) => ({ ...f, cast: f.cast.filter((_, j) => j !== i) }))} className="text-muted hover:text-red-500">
+            <button type="button" onClick={() => setForm((f) => ({ ...f, cast: f.cast.filter((_, j) => j !== i) }))} className="text-muted hover:text-destructive-fg hover:bg-destructive-bg">
               <X size={14} />
             </button>
           </div>

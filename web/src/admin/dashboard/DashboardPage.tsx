@@ -8,6 +8,7 @@ import { Skeleton } from "../../shared/ui/skeleton";
 import { EmptyState, EmptyStateTitle, EmptyStateDescription } from "../../shared/ui/empty-state";
 import { Plus, RefreshCw, Rocket, Pencil } from "lucide-react";
 import { str } from "../shared/row-utils";
+import { ConsolePageHeader } from "../shell/ConsolePageHeader";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -101,33 +102,33 @@ export function DashboardPage() {
 
   return (
     <div>
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-sm text-muted mt-0.5">{site?.name ?? slug}</p>
-        </div>
-        <div className="flex gap-2">
-          {stats?.last_build && (
-            <Badge variant={stats.last_build.status === "success" ? "positive" : "secondary"}>
-              {stats.last_build.status}
-            </Badge>
-          )}
-          {stats?.last_deploy && (
-            <Badge
-              variant={stats.last_deploy.status === "failed" ? "warning" : "positive"}
-              title={`${stats.last_deploy.owner}/${stats.last_deploy.repo} · ${stats.last_deploy.started_at}`}
-            >
-              deploy:{stats.last_deploy.status}
-            </Badge>
-          )}
-          <Button variant="outline" size="sm" onClick={handleBuild}>
-            <RefreshCw size={14} className="mr-1" /> Rebuild
-          </Button>
-          <Button size="sm" onClick={handleDeploy}>
-            <Rocket size={14} className="mr-1" /> Deploy
-          </Button>
-        </div>
-      </div>
+      <ConsolePageHeader
+        title="Dashboard"
+        description={site?.name ?? slug}
+        actions={
+          <div className="flex gap-2">
+            {stats?.last_build && (
+              <Badge variant={stats.last_build.status === "success" ? "positive" : "secondary"}>
+                {stats.last_build.status}
+              </Badge>
+            )}
+            {stats?.last_deploy && (
+              <Badge
+                variant={stats.last_deploy.status === "failed" ? "warning" : "positive"}
+                title={`${stats.last_deploy.owner}/${stats.last_deploy.repo} · ${stats.last_deploy.started_at}`}
+              >
+                deploy:{stats.last_deploy.status}
+              </Badge>
+            )}
+            <Button variant="outline" size="sm" onClick={handleBuild}>
+              <RefreshCw size={14} className="mr-1" /> Rebuild
+            </Button>
+            <Button size="sm" onClick={handleDeploy}>
+              <Rocket size={14} className="mr-1" /> Deploy
+            </Button>
+          </div>
+        }
+      />
 
       {statsLoading ? (
         <div className="grid grid-cols-4 gap-3 mb-6">

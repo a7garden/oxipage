@@ -148,7 +148,7 @@ export function ScrapsTab({ slug }: { slug: string }) {
               onClick={() => publish.mutate(r.id)}
               disabled={publish.isPending || !!r.published_at}
               title={r.published_at ? "Already published" : "Publish"}
-              className="inline-flex items-center justify-center size-7 rounded-md text-muted hover:text-[#22c55e] hover:bg-surface/50 disabled:opacity-30 disabled:hover:text-muted"
+              className="inline-flex items-center justify-center size-7 rounded-md text-muted hover:text-active hover:bg-surface/50 disabled:opacity-30 disabled:hover:text-muted"
             >
               <Send size={14} />
             </button>
@@ -161,7 +161,7 @@ export function ScrapsTab({ slug }: { slug: string }) {
             </button>
             <button
               onClick={() => { if (confirm(`Delete "${r.title}"?`)) remove.mutate(r.id); }}
-              className="inline-flex items-center justify-center size-7 rounded-md text-muted hover:text-red-600 hover:bg-red-50"
+              className="inline-flex items-center justify-center size-7 rounded-md text-muted hover:text-destructive-fg hover:bg-destructive-bg"
               aria-label="Delete"
             >
               <Trash2 size={14} />
@@ -225,7 +225,7 @@ export function ScrapsTab({ slug }: { slug: string }) {
         <DrawerField label="Note (English)">
           <MarkdownEditor slug={slug} extension="scraps" value={form.note_en} onChange={(v) => setForm((f) => ({ ...f, note_en: v }))} rows={5} />
         </DrawerField>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-destructive-fg">{error}</p>}
       </Drawer>
     </div>
   );

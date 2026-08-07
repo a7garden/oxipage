@@ -140,7 +140,7 @@ export function LinksTab({ slug }: { slug: string }) {
             </button>
             <button
               onClick={() => { if (confirm(`Delete "${r.title}"?`)) remove.mutate(r.id); }}
-              className="inline-flex items-center justify-center size-7 rounded-md text-muted hover:text-red-600 hover:bg-red-50"
+              className="inline-flex items-center justify-center size-7 rounded-md text-muted hover:text-destructive-fg hover:bg-destructive-bg"
               aria-label="Delete"
             >
               <Trash2 size={14} />
@@ -216,7 +216,7 @@ export function LinksTab({ slug }: { slug: string }) {
           <input type="checkbox" checked={form.featured} onChange={(e) => setForm((f) => ({ ...f, featured: e.target.checked }))} />
           Featured
         </label>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-destructive-fg">{error}</p>}
       </Drawer>
     </div>
   );

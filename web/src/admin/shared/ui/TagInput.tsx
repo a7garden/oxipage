@@ -44,7 +44,7 @@ export function TagInput({
       <div
         className={cn(
           "flex min-h-10 flex-wrap items-center gap-1.5 rounded-md border bg-canvas px-2 py-1.5",
-          error ? "border-red-500" : "border-line",
+          error ? "border-destructive-border" : "border-line",
         )}
       >
         {value.map((tag) => (
@@ -72,7 +72,7 @@ export function TagInput({
           className="flex-1 min-w-[8rem] bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
         />
       </div>
-      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+      {error && <p className="text-xs text-destructive-fg mt-1">{error}</p>}
     </div>
   );
 }

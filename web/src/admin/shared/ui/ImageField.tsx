@@ -127,7 +127,7 @@ export function ImageField({
             </Button>
           </div>
           {error && (
-            <p className="text-xs text-red-500" role="alert">
+            <p className="text-xs text-destructive-fg" role="alert">
               {error}
             </p>
           )}

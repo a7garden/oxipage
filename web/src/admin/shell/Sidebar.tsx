@@ -27,15 +27,22 @@ const navGroups = [
   },
 ];
 
+/**
+ * Console sidebar — the chrome anchor of the admin shell. Colors resolve
+ * exclusively through the --console-sidebar-* + --console-active-* tokens
+ * so light/dark stay in lock-step with the rest of the OKLCH system.
+ */
 export function Sidebar() {
   const { slug } = useParams();
 
   return (
-    <aside className="w-[200px] shrink-0 flex flex-col" style={{ backgroundColor: "var(--console-sidebar-bg)" }}>
+    <aside
+      className="w-[200px] shrink-0 flex flex-col bg-console-sidebar-bg"
+    >
       <nav className="flex-1 pt-2">
         {navGroups.map((group) => (
           <div key={group.label}>
-            <div className="px-4 pt-4 pb-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--console-sidebar-label)" }}>
+            <div className="px-4 pt-4 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-console-sidebar-label">
               {group.label}
             </div>
             {group.items.map((item) => {
@@ -47,16 +54,15 @@ export function Sidebar() {
                   to={to}
                   end={item.path === ""}
                   className={({ isActive }) =>
-                    `flex items-center gap-2.5 px-4 py-2 text-sm border-l-[3px] transition-all ${
-                      isActive ? "" : "hover:text-console-sidebar-text-hover hover:bg-console-sidebar-hover-bg"
-                    }`
+                    [
+                      "flex items-center gap-2.5 px-4 py-2 text-sm border-l-[3px] transition-all",
+                      isActive
+                        ? "text-console-sidebar-text-active bg-active-soft"
+                        : "text-console-sidebar-text hover:text-console-sidebar-text-hover hover:bg-console-sidebar-hover-bg",
+                    ].join(" ")
                   }
                   style={({ isActive }) => ({
-                    color: isActive ? "var(--console-sidebar-text-active)" : "var(--console-sidebar-text)",
-                    borderLeftColor: isActive ? "var(--console-sidebar-border-active)" : "transparent",
-                    backgroundColor: isActive
-                      ? "color-mix(in srgb, var(--console-sidebar-border-active) 10%, transparent)"
-                      : undefined,
+                    borderLeftColor: isActive ? "var(--console-active-line)" : "transparent",
                   })}
                 >
                   <Icon size={16} className="opacity-60 shrink-0" />
@@ -67,7 +73,7 @@ export function Sidebar() {
           </div>
         ))}
       </nav>
-      <div className="px-4 py-3 border-t border-console-sidebar-border text-xs" style={{ color: "var(--console-sidebar-label)" }}>
+      <div className="px-4 py-3 border-t border-console-sidebar-border text-xs text-console-sidebar-label">
         v1.0.0 · {slug ?? "no site"}
       </div>
     </aside>

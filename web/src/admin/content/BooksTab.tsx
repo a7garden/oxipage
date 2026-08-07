@@ -61,7 +61,7 @@ const EMPTY: FormState = {
 function StarRating({ rating }: { rating: unknown }) {
   const r = typeof rating === "number" ? Math.floor(rating / 2) : null;
   if (r == null) return <span className="text-xs text-muted">—</span>;
-  return <span className="text-[#eab308] text-xs">{"★".repeat(r)}{"☆".repeat(5 - r)}</span>;
+  return <span className="text-star text-xs">{"★".repeat(r)}{"☆".repeat(5 - r)}</span>;
 }
 
 export function BooksTab({ slug }: { slug: string }) {
@@ -159,7 +159,7 @@ export function BooksTab({ slug }: { slug: string }) {
             <button
               onClick={() => publish.mutate(r.id)}
               disabled={publish.isPending || !!r.published_at}
-              className="inline-flex items-center justify-center size-7 rounded-md text-muted hover:text-[#22c55e] hover:bg-surface/50 disabled:opacity-30 disabled:hover:text-muted"
+              className="inline-flex items-center justify-center size-7 rounded-md text-muted hover:text-active hover:bg-surface/50 disabled:opacity-30 disabled:hover:text-muted"
             >
               <Send size={14} />
             </button>
@@ -172,7 +172,7 @@ export function BooksTab({ slug }: { slug: string }) {
             </button>
             <button
               onClick={() => { if (confirm(`Delete "${r.title}"?`)) remove.mutate(r.id); }}
-              className="inline-flex items-center justify-center size-7 rounded-md text-muted hover:text-red-600 hover:bg-red-50"
+              className="inline-flex items-center justify-center size-7 rounded-md text-muted hover:text-destructive-fg hover:bg-destructive-bg"
               aria-label="Delete"
             >
               <Trash2 size={14} />
@@ -269,7 +269,7 @@ export function BooksTab({ slug }: { slug: string }) {
         <DrawerField label="Review (English)">
           <MarkdownEditor slug={slug} extension="books" value={form.review_en} onChange={(v) => setForm((f) => ({ ...f, review_en: v }))} rows={5} />
         </DrawerField>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-destructive-fg">{error}</p>}
       </Drawer>
     </div>
   );

@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listExtensions, setExtensionEnabled, type ExtensionStatus, listRegistry, installExtension, type RegistryEntry } from "../shared/api";
 import { Button } from "../../shared/ui/button";
 import { Skeleton } from "../../shared/ui/skeleton";
+import { ConsolePageHeader } from "../shell/ConsolePageHeader";
 
 export function ExtensionsPage() {
   const { slug } = useParams<{ slug: string }>()!;
@@ -34,12 +35,10 @@ export function ExtensionsPage() {
 
   return (
     <div>
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-bold text-foreground">Extensions</h1>
-          <p className="text-sm text-muted mt-0.5">Manage installed extensions for {slug}</p>
-        </div>
-      </div>
+      <ConsolePageHeader
+        title="Extensions"
+        description={`Manage installed extensions for ${slug}`}
+      />
 
       {isLoading ? (
         <div className="grid grid-cols-2 gap-3">
@@ -65,7 +64,7 @@ export function ExtensionsPage() {
                   !ext.enabled ? "opacity-60" : ""
                 }`}
               >
-                <div className="size-9 rounded-lg bg-[#dcfce7] text-[#166534] flex items-center justify-center text-base font-bold shrink-0">
+                <div className="size-9 rounded-lg bg-positive-bg text-positive-fg flex items-center justify-center text-base font-bold shrink-0">
                   {ext.display_name[0]?.toUpperCase() ?? "?"}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -75,17 +74,17 @@ export function ExtensionsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className={ext.enabled ? "border-red-300 text-red-600 hover:bg-red-50" : ""}
+                  className={ext.enabled ? "border-destructive-border text-destructive-fg hover:bg-destructive-bg" : ""}
                   onClick={() => toggleExt.mutate({ id: ext.id, enabled: !ext.enabled })}
                   disabled={toggleExt.isPending}
                 >
                   {ext.enabled ? "Disable" : "Enable"}
                 </Button>
               </div>
-            ))}
+          ))}
           </div>
           {toggleExt.isError && (
-            <p className="text-sm text-red-600 mt-2">
+            <p className="text-sm text-destructive-fg mt-2">
               {toggleExt.error instanceof Error ? toggleExt.error.message : "Toggle failed"}
             </p>
           )}
@@ -129,7 +128,7 @@ function RegistrySection({ slug }: { slug?: string }) {
       <div className="grid grid-cols-2 gap-3 mb-6">
         {available.map((entry) => (
           <div key={entry.name} className="border border-line rounded-lg p-3 flex items-center gap-3">
-            <div className="size-9 rounded-lg bg-[#e0f2fe] text-[#0369a1] flex items-center justify-center text-base font-bold shrink-0">
+            <div className="size-9 rounded-lg bg-info-bg text-info-fg flex items-center justify-center text-base font-bold shrink-0">
               {entry.name[0].toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">

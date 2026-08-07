@@ -5,6 +5,7 @@ import { getTheme, setTheme, listThemes } from "../shared/api";
 import { applyServerTheme, type ThemeDefinition } from "../../shared/theme";
 import { Button } from "../../shared/ui/button";
 import { Skeleton } from "../../shared/ui/skeleton";
+import { ConsolePageHeader } from "../shell/ConsolePageHeader";
 
 function ThemePreview({ theme }: { theme: ThemeDefinition }) {
   const [bg, _body, text, accent] = theme.preview_colors;
@@ -62,11 +63,13 @@ export function ThemesPage() {
       </div>
     );
   }
-
   return (
     <div>
-      <h1 className="text-xl font-bold text-foreground mb-1">Themes</h1>
-      <p className="text-sm text-muted mb-6">Pick a visual theme for the public site</p>
+      <ConsolePageHeader
+        title="Themes"
+        description="Pick a visual theme for the public site"
+        border={false}
+      />
 
       <div className="grid grid-cols-4 gap-3 mb-6">
         {catalog.map((theme) => (
@@ -134,12 +137,12 @@ export function ThemesPage() {
 
       <div className="flex justify-end items-center gap-3 mt-4">
         {apply.isError && (
-          <span className="text-sm text-red-600">
+          <span className="text-sm text-destructive-fg">
             {apply.error instanceof Error ? apply.error.message : "Apply failed"}
           </span>
         )}
         {apply.isSuccess && (
-          <span className="text-sm text-[#22c55e]">Theme applied</span>
+          <span className="text-sm text-positive-fg">Theme applied</span>
         )}
         <Button
           onClick={() => apply.mutate()}

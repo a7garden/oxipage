@@ -4,6 +4,15 @@ import { useQuery } from "@tanstack/react-query";
 import { listSites, getStats } from "../shared/api";
 import { ChevronDown } from "lucide-react";
 
+/**
+ * Console site selector — the dropdown that appears in the topbar.
+ *
+ * Tone tokens:
+ *  - bg-active            : active site indicator dot
+ *  - bg-destructive-fg   : inactive site indicator
+ *  - border-active        : active row hairline
+ *  - text-active          : active row check mark
+ */
 export function SiteSelector() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -39,7 +48,7 @@ export function SiteSelector() {
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2 px-2.5 py-1 border border-line rounded-md text-sm font-medium bg-surface/50 hover:bg-surface min-w-[140px]"
       >
-        <span className="size-2 rounded-full bg-[#22c55e] shrink-0" />
+        <span className="size-2 rounded-full bg-active shrink-0" />
         <span>{current.name}</span>
         <ChevronDown size={12} className="ml-auto text-muted" />
       </button>
@@ -52,15 +61,22 @@ export function SiteSelector() {
               key={s.name}
               to={`/s/${s.name}`}
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm hover:bg-surface"
-              style={s.name === current.name ? { backgroundColor: "rgba(34,197,94,0.08)" } : {}}
+              className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm hover:bg-surface ${
+                s.name === current.name ? "border border-active bg-active-soft" : "border border-transparent"
+              }`}
             >
-              <span className={`size-2 rounded-full shrink-0 ${s.active ? "bg-[#22c55e]" : "bg-[#ef4444]"}`} />
+              <span
+                className={`size-2 rounded-full shrink-0 ${
+                  s.active ? "bg-active" : "bg-destructive-fg"
+                }`}
+              />
               <div>
                 <div className="font-medium">{s.name}</div>
                 <div className="text-xs text-muted">{s.path}</div>
               </div>
-              {s.name === current.name && <span className="ml-auto text-sm text-[#22c55e] font-bold">✓</span>}
+              {s.name === current.name && (
+                <span className="ml-auto text-sm text-active font-bold">✓</span>
+              )}
             </Link>
           ))}
           {stats && (

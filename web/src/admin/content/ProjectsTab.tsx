@@ -199,7 +199,7 @@ export function ProjectsTab({ slug }: { slug: string }) {
               onClick={() => publish.mutate(r.slug)}
               disabled={publish.isPending || !!r.published_at}
               title={r.published_at ? "Already published" : "Publish"}
-              className="inline-flex items-center justify-center size-7 rounded-md text-muted hover:text-[#22c55e] hover:bg-surface/50 disabled:opacity-30 disabled:hover:text-muted"
+              className="inline-flex items-center justify-center size-7 rounded-md text-muted hover:text-active hover:bg-surface/50 disabled:opacity-30 disabled:hover:text-muted"
             >
               <Send size={14} />
             </button>
@@ -214,7 +214,7 @@ export function ProjectsTab({ slug }: { slug: string }) {
               onClick={() => {
                 if (confirm(`Delete "${r.title_ko || r.title_en}"?`)) remove.mutate(r.slug);
               }}
-              className="inline-flex items-center justify-center size-7 rounded-md text-muted hover:text-red-600 hover:bg-red-50"
+              className="inline-flex items-center justify-center size-7 rounded-md text-muted hover:text-destructive-fg hover:bg-destructive-bg"
               aria-label="Delete"
             >
               <Trash2 size={14} />
@@ -331,7 +331,7 @@ export function ProjectsTab({ slug }: { slug: string }) {
                       onBlur={(e) => { const v = Number(e.target.value); if (v !== s.display_order) updateShotMut.mutate({ sid: s.id, patch: { display_order: v } }); }}
                     />
                     <span className="text-xs text-muted">#{s.display_order}</span>
-                    <button onClick={() => deleteShotMut.mutate(s.id)} className="text-red-500 hover:text-red-600">
+                    <button onClick={() => deleteShotMut.mutate(s.id)} className="text-destructive-fg hover:bg-destructive-bg">
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -367,7 +367,7 @@ export function ProjectsTab({ slug }: { slug: string }) {
           </div>
         )}
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-destructive-fg">{error}</p>}
       </Drawer>
     </div>
   );

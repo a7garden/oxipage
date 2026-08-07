@@ -11,6 +11,7 @@ import { BooksTab } from "./BooksTab";
 import { NovelsTab } from "./NovelsTab";
 import { ScrapsTab } from "./ScrapsTab";
 import { ProfileTab } from "./ProfileTab";
+import { ConsolePageHeader } from "../shell/ConsolePageHeader";
 
 const tabs = [
   { id: "profile", label: "Profile" },
@@ -50,11 +51,13 @@ export function ContentPage() {
   );
   const active = visibleTabs.some((t) => t.id === activeTab) ? activeTab : "profile";
   const TabComponent = tabComponents[active];
-
   return (
     <div>
-      <h1 className="text-xl font-bold text-foreground mb-1">Content</h1>
-      <p className="text-sm text-muted mb-4">Manage all content across extensions</p>
+      <ConsolePageHeader
+        title="Content"
+        description="Manage all content across extensions"
+        border={false}
+      />
 
       <div className="flex gap-0 border-b-2 border-line mb-4">
         {visibleTabs.map((tab) => (
@@ -64,7 +67,7 @@ export function ContentPage() {
             className={cn(
               "px-4 py-2 text-sm font-medium border-b-2 -mb-[2px] transition-colors",
               active === tab.id
-                ? "text-[#2a6b4a] border-[#22c55e]"
+                ? "text-primary border-active"
                 : "text-muted border-transparent hover:text-foreground",
             )}
           >

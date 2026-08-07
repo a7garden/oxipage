@@ -166,7 +166,7 @@ export function MarkdownEditor({
       {(pending || uploadError) && (
         <div className="px-3 py-1 text-xs border-t border-line">
           {pending && <span className="text-muted">Uploading…</span>}
-          {uploadError && <span className="text-red-600">{uploadError}</span>}
+          {uploadError && <span className="text-destructive-fg">{uploadError}</span>}
         </div>
       )}
     </div>

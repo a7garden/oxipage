@@ -7,6 +7,7 @@ import { Input } from "../../shared/ui/input";
 import { Skeleton } from "../../shared/ui/skeleton";
 import { Trash2, X } from "lucide-react";
 import { ThemeToggle } from "../../shared/ThemeToggle";
+import { ConsolePageHeader } from "../shell/ConsolePageHeader";
 
 function SettingsField({
   label,
@@ -204,8 +205,11 @@ export function SettingsPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-bold text-foreground mb-1">Settings</h1>
-      <p className="text-sm text-muted mb-6">Site-wide configuration for {slug}</p>
+      <ConsolePageHeader
+        title="Settings"
+        description={`Site-wide configuration for ${slug}`}
+        border={false}
+      />
 
       <div className="space-y-4">
         <div className="border border-line rounded-lg p-5">
@@ -231,7 +235,7 @@ export function SettingsPage() {
                     {code}
                     <button
                       onClick={() => removeLanguage(code)}
-                      className="text-muted hover:text-red-600"
+                      className="text-muted hover:text-destructive-fg hover:bg-destructive-bg"
                       aria-label={`Remove ${code}`}
                     >
                       <X size={12} />
@@ -340,7 +344,7 @@ export function SettingsPage() {
               {setDefault.isPending ? "Setting…" : "Set default"}
             </Button>
             {setDefault.isSuccess && (
-              <span className="text-xs text-[#16a34a]">Updated</span>
+              <span className="text-xs text-positive-fg">Updated</span>
             )}
           </div>
         </div>
@@ -365,14 +369,14 @@ export function SettingsPage() {
           </div>
         </div>
 
-        <div className="border border-[#fecaca] rounded-lg p-5">
-          <h3 className="text-sm font-semibold mb-4 text-[#dc2626]">Danger Zone</h3>
+        <div className="border border-destructive-border rounded-lg p-5">
+          <h3 className="text-sm font-semibold mb-4 text-destructive-fg">Danger Zone</h3>
           {!confirmDelete ? (
             <div>
               <Button
                 variant="outline"
                 size="sm"
-                className="border-red-300 text-red-600 hover:bg-red-50"
+                className="border-destructive-border text-destructive-fg hover:bg-destructive-bg"
                 onClick={() => setConfirmDelete(true)}
               >
                 <Trash2 size={14} className="mr-1" /> Delete Site
@@ -381,7 +385,7 @@ export function SettingsPage() {
                 variant="outline"
                 size="sm"
                 disabled
-                className="border-red-300 text-red-400 ml-2"
+                className="border-destructive-border text-destructive-fg/60 ml-2"
               >
                 Purge All Data (Coming soon)
               </Button>
@@ -390,12 +394,12 @@ export function SettingsPage() {
               </p>
             </div>
           ) : (
-            <div className="border border-red-300 rounded-md p-4 bg-red-50/30">
-              <p className="text-sm font-medium text-red-700 mb-2">
+            <div className="border border-destructive-border rounded-md p-4 bg-destructive-bg">
+              <p className="text-sm font-medium text-destructive-fg mb-2">
                 Are you sure you want to delete <strong>{slug}</strong>?
               </p>
-              <p className="text-xs text-red-600 mb-3">
-                Type <code className="px-1 py-0.5 bg-red-100 rounded">{slug}</code> below to confirm.
+              <p className="text-xs text-destructive-fg mb-3">
+                Type <code className="px-1 py-0.5 bg-surface rounded">{slug}</code> below to confirm.
               </p>
               <Input
                 value={deleteInput}
@@ -406,7 +410,7 @@ export function SettingsPage() {
               <div className="flex gap-2">
                 <Button
                   size="sm"
-                  className="bg-red-600 text-white hover:bg-red-700"
+                  className="bg-destructive-fg text-primary-foreground hover:bg-destructive-fg/90"
                   disabled={deleteInput !== slug}
                   onClick={handleDeleteSite}
                 >
@@ -426,7 +430,6 @@ export function SettingsPage() {
             </div>
           )}
         </div>
-      </div>
 
       <div className="flex justify-end gap-2 mt-4">
         <Button
@@ -452,10 +455,11 @@ export function SettingsPage() {
         </Button>
       </div>
       {save.isError && (
-        <p className="text-sm text-red-600 text-right mt-2">
+        <p className="text-sm text-destructive-fg text-right mt-2">
           {save.error instanceof Error ? save.error.message : "Save failed"}
         </p>
       )}
+    </div>
     </div>
   );
 }

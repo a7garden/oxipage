@@ -101,7 +101,7 @@ export function EditorPreviewDrawer({
               onClick={() => setTab(id)}
               className={cn(
                 "flex-1 px-4 py-2 text-sm font-medium capitalize",
-                tab === id ? "text-foreground border-b-2 border-[#22c55e]" : "text-muted",
+                tab === id ? "text-primary border-b-2 border-active" : "text-muted",
               )}
             >
               {id}

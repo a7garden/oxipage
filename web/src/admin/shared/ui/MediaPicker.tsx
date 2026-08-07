@@ -137,7 +137,7 @@ export function MediaPicker({ slug, extension, onPick, trigger }: MediaPickerPro
               />
             </label>
             {upload.isPending && <span className="text-xs text-muted">Uploading…</span>}
-            {upload.isError && <span className="text-xs text-red-600">Upload failed</span>}
+            {upload.isError && <span className="text-xs text-destructive-fg">Upload failed</span>}
           </div>
 
           <div className="flex-1 overflow-y-auto p-4">

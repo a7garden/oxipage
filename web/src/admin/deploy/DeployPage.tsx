@@ -17,6 +17,7 @@ import {
 import { Button } from "../../shared/ui/button";
 import { Badge } from "../../shared/ui/badge";
 import { Skeleton } from "../../shared/ui/skeleton";
+import { ConsolePageHeader } from "../shell/ConsolePageHeader";
 
 type OpKind = "build" | "deploy";
 type RunStatus = "idle" | "running" | "done" | "failed";
@@ -217,36 +218,35 @@ export function DeployPage() {
 
   return (
     <div>
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-bold text-foreground">Deploy</h1>
-          <p className="text-sm text-muted mt-0.5">
-            Build static site and deploy to GitHub Pages
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={onBuild} disabled={busy}>
-            {busy && op === "build" ? "Building…" : "↧ Build"}
-          </Button>
-          <Button
-            variant="outline"
-            asChild
-            disabled={!hasBuild || stale}
-          >
-            {hasBuild && !stale ? (
-              <a href={previewSiteUrl(slug!)} target="_blank" rel="noreferrer">
-                Preview Site ↗
-              </a>
-            ) : (
-              <span>Preview Site ↗</span>
-            )}
-          </Button>
-          {stale && <Badge variant="warning">Stale build</Badge>}
-          <Button onClick={onDeploy} disabled={busy || !preflightQ.data?.build_compatible}>
-            {busy && op === "deploy" ? "Deploying…" : "⇧ Deploy"}
-          </Button>
-        </div>
-      </div>
+      <ConsolePageHeader
+        title="Deploy"
+        description="Build static site and deploy to GitHub Pages"
+        border={false}
+        actions={
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onBuild} disabled={busy}>
+              {busy && op === "build" ? "Building…" : "↧ Build"}
+            </Button>
+            <Button
+              variant="outline"
+              asChild
+              disabled={!hasBuild || stale}
+            >
+              {hasBuild && !stale ? (
+                <a href={previewSiteUrl(slug!)} target="_blank" rel="noreferrer">
+                  Preview Site ↗
+                </a>
+              ) : (
+                <span>Preview Site ↗</span>
+              )}
+            </Button>
+            {stale && <Badge variant="warning">Stale build</Badge>}
+            <Button onClick={onDeploy} disabled={busy || !preflightQ.data?.build_compatible}>
+              {busy && op === "deploy" ? "Deploying…" : "⇧ Deploy"}
+            </Button>
+          </div>
+        }
+      />
 
       {lines.length > 0 && (
         <div className="mb-6">
@@ -258,16 +258,16 @@ export function DeployPage() {
               )}
             </h2>
           </div>
-          <div className="border border-line rounded-lg bg-[#0d1117] p-4 font-mono text-xs leading-relaxed max-h-80 overflow-auto">
+          <div className="border border-line rounded-lg bg-console-terminal-bg text-console-terminal-fg p-4 font-mono text-xs leading-relaxed max-h-80 overflow-auto">
             {lines.map((l, i) => (
               <div
                 key={i}
                 className={
                   l.tone === "ok"
-                    ? "text-[#3fb950]"
+                    ? "text-console-terminal-ok"
                     : l.tone === "err"
-                      ? "text-[#f85149]"
-                      : "text-[#c9d1d9]"
+                      ? "text-console-terminal-err"
+                      : "text-console-terminal-fg"
                 }
               >
                 {l.text}

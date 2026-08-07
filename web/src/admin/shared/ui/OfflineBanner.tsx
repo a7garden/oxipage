@@ -20,7 +20,7 @@ export function OfflineBanner() {
   }, []);
   if (online) return null;
   return (
-    <div className="bg-yellow-100 border-b border-yellow-300 px-4 py-1.5 text-xs text-yellow-800 text-center">
+    <div className="bg-warning-bg border-b border-warning-border px-4 py-1.5 text-xs text-warning-fg text-center">
       Offline — changes will retry when reconnected
     </div>
   );

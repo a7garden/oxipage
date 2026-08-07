@@ -398,7 +398,7 @@ export function ProfileTab({ slug }: { slug: string }) {
                       }}
                     />
                     {errors[`education.${i}`] && (
-                      <p className="text-xs text-red-600 col-span-3">{errors[`education.${i}`]}</p>
+                      <p className="text-xs text-destructive-fg col-span-3">{errors[`education.${i}`]}</p>
                     )}
                   </div>
                   <div className="flex justify-end">
@@ -498,7 +498,7 @@ export function ProfileTab({ slug }: { slug: string }) {
               ))}
             </div>
 
-            {errors._form && <p className="text-sm text-red-600 mt-3">{errors._form}</p>}
+            {errors._form && <p className="text-sm text-destructive-fg mt-3">{errors._form}</p>}
           </div>
         }
         preview={
