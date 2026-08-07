@@ -88,7 +88,21 @@ fn detect_returns_none_when_no_match() {
     std::fs::create_dir_all(tmp.path().join("node_modules")).unwrap();
     assert!(detect_static_output(tmp.path()).is_none());
 }
-```
+
+#[test]
+fn detect_prefers_candidate_over_root_index_html() {
+    // Vite/vanilla project root that ships an entry-template index.html at
+    // the project root alongside the real build output under dist/. The
+    // candidate-scan must win; otherwise the bare project root is kept and
+    // build_writer copies node_modules/src/ into out/{path}/.
+    let tmp = tempfile::TempDir::new().unwrap();
+    std::fs::write(tmp.path().join("index.html"), "<html>entry template</html>").unwrap();
+    let dist = tmp.path().join("dist");
+    std::fs::create_dir_all(&dist).unwrap();
+    std::fs::write(dist.join("index.html"), "<html>built</html>").unwrap();
+    let got = detect_static_output(tmp.path()).unwrap();
+    assert_eq!(got, dist, "candidate must win over root index.html");
+}
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -120,36 +134,37 @@ fn has_index_html(dir: &Path) -> bool {
 
 /// Locate a mount's static build output under `source`.
 ///
-/// If `source` itself contains `index.html` it is treated as the result dir
-/// (this is also the exact-path override: `source = "../portfolio/dist"` is
-/// honored verbatim). Otherwise the first `source/<candidate>` that is a
-/// directory containing `index.html` wins, in `MOUNT_OUTPUT_CANDIDATES`
-/// priority order. `None` when nothing matches.
+/// Candidates are scanned first (`MOUNT_OUTPUT_CANDIDATES` in priority order).
+/// The first `source/<candidate>` that is a directory containing `index.html`
+/// wins. If no candidate matches, `source` itself is returned as the result
+/// dir — this is the exact-path override (`source = "../portfolio/dist"` is
+/// honored verbatim) and also covers hand-built static folders with no
+/// `dist/` etc. `None` only when neither scan finds a result.
+///
+/// **Candidate-first ordering is critical.** Scanning root-`index.html` first
+/// would silently copy `node_modules/`, `src/`, etc. into `out/{path}/` for any
+/// Vite/vanilla project root that ships an entry template at the project root.
 fn detect_static_output(source: &Path) -> Option<PathBuf> {
-    if has_index_html(source) {
-        return Some(source.to_path_buf());
-    }
     for cand in MOUNT_OUTPUT_CANDIDATES {
         let dir = source.join(cand);
         if has_index_html(&dir) {
             return Some(dir);
         }
     }
+    if has_index_html(source) {
+        return Some(source.to_path_buf());
+    }
     None
 }
-```
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cargo test -p oxibuilder-core config::tests::detect`
-Expected: 5 passed.
+Expected: 6 passed (5 original + `detect_prefers_candidate_over_root_index_html`).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add crates/oxibuilder-core/src/config.rs
-git commit -m "feat(config): add detect_static_output mount source helper"
-```
 
 ---
 

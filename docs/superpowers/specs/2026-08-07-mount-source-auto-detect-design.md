@@ -34,8 +34,13 @@ tool's output path.
    matching is precise and fast.
 3. **`public` / `site` excluded from candidate names.** These are commonly build inputs or
    multi-purpose; matching them risks grafting the wrong directory.
-4. **Exact override still works.** A `source` that already points at a real result dir
-   (contains `index.html`) is used as-is; detection is skipped.
+4. **Root-as-result is a fallback, not a short-circuit.** Scan candidates first. Only if
+   no candidate matches, fall back to `source` itself as the result dir. This is what
+   distinguishes a Vite project root (root `index.html` + `dist/`) — where the candidate
+   scan correctly returns `dist/` — from a hand-built static folder (only `index.html`,
+   no candidates) — where the fallback returns the source itself. Inverting the order
+   (root-first) silently copies `node_modules/`, `src/`, etc. into `out/{path}/` for any
+   Vite/vanilla project, recreating the green-while-wrong bug the drop semantics prevent.
 
 ## 3. Design
 
@@ -56,21 +61,27 @@ const MOUNT_OUTPUT_CANDIDATES: &[&str] = &[
     "www",           // assorted
 ];
 
-/// If `source` itself is a static-site root (contains index.html), return it
-/// unchanged (explicit override). Otherwise search `source/<candidate>` for the
-/// first candidate that is a directory containing `index.html`. Returns the
-/// resolved dir, or None if nothing matched.
+/// Locate a mount's static build output under `source`.
+///
+/// Candidates are scanned first (`MOUNT_OUTPUT_CANDIDATES` in priority order). The
+/// first `source/<candidate>` that is a directory containing `index.html` wins. If no
+/// candidate matches, `source` itself is returned as the result dir — this is the
+/// exact-path override (`source = "../portfolio/dist"` is honored verbatim) and
+/// also covers hand-built static folders where no `dist/` etc. exists. Returns
+/// `None` only when neither scan finds a result.
 fn detect_static_output(source: &Path) -> Option<PathBuf>;
 ```
 
 Resolution order, in one pass over a single mount's already-absolute `source`:
 
-1. `source/index.html` exists → `source` is the result dir. Return `source`. (This is also
-   the exact-path override: a `source` like `../portfolio/dist` that really holds the output
-   is honored verbatim.)
-2. Else iterate `MOUNT_OUTPUT_CANDIDATES`: the first `source.join(candidate)` that is a
-   directory and contains `index.html` wins.
-3. Else `None`.
+1. Iterate `MOUNT_OUTPUT_CANDIDATES`: the first `source.join(candidate)` that is a
+   directory containing `index.html` wins. **This is the dominant case for a Vite/Astro
+   project root** — the root has an `index.html` entry template, but the candidate-scanned
+   `dist/` is the actual build output.
+2. If no candidate matches, fall back to `source` itself on the basis that it directly
+   contains `index.html`. This handles the exact-path override (`../portfolio/dist`)
+   and hand-built static folders.
+3. Else `None` — drop path (resolve_mount_sources §3.2).
 
 ### 3.2 Integration into `resolve_mount_sources`
 
@@ -203,13 +214,14 @@ which is the existing list semantics. A future "skipped" badge is out of scope.
 
 `config.rs` `#[cfg(test)]` for the unit core:
 
-- Root override: `source` directly containing `index.html` → returns `source`.
-- Priority: a temp source with both `dist/index.html` and `build/index.html` → returns
-  `dist`.
-- 2-deep candidate: source with `.output/public/index.html` (and nothing else) → matches.
-- index.html gating: `source/dist/` exists but lacks `index.html` → skipped; next candidate
-  or None.
-- No match: source with only `node_modules`, `src`, etc. → None.
+- Root override (only candidate): `source` directly containing `index.html` with **no
+  candidate subdir** → returns `source`.
+- **Candidate wins over root `index.html` (green-while-wrong guard):** source has BOTH a
+  root `index.html` AND a `dist/index.html` (the Vite/vanilla project root case) → returns
+  `dist`. Without this test, the inverted order silently copies `node_modules/` into
+  `out/{path}/` for Vite users.
+- Priority: a temp source with both `dist/index.html` and `build/index.html` (and no
+  root `index.html`) → returns `dist`.
 - `resolve_mount_sources` happy path: relative source + a temp dir tree → `m.source` becomes
   the detected absolute dir.
 - `resolve_mount_sources` **drop semantics**: a source that is a real directory but lacks
