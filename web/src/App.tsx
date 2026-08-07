@@ -208,7 +208,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       // Public site reflects the selected theme's light/dark mode — unless the
       // visitor already picked an explicit console appearance, which wins.
       // This is the public shell only; the admin console never mutates
-      // data-theme through this path.
+      // .dark through this path.
       if (!def) return;
       const saved = getConsoleAppearance();
       applyThemeMode(saved === "system" ? def.mode : saved);

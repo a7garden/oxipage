@@ -2,7 +2,7 @@
    Oxibuilder Design Tokens v2
    OKLCH paper/ink + pine green. Preserved from v1.
    Tailwind v4 exposure via @theme inline (keeps var() refs so
-   runtime data-theme switching is honored).
+   runtime .dark class switching is honored).
    ============================================================ */
 
 /* --- Primitives (theme-agnostic ramps) --- */
@@ -23,6 +23,14 @@
   --p-accent-500: oklch(62% 0.14 160);
   --p-accent-600: oklch(50% 0.14 160);
   --p-accent-700: oklch(40% 0.12 160);
+  /* Status primitives — amplified steps for opaque text on tinted surfaces */
+  --p-success-300: oklch(80% 0.12 145);
+  --p-success-700: oklch(45% 0.14 145);
+  --p-warning-300: oklch(85% 0.13  85);
+  --p-warning-500: oklch(72% 0.15  75);
+  --p-warning-700: oklch(50% 0.13  60);
+  --p-info-300:    oklch(80% 0.10 230);
+  --p-info-700:    oklch(45% 0.13 230);
 
   /* Rating gold — "gold leaf on ink" */
   --p-gold-400: oklch(82% 0.15 85);
@@ -32,6 +40,12 @@
   /* Status */
   --p-danger-500:  oklch(55% 0.19 25);
   --p-success-500: oklch(60% 0.15 145);
+
+  /* Legacy v1 green — kept ONLY for the admin-side active indicator so
+     dark/light keeps the brand accent. Everything else routes through the
+     pine-green accent ramp + semantic tones. */
+  --p-legacy-green:  oklch(74% 0.17 142);
+  --p-legacy-green-soft: oklch(45% 0.16 142);
 
   /* Fonts (primitive stacks — referenced by existing CSS + @theme inline) */
   --font-body: "SUIT Variable", "SUIT", -apple-system, BlinkMacSystemFont,
@@ -48,11 +62,11 @@
   /* Layout */
   --content-max-width: 64rem;
   --space-page-x: clamp(1rem, 4vw, 3rem);
-  /* Sidebar tokens live under [data-theme=...] scopes (Task 12). */
+  /* Sidebar tokens live under the .dark scope (Task 12). */
 }
 
 /* --- Semantic: light --- */
-[data-theme="light"] {
+:root {
   --color-bg-canvas:        var(--p-neutral-0);
   --color-bg-surface:       var(--p-neutral-50);
   --color-bg-surface-raised:oklch(100% 0 0);
@@ -72,7 +86,7 @@
   --elevation-md: 0 4px 8px oklch(0% 0 0 / 0.08), 0 2px 4px oklch(0% 0 0 / 0.04);
   --elevation-lg: 0 12px 24px oklch(0% 0 0 / 0.10), 0 4px 8px oklch(0% 0 0 / 0.06);
 
-  /* Console sidebar — light scrim */
+  /* Console sidebar — light scrim (ink-on-paper, oklch) */
   --console-sidebar-bg:           var(--p-neutral-50);
   --console-sidebar-text:         var(--p-neutral-700);
   --console-sidebar-text-hover:   var(--p-neutral-900);
@@ -82,10 +96,39 @@
   --console-sidebar-active-bg:    color-mix(in srgb, var(--p-accent-600) 12%, transparent);
   --console-sidebar-border:       var(--p-neutral-100);
   --console-sidebar-label:        var(--p-neutral-500);
+
+  /* Console state tones — soft surface + deep ink + hairline border.
+     Each tone is its own triplet so every state reads "the same idea, just
+     tinted", matching the oxi 6-hue label system at the chip level. */
+  --tone-success-bg:       var(--p-success-300);
+  --tone-success-fg:       var(--p-success-700);
+  --tone-success-border:   color-mix(in srgb, var(--p-success-700) 30%, transparent);
+  --tone-warning-bg:       var(--p-warning-300);
+  --tone-warning-fg:       var(--p-warning-700);
+  --tone-warning-border:   color-mix(in srgb, var(--p-warning-700) 30%, transparent);
+  --tone-info-bg:          var(--p-info-300);
+  --tone-info-fg:          var(--p-info-700);
+  --tone-info-border:      color-mix(in srgb, var(--p-info-700) 30%, transparent);
+  --tone-destructive-bg:   color-mix(in srgb, var(--p-danger-500) 12%, transparent);
+  --tone-destructive-fg:   var(--p-danger-500);
+  --tone-destructive-border: color-mix(in srgb, var(--p-danger-500) 35%, transparent);
+
+  /* Active indicator — the single v1 legacy-green accent.
+     Both themes resolve to the same hue so the sidebar's active treatment
+     stays unmistakably "oxibuilder" against any neutral background. */
+  --console-active-line:  var(--p-legacy-green);
+  --console-active-soft:  color-mix(in srgb, var(--p-legacy-green) 18%, transparent);
+  --console-active-fg:    var(--p-legacy-green-soft);
+
+  /* Console terminal — log surface used by Deploy / build streams. */
+  --console-terminal-bg:   var(--p-neutral-950);
+  --console-terminal-fg:   var(--p-neutral-300);
+  --console-terminal-ok:   var(--p-success-500);
+  --console-terminal-err:  oklch(70% 0.20 25);
 }
 
 /* --- Semantic: dark --- */
-[data-theme="dark"] {
+.dark {
   --color-bg-canvas:        var(--p-neutral-950);
   --color-bg-surface:       var(--p-neutral-900);
   --color-bg-surface-raised:oklch(22% 0.016 265);
@@ -105,16 +148,46 @@
   --elevation-md: 0 4px 8px oklch(0% 0 0 / 0.45), 0 2px 4px oklch(0% 0 0 / 0.35);
   --elevation-lg: 0 12px 24px oklch(0% 0 0 / 0.50), 0 4px 8px oklch(0% 0 0 / 0.40);
 
-  /* Console sidebar — dark scrim */
-  --console-sidebar-bg:           #1a1e24;
-  --console-sidebar-text:         #9ca3af;
-  --console-sidebar-text-hover:   #e5e7eb;
-  --console-sidebar-text-active:  #4ade80;
-  --console-sidebar-border-active:#22c55e;
-  --console-sidebar-hover-bg:     rgba(255, 255, 255, 0.04);
-  --console-sidebar-active-bg:    color-mix(in srgb, #22c55e 10%, transparent);
-  --console-sidebar-border:       rgba(255, 255, 255, 0.06);
-  --console-sidebar-label:        #6b7280;
+  /* Console sidebar — dark scrim (ink-on-paper, oklch).
+     Active line keeps the v1 pine-green accent (intentional; documented in
+     doc/UNIFIED-DESIGN.md step 5). Hex usage is gone. */
+  --console-sidebar-bg:           oklch(20% 0.014 265);
+  --console-sidebar-text:         oklch(72% 0.012 265);
+  --console-sidebar-text-hover:   var(--p-neutral-0);
+  --console-sidebar-text-active:  var(--p-legacy-green);
+  --console-sidebar-border-active:var(--p-legacy-green);
+  --console-sidebar-hover-bg:     color-mix(in srgb, var(--p-neutral-0) 4%, transparent);
+  --console-sidebar-active-bg:    color-mix(in srgb, var(--p-legacy-green) 12%, transparent);
+  --console-sidebar-border:       color-mix(in srgb, var(--p-neutral-0) 8%, transparent);
+  --console-sidebar-label:        oklch(58% 0.012 265);
+
+  /* Console state tones — dark variant. Same triplet contract, APCA-safe
+     foreground against the darkened surface. */
+  --tone-success-bg:       color-mix(in srgb, var(--p-success-500) 18%, transparent);
+  --tone-success-fg:       color-mix(in srgb, var(--p-success-500) 90%, var(--p-neutral-0));
+  --tone-success-border:   color-mix(in srgb, var(--p-success-500) 35%, transparent);
+  --tone-warning-bg:       color-mix(in srgb, var(--p-warning-500) 18%, transparent);
+  --tone-warning-fg:       color-mix(in srgb, var(--p-warning-500) 90%, var(--p-neutral-0));
+  --tone-warning-border:   color-mix(in srgb, var(--p-warning-500) 35%, transparent);
+  --tone-info-bg:          color-mix(in srgb, var(--p-info-300) 14%, transparent);
+  --tone-info-fg:          color-mix(in srgb, var(--p-info-300) 92%, var(--p-neutral-0));
+  --tone-info-border:      color-mix(in srgb, var(--p-info-300) 35%, transparent);
+  --tone-destructive-bg:   color-mix(in srgb, var(--color-danger) 15%, transparent);
+  --tone-destructive-fg:   var(--color-danger);
+  --tone-destructive-border: color-mix(in srgb, var(--color-danger) 40%, transparent);
+
+  /* Active indicator — single v1 legacy-green preserved on both themes. */
+  --console-active-line:  var(--p-legacy-green);
+  --console-active-soft:  color-mix(in srgb, var(--p-legacy-green) 18%, transparent);
+  --console-active-fg:    var(--p-legacy-green);
+
+  /* Console terminal — slightly lifted from canvas so the log reads as a
+     distinct surface without breaking dark mode (matches the create-section
+     elevation tier). */
+  --console-terminal-bg:   oklch(16% 0.016 265);
+  --console-terminal-fg:   oklch(82% 0.010 265);
+  --console-terminal-ok:   color-mix(in srgb, var(--p-success-500) 92%, var(--p-neutral-0));
+  --console-terminal-err:  oklch(72% 0.20 25);
 }
 
 /* Public theme accent primitives — consume --accent-hue set by applyServerTheme.
@@ -156,7 +229,7 @@
 
 /* ============================================================
    Tailwind v4 exposure.
-   `inline` keeps var() references so data-theme runtime switching
+   `inline` keeps var() references so .dark runtime switching
    propagates to every utility. Alias names are deliberately
    non-colliding with the semantic --color-* / --font-* primitives
    above (self-referential var() would break resolution).
@@ -182,14 +255,38 @@
   --color-console-sidebar-text-hover:  var(--console-sidebar-text-hover);
   --color-console-sidebar-hover-bg:    var(--console-sidebar-hover-bg);
   --color-console-sidebar-border:      var(--console-sidebar-border);
-  --color-ring:               var(--color-accent);
+  --color-active:                      var(--console-active-line);
+  --color-active-soft:                 var(--console-active-soft);
+  --color-ring:                        var(--color-accent);
 
+  /* Console state tones — surface / foreground / border triplets.
+     Each tone mirrors the Badge variant namespace (positive/warning/info/destructive)
+     so the chip and the page-level surface read as the same idea.
+     Examples: bg-positive-bg text-positive-fg border-positive-border. */
+  --color-positive-bg:       var(--tone-success-bg);
+  --color-positive-fg:       var(--tone-success-fg);
+  --color-positive-border:   var(--tone-success-border);
+  --color-warning-bg:        var(--tone-warning-bg);
+  --color-warning-fg:        var(--tone-warning-fg);
+  --color-warning-border:    var(--tone-warning-border);
+  --color-info-bg:           var(--tone-info-bg);
+  --color-info-fg:           var(--tone-info-fg);
+  --color-info-border:       var(--tone-info-border);
+  --color-destructive-bg:    var(--tone-destructive-bg);
+  --color-destructive-fg:    var(--tone-destructive-fg);
+  --color-destructive-border: var(--tone-destructive-border);
+
+  /* Console terminal — log surface used by Deploy / build streams. */
+  --color-console-terminal-bg:   var(--console-terminal-bg);
+  --color-console-terminal-fg:   var(--console-terminal-fg);
+  --color-console-terminal-ok:   var(--console-terminal-ok);
+  --color-console-terminal-err:  var(--console-terminal-err);
   /* Fonts (alias names differ from primitive names to avoid self-reference) */
   --font-sans:  var(--font-body);
   --font-serif: var(--font-display);
   /* --font-mono intentionally inherits Tailwind default (≈ our --font-mono) */
 
-  /* Shadows (alias to themed --elevation-* which live in [data-theme]) */
+  /* Shadows (alias to themed --elevation-* which live in :root / .dark) */
   --shadow-xs: var(--elevation-xs);
   --shadow-sm: var(--elevation-sm);
   --shadow-md: var(--elevation-md);
@@ -197,7 +294,7 @@
 }
 
 /* Theme-agnostic tokens that double as Tailwind namespace defaults.
-   Defined here (not in [data-theme]) so they emit to :root once. */
+   Defined here (not in .dark) so they emit to :root once. */
 @theme {
   --radius-xs: 0.25rem;
   --radius-sm: 0.375rem;

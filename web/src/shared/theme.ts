@@ -1,6 +1,6 @@
 // Console appearance vs public site theme — kept distinct on purpose.
 //
-//  - Console appearance (the Admin shell's <html data-theme>)
+//  - Console appearance (the Admin shell's <html>.dark class)
 //      localStorage["oxibuilder-console-appearance"] = "system" | "light" | "dark"
 //      Resolution: explicit light/dark → that mode; "system" or missing/invalid →
 //      window.matchMedia('(prefers-color-scheme: dark)').
@@ -8,7 +8,7 @@
 //  - Public site theme (the per-site SQLite singleton)
 //      Shared catalog: oxibuilder_core::theme in Rust; ThemeDefinition here.
 //      applyServerTheme() publishes palette variables to the document, but
-//      NEVER mutates the console's data-theme or sets console mode.
+//  NEVER mutates the console's .dark mode or sets console mode.
 
 export type ConsoleAppearance = "system" | "light" | "dark";
 export type ResolvedMode = "light" | "dark";
@@ -58,7 +58,7 @@ export function getResolvedConsoleMode(): ResolvedMode {
 }
 
 export function applyThemeMode(mode: ResolvedMode): void {
-  document.documentElement.dataset.theme = mode;
+  document.documentElement.classList.toggle("dark", mode === "dark");
 }
 
 /** Watch OS appearance. Only fires when stored value is "system" (or missing). */

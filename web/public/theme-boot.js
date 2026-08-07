@@ -2,7 +2,7 @@
    - Synchronous, no deps, executes before <link rel=stylesheet>.
    - Reads <script data-context="..."> on this tag (set by admin.html / index.html).
    - For "console": reads oxibuilder-console-appearance; resolves system | light | dark,
-     writes <html data-theme> and document.documentElement.style.setProperty('--accent-hue','160').
+     toggles <html class="dark"> and document.documentElement.style.setProperty('--accent-hue','160').
    - For "public": reads theme and layout metadata if present, writes
      <html data-public-theme="..." data-layout="...">, and sets --accent-hue on root.
 */
@@ -25,7 +25,7 @@
         stored = null;
       }
       var mode = stored === "light" || stored === "dark" ? stored : systemMode();
-      document.documentElement.dataset.theme = mode;
+      document.documentElement.classList.toggle("dark", mode === "dark");
       document.documentElement.style.setProperty("--accent-hue", "160");
       return;
     }
@@ -40,6 +40,6 @@
     var hueByTheme = { paper: "160", midnight: "230", sepia: "70", forest: "155", neon: "290", canvas: "240" };
     document.documentElement.style.setProperty("--accent-hue", hueByTheme[themeId] || "160");
   } catch (e) {
-    document.documentElement.dataset.theme = "light";
+    document.documentElement.classList.remove("dark");
   }
 })();
