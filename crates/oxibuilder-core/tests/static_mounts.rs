@@ -2,7 +2,7 @@
 
 use oxibuilder_core::build_writer::write_build_output;
 use oxibuilder_core::builder::{BuildInputs, BuildOutput, MountCopy, StaticPage};
-use oxibuilder_core::config::MountConfig;
+use oxibuilder_core::config::{Config, MountConfig};
 use tempfile::TempDir;
 
 fn page(rel: &str, body: &str) -> StaticPage {
@@ -63,4 +63,61 @@ fn mount_copy_from_config_normalizes_path() {
     let copy = MountCopy::from_config(&mc);
     assert_eq!(copy.path, "portfolio", "leading/trailing slashes stripped");
     assert_eq!(copy.source, std::path::PathBuf::from("/abs/portfolio"));
+}
+
+#[test]
+fn write_build_output_does_not_copy_root_when_no_static_output_detected() {
+    // External project root with src/ and node_modules/ but NO index.html and
+    // NO candidate output dir. After resolve_mount_sources drops the mount, the
+    // build must not produce out/portfolio/ at all.
+    let tmp = TempDir::with_prefix("oxibuilder-mount-nomatch-").unwrap();
+    let base = tmp.path();
+    let out = base.join("out");
+    let media = base.join("media");
+    std::fs::create_dir_all(&media).unwrap();
+
+    let project = base.join("project");
+    std::fs::create_dir_all(project.join("src")).unwrap();
+    std::fs::create_dir_all(project.join("node_modules")).unwrap();
+    std::fs::write(project.join("src").join("main.rs"), "fn main() {}").unwrap();
+
+    // Build a Config with one mount whose source is the project root.
+    let mut cfg = Config::default();
+    cfg.mounts.push(MountConfig {
+        id: "p".into(),
+        source: "project".into(), // relative to base
+        path: "portfolio".into(),
+        title_ko: "k".into(),
+        title_en: "e".into(),
+        description: None,
+        icon: None,
+        open_in_new_tab: false,
+    });
+    cfg.resolve_mount_sources(base);
+
+    // The drop must happen at resolve — that is the actual guard.
+    assert!(
+        cfg.mounts.is_empty(),
+        "no-match mount must be dropped at resolve; got: {:#?}",
+        cfg.mounts
+    );
+
+    // Build BuildInputs from the (now-empty) resolved mounts — the real pipeline.
+    let out_struct = empty_output_with(vec![page(
+        "index.html",
+        "<!DOCTYPE html><html><body>lobby</body></html>",
+    )]);
+    let mut inputs = BuildInputs::new("https://example.com/", "paper", "shell", "seed");
+    inputs.mounts = cfg.mounts.iter().map(MountCopy::from_config).collect();
+    assert!(
+        inputs.mounts.is_empty(),
+        "BuildInputs.mounts must be empty after resolve drop"
+    );
+    write_build_output(&out_struct, &out, &media, &inputs).unwrap();
+
+    // The mount path must not exist under out/ at all.
+    assert!(
+        !out.join("portfolio").exists(),
+        "no-match mount must not create out/portfolio/"
+    );
 }
