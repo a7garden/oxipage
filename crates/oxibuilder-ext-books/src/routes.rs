@@ -163,10 +163,7 @@ pub async fn refresh(
         ));
     }
 
-    let results = client
-        .search(&query, 5)
-        .await
-        .map_err(ApiError::internal)?;
+    let results = client.search(&query, 5).await.map_err(ApiError::internal)?;
     let hit = match results.into_iter().next() {
         Some(r) => r,
         None => {

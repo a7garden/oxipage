@@ -51,7 +51,10 @@ impl CliHandler for MovieAddHandler {
             .get("media-type")
             .cloned()
             .unwrap_or_else(|| "movie".to_string());
-        let rating = args.get("rating").cloned().unwrap_or_else(|| "0".to_string());
+        let rating = args
+            .get("rating")
+            .cloned()
+            .unwrap_or_else(|| "0".to_string());
         let mut body = serde_json::json!({ "media_type": media_type, "rating": rating });
         if let Some(t) = args.get("title") {
             body["title"] = serde_json::json!(t);
@@ -93,7 +96,10 @@ impl CliHandler for MovieSearchHandler {
             let site = resolve_site(&client).await?;
             // 웹 UI 의 TmdbSearchRow 와 동일한 백엔드 엔드포인트 (단일 검색 소스).
             let resp = client
-                .get(&format!("/api/console/s/{site}/movies/search?q={}", pct(&q)))
+                .get(&format!(
+                    "/api/console/s/{site}/movies/search?q={}",
+                    pct(&q)
+                ))
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             let results = resp
@@ -107,7 +113,10 @@ impl CliHandler for MovieSearchHandler {
             }
             for r in &results {
                 let id = r.get("tmdb_id").and_then(|v| v.as_i64()).unwrap_or(0);
-                let title = r.get("title").and_then(|v| v.as_str()).unwrap_or("(untitled)");
+                let title = r
+                    .get("title")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("(untitled)");
                 let year = r.get("release_year").and_then(|v| v.as_i64());
                 println!(
                     "[{id}] {title}{}",
@@ -173,7 +182,10 @@ impl CliHandler for MovieRefreshHandler {
             match (slug, all) {
                 (Some(s), false) => {
                     let resp = client
-                        .post(&format!("/api/console/movies/{s}/refresh"), &serde_json::json!({}))
+                        .post(
+                            &format!("/api/console/movies/{s}/refresh"),
+                            &serde_json::json!({}),
+                        )
                         .await
                         .map_err(|e| anyhow::anyhow!("{e}"))?;
                     println!("{}", serde_json::to_string_pretty(&resp)?);
@@ -573,4 +585,3 @@ impl BuildExt for MoviesExtension {
             .collect())
     }
 }
-

@@ -49,16 +49,15 @@ pub(crate) async fn build(c: BuildCommand) -> anyhow::Result<()> {
     let pre_builders: Vec<Box<dyn oxibuilder_core::builder::BuildExt>> =
         oxibuilder_console::all_builders_with_image_manifest(None);
     let pre_pass_rt = tokio::runtime::Handle::current();
-    let (image_staging_dir, image_manifest) =
-        oxibuilder_core::build::run_image_pre_pass(
-            &pool,
-            &media_dir,
-            &data_dir,
-            &pre_builders,
-            &pre_pass_rt,
-        )
-        .await
-        .map_err(|e| anyhow::anyhow!("image pre-pass: {e}"))?;
+    let (image_staging_dir, image_manifest) = oxibuilder_core::build::run_image_pre_pass(
+        &pool,
+        &media_dir,
+        &data_dir,
+        &pre_builders,
+        &pre_pass_rt,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("image pre-pass: {e}"))?;
 
     // 4. Run build pipeline (manifest is now live in `BlogExtension`).
     let builder_refs: Vec<Box<dyn oxibuilder_core::builder::BuildExt>> =
@@ -81,8 +80,7 @@ pub(crate) async fn build(c: BuildCommand) -> anyhow::Result<()> {
         oxibuilder_core::config::Config::default()
     };
     let theme_id = oxibuilder_core::theme::active_theme_id(&pool).await;
-    let layout_id =
-        oxibuilder_core::theme::active_layout_id(&pool, &config.lobby.layout).await;
+    let layout_id = oxibuilder_core::theme::active_layout_id(&pool, &config.lobby.layout).await;
     let mut inputs = oxibuilder_core::builder::BuildInputs::new(
         &config.site.base_url,
         theme_id,

@@ -423,7 +423,11 @@ mod tests {
         let entry = entry_from_bytes(&png, &derived, &mut cache)
             .expect("entry should build from a valid PNG");
         assert_eq!((entry.width, entry.height), (2400, 1600));
-        assert_eq!(entry.srcset.len(), 4, "expected 4 webp variants for a 2400-wide source");
+        assert_eq!(
+            entry.srcset.len(),
+            4,
+            "expected 4 webp variants for a 2400-wide source"
+        );
         assert!(entry.srcset.iter().all(|s| {
             // URL is the form written by generate(); the disk file must exist.
             let p = derived.join(url_file(&s.url));

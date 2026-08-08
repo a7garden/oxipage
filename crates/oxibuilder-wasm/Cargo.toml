@@ -1,12 +1,12 @@
 [package]
 name = "oxibuilder-wasm"
-version = "0.9.0"
+version = "0.10.0"
 edition = "2024"
 license.workspace = true
 description = "WASM 런타임 적재 호스트 v2 (doc/01 §1.4, doc/08 §8.4). wasmtime 임베디드 + capability."
 
 [dependencies]
-oxibuilder-core = { version = "0.9.0", path = "../oxibuilder-core" }
+oxibuilder-core = { version = "0.10.0", path = "../oxibuilder-core" }
 anyhow.workspace = true
 async-trait.workspace = true
 axum.workspace = true

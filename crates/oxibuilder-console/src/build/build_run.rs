@@ -46,13 +46,11 @@ pub async fn ensure_build_started(
     let started_at = snapshot.started_at;
     let site_base_url = ctx.settings.read().await.site.base_url.clone();
     let theme_id = oxibuilder_core::theme::active_theme_id(&ctx.db).await;
-    let layout_default = oxibuilder_core::config::Config::load(
-        &ctx.project_dir.join("oxibuilder.toml"),
-    )
-    .map(|config| config.lobby.layout)
-    .unwrap_or_else(|_| "shell".to_string());
-    let layout_id =
-        oxibuilder_core::theme::active_layout_id(&ctx.db, &layout_default).await;
+    let layout_default =
+        oxibuilder_core::config::Config::load(&ctx.project_dir.join("oxibuilder.toml"))
+            .map(|config| config.lobby.layout)
+            .unwrap_or_else(|_| "shell".to_string());
+    let layout_id = oxibuilder_core::theme::active_layout_id(&ctx.db, &layout_default).await;
     let mounts = ctx.settings.read().await.mounts.clone();
     let guard = guard.clone();
     tokio::spawn(async move {

@@ -6,9 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-- **Static mounts:** `[[mounts]]` config grafts an external static directory at a
-  URL prefix, copied into `out/{path}/` at build time and shown as a lobby link card.
 
+## [0.10.0] - 2026-08-08
+
+### Added
+- **External static mounts.** `[[mounts]]` config grafts an external static directory at a URL prefix, copied into `out/{path}/` at build time and shown as a lobby link card. No-match mounts are dropped instead of copying the project root into `out/`.
+- **Mount source auto-detection.** `detect_static_output` and `resolve_mount_sources` scan candidate build-output directories under a mount source and auto-select the static output (candidates scanned before the root override), so users point at a folder and the build artifact is found automatically.
+- **CLI + console mount management.** Static mounts are managed via `oxibuilder` CLI commands and `POST /api/console/mounts`; `GET /api/console/mounts` surfaces the resolved mount source.
+- **Editorial layout variant.** A new lobby/page layout with full feature parity (stats, filters, detail views, fonts).
+- **Movies/books blog-test parity.** Stats dimensions (movie origin/country + nations, book category/publisher/page_count), book category chips, and build-time external-image optimization (TMDB posters, book covers → responsive WebP via `media::optimize_external` + `BuildExt::external_image_urls`).
+- **Bilingual movies.** Movies support bilingual titles, genres, and cast with a filterable page; `media_type`/`rating` default correctly and the site slug is resolved.
+- **Profile CLI + theme snapshot.** `oxibuilder` profile command, theme snapshot, and site footer.
+- **Oxi-brand console styling.** Admin UI restyled with the oxi-brand design system.
+
+### Fixed
+- **Mount config.** `detect_static_output` scans candidates before applying the root override, preventing the project root from being copied into `out/` on a no-match mount (covered by a new regression test).
+- **Web theme trigger.** Light/dark trigger migrated `[data-theme]` → `.dark` class.
+- **Movies defaults.** `media_type`/`rating` now default correctly; the site slug is resolved for movie routes.
+- **Release pipeline.** `release.yml` publishes `oxibuilder-deploy` before `oxibuilder-console` (dependency order).
+- **Stats tests.** Corrected import paths and `bun:test` `ts-expect-error`.
+- **CLI.** `ProfileCommand::Set` boxed to clear the `large_enum_variant` clippy lint; rustfmt'd.
+
+### Security
+- **wasmtime 33.0.2 → 36.0.13.** Resolves 17 outstanding advisories against the EOL 33.x line, including the two criticals tracked since v0.8.0 (RUSTSEC-2026-0095 Winch sandbox escape — not compiled in; RUSTSEC-2026-0096 aarch64 Cranelift heap miscompile — conditional/mitigated). The bump cascades through `oxibuilder-wasm`'s API surface.
 
 ## [0.9.0] - 2026-08-05
 
@@ -136,7 +156,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Continuation of the v0.3.0 line; the v0.3.0 Git tag was applied to a partial-publish state (4 crates were never released: `oxibuilder-ext-scraps`, `oxibuilder-ext-projects`, `oxibuilder-console`, `oxibuilder`). Those crates are not in 0.4.0 — they remain unpublished at 0.2.0 / absent from the registry; future cleanup is a separate concern.
 
 
-[Unreleased]: https://github.com/a7garden/oxibuilder/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/a7garden/oxibuilder/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/a7garden/oxibuilder/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/a7garden/oxibuilder/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/a7garden/oxibuilder/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/a7garden/oxibuilder/compare/v0.6.0...v0.7.0

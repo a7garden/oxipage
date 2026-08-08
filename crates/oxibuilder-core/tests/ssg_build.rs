@@ -64,8 +64,12 @@ async fn build_site_runs_without_panic_and_writes_correct_layout() {
     // 4. Write to a fresh out dir and assert the layout.
     let out_dir = tmp_root.join("out");
     // Test-only default: no active layout is under test here.
-    let inputs =
-        oxibuilder_core::builder::BuildInputs::new("https://127.0.0.1:8787/", "paper", "shell", "test");
+    let inputs = oxibuilder_core::builder::BuildInputs::new(
+        "https://127.0.0.1:8787/",
+        "paper",
+        "shell",
+        "test",
+    );
     write_build_output(&output, &out_dir, &media_dir, &inputs).expect("write_build_output");
 
     // Root SPA entry (lobby).
@@ -187,10 +191,15 @@ async fn derived_images_survive_out_wipe_and_manifest_is_written() {
     .unwrap();
 
     // 4. Run the pre-pass against the real media_dir + data_dir.
-    let (staging, manifest) =
-        oxibuilder_core::build::run_image_pre_pass(&pool, &media_dir, &data_dir, &[], &tokio::runtime::Handle::current())
-            .await
-            .expect("pre-pass");
+    let (staging, manifest) = oxibuilder_core::build::run_image_pre_pass(
+        &pool,
+        &media_dir,
+        &data_dir,
+        &[],
+        &tokio::runtime::Handle::current(),
+    )
+    .await
+    .expect("pre-pass");
 
     let staging = staging.expect("staging dir present");
     let manifest = manifest.expect("manifest present");
@@ -234,7 +243,12 @@ async fn derived_images_survive_out_wipe_and_manifest_is_written() {
         extensions_data: vec![],
     };
     // Test-only default: no active layout is under test here.
-    let mut inputs = oxibuilder_core::builder::BuildInputs::new("https://a7garden.github.io/blog/", "paper", "shell", "seed");
+    let mut inputs = oxibuilder_core::builder::BuildInputs::new(
+        "https://a7garden.github.io/blog/",
+        "paper",
+        "shell",
+        "seed",
+    );
     inputs.image_staging_dir = Some(staging.clone());
     inputs.image_manifest = Some(manifest.clone());
     write_build_output(&output, &out_dir, &media_dir, &inputs).expect("write_build_output");
@@ -308,7 +322,12 @@ fn base_placeholder_resolved_to_deployment_base_in_pages() {
     };
     // https://a7garden.github.io/blog/ → /blog/ — the canonical project-pages case.
     // Test-only default: no active layout is under test here.
-    let inputs = oxibuilder_core::builder::BuildInputs::new("https://a7garden.github.io/blog/", "paper", "shell", "seed");
+    let inputs = oxibuilder_core::builder::BuildInputs::new(
+        "https://a7garden.github.io/blog/",
+        "paper",
+        "shell",
+        "seed",
+    );
     write_build_output(&output, &out_dir, &media_dir, &inputs).expect("write_build_output");
 
     // 1. The on-disk file has the placeholder replaced with the real base.
@@ -348,8 +367,12 @@ fn base_placeholder_resolved_to_deployment_base_in_pages() {
         extensions_data: vec![],
     };
     // Test-only default: no active layout is under test here.
-    let inputs2 =
-        oxibuilder_core::builder::BuildInputs::new("https://alice.github.io/", "paper", "shell", "seed");
+    let inputs2 = oxibuilder_core::builder::BuildInputs::new(
+        "https://alice.github.io/",
+        "paper",
+        "shell",
+        "seed",
+    );
     write_build_output(&output2, &out2, &media2, &inputs2).expect("write 2");
     let on_disk2 = std::fs::read_to_string(out2.join("x.html")).unwrap();
     assert!(
@@ -649,9 +672,9 @@ fn end_to_end_pipeline_renders_image_into_blog_page() {
 ///      even when the row has no new-migration data.
 #[tokio::test(flavor = "multi_thread")]
 async fn migration_compat_build_handles_legacy_null_columns() {
+    use oxibuilder_core::registry::ExtensionRegistry;
     use oxibuilder_ext_books::BooksExtension;
     use oxibuilder_ext_movies::MoviesExtension;
-    use oxibuilder_core::registry::ExtensionRegistry;
     use std::sync::Arc;
 
     let tmp = tempfile::tempdir().unwrap();
@@ -735,15 +758,17 @@ async fn migration_compat_build_handles_legacy_null_columns() {
     // observe them.
     let pool_for_build = pool.clone();
     let builders_for_build = builders.clone();
-    let output = tokio::task::spawn_blocking(move || {
-        build_site(&pool_for_build, &builders_for_build)
-    })
-    .await
-    .expect("spawn_blocking join")
-    .expect("build_site must succeed on a legacy-shape DB");
+    let output =
+        tokio::task::spawn_blocking(move || build_site(&pool_for_build, &builders_for_build))
+            .await
+            .expect("spawn_blocking join")
+            .expect("build_site must succeed on a legacy-shape DB");
     // Both extensions emitted a page for their published entry.
     assert!(
-        output.pages.iter().any(|p| p.path == "movies/legacy-movie/index.html"),
+        output
+            .pages
+            .iter()
+            .any(|p| p.path == "movies/legacy-movie/index.html"),
         "movies page missing from build output: {:#?}",
         output.pages.iter().map(|p| &p.path).collect::<Vec<_>>(),
     );
@@ -782,7 +807,9 @@ async fn migration_compat_build_handles_legacy_null_columns() {
     let external_collected: Vec<(String, Vec<String>)> = tokio::task::block_in_place(|| {
         let mut out = Vec::new();
         for b in builders.iter() {
-            let urls = b.external_image_urls(&pool, &rt).expect("external_image_urls");
+            let urls = b
+                .external_image_urls(&pool, &rt)
+                .expect("external_image_urls");
             out.push((b.ext_id().to_string(), urls));
         }
         out
@@ -828,7 +855,9 @@ async fn migration_compat_build_handles_legacy_null_columns() {
     let after: Vec<(String, Vec<String>)> = tokio::task::block_in_place(|| {
         let mut out = Vec::new();
         for b in builders.iter() {
-            let urls = b.external_image_urls(&pool, &rt).expect("external_image_urls");
+            let urls = b
+                .external_image_urls(&pool, &rt)
+                .expect("external_image_urls");
             out.push((b.ext_id().to_string(), urls));
         }
         out
@@ -926,10 +955,8 @@ async fn external_image_urls_smoke_writes_manifest_and_webp_variants() {
             &self,
             _db: &SqlitePool,
             _rt: &tokio::runtime::Handle,
-        ) -> Result<
-            Box<dyn erased_serde::Serialize + Send>,
-            Box<dyn std::error::Error + Send + Sync>,
-        > {
+        ) -> Result<Box<dyn erased_serde::Serialize + Send>, Box<dyn std::error::Error + Send + Sync>>
+        {
             Ok(Box::new(serde_json::json!([])))
         }
         fn build_search_docs(
@@ -992,13 +1019,9 @@ async fn external_image_urls_smoke_writes_manifest_and_webp_variants() {
         "staging/media/_derived must exist (created by optimize_external)"
     );
     for s in &entry.srcset {
-        let on_disk = derived_dir.join(
-            s.url
-                .strip_prefix("media/_derived/")
-                .unwrap_or(&s.url),
-        );
-        let bytes = std::fs::read(&on_disk)
-            .unwrap_or_else(|e| panic!("read variant {on_disk:?}: {e}"));
+        let on_disk = derived_dir.join(s.url.strip_prefix("media/_derived/").unwrap_or(&s.url));
+        let bytes =
+            std::fs::read(&on_disk).unwrap_or_else(|e| panic!("read variant {on_disk:?}: {e}"));
         assert_eq!(&bytes[..4], b"RIFF", "variant missing RIFF magic: {s:?}");
         assert_eq!(&bytes[8..12], b"WEBP", "variant missing WEBP tag: {s:?}");
     }

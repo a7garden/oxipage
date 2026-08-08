@@ -5,7 +5,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::config::{
-    Config, ExtensionsConfig, IntegrationsConfig, LobbySection, MountConfig, ServerConfig, SiteConfig,
+    Config, ExtensionsConfig, IntegrationsConfig, LobbySection, MountConfig, ServerConfig,
+    SiteConfig,
 };
 
 /// Live-reloadable subset of site configuration. Excludes `[server]` fields

@@ -6,11 +6,18 @@ use oxibuilder_core::config::{Config, MountConfig};
 use tempfile::TempDir;
 
 fn page(rel: &str, body: &str) -> StaticPage {
-    StaticPage { path: rel.to_string(), content: body.to_string() }
+    StaticPage {
+        path: rel.to_string(),
+        content: body.to_string(),
+    }
 }
 
 fn empty_output_with(pages: Vec<StaticPage>) -> BuildOutput {
-    BuildOutput { pages, search_docs: vec![], extensions_data: vec![] }
+    BuildOutput {
+        pages,
+        search_docs: vec![],
+        extensions_data: vec![],
+    }
 }
 
 #[test]
@@ -23,7 +30,11 @@ fn write_build_output_copies_mount_into_out() {
     // Mount source: index.html + nested asset.
     let src = tmp.path().join("portfolio");
     std::fs::create_dir_all(src.join("assets")).unwrap();
-    std::fs::write(src.join("index.html"), "<!DOCTYPE html><html>portfolio</html>").unwrap();
+    std::fs::write(
+        src.join("index.html"),
+        "<!DOCTYPE html><html>portfolio</html>",
+    )
+    .unwrap();
     std::fs::write(src.join("assets").join("pic.png"), b"PNGBYTES").unwrap();
 
     let out_struct = empty_output_with(vec![page(
@@ -32,20 +43,32 @@ fn write_build_output_copies_mount_into_out() {
     )]);
     // Test-only default: this writer test has no DB or on-disk config.
     let mut inputs = BuildInputs::new("https://example.com/", "paper", "shell", "seed");
-    inputs.mounts = vec![MountCopy { source: src.clone(), path: "portfolio".into() }];
+    inputs.mounts = vec![MountCopy {
+        source: src.clone(),
+        path: "portfolio".into(),
+    }];
     write_build_output(&out_struct, &out, &media, &inputs).unwrap();
 
     // Mount materialized under out/portfolio/.
     let html = std::fs::read_to_string(out.join("portfolio").join("index.html")).unwrap();
     assert!(html.contains("portfolio"), "mount index missing: {html}");
-    assert!(out.join("portfolio").join("assets").join("pic.png").exists(), "nested asset missing");
+    assert!(
+        out.join("portfolio")
+            .join("assets")
+            .join("pic.png")
+            .exists(),
+        "nested asset missing"
+    );
 
     // Core SPA shell survives. Step 9 of write_build_output writes the embedded
     // SPA's index.html over any user-emitted lobby page; the mount step (10c)
     // must not touch out/index.html. Assert the SPA shell is intact and that
     // the mount's content did not bleed into it.
     let shell = std::fs::read_to_string(out.join("index.html")).unwrap();
-    assert!(!shell.contains("portfolio"), "core index clobbered by mount: {shell}");
+    assert!(
+        !shell.contains("portfolio"),
+        "core index clobbered by mount: {shell}"
+    );
 }
 
 #[test]

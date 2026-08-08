@@ -156,12 +156,11 @@ pub fn is_known_layout(id: &str) -> bool {
 /// Read the active layout for a site. Falls back to `default` (from config)
 /// when the table/row/column is absent — never blocks a build.
 pub async fn active_layout_id(db: &sqlx::SqlitePool, default: &str) -> String {
-    let row: Option<(String,)> =
-        sqlx::query_as("SELECT layout FROM theme_config WHERE id = 1")
-            .fetch_optional(db)
-            .await
-            .ok()
-            .flatten();
+    let row: Option<(String,)> = sqlx::query_as("SELECT layout FROM theme_config WHERE id = 1")
+        .fetch_optional(db)
+        .await
+        .ok()
+        .flatten();
     match row {
         Some((l,)) if is_known_layout(&l) => l,
         _ => default.to_string(),

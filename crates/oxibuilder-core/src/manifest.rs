@@ -229,4 +229,3 @@ mod tests {
         assert_eq!(value["layout"], "editorial");
     }
 }
-

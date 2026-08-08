@@ -1,6 +1,6 @@
 [package]
 name = "oxibuilder-ext-blog"
-version = "0.9.0"
+version = "0.10.0"
 edition = "2024"
 license.workspace = true
 description = "블로그 확장 — 초안/발행, 태그, 언어, FTS5 검색 인덱싱 (doc/02 §2.6)"
@@ -14,7 +14,7 @@ anyhow.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 erased-serde.workspace = true
-oxibuilder-core = { version = "0.9.0", path = "../oxibuilder-core" }
+oxibuilder-core = { version = "0.10.0", path = "../oxibuilder-core" }
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true

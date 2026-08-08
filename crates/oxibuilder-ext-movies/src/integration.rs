@@ -227,10 +227,7 @@ impl TmdbClient {
             .as_ref()
             .and_then(|k| k.production_countries.as_ref())
             .filter(|v| !v.is_empty())
-            .or_else(|| {
-                en.as_ref()
-                    .and_then(|e| e.production_countries.as_ref())
-            })
+            .or_else(|| en.as_ref().and_then(|e| e.production_countries.as_ref()))
             .map(|v| {
                 v.iter()
                     .filter_map(|c| c.iso_3166_1.clone().filter(|s| !s.is_empty()))

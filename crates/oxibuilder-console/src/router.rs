@@ -3,8 +3,8 @@
 //! Build/deploy live exclusively under `/s/{slug}/...` (per_site_router).
 
 use crate::middleware::site_db::inject_site_context;
-use crate::preview::handler::{preview_handler, preview_trailing, redirect_to_slash};
 use crate::per_site::{atomic_write_and_reload, read_toml_doc};
+use crate::preview::handler::{preview_handler, preview_trailing, redirect_to_slash};
 use crate::sites_runtime::{SiteContext, SiteRegistry};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -273,7 +273,6 @@ async fn get_default_theme(
     })))
 }
 
-
 // ─── static mounts (CLI-managed; toml is the source of truth) ───────────────
 
 /// Input for `POST /api/console/mounts` — one `[[mounts]]` entry.
@@ -397,18 +396,26 @@ async fn mounts_add(
         tbl.insert("open_in_new_tab".into(), toml::Value::Boolean(true));
     }
 
-    let root = doc
-        .as_table_mut()
-        .ok_or((StatusCode::INTERNAL_SERVER_ERROR, "root toml not a table".to_string()))?;
+    let root = doc.as_table_mut().ok_or((
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "root toml not a table".to_string(),
+    ))?;
     let arr = root
         .entry("mounts")
         .or_insert_with(|| toml::Value::Array(Vec::new()));
     arr.as_array_mut()
-        .ok_or((StatusCode::INTERNAL_SERVER_ERROR, "[[mounts]] not an array".to_string()))?
+        .ok_or((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "[[mounts]] not an array".to_string(),
+        ))?
         .push(toml::Value::Table(tbl));
 
-    let serialized = toml::to_string_pretty(&doc)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("serialize toml: {e}")))?;
+    let serialized = toml::to_string_pretty(&doc).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("serialize toml: {e}"),
+        )
+    })?;
     let parsed = oxibuilder_core::config::Config::from_toml_str(&serialized)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     parsed
@@ -416,7 +423,9 @@ async fn mounts_add(
         .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
     atomic_write_and_reload(&ctx, &serialized).await?;
 
-    Ok(Json(serde_json::json!({ "data": { "mounts": mounts_from_doc(&doc) } })))
+    Ok(Json(
+        serde_json::json!({ "data": { "mounts": mounts_from_doc(&doc) } }),
+    ))
 }
 
 /// `DELETE /api/console/mounts/{id}` — remove the mount whose `id` matches.
@@ -428,9 +437,10 @@ async fn mounts_rm(
     let _guard = ctx.config_write_lock.lock().await;
     let mut doc = read_toml_doc(&ctx).await?;
 
-    let root = doc
-        .as_table_mut()
-        .ok_or((StatusCode::INTERNAL_SERVER_ERROR, "root toml not a table".to_string()))?;
+    let root = doc.as_table_mut().ok_or((
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "root toml not a table".to_string(),
+    ))?;
     let arr = match root.get_mut("mounts").and_then(|v| v.as_array_mut()) {
         Some(a) => a,
         None => return Err((StatusCode::NOT_FOUND, format!("mount not found: {id}"))),
@@ -446,9 +456,15 @@ async fn mounts_rm(
         return Err((StatusCode::NOT_FOUND, format!("mount not found: {id}")));
     }
 
-    let serialized = toml::to_string_pretty(&doc)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("serialize toml: {e}")))?;
+    let serialized = toml::to_string_pretty(&doc).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("serialize toml: {e}"),
+        )
+    })?;
     atomic_write_and_reload(&ctx, &serialized).await?;
 
-    Ok(Json(serde_json::json!({ "data": { "mounts": mounts_from_doc(&doc) } })))
+    Ok(Json(
+        serde_json::json!({ "data": { "mounts": mounts_from_doc(&doc) } }),
+    ))
 }

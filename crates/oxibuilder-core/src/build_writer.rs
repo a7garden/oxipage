@@ -171,7 +171,12 @@ pub fn write_build_output(
     let search_json = serde_json::to_string_pretty(&output.search_docs)?;
     fs::write(data_dir.join("search-index.json"), &search_json)?;
 
-    write_embedded_assets(out_dir, &deployment_base, &inputs.theme_id, &inputs.layout_id)?;
+    write_embedded_assets(
+        out_dir,
+        &deployment_base,
+        &inputs.theme_id,
+        &inputs.layout_id,
+    )?;
     let index_html = out_dir.join("index.html");
     if index_html.exists() {
         let _ = fs::copy(&index_html, out_dir.join("404.html"));
@@ -384,7 +389,12 @@ fn write_embedded_assets(
 /// template ships neutral defaults). If a given meta tag is not present,
 /// the document is left unchanged for that tag — `replace_meta` is a
 /// no-op when there is no match.
-fn transform_spa_index(html: &str, deployment_base: &str, theme_id: &str, layout_id: &str) -> String {
+fn transform_spa_index(
+    html: &str,
+    deployment_base: &str,
+    theme_id: &str,
+    layout_id: &str,
+) -> String {
     let relativized = html.replace("=\"/assets/", "=\"assets/");
     let base = format!(r#"<base href="{}">"#, escape_attr(deployment_base));
     let with_base = if let Some(idx) = relativized.find("</head>") {
@@ -405,10 +415,13 @@ fn replace_meta(html: &str, name: &str, value: &str) -> String {
     // The needle includes the opening quote of `content="` so the split
     // leaves `part` beginning with the value (and its closing quote).
     let needle_start = format!("name=\"{name}\" content=\"");
-    html.split(&needle_start).enumerate().fold(
-        String::new(),
-        |mut acc, (i, part)| {
-            if i == 0 { acc.push_str(part); return acc; }
+    html.split(&needle_start)
+        .enumerate()
+        .fold(String::new(), |mut acc, (i, part)| {
+            if i == 0 {
+                acc.push_str(part);
+                return acc;
+            }
             // part begins with the existing value; replace up to the closing quote.
             if let Some(end) = part.find('"') {
                 acc.push_str(&needle_start);
@@ -420,8 +433,7 @@ fn replace_meta(html: &str, name: &str, value: &str) -> String {
                 acc.push_str(part);
             }
             acc
-        },
-    )
+        })
 }
 
 /// Deterministic SHA-256 of the materialized output set (after writing).
@@ -540,7 +552,6 @@ mod tests {
         let html2 = r#"<meta name="viewport" content="width=device-width">"#;
         assert_eq!(replace_meta(html2, "oxibuilder-theme", "x"), html2);
     }
-
 
     #[test]
     fn absolute_base_apex() {

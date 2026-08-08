@@ -287,9 +287,7 @@ pub async fn config_put(
 /// Read the site's `oxibuilder.toml` as a raw `toml::Value` document tree.
 /// Used by handlers that must patch or inspect the file while preserving
 /// comments, unknown sections, and formatting (the `config_put` discipline).
-pub(crate) async fn read_toml_doc(
-    ctx: &SiteContext,
-) -> Result<toml::Value, (StatusCode, String)> {
+pub(crate) async fn read_toml_doc(ctx: &SiteContext) -> Result<toml::Value, (StatusCode, String)> {
     let toml_path = ctx.project_dir.join("oxibuilder.toml");
     let raw = tokio::fs::read_to_string(&toml_path)
         .await
@@ -626,7 +624,6 @@ pub async fn theme_get(
     }))
 }
 
-
 #[derive(Deserialize)]
 pub struct ThemePutInput {
     pub theme_id: String,
@@ -697,7 +694,6 @@ pub async fn theme_put(
         }),
     }))
 }
-
 
 // ─── extensions (GET list) ──────────────────────────────────────────────────
 

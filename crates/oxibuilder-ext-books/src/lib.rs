@@ -67,7 +67,10 @@ impl CliHandler for BookRefreshHandler {
             match (id, all) {
                 (Some(i), false) => {
                     let resp = client
-                        .post(&format!("/api/console/books/{i}/refresh"), &serde_json::json!({}))
+                        .post(
+                            &format!("/api/console/books/{i}/refresh"),
+                            &serde_json::json!({}),
+                        )
                         .await
                         .map_err(|e| anyhow::anyhow!("{e}"))?;
                     println!("{}", serde_json::to_string_pretty(&resp)?);
@@ -185,50 +188,51 @@ impl Extension for BooksExtension {
         vec![CliCommand {
             name: "books",
             about: "Manage book reviews",
-            subcommands: vec![CliSubcommand {
-                name: "add",
-                about: "Add a book review",
-                args: vec![
-                    CliArg {
-                        long: "title",
-                        short: Some('t'),
-                        help: "Book title",
-                        required: true,
-                    },
-                    CliArg {
-                        long: "author",
-                        short: Some('a'),
-                        help: "Book author",
-                        required: false,
-                    },
-                    CliArg {
-                        long: "rating",
-                        short: Some('r'),
-                        help: "Rating (1-10)",
-                        required: false,
-                    },
-                ],
-                handler: Some(Arc::new(BookAddHandler)),
-            },
-            CliSubcommand {
-                name: "refresh",
-                about: "Re-fetch book metadata (category/publisher/page_count) for an entry or --all",
-                args: vec![
-                    CliArg {
-                        long: "id",
-                        short: Some('i'),
-                        help: "Book id to refresh (mutually exclusive with --all)",
-                        required: false,
-                    },
-                    CliArg {
-                        long: "all",
-                        short: None,
-                        help: "Refresh every entry (per-entry failures are logged and skipped)",
-                        required: false,
-                    },
-                ],
-                handler: Some(Arc::new(BookRefreshHandler)),
-            },
+            subcommands: vec![
+                CliSubcommand {
+                    name: "add",
+                    about: "Add a book review",
+                    args: vec![
+                        CliArg {
+                            long: "title",
+                            short: Some('t'),
+                            help: "Book title",
+                            required: true,
+                        },
+                        CliArg {
+                            long: "author",
+                            short: Some('a'),
+                            help: "Book author",
+                            required: false,
+                        },
+                        CliArg {
+                            long: "rating",
+                            short: Some('r'),
+                            help: "Rating (1-10)",
+                            required: false,
+                        },
+                    ],
+                    handler: Some(Arc::new(BookAddHandler)),
+                },
+                CliSubcommand {
+                    name: "refresh",
+                    about: "Re-fetch book metadata (category/publisher/page_count) for an entry or --all",
+                    args: vec![
+                        CliArg {
+                            long: "id",
+                            short: Some('i'),
+                            help: "Book id to refresh (mutually exclusive with --all)",
+                            required: false,
+                        },
+                        CliArg {
+                            long: "all",
+                            short: None,
+                            help: "Refresh every entry (per-entry failures are logged and skipped)",
+                            required: false,
+                        },
+                    ],
+                    handler: Some(Arc::new(BookRefreshHandler)),
+                },
             ],
         }]
     }
@@ -398,4 +402,3 @@ impl BuildExt for BooksExtension {
         Ok(rows.into_iter().filter_map(|(u,)| u).collect())
     }
 }
-

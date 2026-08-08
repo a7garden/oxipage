@@ -48,3 +48,6 @@ _wasm-demo.wasm
 
 # Isolated implementation worktrees
 .worktrees/
+
+# release-prep state
+.release-prep-status.md

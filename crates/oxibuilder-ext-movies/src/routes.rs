@@ -264,7 +264,6 @@ pub async fn publish(
     Ok(Json(DataEnvelope { data: detail }))
 }
 
-
 /// TMDB 메타를 다시 가져와 새 컬럼(`origin`)만 안전하게 PATCH 한다.
 /// - 키가 없으면 503 `tmdb_disabled`.
 /// - `tmdb_id`가 없으면 422 `validation_error` (TMDB 연동 자체가 안된 항목).
@@ -290,13 +289,10 @@ pub async fn refresh(
         ));
     }
 
-    let meta = tmdb
-        .fetch_movie_full(tmdb_id)
-        .await
-        .map_err(|e| {
-            tracing::warn!(error = ?e, slug, tmdb_id, "TMDB refresh fetch failed");
-            ApiError::internal(e)
-        })?;
+    let meta = tmdb.fetch_movie_full(tmdb_id).await.map_err(|e| {
+        tracing::warn!(error = ?e, slug, tmdb_id, "TMDB refresh fetch failed");
+        ApiError::internal(e)
+    })?;
 
     // 안전 패치: TMDB-sourced 필드 중 신규(`origin`)만 갱신. 나머지는 보존.
     repo::update_entry(

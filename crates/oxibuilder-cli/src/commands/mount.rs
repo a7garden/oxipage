@@ -35,9 +35,7 @@ pub enum MountCommand {
     /// 설정된 마운트 목록.
     List,
     /// id로 마운트 제거.
-    Rm {
-        id: String,
-    },
+    Rm { id: String },
 }
 
 pub(crate) async fn mount(c: MountCommand, out: &Output, client: &Client) -> anyhow::Result<()> {

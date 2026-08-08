@@ -119,7 +119,6 @@ pub trait BuildExt: Send + Sync {
     }
 }
 
-
 impl BuildOutput {
     /// Merge multiple `ExtBuildOutput` values into a single `BuildOutput`.
     pub fn merge(results: impl IntoIterator<Item = ExtBuildOutput>) -> Self {
@@ -191,4 +190,3 @@ impl BuildInputs {
         }
     }
 }
-

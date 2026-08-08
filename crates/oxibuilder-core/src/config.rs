@@ -155,7 +155,6 @@ impl Default for LobbySection {
     }
 }
 
-
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
     #[error("failed to read config file {0}: {1}")]
@@ -220,8 +219,7 @@ impl Config {
         let mut cfg: Config =
             toml::from_str(&raw).map_err(|e| ConfigError::Parse(path.to_path_buf(), e))?;
         cfg.apply_env_overrides();
-        cfg.validate_mounts()
-            .map_err(ConfigError::InvalidMounts)?;
+        cfg.validate_mounts().map_err(ConfigError::InvalidMounts)?;
         cfg.resolve_mount_sources(path.parent().unwrap_or_else(|| Path::new(".")));
         Ok(cfg)
     }
@@ -250,18 +248,12 @@ impl Config {
             if norm.is_empty() {
                 return Err(format!("mount {} has empty path", m.id));
             }
-            if norm
-                .split('/')
-                .any(|seg| seg == ".." || seg == ".")
-            {
+            if norm.split('/').any(|seg| seg == ".." || seg == ".") {
                 return Err(format!("mount {} has invalid path: {}", m.id, m.path));
             }
             let top = norm.split('/').next().unwrap();
             if RESERVED_MOUNT_PATHS.contains(&top) {
-                return Err(format!(
-                    "mount {} uses reserved path prefix: {}",
-                    m.id, top
-                ));
+                return Err(format!("mount {} uses reserved path prefix: {}", m.id, top));
             }
             if !paths.insert(norm) {
                 return Err(format!("duplicate mount path: {}", m.path));
@@ -454,9 +446,14 @@ description = "Hand-crafted work"
     fn validate_rejects_reserved_path_prefix() {
         let mut cfg = Config::default();
         cfg.mounts.push(MountConfig {
-            id: "x".into(), source: "/a".into(), path: "assets".into(),
-            title_ko: "k".into(), title_en: "e".into(),
-            description: None, icon: None, open_in_new_tab: false,
+            id: "x".into(),
+            source: "/a".into(),
+            path: "assets".into(),
+            title_ko: "k".into(),
+            title_en: "e".into(),
+            description: None,
+            icon: None,
+            open_in_new_tab: false,
         });
         assert!(cfg.validate_mounts().is_err());
     }
@@ -466,9 +463,14 @@ description = "Hand-crafted work"
         let mut cfg = Config::default();
         for _ in 0..2 {
             cfg.mounts.push(MountConfig {
-                id: "dup".into(), source: "/a".into(), path: "a".into(),
-                title_ko: "k".into(), title_en: "e".into(),
-                description: None, icon: None, open_in_new_tab: false,
+                id: "dup".into(),
+                source: "/a".into(),
+                path: "a".into(),
+                title_ko: "k".into(),
+                title_en: "e".into(),
+                description: None,
+                icon: None,
+                open_in_new_tab: false,
             });
         }
         let err = cfg.validate_mounts().unwrap_err();
@@ -479,20 +481,31 @@ description = "Hand-crafted work"
     fn resolve_mount_sources_makes_relative_absolute() {
         let mut cfg = Config::default();
         cfg.mounts.push(MountConfig {
-            id: "p".into(), source: "../portfolio".into(), path: "portfolio".into(),
-            title_ko: "k".into(), title_en: "e".into(),
-            description: None, icon: None, open_in_new_tab: false,
+            id: "p".into(),
+            source: "../portfolio".into(),
+            path: "portfolio".into(),
+            title_ko: "k".into(),
+            title_en: "e".into(),
+            description: None,
+            icon: None,
+            open_in_new_tab: false,
         });
         let base = std::path::Path::new("/srv/oxibuilder");
         cfg.resolve_mount_sources(base);
-        assert_eq!(cfg.mounts[0].source, std::path::PathBuf::from("/srv/oxibuilder/../portfolio"));
+        assert_eq!(
+            cfg.mounts[0].source,
+            std::path::PathBuf::from("/srv/oxibuilder/../portfolio")
+        );
     }
 
     #[test]
     fn detect_returns_source_when_it_has_index_html() {
         let tmp = tempfile::TempDir::new().unwrap();
         std::fs::write(tmp.path().join("index.html"), "<html></html>").unwrap();
-        assert_eq!(detect_static_output(tmp.path()).as_deref(), Some(tmp.path()));
+        assert_eq!(
+            detect_static_output(tmp.path()).as_deref(),
+            Some(tmp.path())
+        );
     }
 
     #[test]
@@ -584,7 +597,11 @@ description = "Hand-crafted work"
             open_in_new_tab: false,
         });
         cfg.resolve_mount_sources(tmp.path());
-        assert!(cfg.mounts.is_empty(), "mount must be dropped on no-match; got: {:#?}", cfg.mounts);
+        assert!(
+            cfg.mounts.is_empty(),
+            "mount must be dropped on no-match; got: {:#?}",
+            cfg.mounts
+        );
     }
     #[test]
     fn detect_prefers_candidate_over_root_index_html() {
@@ -600,5 +617,4 @@ description = "Hand-crafted work"
         let got = detect_static_output(tmp.path()).unwrap();
         assert_eq!(got, dist, "candidate must win over root index.html");
     }
- }
-
+}

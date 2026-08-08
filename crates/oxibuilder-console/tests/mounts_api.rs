@@ -11,7 +11,7 @@ use axum::http::{Request, StatusCode};
 use oxibuilder_console::router::build_console_router;
 use oxibuilder_console::sites_runtime::SiteRegistry;
 use oxibuilder_core::sites::SitesFile;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -43,12 +43,7 @@ async fn app_with_site() -> (TempDir, PathBuf, Router) {
     (dir, path, build_console_router(registry))
 }
 
-async fn send(
-    app: Router,
-    method: &str,
-    uri: &str,
-    body: Option<Value>,
-) -> (StatusCode, Value) {
+async fn send(app: Router, method: &str, uri: &str, body: Option<Value>) -> (StatusCode, Value) {
     let builder = Request::builder().method(method).uri(uri);
     let request = match body {
         Some(v) => builder
@@ -195,5 +190,8 @@ async fn mount_list_surfaces_resolved_source_for_auto_detected_dir() {
         resolved.ends_with("extproj/dist"),
         "expected resolved source under extproj/dist, got {resolved}"
     );
-    assert!(std::path::Path::new(resolved).is_absolute(), "should be absolute");
+    assert!(
+        std::path::Path::new(resolved).is_absolute(),
+        "should be absolute"
+    );
 }
